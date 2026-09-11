@@ -1,0 +1,19 @@
+@import 'tailwindcss';
+@plugin 'daisyui';
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+html {
+  font-size: 14px;
+}
+
+.scroll-viewport {
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding-inline-end: max(0px, calc(20px - var(--native-scrollbar-width, 0px)));
+}
+
+@supports not (scrollbar-gutter: stable) {
+  .scroll-viewport {
+    overflow-y: scroll;
+  }
+}

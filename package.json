@@ -1,14 +1,17 @@
 {
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "vite --config frontend/vite.config.ts",
+    "build": "tsc -b frontend/tsconfig.json && vite build --config frontend/vite.config.ts",
     "desktop": "tauri dev",
-    "format": "prettier --write src vite.config.ts",
-    "check": "node scripts/check-source.mjs && node scripts/check-translations.mjs && prettier --check src vite.config.ts",
-    "test": "vitest run"
+    "format": "prettier --write frontend/src shared/locales frontend/vite.config.ts frontend/vitest.config.ts",
+    "check": "node scripts/check-source.mjs && node scripts/check-translations.mjs && prettier --check frontend/src shared/locales frontend/vite.config.ts frontend/vitest.config.ts",
+    "test": "vitest run --config frontend/vitest.config.ts",
+    "dev:ensure": "node scripts/dev-server.mjs",
+    "dev:stop": "node scripts/dev-server.mjs --stop"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.85.0",
+    "@tanstack/react-virtual": "^3.14.11",
     "@tauri-apps/api": "^2.8.0",
     "@tauri-apps/plugin-dialog": "^2.7.3",
     "i18next": "^25.0.0",

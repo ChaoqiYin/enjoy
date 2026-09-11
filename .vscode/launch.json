@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "前端开发：Vite",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "桌面端开发：Tauri",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run desktop",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

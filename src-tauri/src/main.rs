@@ -1,28 +1,21 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod error;
-mod language;
+mod i18n;
 mod media;
-#[cfg(test)]
-mod media_tests;
 mod model;
-mod native;
 mod player;
-mod preference;
 mod process;
 mod repository;
-#[cfg(test)]
-mod repository_tests;
 mod reveal;
-mod scan_control;
-mod scan_job;
-mod scanner;
-mod watch_queue;
+mod scan;
 mod watcher;
 
 use error::AppError;
+use i18n::{language, native};
 use model::VideoFile;
 use repository::Repository;
-use scan_control::{ScanControl, ScanStatus};
+use scan::control::{ScanControl, ScanStatus};
+use scan::job as scan_job;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager, State};

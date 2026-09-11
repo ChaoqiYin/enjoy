@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 function read(language, namespace) {
-  return JSON.parse(readFileSync(`src/locales/${language}/${namespace}.json`, 'utf8'));
+  return JSON.parse(readFileSync(`shared/locales/${language}/${namespace}.json`, 'utf8'));
 }
 for (const namespace of ['common', 'errors', 'native']) {
   const english = read('en', namespace);
@@ -15,8 +15,16 @@ for (const namespace of ['common', 'errors', 'native']) {
   }
 }
 const errors = read('en', 'errors');
-for (const file of readdirSync('src-tauri/src').filter(file => file.endsWith('.rs'))) {
-  const source = readFileSync(join('src-tauri/src', file), 'utf8');
+function* rustFiles(directory) {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) yield* rustFiles(path);
+    else if (entry.isFile() && entry.name.endsWith('.rs')) yield path;
+  }
+}
+
+for (const file of rustFiles('src-tauri/src')) {
+  const source = readFileSync(file, 'utf8');
   for (const match of source.matchAll(/"((?:media|settings)\.[a-z_.]+)"/g)) {
     assert.ok(errors[match[1]], `Missing error translation: ${match[1]}`);
   }
