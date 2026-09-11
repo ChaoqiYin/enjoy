@@ -1,0 +1,19 @@
+[package]
+name="enjoy"
+version="0.1.0"
+edition="2021"
+[dependencies]
+tracing="0.1"
+tracing-subscriber= {version="0.3",features= ["env-filter"] }
+sys-locale="0.3"
+tauri-plugin-store="2"
+notify="8"
+tauri-plugin-dialog="2"
+tauri= {version="2",features= ["protocol-asset"] }
+serde= {version="1",features= ["derive"] }
+serde_json="1"
+walkdir="2"
+rusqlite= {version="0.31",features= ["bundled"] }
+
+[build-dependencies]
+tauri-build= {version="2", features = [] }

@@ -1,0 +1,31 @@
+use serde::Serialize;
+
+#[derive(Debug, Serialize)]
+pub struct VideoFile {
+    pub id: i64,
+    pub path: String,
+    pub file_name: String,
+    pub folder_path: String,
+    pub file_size: i64,
+    pub modified_at: i64,
+    pub duration_ms: Option<i64>,
+    pub width: Option<i64>,
+    pub height: Option<i64>,
+    pub codec: Option<String>,
+    pub thumbnail_path: Option<String>,
+    pub favorite: bool,
+    pub available: bool,
+    pub play_count: i64,
+    pub last_played_at: Option<i64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug)]
+pub struct ScannedFile {
+    pub path: String,
+    pub file_name: String,
+    pub folder_path: String,
+    pub file_size: i64,
+    pub modified_at: i64,
+}

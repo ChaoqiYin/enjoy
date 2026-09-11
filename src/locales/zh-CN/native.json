@@ -1,0 +1,10 @@
+{
+  "application": "Enjoy",
+  "edit": "\u7f16\u8f91",
+  "quit": "\u9000\u51fa Enjoy",
+  "closeWindow": "\u5173\u95ed\u7a97\u53e3",
+  "copy": "\u590d\u5236",
+  "paste": "\u7c98\u8d34",
+  "selectAll": "\u5168\u9009",
+  "startupFailed": "Enjoy \u65e0\u6cd5\u542f\u52a8\u3002\u6392\u67e5\u7f16\u53f7\uff1a{{id}}"
+}

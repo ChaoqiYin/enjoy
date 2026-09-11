@@ -1,0 +1,10 @@
+{
+  "application": "Enjoy",
+  "edit": "Edit",
+  "quit": "Quit Enjoy",
+  "closeWindow": "Close window",
+  "copy": "Copy",
+  "paste": "Paste",
+  "selectAll": "Select all",
+  "startupFailed": "Enjoy could not start. Reference: {{id}}"
+}
