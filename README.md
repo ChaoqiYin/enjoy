@@ -1,35 +1,129 @@
 # Enjoy
 
-本地视频库桌面客户端：扫描目录、浏览视频、生成缩略图，并通过系统默认播放器打开视频。
+English / [简体中文](README_CN.md)
 
-## 开发
+[![Checks](https://github.com/ChaoqiYin/enjoy/actions/workflows/check.yml/badge.svg?branch=main)](https://github.com/ChaoqiYin/enjoy/actions/workflows/check.yml)
 
-在仓库根目录执行 `npm ci` 安装依赖，执行 `npm run desktop` 启动桌面应用。
+**Bring videos from different folders into one library, ready to browse and play.**
 
-- `npm run dev`：启动网页开发服务。
-- `npm test`：运行前端测试。
-- `npm run check`：检查源码规范、翻译和格式。
-- `npm run build`：构建前端到 `frontend/dist/`。
-- `npm exec tauri build`：构建桌面应用。
+Enjoy is a local video library desktop app built with Tauri, React, and Rust. Add your folders to browse thumbnails, search files, save favorites, and launch videos in your system's default player.
 
-完整环境要求、后端验证命令和网页验收方式见[开发指南](docs/开发指南.md)。
+Your video index and thumbnails stay on your machine. No separate server is required.
 
-## 目录职责
+[Quick Start](#quick-start) · [Usage](#usage) · [Documentation & Support](#documentation--support) · [Contributing](#contributing)
 
-| 目录 | 用途 |
-| --- | --- |
-| `frontend/src/app/` | 应用组合及跨组件测试 |
-| `frontend/src/features/library/` | 视频库组件、状态逻辑及测试 |
-| `frontend/src/i18n/` | 界面语言初始化、同步及设置 |
-| `frontend/src/shared/` | 前端通信接口、通用组件及格式化 |
-| `frontend/acceptance/` | 独立网页验收入口与模拟数据 |
-| `frontend/public/` | 网页运行时静态资源 |
-| `src-tauri/` | Rust 原生工程、权限、图标及打包配置 |
-| `shared/locales/` | 前后端共享翻译资源 |
-| `assets/brand/` | 品牌制作素材及图标源图 |
-| `scripts/` | 仓库检查、开发服务与资源生成脚本 |
-| `docs/` | 设计基线、开发指南与验收记录 |
+## Features
 
-根目录维护统一 npm 命令、依赖和锁文件。前端配置位于 `frontend/`，桌面配置位于 `src-tauri/`。构建产物及依赖目录由工具生成，不提交到仓库。
+- **One video library**: Add multiple folders and recursively scan common video formats, including MP4, MKV, AVI, MOV, and WEBM.
+- **Thumbnails and details**: Generate thumbnails and extract duration, resolution, codec, and other metadata.
+- **Find videos quickly**: Search by filename, filter by folder, sort your collection, and revisit favorites or recently played videos.
+- **Open and play**: Double-click a card or use its play button to launch the default player. Open the containing folder when you need the original file.
+- **Keep your library current**: Watch folders for added or removed files, rescan manually, and rebuild thumbnails. Pause, resume, or cancel processing tasks.
+- **Smooth browsing**: A responsive card grid uses virtual scrolling to render only items near the visible area.
+- **Make it yours**: Choose English, Simplified Chinese, or the system language, with light, dark, and system theme options.
 
-产品范围和架构约定见[开发基线](docs/本地视频统一启动器-开发基线.md)。
+## Quick Start
+
+You can currently run Enjoy from source or build a local package. Builds and runtime behavior have been validated on macOS; full Windows and Linux validation is still pending.
+
+### Prerequisites
+
+| Dependency         | Requirement and purpose                                                                                                     |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Node.js            | 22 LTS, for the frontend toolchain                                                                                          |
+| npm                | 11, for dependency installation and project commands                                                                        |
+| Rust               | stable, for compiling the desktop backend                                                                                   |
+| System build tools | Install the dependencies for your platform using the [Tauri prerequisites guide](https://v2.tauri.app/start/prerequisites/) |
+| FFmpeg and FFprobe | Required for thumbnails and metadata; both must be available on the app process's `PATH`                                    |
+| Video player       | Install a player that supports your files and configure the system's file associations                                      |
+
+FFmpeg and FFprobe are not currently bundled with Enjoy. Install them using the options on the [FFmpeg download page](https://ffmpeg.org/download.html), then verify them in your terminal:
+
+```sh
+ffmpeg -version
+ffprobe -version
+```
+
+### Run the Desktop App
+
+```sh
+git clone https://github.com/ChaoqiYin/enjoy.git
+cd enjoy
+npm ci
+npm run desktop
+```
+
+The first launch compiles the Rust backend, which may take a while depending on your machine. Development mode starts or reuses the project's Vite server, then opens the desktop window.
+
+### Build a Local Package
+
+Run from the repository root:
+
+```sh
+npm exec tauri build
+```
+
+Packages are generated in `src-tauri/target/release/bundle/`. The packaged app includes the frontend and does not need Vite at runtime. Media processing still requires FFmpeg and FFprobe.
+
+## Usage
+
+1. Open the library, select **Add folder**, choose one or more video folders, and start scanning.
+2. Browse cards as the initial index becomes available. Metadata and thumbnails fill in as processing continues.
+3. Use search, folder filters, and sorting to find videos, or save favorites for later.
+4. Double-click a card or select its play icon to open the video in your default player.
+5. Use Settings to manage folders, rebuild thumbnails, and change the language or theme.
+
+### Files and Playback History
+
+- Removing a video from the library index does not delete the original file.
+- If a file is moved or its folder becomes inaccessible, the video is marked unavailable and playback is disabled. Favorites and history are retained.
+- Recently played records successful requests to open a video, including their time and count. It does not confirm that you watched the video or track playback progress inside the player.
+- Video details show metadata beyond the card view. Errors appear as floating notifications, with a retry action when supported.
+
+## Documentation & Support
+
+The detailed project documentation is currently in Simplified Chinese.
+
+- [Development Guide](docs/开发指南.md): Environment setup, commands, coding standards, UI conventions, and validation procedures.
+- [Design Baseline](docs/本地视频统一启动器-开发基线.md): Product scope, architecture, data model, and processing workflows.
+- [Implementation Review](docs/逐项完成审查.md): Completed validation and outstanding acceptance checks.
+- [Validation Log](docs/开发验收进度.md): Verification records and screenshots from development.
+- [GitHub Issues](https://github.com/ChaoqiYin/enjoy/issues): Report bugs or suggest features. Include your operating system version, reproduction steps, and any error reference ID.
+
+## Development
+
+The frontend uses React, TypeScript, Tailwind CSS, and daisyUI. Tauri 2 and Rust provide desktop capabilities, SQLite stores the video index, and FFmpeg and FFprobe handle media processing.
+
+| Directory         | Purpose                                                                                   |
+| ----------------- | ----------------------------------------------------------------------------------------- |
+| `frontend/`       | Pages, components, frontend configuration, static assets, and browser acceptance fixtures |
+| `src-tauri/`      | Rust backend, system integrations, window permissions, and packaging configuration        |
+| `shared/locales/` | English and Chinese translations shared by the frontend and backend                       |
+| `assets/brand/`   | Brand assets and source artwork for the app icon                                          |
+| `scripts/`        | Repository checks, development server tools, and asset generation                         |
+| `docs/`           | Design documents, development guidelines, and validation records                          |
+
+Run all commands from the repository root:
+
+| Command                                           | Purpose                                                |
+| ------------------------------------------------- | ------------------------------------------------------ |
+| `npm run desktop`                                 | Start the desktop development environment              |
+| `npm run dev`                                     | Start the frontend development server                  |
+| `npm run check`                                   | Check source conventions, translations, and formatting |
+| `npm test`                                        | Run frontend tests                                     |
+| `npm run build`                                   | Check TypeScript and build the frontend                |
+| `cargo test --manifest-path src-tauri/Cargo.toml` | Run backend tests                                      |
+
+To inspect the UI in a browser, run `npm run dev` and open the [browser acceptance page](http://127.0.0.1:5173/acceptance/web-acceptance.html). It uses mock data rather than your real library. Playback deliberately returns an error so notifications and retry interactions can be checked. Use the desktop app for full local functionality.
+
+See the [Development Guide](docs/开发指南.md) for additional formatting, static analysis, media integration testing, and packaging commands.
+
+## Contributing
+
+Bug reports, suggestions, code, and translations are welcome.
+
+Before contributing, read the [repository guidelines](AGENTS.md) and [Development Guide](docs/开发指南.md). Describe the problem your change addresses and how you verified it. Include screenshots for UI changes and update the relevant documentation when the design changes.
+
+Translations live in `shared/locales/`. Run `npm run check` after editing them to verify that translation keys and interpolation parameters match across languages.
+
+Keep the English and Chinese READMEs in sync when changing the project description, features, or setup instructions.
