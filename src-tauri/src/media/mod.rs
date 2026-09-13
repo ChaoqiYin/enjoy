@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod integration_tests;
+mod tools;
 
 use crate::process;
 use serde::Deserialize;
@@ -8,6 +9,28 @@ use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::error::AppError;
+
+pub struct MediaProcessor {
+    directory: Option<PathBuf>,
+    cache: PathBuf,
+}
+
+impl MediaProcessor {
+    pub fn for_app(app: &tauri::AppHandle, cache: PathBuf) -> Result<Self, AppError> {
+        Ok(Self {
+            directory: tools::directory(app)?,
+            cache,
+        })
+    }
+
+    #[cfg(test)]
+    pub(super) fn on_path(cache: PathBuf) -> Self {
+        Self {
+            directory: None,
+            cache,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct Metadata {
@@ -36,30 +59,32 @@ struct Format {
     duration: Option<String>,
 }
 
-pub fn probe(path: &Path, cancelled: impl Fn() -> bool) -> Result<Metadata, AppError> {
-    let output = process::run(
-        Command::new("ffprobe")
-            .args([
-                "-v",
-                "error",
-                "-select_streams",
-                "v:0",
-                "-show_streams",
-                "-show_format",
-                "-of",
-                "json",
-            ])
-            .arg(path),
-        Duration::from_secs(30),
-        cancelled,
-    )?;
-    if !output.status.success() {
-        return Err(AppError::new(
-            "media.metadata.failed",
-            String::from_utf8_lossy(&output.stderr),
-        ));
+impl MediaProcessor {
+    pub fn probe(&self, path: &Path, cancelled: impl Fn() -> bool) -> Result<Metadata, AppError> {
+        let output = process::run(
+            Command::new(tools::executable(self.directory.as_deref(), "ffprobe"))
+                .args([
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "v:0",
+                    "-show_streams",
+                    "-show_format",
+                    "-of",
+                    "json",
+                ])
+                .arg(path),
+            Duration::from_secs(30),
+            cancelled,
+        )?;
+        if !output.status.success() {
+            return Err(AppError::new(
+                "media.metadata.failed",
+                String::from_utf8_lossy(&output.stderr),
+            ));
+        }
+        parse(&output.stdout)
     }
-    parse(&output.stdout)
 }
 
 fn parse(bytes: &[u8]) -> Result<Metadata, AppError> {
@@ -94,56 +119,59 @@ fn parse(bytes: &[u8]) -> Result<Metadata, AppError> {
     }
 }
 
-pub fn thumbnail(
-    path: &Path,
-    cache: &Path,
-    id: i64,
-    modified: i64,
-    cancelled: impl Fn() -> bool,
-) -> Result<PathBuf, AppError> {
-    std::fs::create_dir_all(cache)
-        .map_err(|error| AppError::io(error, &cache.to_string_lossy()))?;
-    let revision = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let destination = cache.join(format!("{id}-{modified}-{revision}.jpg"));
-    let temporary = cache.join(format!("{id}-{modified}-{revision}.pending.jpg"));
-    let output = process::run(
-        Command::new("ffmpeg")
-            .args(["-nostdin", "-v", "error", "-y", "-i"])
-            .arg(path)
-            .args([
-                "-map",
-                "0:v:0",
-                "-frames:v",
-                "1",
-                "-vf",
-                "scale=480:-2",
-                "-q:v",
-                "3",
-            ])
-            .arg(&temporary),
-        Duration::from_secs(60),
-        cancelled,
-    );
-    let output = match output {
-        Ok(output) => output,
-        Err(error) => {
+impl MediaProcessor {
+    pub fn thumbnail(
+        &self,
+        path: &Path,
+        id: i64,
+        modified: i64,
+        cancelled: impl Fn() -> bool,
+    ) -> Result<PathBuf, AppError> {
+        let cache = &self.cache;
+        std::fs::create_dir_all(cache)
+            .map_err(|error| AppError::io(error, &cache.to_string_lossy()))?;
+        let revision = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let destination = cache.join(format!("{id}-{modified}-{revision}.jpg"));
+        let temporary = cache.join(format!("{id}-{modified}-{revision}.pending.jpg"));
+        let output = process::run(
+            Command::new(tools::executable(self.directory.as_deref(), "ffmpeg"))
+                .args(["-nostdin", "-v", "error", "-y", "-i"])
+                .arg(path)
+                .args([
+                    "-map",
+                    "0:v:0",
+                    "-frames:v",
+                    "1",
+                    "-vf",
+                    "scale=480:-2",
+                    "-q:v",
+                    "3",
+                ])
+                .arg(&temporary),
+            Duration::from_secs(60),
+            cancelled,
+        );
+        let output = match output {
+            Ok(output) => output,
+            Err(error) => {
+                let _ = std::fs::remove_file(&temporary);
+                return Err(error);
+            }
+        };
+        if !output.status.success() {
             let _ = std::fs::remove_file(&temporary);
-            return Err(error);
+            return Err(AppError::new(
+                "media.thumbnail.failed",
+                String::from_utf8_lossy(&output.stderr),
+            ));
         }
-    };
-    if !output.status.success() {
-        let _ = std::fs::remove_file(&temporary);
-        return Err(AppError::new(
-            "media.thumbnail.failed",
-            String::from_utf8_lossy(&output.stderr),
-        ));
+        std::fs::rename(&temporary, &destination)
+            .map_err(|error| AppError::io(error, &destination.to_string_lossy()))?;
+        Ok(destination)
     }
-    std::fs::rename(&temporary, &destination)
-        .map_err(|error| AppError::io(error, &destination.to_string_lossy()))?;
-    Ok(destination)
 }
 
 #[cfg(test)]

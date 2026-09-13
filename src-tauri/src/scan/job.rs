@@ -1,8 +1,7 @@
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use crate::error::AppError;
-use crate::media;
+use crate::media::MediaProcessor;
 use crate::model::VideoFile;
 use crate::repository::Repository;
 use crate::scan::control::{ScanControl, ScanStatus};
@@ -10,7 +9,7 @@ use crate::scan::scanner;
 
 pub fn run(
     path: &str,
-    cache: &Path,
+    media: &MediaProcessor,
     repository: &Arc<Mutex<Repository>>,
     control: &ScanControl,
     background: bool,
@@ -50,7 +49,7 @@ pub fn run(
         on_progress(control.status());
         let failures_before_metadata = progress.failures;
         if video.width.is_none() {
-            match media::probe(std::path::Path::new(&video.path), || control.is_cancelled()) {
+            match media.probe(std::path::Path::new(&video.path), || control.is_cancelled()) {
                 Ok(metadata) => repository
                     .lock()
                     .map_err(|_| {
@@ -78,9 +77,8 @@ pub fn run(
             .as_ref()
             .is_none_or(|path| !std::path::Path::new(path).exists())
         {
-            match media::thumbnail(
+            match media.thumbnail(
                 std::path::Path::new(&video.path),
-                cache,
                 video.id,
                 video.modified_at,
                 || control.is_cancelled(),

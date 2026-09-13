@@ -31,16 +31,18 @@ fn real_tools_extract_metadata_and_create_thumbnail() {
         .status()
         .unwrap();
     assert!(status.success());
-    let metadata = media::probe(&video, || false).unwrap();
+    let media = media::MediaProcessor::on_path(directory.join("cache"));
+    let metadata = media.probe(&video, || false).unwrap();
     assert_eq!((metadata.width, metadata.height), (160, 90));
     assert!(metadata.duration_ms.unwrap() >= 400);
-    let thumbnail = media::thumbnail(&video, &directory.join("cache"), 1, 1, || false).unwrap();
+    let thumbnail = media.thumbnail(&video, 1, 1, || false).unwrap();
     let bytes = fs::read(&thumbnail).unwrap();
     assert!(bytes.starts_with(&[0xff, 0xd8]));
     assert!(bytes.len() > 100);
     fs::write(directory.join("broken.mp4"), b"invalid video").unwrap();
     assert_eq!(
-        media::probe(&directory.join("broken.mp4"), || false)
+        media
+            .probe(&directory.join("broken.mp4"), || false)
             .unwrap_err()
             .code,
         "media.metadata.failed"
@@ -55,6 +57,7 @@ fn verify_scan_failure_counts_and_cache(directory: &Path) {
     ));
     let control = Arc::new(ScanControl::default());
     let cache = directory.join("scan-cache");
+    let media = media::MediaProcessor::on_path(cache);
     let mut cached_thumbnail = None;
     for pass in 0..2 {
         let guard = control.begin().unwrap();
@@ -62,7 +65,7 @@ fn verify_scan_failure_counts_and_cache(directory: &Path) {
         let mut events = Vec::new();
         let videos = scan_job::run(
             directory.to_str().unwrap(),
-            &cache,
+            &media,
             &repository,
             &control,
             false,

@@ -57,9 +57,10 @@ async fn scan_directory_impl(
     let result = tauri::async_runtime::spawn_blocking(move || {
         let _guard = guard;
         let cache = database_path(&app)?.with_file_name("thumbnails");
+        let media = media::MediaProcessor::for_app(&app, cache)?;
         scan_job::run(
             &path,
-            &cache,
+            &media,
             &repository,
             &control,
             background,
@@ -164,6 +165,7 @@ async fn regenerate_thumbnails(
             .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
             .list()?;
         let cache = database_path(&app)?.with_file_name("thumbnails");
+        let media = media::MediaProcessor::for_app(&app, cache)?;
         let videos: Vec<_> = videos
             .iter()
             .filter(|video| video.available && path.as_ref().is_none_or(|path| &video.path == path))
@@ -183,9 +185,8 @@ async fn regenerate_thumbnails(
             let _ = app.emit("scan-progress", control.status());
             control.checkpoint()?;
             let failures_before_thumbnail = progress.failures;
-            let thumbnail = media::thumbnail(
+            let thumbnail = media.thumbnail(
                 std::path::Path::new(&video.path),
-                &cache,
                 video.id,
                 video.modified_at,
                 || control.is_cancelled(),
