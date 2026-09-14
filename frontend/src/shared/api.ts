@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { revealItemInDir } from '@tauri-apps/plugin-opener';
 
 export interface Video {
   id: number;
@@ -41,7 +42,7 @@ export interface ScanStatus {
 }
 
 export const libraryApi = {
-  reveal: (path: string) => invoke<void>('reveal_video', { path }),
+  reveal: (path: string) => revealItemInDir(path),
   regenerate: (path: string | null) =>
     invoke<void>('regenerate_thumbnails', { path }),
   list: () => invoke<Video[]>('list_videos'),

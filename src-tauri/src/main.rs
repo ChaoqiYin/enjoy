@@ -6,7 +6,6 @@ mod model;
 mod player;
 mod process;
 mod repository;
-mod reveal;
 mod scan;
 mod settings;
 
@@ -246,27 +245,6 @@ async fn regenerate_thumbnails(
 }
 
 #[tauri::command]
-async fn reveal_video(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
-    let repository = Arc::clone(&state.repository);
-    tauri::async_runtime::spawn_blocking(move || {
-        let indexed = repository
-            .lock()
-            .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-            .list()?
-            .iter()
-            .any(|video| video.path == path);
-        if !indexed {
-            return Err(AppError::new(
-                "media.file.not_found",
-                "Video is not indexed",
-            ));
-        }
-        reveal::reveal(std::path::Path::new(&path))
-    })
-    .await
-    .map_err(|error| AppError::new("media.directory.open_failed", error))?
-}
-
 fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError> {
     language::get_language(app.clone(), app.state::<language::LanguageState>())?;
     let path = database_path(app)?;
@@ -287,6 +265,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             language::get_language,
             language::set_language,
@@ -303,8 +282,7 @@ fn main() {
             add_directory,
             rescan_directories,
             set_favorite,
-            open_video,
-            reveal_video
+            open_video
         ])
         .setup(|app| {
             app.manage(language::load(app.handle()));
