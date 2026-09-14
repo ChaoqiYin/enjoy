@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { openSync, closeSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -16,7 +16,12 @@ async function inspect() {
       signal: AbortSignal.timeout(1000),
     });
     const server = await response.json();
-    if (server.root !== frontendRoot || !Number.isInteger(server.pid)) {
+    if (
+      typeof server.root !== 'string' ||
+      !isAbsolute(server.root) ||
+      relative(frontendRoot, server.root) !== '' ||
+      !Number.isInteger(server.pid)
+    ) {
       throw new Error(`Port ${port} belongs to another application.`);
     }
     return server;
@@ -47,7 +52,7 @@ async function main() {
   const child = spawn(
     process.execPath,
     [
-      resolve(root, 'node_modules/vite/bin/vite.js'),
+      resolve(root, 'node_modules', 'vite', 'bin', 'vite.js'),
       '--host',
       '127.0.0.1',
       '--port',
