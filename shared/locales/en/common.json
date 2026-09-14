@@ -94,5 +94,10 @@
   "operationFailed": "Operation failed",
   "confirm": "Confirm",
   "noFoldersRescan": "No video folders are configured. Continue rescanning?",
-  "continue": "Continue"
+  "continue": "Continue",
+  "regeneratingAll": "Regenerating thumbnails",
+  "pauseRegeneration": "Pause regeneration",
+  "cancelRegeneration": "Cancel regeneration",
+  "thumbnailSummary": "Thumbnail rebuild: {{found}} found, {{processed}} processed",
+  "thumbnailComplete": "Thumbnail rebuild complete"
 }

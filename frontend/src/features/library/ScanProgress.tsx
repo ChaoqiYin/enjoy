@@ -4,14 +4,21 @@ import type { ScanStatus } from '../../shared/api';
 export function ScanProgress({
   status,
   onAction,
+  operation = 'scan',
 }: {
   status: ScanStatus;
   onAction: (action: 'pause' | 'resume' | 'cancel') => void;
+  operation?: 'scan' | 'thumbnails';
 }) {
   const { t, i18n } = useTranslation();
   const paused = status.phase === 'paused';
-  const label = t('scanSummary', {
-    phase: paused ? t('paused') : t('scanning'),
+  const thumbnails = operation === 'thumbnails';
+  const label = t(thumbnails ? 'thumbnailSummary' : 'scanSummary', {
+    phase: paused
+      ? t('paused')
+      : thumbnails
+        ? t('regeneratingAll')
+        : t('scanning'),
     found: status.discovered.toLocaleString(i18n.language),
     processed: status.processed.toLocaleString(i18n.language),
   });
@@ -53,8 +60,11 @@ export function ScanProgress({
           aria-hidden="true"
         />
       )}
-      <p className="truncate" title={status.currentPath}>
-        {status.currentPath}
+      <p
+        className="truncate"
+        title={status.currentPath.replace(/^\\\\\?\\/, '')}
+      >
+        {status.currentPath.replace(/^\\\\\?\\/, '')}
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <button
@@ -65,13 +75,17 @@ export function ScanProgress({
           }
           onClick={() => onAction(paused ? 'resume' : 'pause')}
         >
-          {paused ? t('resume') : t('pause')}
+          {paused
+            ? t('resume')
+            : thumbnails
+              ? t('pauseRegeneration')
+              : t('pause')}
         </button>
         <button
           className="btn btn-soft btn-md btn-error"
           onClick={() => onAction('cancel')}
         >
-          {t('cancelScan')}
+          {thumbnails ? t('cancelRegeneration') : t('cancelScan')}
         </button>
       </div>
     </section>

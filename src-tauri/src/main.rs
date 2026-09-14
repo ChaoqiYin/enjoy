@@ -190,6 +190,7 @@ async fn regenerate_thumbnails(
             .collect();
         let mut progress = ScanStatus {
             phase: "processing".into(),
+            operation: "thumbnails".into(),
             discovered: videos.len(),
             indexed: videos.len(),
             metadata_ready: videos.iter().filter(|video| video.width.is_some()).count(),

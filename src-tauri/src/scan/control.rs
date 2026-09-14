@@ -7,6 +7,7 @@ use crate::repository::IndexChanges;
 #[derive(Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanStatus {
+    pub operation: String,
     pub background: bool,
     pub phase: String,
     pub changes: IndexChanges,
@@ -54,6 +55,7 @@ impl ScanControl {
             running: true,
             status: ScanStatus {
                 phase: "discovering".into(),
+                operation: "scan".into(),
                 ..Default::default()
             },
             ..Default::default()

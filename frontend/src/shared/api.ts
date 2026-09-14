@@ -27,6 +27,7 @@ export interface AppError {
 }
 
 export interface ScanStatus {
+  operation?: 'scan' | 'thumbnails';
   background: boolean;
   changes: { added: number; updated: number; unavailable: number };
   failures: number;

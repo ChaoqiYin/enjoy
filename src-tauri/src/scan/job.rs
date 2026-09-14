@@ -18,6 +18,7 @@ pub fn run(
 ) -> Result<Vec<VideoFile>, AppError> {
     let mut progress = ScanStatus {
         phase: "discovering".into(),
+        operation: "scan".into(),
         background,
         ..Default::default()
     };
@@ -42,6 +43,7 @@ pub fn run(
         guard.list()?
     };
     progress.phase = "processing".into();
+    progress.operation = "thumbnails".into();
     progress.current_path.clear();
     progress.discovered = videos.len();
     progress.indexed = videos.len();

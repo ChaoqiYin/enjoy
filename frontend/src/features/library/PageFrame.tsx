@@ -1,7 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import { ErrorNotice } from '../../shared/ErrorNotice';
+import { SuccessToast } from '../../shared/SuccessToast';
 import { ScanProgress } from './ScanProgress';
+import { ThumbnailProgress } from './ThumbnailProgress';
 import { useLibraryContext } from './LibraryProvider';
 export function PageFrame({ children }: { children: ReactNode }) {
   const library = useLibraryContext();
@@ -19,40 +21,26 @@ export function PageFrame({ children }: { children: ReactNode }) {
         />
       )}
       {library.completion && (
-        <section
-          role="status"
-          className="rounded-box bg-base-200 p-4 space-y-2"
-        >
-          <h2>{t('scanComplete')}</h2>
-          <p>
-            {t('scanChanges', {
-              added: library.completion.changes.added.toLocaleString(
-                i18n.language,
-              ),
-              updated: library.completion.changes.updated.toLocaleString(
-                i18n.language,
-              ),
-              missing: library.completion.changes.unavailable.toLocaleString(
-                i18n.language,
-              ),
-            })}
-          </p>
-          {library.completion.failures > 0 && (
-            <p>
-              {t('scanFailures', {
-                countText: library.completion.failures.toLocaleString(
-                  i18n.language,
-                ),
-              })}
-            </p>
+        <SuccessToast
+          title={t(
+            library.completion.operation === 'thumbnails'
+              ? 'thumbnailComplete'
+              : 'scanComplete',
           )}
-          <button
-            className="btn btn-outline btn-sm btn-neutral"
-            onClick={library.dismissCompletion}
-          >
-            {t('close')}
-          </button>
-        </section>
+          description={`${t('scanChanges', {
+            added: library.completion.changes.added.toLocaleString(
+              i18n.language,
+            ),
+            updated: library.completion.changes.updated.toLocaleString(
+              i18n.language,
+            ),
+            missing: library.completion.changes.unavailable.toLocaleString(
+              i18n.language,
+            ),
+          })}${library.completion.failures > 0 ? ` ${t('scanFailures', { countText: library.completion.failures.toLocaleString(i18n.language) })}` : ''}`}
+          closeLabel={t('close')}
+          onClose={library.dismissCompletion}
+        />
       )}
       {scanning && (
         <dialog open className="modal" aria-labelledby="scan-progress-title">
@@ -60,12 +48,21 @@ export function PageFrame({ children }: { children: ReactNode }) {
             <h2 id="scan-progress-title" className="sr-only">
               {t('scanning')}
             </h2>
-            <ScanProgress
-              status={status}
-              onAction={(action) => {
-                void library.controlScan(action);
-              }}
-            />
+            {status.operation === 'thumbnails' ? (
+              <ThumbnailProgress
+                status={status}
+                onAction={(action) => {
+                  void library.controlScan(action);
+                }}
+              />
+            ) : (
+              <ScanProgress
+                status={status}
+                onAction={(action) => {
+                  void library.controlScan(action);
+                }}
+              />
+            )}
           </div>
         </dialog>
       )}
