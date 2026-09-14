@@ -10,14 +10,22 @@ import { useLibraryContext } from '../features/library/LibraryProvider';
 import { DirectoryActions } from '../features/library/DirectoryActions';
 import { DirectoryDialog } from '../features/library/DirectoryDialog';
 import { directoryScanAction } from '../features/library/scanDirectories';
+import { EmptyRescanConfirmation } from '../features/library/EmptyRescanConfirmation';
 import { PageFrame } from '../features/library/PageFrame';
 import packageInfo from '../../../package.json';
 export function SettingsPage() {
   const { t } = useTranslation();
   const library = useLibraryContext();
   const [showAdd, setShowAdd] = useState(false);
-  const rescan = () =>
-    library.run(directoryScanAction(library.directories.data ?? []));
+  const [showEmptyRescan, setShowEmptyRescan] = useState(false);
+  const rescan = () => {
+    const paths = library.directories.data ?? [];
+    if (paths.length === 0) {
+      setShowEmptyRescan(true);
+      return;
+    }
+    void library.run(directoryScanAction(paths));
+  };
   return (
     <PageFrame>
       <ScrollViewport className="min-h-0 space-y-4">
@@ -62,6 +70,19 @@ export function SettingsPage() {
         <p className="text-sm opacity-65">v{packageInfo.version}</p>
       </ScrollViewport>
       {showAdd && <DirectoryDialog onClose={() => setShowAdd(false)} />}
+      {showEmptyRescan && (
+        <EmptyRescanConfirmation
+          title={t('rescan')}
+          message={t('noFoldersRescan')}
+          confirmLabel={t('continue')}
+          cancelLabel={t('cancel')}
+          onCancel={() => setShowEmptyRescan(false)}
+          onConfirm={() => {
+            setShowEmptyRescan(false);
+            void library.run(directoryScanAction([]));
+          }}
+        />
+      )}
     </PageFrame>
   );
 }

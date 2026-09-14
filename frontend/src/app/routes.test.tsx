@@ -9,6 +9,7 @@ import english from '../../../shared/locales/en/common.json';
 
 vi.mock('../features/library/useLibrary', () => ({
   useLibrary: () => ({
+    run: async (action: () => Promise<unknown>) => action(),
     videos: { data: [], isPending: false },
     directories: { data: [] },
     scan: { data: undefined },
@@ -108,3 +109,19 @@ it('supports direct page entry and redirects unknown paths to the library', () =
     english.library,
   );
 });
+
+it.each(['/', '/settings'])(
+  'requests confirmation without opening directory selection on %s',
+  (path) => {
+    HTMLDialogElement.prototype.showModal = function () {
+      this.setAttribute('open', '');
+    };
+    mount(path);
+    fireEvent.click(screen.getByRole('button', { name: english.rescan }));
+    expect(screen.getByText(english.noFoldersRescan)).toBeTruthy();
+    expect(
+      screen.queryByRole('dialog', { name: english.addVideos }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: english.cancel }));
+  },
+);

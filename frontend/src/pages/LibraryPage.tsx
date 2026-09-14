@@ -8,11 +8,13 @@ import { DirectoryActions } from '../features/library/DirectoryActions';
 import { DirectoryDialog } from '../features/library/DirectoryDialog';
 import { useLibraryContext } from '../features/library/LibraryProvider';
 import { directoryScanAction } from '../features/library/scanDirectories';
+import { EmptyRescanConfirmation } from '../features/library/EmptyRescanConfirmation';
 export function LibraryPage() {
   const { t } = useTranslation();
   const view = useVideoPageView('/');
   const library = useLibraryContext();
   const [showAdd, setShowAdd] = useState(false);
+  const [showEmptyRescan, setShowEmptyRescan] = useState(false);
   const onAdd = () => setShowAdd(true);
   return (
     <PageFrame>
@@ -23,11 +25,14 @@ export function LibraryPage() {
           <DirectoryActions
             busy={library.busy}
             onAdd={onAdd}
-            onRescan={() =>
-              void library.run(
-                directoryScanAction(library.directories.data ?? []),
-              )
-            }
+            onRescan={() => {
+              const paths = library.directories.data ?? [];
+              if (paths.length === 0) {
+                setShowEmptyRescan(true);
+                return;
+              }
+              void library.run(directoryScanAction(paths));
+            }}
           />
         }
       />
@@ -38,6 +43,19 @@ export function LibraryPage() {
         onAdd={onAdd}
       />
       {showAdd && <DirectoryDialog onClose={() => setShowAdd(false)} />}
+      {showEmptyRescan && (
+        <EmptyRescanConfirmation
+          title={t('rescan')}
+          message={t('noFoldersRescan')}
+          confirmLabel={t('continue')}
+          cancelLabel={t('cancel')}
+          onCancel={() => setShowEmptyRescan(false)}
+          onConfirm={() => {
+            setShowEmptyRescan(false);
+            void library.run(directoryScanAction([]));
+          }}
+        />
+      )}
     </PageFrame>
   );
 }

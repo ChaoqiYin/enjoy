@@ -256,3 +256,64 @@ fn overlapping_directories_share_identity_and_keep_tracking_after_removal() {
     assert_eq!(after.play_count, 1);
     assert_eq!(repository.directories().unwrap(), vec![child]);
 }
+
+#[test]
+fn replacing_all_videos_merges_roots_and_resets_user_state() {
+    let fixture = Fixture::new();
+    let first = fixture.0.join("first");
+    let second = fixture.0.join("second");
+    fs::create_dir(&first).unwrap();
+    fs::create_dir(&second).unwrap();
+    let movie = first.join("first.mp4");
+    fs::write(&movie, b"video").unwrap();
+    fs::write(second.join("second.mp4"), b"video").unwrap();
+    let mut repository = Repository::open(&fixture.0.join("index.db")).unwrap();
+    repository
+        .index(first.to_str().unwrap(), &scanner::collect(&first).unwrap())
+        .unwrap();
+    repository.favorite(movie.to_str().unwrap(), true).unwrap();
+    repository.record_play(movie.to_str().unwrap()).unwrap();
+    repository
+        .replace_videos(&[
+            (
+                first.to_string_lossy().into_owned(),
+                scanner::collect(&first).unwrap(),
+            ),
+            (
+                second.to_string_lossy().into_owned(),
+                scanner::collect(&second).unwrap(),
+            ),
+        ])
+        .unwrap();
+    let videos = repository.list().unwrap();
+    assert_eq!(videos.len(), 2);
+    assert!(videos
+        .iter()
+        .all(|video| !video.favorite && video.play_count == 0 && video.last_played_at.is_none()));
+    let directories = repository.directories().unwrap();
+    repository.replace_videos(&[]).unwrap();
+    assert!(repository.list().unwrap().is_empty());
+    assert_eq!(repository.directories().unwrap(), directories);
+}
+
+#[test]
+fn replacement_write_failure_rolls_back_deletion_and_user_state() {
+    let fixture = Fixture::new();
+    let movie = fixture.0.join("sample.mp4");
+    fs::write(&movie, b"video").unwrap();
+    let mut repository = Repository::open(&fixture.0.join("index.db")).unwrap();
+    let root = fixture.0.to_str().unwrap();
+    repository
+        .index(root, &scanner::collect(&fixture.0).unwrap())
+        .unwrap();
+    repository.favorite(movie.to_str().unwrap(), true).unwrap();
+    let previous_id = repository.list().unwrap()[0].id;
+    repository.connection.execute_batch("CREATE TRIGGER reject_insert BEFORE INSERT ON videos BEGIN SELECT RAISE(ABORT, 'Rejected'); END;").unwrap();
+    assert!(repository
+        .replace_videos(&[(root.into(), scanner::collect(&fixture.0).unwrap())])
+        .is_err());
+    let videos = repository.list().unwrap();
+    assert_eq!(videos.len(), 1);
+    assert_eq!(videos[0].id, previous_id);
+    assert!(videos[0].favorite);
+}

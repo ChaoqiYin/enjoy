@@ -92,5 +92,7 @@
   "rescanHelp": "Rescan all video folders",
   "regenerateAllHelp": "Regenerate thumbnails for all videos",
   "operationFailed": "Operation failed",
-  "confirm": "Confirm"
+  "confirm": "Confirm",
+  "noFoldersRescan": "No video folders are configured. Continue rescanning?",
+  "continue": "Continue"
 }

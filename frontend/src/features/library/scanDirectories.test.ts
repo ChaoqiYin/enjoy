@@ -4,39 +4,38 @@ import { directoryScanAction } from './scanDirectories';
 
 afterEach(() => vi.restoreAllMocks());
 
-it('retries the failed directory without repeating completed directories', async () => {
-  const failure = { code: 'media.scan.failed' };
-  const scan = vi
-    .spyOn(libraryApi, 'scan')
-    .mockResolvedValueOnce([])
-    .mockRejectedValueOnce(failure)
-    .mockResolvedValue([]);
-  const action = directoryScanAction(['/first', '/second', '/third']);
-  await expect(action()).rejects.toEqual(failure);
-  expect(scan.mock.calls.map(([path]) => path)).toEqual(['/first', '/second']);
-  await action();
-  expect(scan.mock.calls.map(([path]) => path)).toEqual([
-    '/first',
-    '/second',
-    '/second',
-    '/third',
-  ]);
-});
+it.each([[], ['/first', '/second']])(
+  'sends the complete directory snapshot in one request: %j',
+  async (...paths) => {
+    const rescan = vi.spyOn(libraryApi, 'rescan').mockResolvedValue([]);
+    const directories = paths.filter(
+      (path): path is string => typeof path === 'string',
+    );
+    await directoryScanAction(directories)();
+    expect(rescan).toHaveBeenCalledExactlyOnceWith(directories);
+  },
+);
 
-it('stops the batch when the current scan is cancelled', async () => {
-  const cancelled = { code: 'media.scan.cancelled' };
-  const scan = vi.spyOn(libraryApi, 'scan').mockRejectedValue(cancelled);
-  await expect(directoryScanAction(['/first', '/second'])()).rejects.toEqual(
-    cancelled,
-  );
-  expect(scan).toHaveBeenCalledExactlyOnceWith('/first');
-});
-
-it('deduplicates and snapshots the selected directories', async () => {
-  const scan = vi.spyOn(libraryApi, 'scan').mockResolvedValue([]);
+it('deduplicates and snapshots directories', async () => {
+  const rescan = vi.spyOn(libraryApi, 'rescan').mockResolvedValue([]);
   const paths = ['/first', '/first', '/second'];
   const action = directoryScanAction(paths);
   paths.push('/later');
   await action();
-  expect(scan.mock.calls.map(([path]) => path)).toEqual(['/first', '/second']);
+  expect(rescan).toHaveBeenCalledExactlyOnceWith(['/first', '/second']);
+});
+
+it('retries the entire scan after failure', async () => {
+  const failure = { code: 'media.scan.failed' };
+  const rescan = vi
+    .spyOn(libraryApi, 'rescan')
+    .mockRejectedValueOnce(failure)
+    .mockResolvedValue([]);
+  const action = directoryScanAction(['/first', '/second']);
+  await expect(action()).rejects.toEqual(failure);
+  await action();
+  expect(rescan.mock.calls).toEqual([
+    [['/first', '/second']],
+    [['/first', '/second']],
+  ]);
 });

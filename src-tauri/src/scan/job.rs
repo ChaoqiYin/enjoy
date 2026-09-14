@@ -8,7 +8,7 @@ use crate::scan::control::{ScanControl, ScanStatus};
 use crate::scan::scanner;
 
 pub fn run(
-    path: &str,
+    paths: &[String],
     media: &MediaProcessor,
     repository: &Arc<Mutex<Repository>>,
     control: &ScanControl,
@@ -16,33 +16,38 @@ pub fn run(
     mut on_progress: impl FnMut(ScanStatus),
     mut on_error: impl FnMut(AppError),
 ) -> Result<Vec<VideoFile>, AppError> {
-    let root = std::fs::canonicalize(path).map_err(|error| AppError::io(error, path))?;
-    let files = scanner::collect_controlled(&root, || control.checkpoint())?;
-    control.checkpoint()?;
     let mut progress = ScanStatus {
-        phase: "processing".into(),
+        phase: "discovering".into(),
         background,
-        discovered: files.len(),
-        processed: 0,
-        current_path: path.to_owned(),
         ..Default::default()
     };
     control.publish(progress.clone());
     on_progress(control.status());
+    let mut directories = Vec::new();
+    for path in paths {
+        control.checkpoint()?;
+        progress.current_path = path.clone();
+        control.publish(progress.clone());
+        on_progress(control.status());
+        let root = std::fs::canonicalize(path).map_err(|error| AppError::io(error, path))?;
+        let files = scanner::collect_controlled(&root, || control.checkpoint())?;
+        directories.push((path.clone(), files));
+    }
+    control.checkpoint()?;
     let videos = {
         let mut guard = repository
             .lock()
             .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?;
-        progress.changes = guard.index(&root.to_string_lossy(), &files)?;
+        progress.changes = guard.replace_videos(&directories)?;
         guard.list()?
     };
-    progress.indexed = files.len();
+    progress.phase = "processing".into();
+    progress.current_path.clear();
+    progress.discovered = videos.len();
+    progress.indexed = videos.len();
     control.publish(progress.clone());
     on_progress(control.status());
-    for video in videos
-        .iter()
-        .filter(|video| video.available && files.iter().any(|file| file.path == video.path))
-    {
+    for video in &videos {
         control.checkpoint()?;
         progress.current_path = video.path.clone();
         control.publish(progress.clone());

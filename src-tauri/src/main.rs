@@ -41,11 +41,20 @@ async fn scan_directory(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<VideoFile>, AppError> {
-    scan_directory_impl(path, app, state, false).await
+    scan_directory_impl(vec![path], app, state, false).await
+}
+
+#[tauri::command]
+async fn rescan_directories(
+    paths: Vec<String>,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Vec<VideoFile>, AppError> {
+    scan_directory_impl(paths, app, state, false).await
 }
 
 async fn scan_directory_impl(
-    path: String,
+    paths: Vec<String>,
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     background: bool,
@@ -59,7 +68,7 @@ async fn scan_directory_impl(
         let cache = database_path(&app)?.with_file_name("thumbnails");
         let media = media::MediaProcessor::for_app(&app, cache)?;
         scan_job::run(
-            &path,
+            &paths,
             &media,
             &repository,
             &control,
@@ -291,6 +300,7 @@ fn main() {
             remove_video,
             remove_directory,
             add_directory,
+            rescan_directories,
             set_favorite,
             open_video,
             reveal_video

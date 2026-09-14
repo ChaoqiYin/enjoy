@@ -45,12 +45,23 @@ impl Repository {
         Ok(Self { connection })
     }
 
+    #[cfg(test)]
     pub fn index(
         &mut self,
         directory: &str,
         files: &[ScannedFile],
     ) -> Result<IndexChanges, AppError> {
         let tx = self.connection.transaction()?;
+        let changes = Self::index_files(&tx, directory, files)?;
+        tx.commit()?;
+        Ok(changes)
+    }
+
+    fn index_files(
+        tx: &Connection,
+        directory: &str,
+        files: &[ScannedFile],
+    ) -> Result<IndexChanges, AppError> {
         let mut changes = IndexChanges::default();
         tx.execute(
             "INSERT OR IGNORE INTO directories(path) VALUES (?1)",
@@ -110,6 +121,20 @@ impl Repository {
              AND path NOT IN (SELECT path FROM scan_paths)",
             params![directory, now()],
         )?;
+        Ok(changes)
+    }
+
+    pub fn replace_videos(
+        &mut self,
+        directories: &[(String, Vec<ScannedFile>)],
+    ) -> Result<IndexChanges, AppError> {
+        let tx = self.connection.transaction()?;
+        tx.execute("DELETE FROM videos", [])?;
+        let mut changes = IndexChanges::default();
+        for (directory, files) in directories {
+            let indexed = Self::index_files(&tx, directory, files)?;
+            changes.added += indexed.added;
+        }
         tx.commit()?;
         Ok(changes)
     }

@@ -54,6 +54,7 @@ export const libraryApi = {
   remove: (path: string) => invoke<void>('remove_video', { path }),
   removeDirectory: (path: string) => invoke<void>('remove_directory', { path }),
   addDirectory: (path: string) => invoke<void>('add_directory', { path }),
+  rescan: (paths: string[]) => invoke<Video[]>('rescan_directories', { paths }),
   play: (path: string) => invoke<void>('open_video', { path }),
 };
 
