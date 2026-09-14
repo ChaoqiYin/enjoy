@@ -53,6 +53,7 @@ export const libraryApi = {
     invoke<void>('set_favorite', { path, favorite }),
   remove: (path: string) => invoke<void>('remove_video', { path }),
   removeDirectory: (path: string) => invoke<void>('remove_directory', { path }),
+  addDirectory: (path: string) => invoke<void>('add_directory', { path }),
   play: (path: string) => invoke<void>('open_video', { path }),
 };
 

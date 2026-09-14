@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { readLanguage, saveLanguage, synchronizeLanguage } from './language';
+import { readLanguage, synchronizeLanguage } from './language';
 import type { LanguageSettings } from './language';
 import { normalizeError } from '../shared/api';
 import type { AppError } from '../shared/api';
 import { ErrorNotice } from '../shared/ErrorNotice';
+import { useSettings } from '../settings/SettingsProvider';
 
 export function LanguageSetting() {
   const { t } = useTranslation();
-  const [preference, setPreference] =
-    useState<LanguageSettings['preference']>('system');
+  const { state, update } = useSettings();
+  const preference = state.language;
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<{
     error: AppError;
@@ -19,23 +20,18 @@ export function LanguageSetting() {
     setSaving(true);
     setFailure(null);
     try {
-      const value = await readLanguage();
-      setPreference(value.preference);
+      await readLanguage();
     } catch (cause) {
       setFailure({ error: normalizeError(cause) });
     } finally {
       setSaving(false);
     }
   }
-  useEffect(() => {
-    void load();
-  }, []);
   async function change(value: LanguageSettings['preference']) {
     setSaving(true);
     setFailure(null);
     try {
-      const result = await saveLanguage(value);
-      setPreference(result.preference);
+      await update({ language: value });
     } catch (cause) {
       setFailure({ error: normalizeError(cause), value });
     } finally {

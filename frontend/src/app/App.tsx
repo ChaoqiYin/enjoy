@@ -6,10 +6,11 @@ import { FavoritesPage } from '../pages/FavoritesPage';
 import { HistoryPage } from '../pages/HistoryPage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { AppNavigation } from './AppNavigation';
+import { SettingsProvider } from '../settings/SettingsProvider';
 
 export function App() {
   return (
-    <LibraryProvider>
+    <SettingsProvider><LibraryProvider>
       <div className="h-dvh overflow-hidden flex flex-col bg-base-100 text-base-content">
         <LanguageFocusSync />
         <AppNavigation />
@@ -21,6 +22,6 @@ export function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
-    </LibraryProvider>
+    </LibraryProvider></SettingsProvider>
   );
 }

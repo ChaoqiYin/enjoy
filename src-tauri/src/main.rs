@@ -7,6 +7,7 @@ mod player;
 mod process;
 mod repository;
 mod reveal;
+mod settings;
 mod scan;
 mod watcher;
 
@@ -129,6 +130,11 @@ fn remove_directory(path: String, state: State<'_, AppState>) -> Result<(), AppE
         .lock()
         .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
         .remove_directory(&path)
+}
+
+#[tauri::command]
+fn add_directory(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
+    state.repository.lock().map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?.add_directory(&path)
 }
 
 #[tauri::command]
@@ -272,6 +278,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             language::get_language,
             language::set_language,
+            settings::get_settings,
+            settings::save_settings,
             scan_directory,
             regenerate_thumbnails,
             scan_action,
@@ -280,6 +288,7 @@ fn main() {
             list_directories,
             remove_video,
             remove_directory,
+            add_directory,
             set_favorite,
             open_video,
             reveal_video

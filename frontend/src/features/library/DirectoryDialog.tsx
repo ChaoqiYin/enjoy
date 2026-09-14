@@ -1,5 +1,6 @@
 import { AddDirectories } from './AddDirectories';
 import { useLibraryContext } from './LibraryProvider';
+import { libraryApi } from '../../shared/api';
 import { directoryScanAction } from './scanDirectories';
 export function DirectoryDialog({ onClose }: { onClose: () => void }) {
   const library = useLibraryContext();
@@ -9,7 +10,7 @@ export function DirectoryDialog({ onClose }: { onClose: () => void }) {
       onError={library.setError}
       onScan={(paths) => {
         onClose();
-        void library.run(directoryScanAction(paths));
+        void library.run(async () => { for (const path of paths) await libraryApi.addDirectory(path); });
       }}
     />
   );

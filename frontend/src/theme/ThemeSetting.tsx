@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSettings } from '../settings/SettingsProvider';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 const key = 'enjoy-theme';
@@ -18,10 +19,8 @@ export function initializeTheme() {
 
 export function ThemeSetting() {
   const { t } = useTranslation();
-  const [preference, setPreference] = useState<ThemePreference>(() => {
-    const saved = localStorage.getItem(key);
-    return saved === 'light' || saved === 'dark' ? saved : 'system';
-  });
+  const { state, update } = useSettings();
+  const preference = state.theme;
   useEffect(() => {
     const media = matchMedia('(prefers-color-scheme: dark)');
     const update = () => preference === 'system' && applyTheme(preference);
@@ -29,9 +28,7 @@ export function ThemeSetting() {
     return () => media.removeEventListener('change', update);
   }, [preference]);
   const change = (value: ThemePreference) => {
-    setPreference(value);
-    localStorage.setItem(key, value);
-    applyTheme(value);
+    void update({ theme: value }); applyTheme(value);
   };
   return (
     <section className="border-b border-base-300 pb-5 space-y-3">
