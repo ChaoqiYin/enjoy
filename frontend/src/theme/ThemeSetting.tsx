@@ -28,7 +28,8 @@ export function ThemeSetting() {
     return () => media.removeEventListener('change', update);
   }, [preference]);
   const change = (value: ThemePreference) => {
-    void update({ theme: value }); applyTheme(value);
+    void update({ theme: value });
+    applyTheme(value);
   };
   return (
     <section className="border-b border-base-300 pb-5 space-y-3">

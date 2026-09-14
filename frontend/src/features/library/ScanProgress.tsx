@@ -56,22 +56,24 @@ export function ScanProgress({
       <p className="truncate" title={status.currentPath}>
         {status.currentPath}
       </p>
-      <button
-        className={
-          paused
-            ? 'btn btn-outline btn-sm btn-success'
-            : 'btn btn-outline btn-sm btn-warning'
-        }
-        onClick={() => onAction(paused ? 'resume' : 'pause')}
-      >
-        {paused ? t('resume') : t('pause')}
-      </button>
-      <button
-        className="btn btn-outline btn-sm btn-error"
-        onClick={() => onAction('cancel')}
-      >
-        {t('cancelScan')}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          className={
+            paused
+              ? 'btn btn-soft btn-md btn-success'
+              : 'btn btn-soft btn-md btn-warning'
+          }
+          onClick={() => onAction(paused ? 'resume' : 'pause')}
+        >
+          {paused ? t('resume') : t('pause')}
+        </button>
+        <button
+          className="btn btn-soft btn-md btn-error"
+          onClick={() => onAction('cancel')}
+        >
+          {t('cancelScan')}
+        </button>
+      </div>
     </section>
   );
 }

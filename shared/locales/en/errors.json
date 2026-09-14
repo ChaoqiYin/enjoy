@@ -5,7 +5,7 @@
   "media.database.path_failed": "Could not access the application data folder.",
   "media.file.not_found": "The video file or index entry is missing. Refresh the library.",
   "media.filesystem.failed": "Could not access the file. Check the folder and permissions.",
-  "media.scan.permission_denied": "Cannot access \u201c{{path}}\u201d. Check its permissions.",
+  "media.scan.permission_denied": "Cannot access “{{path}}”. Check its permissions.",
   "media.scan.failed": "Folder scan failed. Please try again.",
   "media.scan.busy": "A scan is already running. Wait for it to finish.",
   "media.scan.cancelled": "The scan was cancelled.",
@@ -26,5 +26,8 @@
   "settings.language.save_failed": "Could not save language settings. Please try again.",
   "media.tool.timeout": "The media tool timed out. Please try another file.",
   "app.startup.failed": "Enjoy could not start. Please restart the app.",
-  "media.player.unsupported": "Tracked playback is not yet supported on this platform."
+  "media.player.unsupported": "Tracked playback is not yet supported on this platform.",
+  "settings.read_failed": "Could not read settings.",
+  "settings.save_failed": "Could not save settings. Please try again.",
+  "settings.invalid": "The selected settings are invalid."
 }

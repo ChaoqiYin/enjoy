@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { FolderMinus } from 'lucide-react';
 import { LanguageSetting } from '../i18n/LanguageSetting';
 import { ThemeSetting } from '../theme/ThemeSetting';
-import { Tooltip } from '../shared/Tooltip';
+import { ConfirmTooltip } from '../shared/ConfirmTooltip';
 import { ScrollViewport } from '../shared/ScrollViewport';
 import { libraryApi } from '../shared/api';
 import { useLibraryContext } from '../features/library/LibraryProvider';
@@ -31,18 +31,23 @@ export function SettingsPage() {
             className="flex items-center gap-4 bg-base-200 p-4 rounded-box"
           >
             <span className="break-all flex-1">{path}</span>
-            <Tooltip text={t('removeFolder')}>
+            <ConfirmTooltip
+              message={t('removeQuestion', { name: path })}
+              confirmLabel={t('confirm')}
+              cancelLabel={t('cancel')}
+              disabled={library.busy}
+              onConfirm={() =>
+                library.run(() => libraryApi.removeDirectory(path))
+              }
+            >
               <button
                 className="btn btn-outline btn-xs btn-square btn-error"
                 aria-label={t('removeFolder')}
                 disabled={library.busy}
-                onClick={() =>
-                  library.run(() => libraryApi.removeDirectory(path))
-                }
               >
                 <FolderMinus size={14} aria-hidden="true" />
               </button>
-            </Tooltip>
+            </ConfirmTooltip>
           </div>
         ))}
         <DirectoryActions

@@ -7,9 +7,8 @@ mod player;
 mod process;
 mod repository;
 mod reveal;
-mod settings;
 mod scan;
-mod watcher;
+mod settings;
 
 use error::AppError;
 use i18n::{language, native};
@@ -134,7 +133,11 @@ fn remove_directory(path: String, state: State<'_, AppState>) -> Result<(), AppE
 
 #[tauri::command]
 fn add_directory(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
-    state.repository.lock().map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?.add_directory(&path)
+    state
+        .repository
+        .lock()
+        .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
+        .add_directory(&path)
 }
 
 #[tauri::command]
@@ -262,7 +265,6 @@ fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError> {
         repository: Arc::new(Mutex::new(repository)),
         scan: Arc::new(ScanControl::default()),
     });
-    watcher::start(app.clone());
     Ok(())
 }
 

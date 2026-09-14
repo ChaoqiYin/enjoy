@@ -7,7 +7,6 @@ tracing="0.1"
 tracing-subscriber= {version="0.3",features= ["env-filter"] }
 sys-locale="0.3"
 tauri-plugin-store="2"
-notify="8"
 tauri-plugin-dialog="2"
 tauri= {version="2",features= ["protocol-asset"] }
 serde= {version="1",features= ["derive"] }

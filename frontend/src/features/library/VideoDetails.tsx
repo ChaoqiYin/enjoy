@@ -52,7 +52,7 @@ export function VideoDetails({
     >
       <div className="modal-box h-full max-h-full w-full max-w-xl rounded-none space-y-5">
         <form method="dialog" className="text-right">
-          <button className="btn btn-outline btn-sm btn-neutral">
+          <button className="btn btn-soft btn-md btn-neutral">
             {t('closeDetails')}
           </button>
         </form>
@@ -78,7 +78,7 @@ export function VideoDetails({
         </dl>
         <VideoActions video={video} busy={busy} actions={actions} iconOnly />
         <button
-          className="btn btn-outline btn-sm btn-secondary"
+          className="btn btn-soft btn-md btn-secondary"
           disabled={busy || !video.available}
           onClick={() => actions.regenerate(video)}
         >

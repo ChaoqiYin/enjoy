@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react';
+import { FolderPlus, Trash2 } from 'lucide-react';
 import { Tooltip } from '../../shared/Tooltip';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
@@ -8,11 +8,11 @@ import type { AppError } from '../../shared/api';
 
 interface Props {
   onClose: () => void;
-  onScan: (paths: string[]) => void;
+  onConfirm: (paths: string[]) => void;
   onError: (error: AppError) => void;
 }
 
-export function AddDirectories({ onClose, onScan, onError }: Props) {
+export function AddDirectories({ onClose, onConfirm, onError }: Props) {
   const { t } = useTranslation();
   const dialog = useRef<HTMLDialogElement>(null);
   const [paths, setPaths] = useState<string[]>([]);
@@ -72,24 +72,25 @@ export function AddDirectories({ onClose, onScan, onError }: Props) {
           </ul>
         )}
         <button
-          className="btn btn-outline btn-sm btn-info"
+          className="btn btn-soft btn-md btn-primary"
           disabled={choosing}
           onClick={choose}
         >
+          <FolderPlus size={18} aria-hidden="true" />
           {t('chooseFolder')}
         </button>
-        <div className="modal-action">
+        <div className="modal-action items-center gap-3">
           <form method="dialog">
-            <button className="btn btn-outline btn-sm btn-neutral">
+            <button className="btn btn-soft btn-md btn-neutral">
               {t('cancel')}
             </button>
           </form>
           <button
-            className="btn btn-outline btn-sm btn-primary"
+            className="btn btn-soft btn-md btn-primary"
             disabled={choosing || paths.length === 0}
-            onClick={() => onScan(paths)}
+            onClick={() => onConfirm(paths)}
           >
-            {t('startScan')}
+            {t('confirm')}
           </button>
         </div>
       </div>

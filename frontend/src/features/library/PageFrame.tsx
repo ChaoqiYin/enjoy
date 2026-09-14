@@ -55,7 +55,19 @@ export function PageFrame({ children }: { children: ReactNode }) {
         </section>
       )}
       {scanning && (
-        <ScanProgress status={status} onAction={library.controlScan} />
+        <dialog open className="modal" aria-labelledby="scan-progress-title">
+          <div className="modal-box max-w-lg">
+            <h2 id="scan-progress-title" className="sr-only">
+              {t('scanning')}
+            </h2>
+            <ScanProgress
+              status={status}
+              onAction={(action) => {
+                void library.controlScan(action);
+              }}
+            />
+          </div>
+        </dialog>
       )}
       {children}
     </main>

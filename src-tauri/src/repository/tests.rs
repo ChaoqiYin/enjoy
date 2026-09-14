@@ -181,38 +181,6 @@ fn scan_changes_count_new_updated_and_missing_files() {
 }
 
 #[test]
-fn disconnected_directory_preserves_history_and_restores_availability() {
-    let fixture = Fixture::new();
-    let folder = fixture.0.join("movies");
-    fs::create_dir(&folder).unwrap();
-    let movie = folder.join("sample.mp4");
-    fs::write(&movie, b"sample").unwrap();
-    let mut repository = Repository::open(&fixture.0.join("index.db")).unwrap();
-    let root = folder.to_str().unwrap();
-    repository
-        .index(root, &scanner::collect(&folder).unwrap())
-        .unwrap();
-    repository.favorite(movie.to_str().unwrap(), true).unwrap();
-    repository.record_play(movie.to_str().unwrap()).unwrap();
-    let moved = fixture.0.join("disconnected");
-    fs::rename(&folder, &moved).unwrap();
-    assert_eq!(repository.mark_directory_unavailable(root).unwrap(), 1);
-    assert_eq!(repository.mark_directory_unavailable(root).unwrap(), 0);
-    let video = repository.list().unwrap().remove(0);
-    assert!(!video.available);
-    assert!(video.favorite);
-    assert_eq!(video.play_count, 1);
-    fs::rename(moved, &folder).unwrap();
-    repository
-        .index(root, &scanner::collect(&folder).unwrap())
-        .unwrap();
-    let restored = repository.list().unwrap().remove(0);
-    assert!(restored.available && restored.favorite);
-    assert_eq!(restored.id, video.id);
-    assert_eq!(restored.play_count, 1);
-}
-
-#[test]
 fn legacy_progress_column_does_not_affect_history_or_serialization() {
     let fixture = Fixture::new();
     let movie = fixture.0.join("legacy.mp4");

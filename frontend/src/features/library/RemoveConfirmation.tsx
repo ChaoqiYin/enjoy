@@ -29,16 +29,13 @@ export function RemoveConfirmation({
           {t('removeQuestion', { name: video.file_name })}
         </h2>
         <p id="remove-description">{t('keepFile')}</p>
-        <div className="modal-action">
+        <div className="modal-action items-center gap-3">
           <form method="dialog">
-            <button autoFocus className="btn btn-outline btn-sm btn-neutral">
+            <button autoFocus className="btn btn-soft btn-md btn-neutral">
               {t('cancel')}
             </button>
           </form>
-          <button
-            className="btn btn-outline btn-sm btn-error"
-            onClick={onConfirm}
-          >
+          <button className="btn btn-soft btn-md btn-error" onClick={onConfirm}>
             {t('remove')}
           </button>
         </div>

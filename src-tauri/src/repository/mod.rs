@@ -164,14 +164,11 @@ impl Repository {
     }
 
     pub fn add_directory(&self, path: &str) -> Result<(), AppError> {
-        self.connection.execute("INSERT OR IGNORE INTO directories(path) VALUES (?1)", [path])?;
-        Ok(())
-    }
-
-    pub fn mark_directory_unavailable(&self, path: &str) -> Result<usize, AppError> {
         self.connection.execute(
-            "UPDATE videos SET available=0,updated_at=?2 WHERE available=1 AND id IN (SELECT video_id FROM directory_videos WHERE directory_path=?1)",
-            params![path, now()]).map_err(Into::into)
+            "INSERT OR IGNORE INTO directories(path) VALUES (?1)",
+            [path],
+        )?;
+        Ok(())
     }
 
     pub fn remove_directory(&self, path: &str) -> Result<(), AppError> {

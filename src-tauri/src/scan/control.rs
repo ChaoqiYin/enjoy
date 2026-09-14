@@ -42,12 +42,6 @@ impl ScanControl {
             .unwrap_or_else(|error| error.into_inner())
             .cancelled
     }
-    pub fn is_running(&self) -> bool {
-        self.state
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .running
-    }
     pub fn begin(self: &Arc<Self>) -> Result<ScanGuard, AppError> {
         let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         if state.running {

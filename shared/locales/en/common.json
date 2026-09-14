@@ -91,5 +91,6 @@
   "mediaPreparingName": "{{name}}: preparing preview",
   "rescanHelp": "Rescan all video folders",
   "regenerateAllHelp": "Regenerate thumbnails for all videos",
-  "operationFailed": "Operation failed"
+  "operationFailed": "Operation failed",
+  "confirm": "Confirm"
 }

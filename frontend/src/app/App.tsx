@@ -10,18 +10,20 @@ import { SettingsProvider } from '../settings/SettingsProvider';
 
 export function App() {
   return (
-    <SettingsProvider><LibraryProvider>
-      <div className="h-dvh overflow-hidden flex flex-col bg-base-100 text-base-content">
-        <LanguageFocusSync />
-        <AppNavigation />
-        <Routes>
-          <Route path="/" element={<LibraryPage />} />
-          <Route path="/favorites" element={<FavoritesPage />} />
-          <Route path="/history" element={<HistoryPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </div>
-    </LibraryProvider></SettingsProvider>
+    <SettingsProvider>
+      <LibraryProvider>
+        <div className="h-dvh overflow-hidden flex flex-col bg-base-100 text-base-content">
+          <LanguageFocusSync />
+          <AppNavigation />
+          <Routes>
+            <Route path="/" element={<LibraryPage />} />
+            <Route path="/favorites" element={<FavoritesPage />} />
+            <Route path="/history" element={<HistoryPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </div>
+      </LibraryProvider>
+    </SettingsProvider>
   );
 }

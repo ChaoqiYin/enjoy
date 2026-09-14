@@ -91,5 +91,6 @@
   "mediaPreparingName": "{{name}}：正在生成预览",
   "rescanHelp": "重新扫描全部视频目录",
   "regenerateAllHelp": "重新生成所有视频的缩略图",
-  "operationFailed": "操作失败"
+  "operationFailed": "操作失败",
+  "confirm": "确定"
 }
