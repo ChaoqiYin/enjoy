@@ -6,6 +6,7 @@ import { duration, fileSize } from '../../shared/format';
 import { Thumbnail } from './Thumbnail';
 import { VideoActions } from './VideoActions';
 import type { VideoActionHandlers } from './VideoActions';
+import { Tooltip } from '../../shared/Tooltip';
 
 export function VideoDetails({
   video,
@@ -21,11 +22,24 @@ export function VideoDetails({
   onClose: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const dialog = useRef<HTMLDialogElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(
+    document.activeElement as HTMLElement,
+  );
   const [copied, setCopied] = useState(false);
+  const [thumbnailBusy, setThumbnailBusy] = useState(false);
+  const [infoBusy, setInfoBusy] = useState(false);
   useEffect(() => {
-    dialog.current?.showModal();
-  }, []);
+    panel.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      previousFocus.current?.focus();
+    };
+  }, [onClose]);
   const values = [
     [t('duration'), duration(video.duration_ms)],
     [
@@ -48,24 +62,44 @@ export function VideoDetails({
       }).format(video.modified_at),
     ],
   ];
+  const maintenanceDisabled = busy || !video.available;
   return (
-    <dialog
-      ref={dialog}
-      className="drawer drawer-end"
+    <div
+      className="drawer drawer-end fixed inset-0 z-40"
+      role="dialog"
+      aria-modal="true"
       aria-labelledby="video-details-title"
-      onClose={onClose}
     >
-      <div className="drawer-side z-50">
-        <div className="drawer-overlay" onClick={onClose} />
-        <div className="bg-base-100 h-full w-full max-w-xl overflow-y-auto p-6 space-y-5">
-          <form method="dialog" className="text-right">
-            <button className="btn btn-soft btn-md btn-neutral">
+      <input
+        type="checkbox"
+        className="drawer-toggle"
+        checked
+        readOnly
+        aria-hidden="true"
+      />
+      <div className="drawer-content" />
+      <div className="drawer-side">
+        <button
+          className="drawer-overlay"
+          aria-label={t('closeDetails')}
+          onClick={onClose}
+        />
+        <div
+          ref={panel}
+          tabIndex={-1}
+          className="bg-base-100 h-full w-full max-w-[440px] overflow-y-auto p-6 space-y-5 outline-none"
+        >
+          <div className="flex items-center justify-between">
+            <h2 id="video-details-title" className="text-2xl font-bold">
+              {t('details')}
+            </h2>
+            <button
+              className="btn btn-soft btn-md btn-neutral"
+              onClick={onClose}
+            >
               {t('closeDetails')}
             </button>
-          </form>
-          <h2 id="video-details-title" className="text-2xl font-bold">
-            {t('details')}
-          </h2>
+          </div>
           <Thumbnail
             path={video.thumbnail_path}
             name={video.file_name}
@@ -75,18 +109,20 @@ export function VideoDetails({
           <h3 className="text-xl break-all">{video.file_name}</h3>
           <div className="flex items-start gap-2">
             <p className="break-all text-sm opacity-70 flex-1">{video.path}</p>
-            <button
-              className="btn btn-outline btn-xs btn-square btn-info"
-              aria-label={t('copyPath')}
-              onClick={() => {
-                void navigator.clipboard
-                  ?.writeText(video.path)
-                  .then(() => setCopied(true))
-                  .catch(() => setCopied(false));
-              }}
-            >
-              <Copy size={14} aria-hidden="true" />
-            </button>
+            <Tooltip text={t('copyPath')}>
+              <button
+                className="btn btn-outline btn-xs btn-square btn-info"
+                aria-label={t('copyPath')}
+                onClick={() => {
+                  void navigator.clipboard
+                    ?.writeText(video.path)
+                    .then(() => setCopied(true))
+                    .catch(() => setCopied(false));
+                }}
+              >
+                <Copy size={14} aria-hidden="true" />
+              </button>
+            </Tooltip>
             {copied && (
               <span className="text-success text-sm">{t('copied')}</span>
             )}
@@ -109,24 +145,48 @@ export function VideoDetails({
             iconOnly
             hideRemove
           />
-          <button
-            className="btn btn-soft btn-md btn-secondary"
-            disabled={busy || !video.available}
-            onClick={() => actions.regenerate(video)}
-          >
-            <RefreshCw size={18} aria-hidden="true" />
-            {t('regenerate')}
-          </button>
-          <button
-            className="btn btn-soft btn-md btn-primary"
-            disabled={busy || !video.available}
-            onClick={() => actions.refreshInfo?.(video)}
-          >
-            <RefreshCw size={18} aria-hidden="true" />
-            {t('refreshInfo')}
-          </button>
+          <section className="space-y-3">
+            <h3 className="font-semibold">{t('fileMaintenance')}</h3>
+            <div className="flex flex-wrap gap-3">
+              <button
+                className="btn btn-soft btn-md btn-secondary"
+                disabled={maintenanceDisabled || thumbnailBusy}
+                onClick={() => {
+                  setThumbnailBusy(true);
+                  void Promise.resolve(actions.regenerate(video)).finally(() =>
+                    setThumbnailBusy(false),
+                  );
+                }}
+              >
+                {thumbnailBusy ? (
+                  <span className="loading loading-spinner" />
+                ) : (
+                  <RefreshCw size={18} aria-hidden="true" />
+                )}
+                {t('regenerate')}
+              </button>
+              <button
+                className="btn btn-soft btn-md btn-primary"
+                disabled={maintenanceDisabled || infoBusy}
+                onClick={() => {
+                  setInfoBusy(true);
+                  void Promise.resolve(actions.refreshInfo?.(video)).finally(
+                    () => setInfoBusy(false),
+                  );
+                }}
+              >
+                {infoBusy ? (
+                  <span className="loading loading-spinner" />
+                ) : (
+                  <RefreshCw size={18} aria-hidden="true" />
+                )}
+                {t('refreshInfo')}
+              </button>
+            </div>
+            {busy && <p className="text-sm opacity-60">{t('busy')}</p>}
+          </section>
         </div>
       </div>
-    </dialog>
+    </div>
   );
 }

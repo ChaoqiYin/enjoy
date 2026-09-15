@@ -104,5 +104,7 @@
   "pauseRegeneration": "Pause regeneration",
   "cancelRegeneration": "Cancel regeneration",
   "thumbnailSummary": "Thumbnail rebuild: {{found}} found, {{processed}} processed",
-  "thumbnailComplete": "Thumbnail rebuild complete"
+  "thumbnailComplete": "Thumbnail rebuild complete",
+  "fileMaintenance": "File maintenance",
+  "busy": "Another media task is running"
 }

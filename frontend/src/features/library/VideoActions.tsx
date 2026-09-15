@@ -9,8 +9,8 @@ export interface VideoActionHandlers {
   favorite: (video: Video) => void;
   reveal: (video: Video) => void;
   remove: (video: Video) => void;
-  regenerate: (video: Video) => void;
-  refreshInfo?: (video: Video) => void;
+  regenerate: (video: Video) => void | Promise<unknown>;
+  refreshInfo?: (video: Video) => void | Promise<unknown>;
 }
 
 export function VideoActions({
