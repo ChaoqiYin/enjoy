@@ -11,6 +11,10 @@ use crate::scan::control::ScanControl;
 /// Refreshes a single file's media metadata. Returns `true` when the record
 /// was written; `false` when a concurrent scan already updated the file (so
 /// the fresh data was left untouched).
+///
+/// Mutual exclusion against a running scan is the caller's responsibility:
+/// the command handler acquires the slot via `ScanControl::begin()` before
+/// calling this. `checkpoint()` here only observes cancellation.
 pub fn refresh_video(
     path: &str,
     repository: &Arc<Mutex<Repository>>,
@@ -58,16 +62,24 @@ mod tests {
     use crate::scan::scanner;
 
     fn setup() -> (Fixture, String, Arc<Mutex<Repository>>) {
+        let (fixture, mut paths, repository) = setup_videos(&["movie.mp4"]);
+        (fixture, paths.remove(0), repository)
+    }
+
+    fn setup_videos(names: &[&str]) -> (Fixture, Vec<String>, Arc<Mutex<Repository>>) {
         let fixture = Fixture::new();
-        let movie = fixture.0.join("movie.mp4");
-        fs::write(&movie, b"video").unwrap();
+        let mut paths = Vec::with_capacity(names.len());
+        for name in names {
+            let file = fixture.0.join(name);
+            fs::write(&file, b"video").unwrap();
+            paths.push(file.to_string_lossy().into_owned());
+        }
         let root = fixture.0.to_string_lossy().into_owned();
-        let path = movie.to_string_lossy().into_owned();
         let mut repository = Repository::open(&fixture.0.join("library.db")).unwrap();
         repository
             .replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])
             .unwrap();
-        (fixture, path, Arc::new(Mutex::new(repository)))
+        (fixture, paths, Arc::new(Mutex::new(repository)))
     }
 
     #[test]
@@ -131,5 +143,159 @@ mod tests {
         assert!(repository.lock().unwrap().list().unwrap()[0]
             .width
             .is_none());
+    }
+
+    #[test]
+    fn successful_refresh_updates_only_the_target_file() {
+        let (_fixture, paths, repository) = setup_videos(&["movie.mp4", "other.mkv"]);
+        let path = paths
+            .iter()
+            .find(|video| video.ends_with("movie.mp4"))
+            .unwrap()
+            .clone();
+        let (other_id, other_size) = {
+            let repo = repository.lock().unwrap();
+            let rows = repo.list().unwrap();
+            let target = rows.iter().find(|video| video.path == path).unwrap();
+            let other = rows.iter().find(|video| video.path != path).unwrap();
+            let other_id = other.id;
+            let other_size = other.file_size;
+            repo.save_metadata(
+                other,
+                &Metadata {
+                    duration_ms: Some(700),
+                    width: 320,
+                    height: 200,
+                    codec: Some("xvid".into()),
+                },
+            )
+            .unwrap();
+            repo.save_thumbnail(target, "cached.jpg").unwrap();
+            (other_id, other_size)
+        };
+        let control = Arc::new(ScanControl::default());
+        let guard = control.begin().unwrap();
+        let wrote = refresh::refresh_video(&path, &repository, &control, |_| {
+            Ok(Metadata {
+                duration_ms: Some(500),
+                width: 160,
+                height: 90,
+                codec: Some("mpeg4".into()),
+            })
+        })
+        .unwrap();
+        assert!(wrote);
+        drop(guard);
+        let rows = repository.lock().unwrap().list().unwrap();
+        let target = rows.iter().find(|video| video.path == path).unwrap();
+        assert_eq!(target.width, Some(160));
+        assert_eq!(target.height, Some(90));
+        assert_eq!(target.duration_ms, Some(500));
+        assert_eq!(target.codec.as_deref(), Some("mpeg4"));
+        assert_eq!(target.thumbnail_path.as_deref(), Some("cached.jpg"));
+        assert!(target.media_complete);
+        let other = rows.iter().find(|video| video.id == other_id).unwrap();
+        assert_eq!(other.file_size, other_size);
+        assert_eq!(other.width, Some(320));
+        assert_eq!(other.height, Some(200));
+        assert_eq!(other.duration_ms, Some(700));
+        assert_eq!(other.codec.as_deref(), Some("xvid"));
+        assert_eq!(other.thumbnail_path, None);
+        assert!(!other.media_complete);
+    }
+
+    #[test]
+    fn failed_probe_preserves_existing_record_without_partial_write() {
+        let (_fixture, path, repository) = setup();
+        let control = Arc::new(ScanControl::default());
+        let guard = control.begin().unwrap();
+        refresh::refresh_video(&path, &repository, &control, |_| {
+            Ok(Metadata {
+                duration_ms: Some(500),
+                width: 640,
+                height: 360,
+                codec: Some("h264".into()),
+            })
+        })
+        .unwrap();
+        drop(guard);
+        let before = repository.lock().unwrap().list().unwrap().remove(0);
+        let guard = control.begin().unwrap();
+        let result = refresh::refresh_video(&path, &repository, &control, |_| {
+            Err(AppError::new(
+                "media.metadata.failed",
+                "probe could not read the stream",
+            ))
+        });
+        assert_eq!(result.unwrap_err().code, "media.metadata.failed");
+        drop(guard);
+        let after = repository.lock().unwrap().list().unwrap().remove(0);
+        assert_eq!(after.file_size, before.file_size);
+        assert_eq!(after.modified_at, before.modified_at);
+        assert_eq!(after.width, Some(640));
+        assert_eq!(after.height, Some(360));
+        assert_eq!(after.duration_ms, Some(500));
+        assert_eq!(after.codec.as_deref(), Some("h264"));
+        assert!(!after.media_complete);
+    }
+
+    #[test]
+    fn refresh_video_does_not_overwrite_a_concurrent_scan() {
+        let (fixture, paths, repository) = setup_videos(&["clip.mp4"]);
+        let path = paths[0].clone();
+        let root = fixture.0.to_string_lossy().into_owned();
+        let control = Arc::new(ScanControl::default());
+        let guard = control.begin().unwrap();
+        let wrote = refresh::refresh_video(&path, &repository, &control, |file| {
+            fs::write(file, b"updated content").unwrap();
+            repository
+                .lock()
+                .unwrap()
+                .replace_videos(&[(root.clone(), scanner::collect(&fixture.0).unwrap())])
+                .unwrap();
+            Ok(Metadata {
+                duration_ms: Some(500),
+                width: 640,
+                height: 360,
+                codec: Some("h264".into()),
+            })
+        })
+        .unwrap();
+        assert!(!wrote);
+        drop(guard);
+        let row = repository.lock().unwrap().list().unwrap().remove(0);
+        assert_eq!(row.file_size, 15);
+        assert!(row.width.is_none());
+        assert!(row.duration_ms.is_none());
+        assert!(!row.media_complete);
+    }
+
+    #[test]
+    fn successful_refresh_flips_media_complete_once_thumbnail_exists() {
+        let (_fixture, path, repository) = setup();
+        let video = repository.lock().unwrap().list().unwrap().remove(0);
+        repository
+            .lock()
+            .unwrap()
+            .save_thumbnail(&video, "cached.jpg")
+            .unwrap();
+        assert!(!repository.lock().unwrap().list().unwrap()[0].media_complete);
+        let control = Arc::new(ScanControl::default());
+        let guard = control.begin().unwrap();
+        let wrote = refresh::refresh_video(&path, &repository, &control, |_| {
+            Ok(Metadata {
+                duration_ms: None,
+                width: 160,
+                height: 90,
+                codec: None,
+            })
+        })
+        .unwrap();
+        assert!(wrote);
+        drop(guard);
+        let row = repository.lock().unwrap().list().unwrap().remove(0);
+        assert!(row.media_complete);
+        assert_eq!(row.width, Some(160));
+        assert_eq!(row.thumbnail_path.as_deref(), Some("cached.jpg"));
     }
 }
