@@ -58,6 +58,7 @@ export const libraryApi = {
   addDirectory: (path: string) => invoke<void>('add_directory', { path }),
   rescan: (paths: string[]) => invoke<Video[]>('rescan_directories', { paths }),
   play: (path: string) => invoke<void>('open_video', { path }),
+  refreshInfo: (path: string) => invoke<void>('refresh_video_info', { path }),
 };
 
 export function normalizeError(error: unknown): AppError {

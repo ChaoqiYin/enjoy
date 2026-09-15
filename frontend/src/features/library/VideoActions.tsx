@@ -10,6 +10,7 @@ export interface VideoActionHandlers {
   reveal: (video: Video) => void;
   remove: (video: Video) => void;
   regenerate: (video: Video) => void;
+  refreshInfo?: (video: Video) => void;
 }
 
 export function VideoActions({

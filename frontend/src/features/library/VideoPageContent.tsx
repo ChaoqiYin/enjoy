@@ -47,6 +47,8 @@ export function VideoPageContent({
     details: (video: Video) => setDetailsId(video.id),
     regenerate: (video: Video) =>
       library.run(() => libraryApi.regenerate(video.path)),
+    refreshInfo: (video: Video) =>
+      library.run(() => libraryApi.refreshInfo(video.path)),
   };
   return (
     <>

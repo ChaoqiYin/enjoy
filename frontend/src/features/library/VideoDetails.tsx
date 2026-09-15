@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Copy, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ScanStatus, Video } from '../../shared/api';
 import { duration, fileSize } from '../../shared/format';
@@ -32,16 +33,7 @@ export function VideoDetails({
     ],
     [t('codec'), video.codec ?? t('unknown')],
     [t('fileSize'), fileSize(video.file_size, i18n.language)],
-    [t('playCount'), video.play_count.toLocaleString(i18n.language)],
-    [
-      t('lastPlayed'),
-      video.last_played_at
-        ? new Intl.DateTimeFormat(i18n.language, {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-          }).format(video.last_played_at)
-        : t('neverPlayed'),
-    ],
+    [t('modifiedAt'), new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(video.modified_at)],
   ];
   return (
     <dialog
@@ -66,7 +58,12 @@ export function VideoDetails({
           scan={scan}
         />
         <h3 className="text-xl break-all">{video.file_name}</h3>
-        <p className="break-all text-sm opacity-70">{video.path}</p>
+        <div className="flex items-start gap-2">
+          <p className="break-all text-sm opacity-70 flex-1">{video.path}</p>
+          <button className="btn btn-outline btn-xs btn-square btn-info" aria-label={t('copyPath')} onClick={() => void navigator.clipboard?.writeText(video.path)}>
+            <Copy size={14} aria-hidden="true" />
+          </button>
+        </div>
         {!video.available && <p className="text-warning">{t('unavailable')}</p>}
         <dl className="space-y-3">
           {values.map(([label, value]) => (
@@ -82,7 +79,16 @@ export function VideoDetails({
           disabled={busy || !video.available}
           onClick={() => actions.regenerate(video)}
         >
+          <RefreshCw size={14} aria-hidden="true" />
           {t('regenerate')}
+        </button>
+        <button
+          className="btn btn-outline btn-sm btn-primary"
+          disabled={busy || !video.available}
+          onClick={() => actions.refreshInfo?.(video)}
+        >
+          <RefreshCw size={14} aria-hidden="true" />
+          {t('refreshInfo')}
         </button>
       </div>
       <form method="dialog" className="modal-backdrop">

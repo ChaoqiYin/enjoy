@@ -211,6 +211,20 @@ impl Repository {
         Ok(())
     }
 
+    pub fn refresh_metadata(
+        &self,
+        path: &str,
+        file_size: i64,
+        modified_at: i64,
+        metadata: &Metadata,
+    ) -> Result<(), AppError> {
+        self.connection.execute(
+            "UPDATE videos SET file_size=?2, modified_at=?3, duration_ms=?4, width=?5, height=?6, codec=?7, updated_at=?8 WHERE path=?1",
+            params![path, file_size, modified_at, metadata.duration_ms, metadata.width, metadata.height, metadata.codec, now()],
+        )?;
+        Ok(())
+    }
+
     pub fn save_thumbnail(&self, video: &VideoFile, path: &str) -> Result<(), AppError> {
         self.connection.execute(
             "UPDATE videos SET thumbnail_path=?4 WHERE id=?1 AND file_size=?2 AND modified_at=?3",

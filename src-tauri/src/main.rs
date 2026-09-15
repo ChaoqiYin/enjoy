@@ -166,6 +166,41 @@ async fn open_video(path: String, state: State<'_, AppState>) -> Result<(), AppE
 }
 
 #[tauri::command]
+async fn refresh_video_info(
+    path: String,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let repository = Arc::clone(&state.repository);
+    let control = Arc::clone(&state.scan);
+    let guard = control.begin()?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _guard = guard;
+        control.checkpoint()?;
+        let file = std::fs::metadata(&path).map_err(|error| AppError::io(error, &path))?;
+        let modified_at = file
+            .modified()
+            .map_err(|error| AppError::io(error, &path))?
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        let processor = media::MediaProcessor::for_app(
+            &app,
+            database_path(&app)?.with_file_name("thumbnails"),
+        )?;
+        let metadata = processor.probe(std::path::Path::new(&path), || control.is_cancelled())?;
+        repository
+            .lock()
+            .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
+            .refresh_metadata(&path, file.len() as i64, modified_at, &metadata)?;
+        let _ = app.emit("library-changed", ());
+        Ok(())
+    })
+    .await
+    .map_err(|error| AppError::new("media.metadata.failed", error))?
+}
+
+#[tauri::command]
 async fn regenerate_thumbnails(
     path: Option<String>,
     app: tauri::AppHandle,
@@ -283,7 +318,8 @@ fn main() {
             add_directory,
             rescan_directories,
             set_favorite,
-            open_video
+            open_video,
+            refresh_video_info
         ])
         .setup(|app| {
             app.manage(language::load(app.handle()));

@@ -40,13 +40,13 @@ export function VideoCard({
           const rect = event.currentTarget.getBoundingClientRect();
           onMenu({ video, x: rect.left, y: rect.top });
         }
-        if (event.key === 'Enter') onSelect(video.id);
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          actions.details(video);
+        }
       }}
       className={`card card-border bg-base-200 ${selectedId === video.id ? 'outline outline-2' : ''}`}
-      onClick={() => onSelect(video.id)}
-      onDoubleClick={() => {
-        if (!busy && video.available) actions.play(video);
-      }}
+      onClick={() => actions.details(video)}
     >
       <Thumbnail
         videoPath={video.path}
