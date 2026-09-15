@@ -125,14 +125,28 @@ describe('video card actions', () => {
     );
     return actions;
   }
-  it('plays on card double click but does not play when an action is double clicked', () => {
+  it('opens details on click and only plays through the explicit action', () => {
     const actions = mount();
+    fireEvent.click(screen.getByText('00:01:05'));
+    expect(actions.details).toHaveBeenCalledOnce();
     fireEvent.doubleClick(screen.getByText('00:01:05'));
+    expect(actions.play).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(actions.play).toHaveBeenCalledTimes(1);
     fireEvent.doubleClick(screen.getByRole('button', { name: 'Favorites' }));
     expect(actions.play).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'Favorites' }));
     expect(actions.favorite).toHaveBeenCalledOnce();
+  });
+  it('keeps action keyboard gestures separate from card activation', () => {
+    const actions = mount();
+    const card = screen.getByRole('article');
+    fireEvent.keyDown(card, { key: 'Enter' });
+    fireEvent.keyDown(card, { key: ' ' });
+    expect(actions.details).toHaveBeenCalledTimes(2);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Play' }), { key: 'Enter' });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Favorites' }), { key: ' ' });
+    expect(actions.details).toHaveBeenCalledTimes(2);
   });
   it('prevents unavailable videos from starting', () => {
     const actions = mount(false);
