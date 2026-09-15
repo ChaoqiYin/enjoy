@@ -59,7 +59,9 @@ it('closes with Escape or the backdrop and confines keyboard focus', () => {
   const close = vi.fn();
   render(view(actions(), close));
   const dialog = screen.getByRole('dialog');
-  const buttons = [...dialog.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+  const buttons = Array.from(
+    dialog.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
+  );
   const last = buttons[buttons.length - 1];
   last.focus();
   fireEvent.keyDown(last, { key: 'Tab' });

@@ -32,6 +32,7 @@ const actions = {
   reveal: vi.fn(),
   remove: vi.fn(),
   regenerate: vi.fn(),
+  refreshInfo: vi.fn(),
   details: vi.fn(),
 };
 

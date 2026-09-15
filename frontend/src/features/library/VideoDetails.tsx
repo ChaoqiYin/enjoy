@@ -3,6 +3,7 @@ import { Copy, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ScanStatus, Video } from '../../shared/api';
 import { duration, fileSize } from '../../shared/format';
+import { MaintenanceButton } from './MaintenanceButton';
 import { Thumbnail } from './Thumbnail';
 import { VideoActions } from './VideoActions';
 import type { VideoActionHandlers } from './VideoActions';
@@ -27,8 +28,6 @@ export function VideoDetails({
     document.activeElement as HTMLElement,
   );
   const [copied, setCopied] = useState(false);
-  const [thumbnailBusy, setThumbnailBusy] = useState(false);
-  const [infoBusy, setInfoBusy] = useState(false);
   useEffect(() => {
     panel.current?.focus();
     const onKey = (event: KeyboardEvent) => {
@@ -148,40 +147,22 @@ export function VideoDetails({
           <section className="space-y-3">
             <h3 className="font-semibold">{t('fileMaintenance')}</h3>
             <div className="flex flex-wrap gap-3">
-              <button
-                className="btn btn-soft btn-md btn-secondary"
-                disabled={maintenanceDisabled || thumbnailBusy}
-                onClick={() => {
-                  setThumbnailBusy(true);
-                  void Promise.resolve(actions.regenerate(video)).finally(() =>
-                    setThumbnailBusy(false),
-                  );
-                }}
-              >
-                {thumbnailBusy ? (
-                  <span className="loading loading-spinner" />
-                ) : (
-                  <RefreshCw size={18} aria-hidden="true" />
-                )}
-                {t('regenerate')}
-              </button>
-              <button
-                className="btn btn-soft btn-md btn-primary"
-                disabled={maintenanceDisabled || infoBusy}
-                onClick={() => {
-                  setInfoBusy(true);
-                  void Promise.resolve(actions.refreshInfo?.(video)).finally(
-                    () => setInfoBusy(false),
-                  );
-                }}
-              >
-                {infoBusy ? (
-                  <span className="loading loading-spinner" />
-                ) : (
-                  <RefreshCw size={18} aria-hidden="true" />
-                )}
-                {t('refreshInfo')}
-              </button>
+              <MaintenanceButton
+                video={video}
+                action={actions.regenerate}
+                variant="secondary"
+                icon={<RefreshCw size={18} aria-hidden="true" />}
+                label={t('regenerate')}
+                disabled={maintenanceDisabled}
+              />
+              <MaintenanceButton
+                video={video}
+                action={actions.refreshInfo}
+                variant="primary"
+                icon={<RefreshCw size={18} aria-hidden="true" />}
+                label={t('refreshInfo')}
+                disabled={maintenanceDisabled}
+              />
             </div>
             {busy && <p className="text-sm opacity-60">{t('busy')}</p>}
           </section>
