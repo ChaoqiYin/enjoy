@@ -10,7 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::AppError;
 use crate::media::Metadata;
-use crate::model::{ScannedFile, VideoFile};
+use crate::model::{FileStamp, ScannedFile, VideoFile};
 
 #[derive(Clone, Default, Debug, Serialize)]
 pub struct IndexChanges {
@@ -211,18 +211,48 @@ impl Repository {
         Ok(())
     }
 
+    pub fn find_file_stamp(&self, path: &str) -> Result<Option<FileStamp>, AppError> {
+        self.connection
+            .query_row(
+                "SELECT file_size, modified_at FROM videos WHERE path=?1",
+                [path],
+                |row| {
+                    Ok(FileStamp {
+                        file_size: row.get(0)?,
+                        modified_at: row.get(1)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(Into::into)
+    }
+
     pub fn refresh_metadata(
         &self,
         path: &str,
-        file_size: i64,
-        modified_at: i64,
+        expected: FileStamp,
+        updated: FileStamp,
         metadata: &Metadata,
-    ) -> Result<(), AppError> {
-        self.connection.execute(
-            "UPDATE videos SET file_size=?2, modified_at=?3, duration_ms=?4, width=?5, height=?6, codec=?7, updated_at=?8 WHERE path=?1",
-            params![path, file_size, modified_at, metadata.duration_ms, metadata.width, metadata.height, metadata.codec, now()],
+    ) -> Result<bool, AppError> {
+        let count = self.connection.execute(
+            "UPDATE videos SET file_size=?4, modified_at=?5, duration_ms=?6, width=?7, height=?8, codec=?9,
+                media_complete=CASE WHEN ?7 IS NOT NULL AND thumbnail_path IS NOT NULL THEN 1 ELSE 0 END,
+                updated_at=?10
+             WHERE path=?1 AND file_size=?2 AND modified_at=?3",
+            params![
+                path,
+                expected.file_size,
+                expected.modified_at,
+                updated.file_size,
+                updated.modified_at,
+                metadata.duration_ms,
+                metadata.width,
+                metadata.height,
+                metadata.codec,
+                now(),
+            ],
         )?;
-        Ok(())
+        Ok(count > 0)
     }
 
     pub fn save_thumbnail(&self, video: &VideoFile, path: &str) -> Result<(), AppError> {

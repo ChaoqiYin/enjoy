@@ -176,24 +176,16 @@ async fn refresh_video_info(
     let guard = control.begin()?;
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = guard;
-        control.checkpoint()?;
-        let file = std::fs::metadata(&path).map_err(|error| AppError::io(error, &path))?;
-        let modified_at = file
-            .modified()
-            .map_err(|error| AppError::io(error, &path))?
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as i64;
         let processor = media::MediaProcessor::for_app(
             &app,
             database_path(&app)?.with_file_name("thumbnails"),
         )?;
-        let metadata = processor.probe(std::path::Path::new(&path), || control.is_cancelled())?;
-        repository
-            .lock()
-            .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-            .refresh_metadata(&path, file.len() as i64, modified_at, &metadata)?;
-        let _ = app.emit("library-changed", ());
+        let wrote = scan::refresh::refresh_video(&path, &repository, &control, |file| {
+            processor.probe(file, || control.is_cancelled())
+        })?;
+        if wrote {
+            let _ = app.emit("library-changed", ());
+        }
         Ok(())
     })
     .await

@@ -33,3 +33,11 @@ pub struct ScannedFile {
     pub modified_at: i64,
     pub file_md5: String,
 }
+
+/// Optimistic-lock token for a file record: the size and modification time
+/// that a write is expected to still match, used to detect a concurrent scan.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FileStamp {
+    pub file_size: i64,
+    pub modified_at: i64,
+}
