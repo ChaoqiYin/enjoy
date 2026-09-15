@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::time::UNIX_EPOCH;
+use std::{fs::File, io::Read};
 use walkdir::WalkDir;
 
 use crate::error::AppError;
@@ -61,6 +62,8 @@ pub fn collect_controlled(
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
+        let mut file = File::open(entry.path()).map_err(|error| AppError::io(error, &path))?;
+        let file_md5 = fingerprint(&mut file, &path, &checkpoint)?;
         result.push(ScannedFile {
             path,
             file_name: entry.file_name().to_string_lossy().into_owned(),
@@ -72,7 +75,62 @@ pub fn collect_controlled(
                 .into_owned(),
             file_size: i64::try_from(metadata.len()).unwrap_or(i64::MAX),
             modified_at: i64::try_from(modified).unwrap_or(i64::MAX),
+            file_md5,
         });
     }
     Ok(result)
+}
+
+fn fingerprint(
+    reader: &mut impl Read,
+    path: &str,
+    checkpoint: impl Fn() -> Result<(), AppError>,
+) -> Result<String, AppError> {
+    let mut context = md5::Context::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        checkpoint()?;
+        let count = reader
+            .read(&mut buffer)
+            .map_err(|error| AppError::io(error, path))?;
+        if count == 0 {
+            break;
+        }
+        context.consume(&buffer[..count]);
+    }
+    checkpoint()?;
+    Ok(format!("{:x}", context.compute()))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+    use std::io::Cursor;
+
+    use super::fingerprint;
+    use crate::error::AppError;
+
+    #[test]
+    fn hashing_is_chunked_and_stops_before_reading_the_remaining_file() {
+        let bytes = vec![42; 256 * 1024];
+        let mut reader = Cursor::new(&bytes);
+        let checkpoints = Cell::new(0);
+        let result = fingerprint(&mut reader, "movie.mp4", || {
+            checkpoints.set(checkpoints.get() + 1);
+            if checkpoints.get() == 2 {
+                Err(AppError::new(
+                    "media.scan.cancelled",
+                    "Cancelled during hashing",
+                ))
+            } else {
+                Ok(())
+            }
+        });
+        assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
+        assert!(reader.position() > 0 && reader.position() < bytes.len() as u64);
+        assert_eq!(
+            fingerprint(&mut Cursor::new(&bytes), "movie.mp4", || Ok(())).unwrap(),
+            format!("{:x}", md5::compute(&bytes))
+        );
+    }
 }

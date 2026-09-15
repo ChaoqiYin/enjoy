@@ -24,7 +24,7 @@ impl MediaProcessor {
     }
 
     #[cfg(test)]
-    pub(super) fn on_path(cache: PathBuf) -> Self {
+    pub(crate) fn on_path(cache: PathBuf) -> Self {
         Self {
             directory: None,
             cache,

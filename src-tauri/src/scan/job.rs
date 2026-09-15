@@ -39,7 +39,8 @@ pub fn run(
         let mut guard = repository
             .lock()
             .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?;
-        progress.changes = guard.replace_videos(&directories)?;
+        progress.changes =
+            guard.replace_videos_controlled(&directories, || control.checkpoint())?;
         guard.list()?
     };
     progress.phase = "processing".into();
@@ -47,9 +48,13 @@ pub fn run(
     progress.current_path.clear();
     progress.discovered = videos.len();
     progress.indexed = videos.len();
+    let completed = videos.iter().filter(|video| video.media_complete).count();
+    progress.processed = completed;
+    progress.metadata_ready = completed;
+    progress.thumbnails_ready = completed;
     control.publish(progress.clone());
     on_progress(control.status());
-    for video in &videos {
+    for video in videos.iter().filter(|video| !video.media_complete) {
         control.checkpoint()?;
         progress.current_path = video.path.clone();
         control.publish(progress.clone());
@@ -107,6 +112,13 @@ pub fn run(
         }
         if progress.failures == failures_before_thumbnail {
             progress.thumbnails_ready += 1;
+        }
+        control.checkpoint()?;
+        if progress.failures == failures_before_metadata {
+            repository
+                .lock()
+                .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
+                .complete_media(video)?;
         }
         progress.processed += 1;
         progress.current_path.clear();

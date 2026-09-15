@@ -8,6 +8,9 @@ pub struct VideoFile {
     pub folder_path: String,
     pub file_size: i64,
     pub modified_at: i64,
+    pub file_md5: String,
+    #[serde(skip)]
+    pub media_complete: bool,
     pub duration_ms: Option<i64>,
     pub width: Option<i64>,
     pub height: Option<i64>,
@@ -28,4 +31,5 @@ pub struct ScannedFile {
     pub folder_path: String,
     pub file_size: i64,
     pub modified_at: i64,
+    pub file_md5: String,
 }

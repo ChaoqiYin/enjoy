@@ -7,17 +7,17 @@ use crate::scan::scanner;
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
-struct Fixture(PathBuf);
+pub(crate) struct Fixture(pub(crate) PathBuf);
 
 impl Fixture {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let path = std::env::temp_dir().join(format!(
             "enjoy-test-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir_all(&path).unwrap();
-        Self(path)
+        Self(fs::canonicalize(path).unwrap())
     }
 }
 
@@ -258,7 +258,7 @@ fn overlapping_directories_share_identity_and_keep_tracking_after_removal() {
 }
 
 #[test]
-fn replacing_all_videos_merges_roots_and_resets_user_state() {
+fn replacing_all_videos_merges_roots_and_preserves_user_state() {
     let fixture = Fixture::new();
     let first = fixture.0.join("first");
     let second = fixture.0.join("second");
@@ -287,9 +287,13 @@ fn replacing_all_videos_merges_roots_and_resets_user_state() {
         .unwrap();
     let videos = repository.list().unwrap();
     assert_eq!(videos.len(), 2);
-    assert!(videos
+    let retained = videos
         .iter()
-        .all(|video| !video.favorite && video.play_count == 0 && video.last_played_at.is_none()));
+        .find(|video| video.path == movie.to_string_lossy())
+        .unwrap();
+    assert!(retained.favorite);
+    assert_eq!(retained.play_count, 1);
+    assert!(retained.last_played_at.is_some());
     let directories = repository.directories().unwrap();
     repository.replace_videos(&[]).unwrap();
     assert!(repository.list().unwrap().is_empty());
