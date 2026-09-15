@@ -48,6 +48,8 @@
   "regenerate": "Regenerate thumbnail",
   "refreshInfo": "Refresh information",
   "copyPath": "Copy path",
+  "copied": "Copied",
+  "format": "Format",
   "modifiedAt": "Modified",
   "removeConfirm": "Confirm index removal",
   "keepFile": "The original file will not be deleted.",

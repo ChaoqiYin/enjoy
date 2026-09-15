@@ -33,6 +33,12 @@ export function VideoCard({
       }}
       onKeyDown={(event) => {
         if (
+          event.target instanceof HTMLElement &&
+          event.target.closest('button')
+        ) {
+          return;
+        }
+        if (
           event.key === 'ContextMenu' ||
           (event.shiftKey && event.key === 'F10')
         ) {

@@ -18,8 +18,10 @@ export function VideoActions({
   busy,
   actions,
   iconOnly = false,
+  hideRemove = false,
 }: {
   iconOnly?: boolean;
+  hideRemove?: boolean;
   video: Video;
   busy: boolean;
   actions: VideoActionHandlers;
@@ -86,24 +88,26 @@ export function VideoActions({
           {iconOnly ? <FolderOpen size={14} aria-hidden="true" /> : t('reveal')}
         </button>
       </Tooltip>
-      <Tooltip text={t('removeIndex')}>
-        <button
-          className={
-            iconOnly
-              ? 'btn btn-outline btn-xs btn-square btn-error'
-              : 'btn btn-outline btn-sm btn-error'
-          }
-          disabled={busy}
-          onClick={() => actions.remove(video)}
-          aria-label={t('removeIndex')}
-        >
-          {iconOnly ? (
-            <Trash2 size={14} aria-hidden="true" />
-          ) : (
-            t('removeIndex')
-          )}
-        </button>
-      </Tooltip>
+      {!hideRemove && (
+        <Tooltip text={t('removeIndex')}>
+          <button
+            className={
+              iconOnly
+                ? 'btn btn-outline btn-xs btn-square btn-error'
+                : 'btn btn-outline btn-sm btn-error'
+            }
+            disabled={busy}
+            onClick={() => actions.remove(video)}
+            aria-label={t('removeIndex')}
+          >
+            {iconOnly ? (
+              <Trash2 size={14} aria-hidden="true" />
+            ) : (
+              t('removeIndex')
+            )}
+          </button>
+        </Tooltip>
+      )}
     </div>
   );
 }
