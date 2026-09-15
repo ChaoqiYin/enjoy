@@ -246,7 +246,7 @@ async fn regenerate_thumbnails(
 
 #[tauri::command]
 fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError> {
-    language::get_language(app.clone(), app.state::<language::LanguageState>())?;
+    language::get_language(app.state::<language::LanguageState>())?;
     let path = database_path(app)?;
     let repository = Repository::open(&path)?;
     app.manage(AppState {
@@ -263,6 +263,7 @@ fn main() {
         )
         .init();
     tauri::Builder::default()
+        .enable_macos_default_menu(false)
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())

@@ -7,12 +7,10 @@ pub fn normalize(value: Option<&str>) -> String {
         .into()
 }
 
-pub fn commit<T>(
+pub fn commit(
     current: &mut String,
     preference: &str,
-    apply_menu: impl FnOnce() -> Result<T, AppError>,
     persist: impl FnOnce() -> Result<(), AppError>,
-    restore_menu: impl FnOnce(T),
 ) -> Result<(), AppError> {
     if !["system", "zh-CN", "en"].contains(&preference) {
         return Err(AppError::new(
@@ -20,11 +18,7 @@ pub fn commit<T>(
             "Invalid language preference",
         ));
     }
-    let previous_menu = apply_menu()?;
-    if let Err(error) = persist() {
-        restore_menu(previous_menu);
-        return Err(error);
-    }
+    persist()?;
     *current = preference.into();
     Ok(())
 }
@@ -36,42 +30,26 @@ mod tests {
     use std::cell::RefCell;
 
     #[test]
-    fn failed_save_preserves_runtime_and_restores_menu() {
+    fn failed_save_preserves_runtime() {
         let mut current = "zh-CN".to_owned();
-        let menu = RefCell::new("zh-CN");
-        let result = commit(
-            &mut current,
-            "en",
-            || Ok(menu.replace("en")),
-            || {
-                Err(AppError::new(
-                    "settings.language.save_failed",
-                    "Simulated read-only storage",
-                ))
-            },
-            |previous| {
-                menu.replace(previous);
-            },
-        );
+        let result = commit(&mut current, "en", || {
+            Err(AppError::new(
+                "settings.language.save_failed",
+                "Simulated read-only storage",
+            ))
+        });
         assert_eq!(result.unwrap_err().code, "settings.language.save_failed");
         assert_eq!(current, "zh-CN");
-        assert_eq!(*menu.borrow(), "zh-CN");
     }
 
     #[test]
     fn successful_save_commits_system_preference_without_resolving_it() {
         let mut current = "en".to_owned();
         let persisted = RefCell::new(String::new());
-        commit(
-            &mut current,
-            "system",
-            || Ok(()),
-            || {
-                *persisted.borrow_mut() = "system".into();
-                Ok(())
-            },
-            |_| panic!("Successful saves must not roll back"),
-        )
+        commit(&mut current, "system", || {
+            *persisted.borrow_mut() = "system".into();
+            Ok(())
+        })
         .unwrap();
         assert_eq!(current, "system");
         assert_eq!(*persisted.borrow(), "system");
@@ -83,13 +61,9 @@ mod tests {
         assert_eq!(normalize(Some("invalid")), "system");
         assert_eq!(normalize(Some("en")), "en");
         let mut current = "en".into();
-        assert!(commit(
-            &mut current,
-            "fr",
-            || -> Result<(), AppError> { panic!("Invalid input must not alter menus") },
-            || panic!("Invalid input must not write storage"),
-            |_| {}
-        )
+        assert!(commit(&mut current, "fr", || panic!(
+            "Invalid input must not write storage"
+        ),)
         .is_err());
         assert_eq!(current, "en");
     }

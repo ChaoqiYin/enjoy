@@ -5,7 +5,6 @@ use tauri::{AppHandle, State};
 use tauri_plugin_store::StoreExt;
 
 use crate::error::AppError;
-use crate::i18n::native;
 use crate::i18n::preference;
 
 pub struct LanguageState(pub Mutex<String>);
@@ -43,21 +42,13 @@ pub fn load(app: &AppHandle) -> LanguageState {
 }
 
 #[tauri::command]
-pub fn get_language(
-    app: AppHandle,
-    state: State<'_, LanguageState>,
-) -> Result<LanguageSettings, AppError> {
+pub fn get_language(state: State<'_, LanguageState>) -> Result<LanguageSettings, AppError> {
     let preference = state
         .0
         .lock()
         .map_err(|_| AppError::new("settings.language.failed", "Language lock poisoned"))?
         .clone();
     let language = resolve(&preference, sys_locale::get_locale().as_deref());
-    app.set_menu(
-        native::menu(&app, &language)
-            .map_err(|error| AppError::new("settings.language.failed", error))?,
-    )
-    .map_err(|error| AppError::new("settings.language.failed", error))?;
     Ok(LanguageSettings {
         preference,
         language,
@@ -83,39 +74,20 @@ pub fn set_language(
     let store = app
         .store("preferences.json")
         .map_err(|error| AppError::new("settings.language.save_failed", error))?;
-    let language = resolve(&preference, sys_locale::get_locale().as_deref());
-    preference::commit(
-        &mut current,
-        &preference,
-        || {
-            app.set_menu(
-                native::menu(&app, &language)
-                    .map_err(|error| AppError::new("settings.language.failed", error))?,
-            )
-            .map_err(|error| AppError::new("settings.language.failed", error))
-        },
-        || {
-            let previous = store.get("language");
-            store.set("language", json!(preference));
-            if let Err(error) = store.save() {
-                match previous {
-                    Some(value) => store.set("language", value),
-                    None => {
-                        store.delete("language");
-                    }
-                }
-                return Err(AppError::new("settings.language.save_failed", error));
-            }
-            Ok(())
-        },
-        |old_menu| {
-            if let Some(menu) = old_menu {
-                if let Err(error) = app.set_menu(menu) {
-                    tracing::error!(diagnostic = %error, "Failed to restore native menu after preference save failure");
+    preference::commit(&mut current, &preference, || {
+        let previous = store.get("language");
+        store.set("language", json!(preference));
+        if let Err(error) = store.save() {
+            match previous {
+                Some(value) => store.set("language", value),
+                None => {
+                    store.delete("language");
                 }
             }
-        },
-    )?;
+            return Err(AppError::new("settings.language.save_failed", error));
+        }
+        Ok(())
+    })?;
     Ok(LanguageSettings {
         language: resolve(&preference, sys_locale::get_locale().as_deref()),
         preference,
