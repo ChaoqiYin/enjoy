@@ -31,6 +31,7 @@ const actions = {
   favorite: vi.fn(),
   reveal: vi.fn(),
   remove: vi.fn(),
+  copyPath: vi.fn(),
   regenerate: vi.fn(),
   refreshInfo: vi.fn(),
   details: vi.fn(),

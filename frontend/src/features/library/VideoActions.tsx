@@ -9,6 +9,7 @@ export interface VideoActionHandlers {
   favorite: (video: Video) => void;
   reveal: (video: Video) => void;
   remove: (video: Video) => void;
+  copyPath: (video: Video) => Promise<boolean>;
   regenerate: (video: Video) => void | Promise<unknown>;
   refreshInfo: (video: Video) => void | Promise<unknown>;
 }

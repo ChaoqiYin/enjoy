@@ -113,10 +113,9 @@ export function VideoDetails({
                 className="btn btn-outline btn-xs btn-square btn-info"
                 aria-label={t('copyPath')}
                 onClick={() => {
-                  void navigator.clipboard
-                    ?.writeText(video.path)
-                    .then(() => setCopied(true))
-                    .catch(() => setCopied(false));
+                  void actions
+                    .copyPath(video)
+                    .then((copiedOk) => setCopied(copiedOk));
                 }}
               >
                 <Copy size={14} aria-hidden="true" />

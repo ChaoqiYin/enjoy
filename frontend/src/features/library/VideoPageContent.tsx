@@ -1,8 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderPlus } from 'lucide-react';
 import { libraryApi } from '../../shared/api';
-import type { Video } from '../../shared/api';
+import type { AppError, Video } from '../../shared/api';
 import { ScrollViewport } from '../../shared/ScrollViewport';
 import { useLibraryContext } from './LibraryProvider';
 import type { useVideoPageView } from './useVideoPageView';
@@ -11,6 +11,11 @@ import { VideoMenu } from './VideoMenu';
 import type { MenuTarget } from './VideoMenu';
 import { VideoDetails } from './VideoDetails';
 import { RemoveConfirmation } from './RemoveConfirmation';
+
+function clientError(code: string): AppError {
+  return { code, params: {}, errorId: crypto.randomUUID() };
+}
+
 export function VideoPageContent({
   view,
   emptyTitle,
@@ -33,9 +38,34 @@ export function VideoPageContent({
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   const [remove, setRemove] = useState<Video | null>(null);
+  useEffect(() => {
+    if (detailsId === null || library.videos.isPending) return;
+    if (!library.videos.data) return;
+    if (library.videos.data.some((video) => video.id === detailsId)) return;
+    setDetailsId(null);
+    library.setError(clientError('media.file.removed'));
+  }, [
+    detailsId,
+    library.videos.isPending,
+    library.videos.data,
+    library.setError,
+  ]);
   const play = (video: Video) => library.run(() => libraryApi.play(video.path));
   const favorite = (video: Video) =>
     library.run(() => libraryApi.favorite(video.path, !video.favorite));
+  const copyPath = async (video: Video) => {
+    if (!navigator.clipboard) {
+      library.setError(clientError('app.clipboard.failed'));
+      return false;
+    }
+    try {
+      await navigator.clipboard.writeText(video.path);
+      return true;
+    } catch {
+      library.setError(clientError('app.clipboard.failed'));
+      return false;
+    }
+  };
   const actions = {
     play,
     favorite,
@@ -45,6 +75,7 @@ export function VideoPageContent({
       setRemove(video);
     },
     details: (video: Video) => setDetailsId(video.id),
+    copyPath,
     regenerate: (video: Video) =>
       library.run(() => libraryApi.regenerate(video.path)),
     refreshInfo: (video: Video) =>

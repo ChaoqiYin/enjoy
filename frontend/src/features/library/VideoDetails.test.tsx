@@ -17,7 +17,7 @@ const video: Video = {
 };
 const actions = () => ({
   details: vi.fn(), play: vi.fn(), favorite: vi.fn(), reveal: vi.fn(),
-  remove: vi.fn(), regenerate: vi.fn(), refreshInfo: vi.fn(),
+  remove: vi.fn(), copyPath: vi.fn(), regenerate: vi.fn(), refreshInfo: vi.fn(),
 });
 beforeEach(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: english, errors } } });
