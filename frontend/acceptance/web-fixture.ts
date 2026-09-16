@@ -1,6 +1,7 @@
 import { mockIPC, mockConvertFileSrc } from '@tauri-apps/api/mocks';
 import { emit } from '@tauri-apps/api/event';
 import type { ScanStatus, Video } from '../src/shared/api';
+import type { SettingsState } from '../src/settings/SettingsProvider';
 
 const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
   id: index + 1,
@@ -22,6 +23,7 @@ const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
   updated_at: 1720000000000 + index,
 }));
 let language = 'en';
+let settings: SettingsState = { language: 'en', theme: 'dark' };
 let scan: ScanStatus = {
   background: false,
   phase: 'complete',
@@ -51,6 +53,11 @@ mockIPC(
       case 'set_language':
         language = String(payload.preference);
         return { preference: language, language };
+      case 'get_settings':
+        return { ...settings };
+      case 'save_settings':
+        settings = { ...(payload.settings as SettingsState) };
+        return { ...settings };
       case 'list_videos':
         return videos.map((video) => ({ ...video }));
       case 'list_directories':
@@ -69,6 +76,7 @@ mockIPC(
         return;
       }
       default:
+        console.warn(`Unexpected acceptance command: ${command}`);
         throw new Error(`Unexpected acceptance command: ${command}`);
     }
   },
