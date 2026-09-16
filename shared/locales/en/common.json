@@ -75,7 +75,7 @@
   "resolution": "Resolution",
   "actions": "Actions",
   "scanComplete": "Scan complete",
-  "scanChanges": "{{added}} added, {{updated}} updated, {{missing}} unavailable.",
+  "scanChanges": "{{added}} added, {{updated}} updated, {{removed}} removed.",
   "scanFailures": "{{countText}} media operations failed.",
   "codec": "Codec",
   "fileSize": "Size",

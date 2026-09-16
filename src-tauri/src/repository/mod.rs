@@ -16,7 +16,7 @@ use crate::model::{FileStamp, ScannedFile, VideoFile};
 pub struct IndexChanges {
     pub added: usize,
     pub updated: usize,
-    pub unavailable: usize,
+    pub removed: usize,
 }
 
 pub struct Repository {
@@ -134,7 +134,11 @@ impl Repository {
                 params![directory, file.path],
             )?;
         }
-        changes.unavailable = tx.execute(
+        // The count is deliberately dropped. In the full sync these rows are
+        // deleted by the statement in `replace_videos_controlled`, so the number
+        // never described marking anything; the interface reports the deletions
+        // instead. Removing the marking itself belongs to a separate ticket.
+        tx.execute(
             "UPDATE videos SET available=0,updated_at=?2 WHERE available=1 AND id IN
              (SELECT video_id FROM directory_videos WHERE directory_path=?1)
              AND path NOT IN (SELECT path FROM scan_paths)",
@@ -167,7 +171,7 @@ impl Repository {
             changes.updated += indexed.updated;
         }
         checkpoint()?;
-        changes.unavailable = tx.execute(
+        changes.removed = tx.execute(
             "DELETE FROM videos WHERE path NOT IN (SELECT path FROM scan_paths)",
             [],
         )?;

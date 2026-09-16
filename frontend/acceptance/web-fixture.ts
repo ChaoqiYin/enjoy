@@ -32,7 +32,7 @@ let scan: ScanStatus = {
   thumbnailsReady: 0,
   failures: 0,
   currentPath: '',
-  changes: { added: 0, updated: 0, unavailable: 0 },
+  changes: { added: 0, updated: 0, removed: 0 },
 };
 mockConvertFileSrc('macos');
 Object.defineProperty(window, 'isTauri', { value: true });

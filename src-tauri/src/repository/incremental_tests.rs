@@ -118,3 +118,28 @@ fn old_schema_is_reset_once_and_new_database_survives_reopen() {
         vec!["saved"]
     );
 }
+
+#[test]
+fn full_sync_reports_records_it_removes() {
+    let fixture = Fixture::new();
+    let root = fixture.0.to_string_lossy().into_owned();
+    let gone = fixture.0.join("gone.mp4");
+    fs::write(&gone, b"gone").unwrap();
+    fs::write(fixture.0.join("kept.mp4"), b"kept").unwrap();
+    let mut repository = Repository::open(&fixture.0.join("library.db")).unwrap();
+    repository
+        .replace_videos(&[(root.clone(), scanner::collect(&fixture.0).unwrap())])
+        .unwrap();
+    let settled = repository
+        .replace_videos(&[(root.clone(), scanner::collect(&fixture.0).unwrap())])
+        .unwrap();
+    assert_eq!((settled.added, settled.updated, settled.removed), (0, 0, 0));
+    fs::remove_file(&gone).unwrap();
+    let pruned = repository
+        .replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])
+        .unwrap();
+    assert_eq!((pruned.added, pruned.updated, pruned.removed), (0, 0, 1));
+    let rows = repository.list().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].file_name, "kept.mp4");
+}

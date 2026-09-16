@@ -150,7 +150,7 @@ fn failed_playback_does_not_change_history() {
 }
 
 #[test]
-fn scan_changes_count_new_updated_and_missing_files() {
+fn scan_changes_count_new_and_updated_files() {
     let fixture = Fixture::new();
     let movie = fixture.0.join("sample.mp4");
     fs::write(&movie, b"one").unwrap();
@@ -159,27 +159,21 @@ fn scan_changes_count_new_updated_and_missing_files() {
     let first = repository
         .index(root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
-    assert_eq!((first.added, first.updated, first.unavailable), (1, 0, 0));
+    assert_eq!((first.added, first.updated), (1, 0));
     let same = repository
         .index(root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
-    assert_eq!((same.added, same.updated, same.unavailable), (0, 0, 0));
+    assert_eq!((same.added, same.updated), (0, 0));
     fs::write(&movie, b"updated content").unwrap();
     let changed = repository
         .index(root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
-    assert_eq!(
-        (changed.added, changed.updated, changed.unavailable),
-        (0, 1, 0)
-    );
+    assert_eq!((changed.added, changed.updated), (0, 1));
     fs::remove_file(movie).unwrap();
     let deleted = repository
         .index(root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
-    assert_eq!(
-        (deleted.added, deleted.updated, deleted.unavailable),
-        (0, 0, 1)
-    );
+    assert_eq!((deleted.added, deleted.updated), (0, 0));
 }
 
 #[test]

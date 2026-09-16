@@ -75,7 +75,7 @@
   "resolution": "分辨率",
   "actions": "操作",
   "scanComplete": "扫描完成",
-  "scanChanges": "新增 {{added}} 个，更新 {{updated}} 个，标记不可用 {{missing}} 个。",
+  "scanChanges": "新增 {{added}} 个，更新 {{updated}} 个，移除 {{removed}} 个。",
   "scanFailures": "{{countText}} 项媒体处理失败。",
   "codec": "编码",
   "fileSize": "大小",

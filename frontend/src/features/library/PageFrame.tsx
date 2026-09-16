@@ -43,7 +43,7 @@ export function PageFrame({ children }: { children: ReactNode }) {
               updated: library.completion.changes.updated.toLocaleString(
                 i18n.language,
               ),
-              missing: library.completion.changes.unavailable.toLocaleString(
+              removed: library.completion.changes.removed.toLocaleString(
                 i18n.language,
               ),
             })}

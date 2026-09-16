@@ -6,7 +6,7 @@ const completed: ScanStatus = {
   background: true,
   phase: 'complete',
   failures: 0,
-  changes: { added: 0, updated: 0, unavailable: 0 },
+  changes: { added: 0, updated: 0, removed: 0 },
   discovered: 1,
   processed: 1,
   indexed: 1,
@@ -21,7 +21,7 @@ describe('scan completion feedback', () => {
     expect(shouldAnnounceScan({ ...completed, background: false })).toBe(true);
   });
   it('announces background changes and failures only after completion', () => {
-    for (const key of ['added', 'updated', 'unavailable']) {
+    for (const key of ['added', 'updated', 'removed']) {
       expect(
         shouldAnnounceScan({
           ...completed,

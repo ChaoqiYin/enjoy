@@ -25,7 +25,7 @@ beforeEach(() => {
   vi.spyOn(libraryApi, 'scanStatus').mockResolvedValue({
     background: false,
     phase: 'idle',
-    changes: { added: 0, updated: 0, unavailable: 0 },
+    changes: { added: 0, updated: 0, removed: 0 },
     failures: 0,
     discovered: 0,
     processed: 0,
@@ -78,7 +78,7 @@ it('allows scan query errors to be dismissed', async () => {
 const completed: ScanStatus = {
   background: false,
   phase: 'complete',
-  changes: { added: 1, updated: 0, unavailable: 0 },
+  changes: { added: 1, updated: 0, removed: 0 },
   failures: 0,
   discovered: 1,
   processed: 1,
