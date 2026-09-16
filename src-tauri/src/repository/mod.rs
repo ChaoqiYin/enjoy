@@ -145,7 +145,12 @@ impl Repository {
                 .query_row(
                     "SELECT file_size,modified_at FROM videos WHERE path=?1",
                     [&file.path],
-                    |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+                    |row| {
+                        Ok(FileStamp {
+                            file_size: row.get(0)?,
+                            modified_at: row.get(1)?,
+                        })
+                    },
                 )
                 .optional()?;
             // Whether a file counts as changed is decided here, once, from the
@@ -159,18 +164,18 @@ impl Repository {
             // than a change -- it holds nothing of its own to invalidate -- and
             // the counters below follow the same verdict, so new and updated
             // records are counted exactly as they are written.
-            let changed = match &previous {
-                // The row is read whole -- it is the stored identity of the
-                // file -- but the size and the modification time are the pair
-                // this rule compares: a difference in either one means the
-                // file is no longer the one the media were derived from. A
-                // rewrite that leaves both untouched is not noticed, which is
-                // the blind spot ADR 0004 accepts.
-                Some((file_size, modified_at)) => {
-                    *file_size != file.file_size || *modified_at != file.modified_at
-                }
-                None => false,
+            //
+            // The comparison is the one `FileStamp` already carries: the stored
+            // stamp is the identity the media were derived from, and the same
+            // pair guards the writes back to the row, so the rule and the guard
+            // cannot drift apart (ADR 0004). A rewrite that leaves both halves
+            // untouched is not noticed, which is the blind spot ADR 0004
+            // accepts.
+            let stamp = FileStamp {
+                file_size: file.file_size,
+                modified_at: file.modified_at,
             };
+            let changed = previous.is_some_and(|stored| stored != stamp);
             if previous.is_none() {
                 changes.added += 1;
             } else if changed {
