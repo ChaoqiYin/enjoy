@@ -63,7 +63,7 @@ fn rescan_preserves_identity_and_playback_after_reopen() {
 }
 
 #[test]
-fn index_keeps_missing_records_and_index_removal_keeps_files() {
+fn a_directory_that_was_scanned_clears_the_records_of_files_that_disappeared() {
     let fixture = Fixture::new();
     let movie = fixture.0.join("clip.mkv");
     fs::write(&movie, b"sample").unwrap();
@@ -74,23 +74,22 @@ fn index_keeps_missing_records_and_index_removal_keeps_files() {
         .index(root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
     repository.favorite(path, true).unwrap();
-    let before = repository.list().unwrap().remove(0);
+    repository.record_play(path).unwrap();
     fs::remove_file(&movie).unwrap();
-    repository
+    // The directory was read successfully and the file was not in it, so the
+    // record is stale and its user state goes with it, as ADR 0003 accepts.
+    let changes = repository
         .index(root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
-    // Only the full sync prunes; a single-directory index leaves the record
-    // and its user state untouched when the file is gone.
-    let missing = repository.list().unwrap().remove(0);
-    assert_eq!(missing.id, before.id);
-    assert!(missing.favorite);
+    assert_eq!((changes.added, changes.updated, changes.removed), (0, 0, 1));
+    assert!(repository.list().unwrap().is_empty());
     fs::write(&movie, b"restored").unwrap();
     repository
         .index(root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
     let restored = repository.list().unwrap().remove(0);
-    assert_eq!(restored.id, before.id);
-    assert!(restored.favorite);
+    assert!(!restored.favorite);
+    assert_eq!(restored.play_count, 0);
     repository.remove(path).unwrap();
     assert!(repository.list().unwrap().is_empty());
     assert!(movie.exists());
@@ -245,12 +244,6 @@ fn overlapping_directories_share_identity_and_keep_tracking_after_removal() {
         .unwrap();
     assert_eq!(repository.list().unwrap().len(), 1);
     repository.remove_directory(parent).unwrap();
-    fs::remove_file(&movie).unwrap();
-    repository
-        .index(child, &scanner::collect(&nested).unwrap())
-        .unwrap();
-    assert_eq!(repository.list().unwrap().len(), 1);
-    fs::write(&movie, b"restored").unwrap();
     repository
         .index(child, &scanner::collect(&nested).unwrap())
         .unwrap();
@@ -299,9 +292,16 @@ fn replacing_all_videos_merges_roots_and_preserves_user_state() {
     assert_eq!(retained.play_count, 1);
     assert!(retained.last_played_at.is_some());
     let directories = repository.directories().unwrap();
+    assert_eq!(directories.len(), 2);
+    // A scan with nothing configured clears every record: none of them belongs
+    // to the scan universe any more. Removing the last directory is what
+    // empties the universe, so those records need no delete of their own.
+    for directory in directories {
+        repository.remove_directory(&directory).unwrap();
+    }
     repository.replace_videos(&[]).unwrap();
     assert!(repository.list().unwrap().is_empty());
-    assert_eq!(repository.directories().unwrap(), directories);
+    assert!(repository.directories().unwrap().is_empty());
 }
 
 #[test]

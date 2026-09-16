@@ -170,6 +170,7 @@ it('shows preparation only for the current file and clears it after termination'
     phase: 'processing',
     changes: { added: 0, updated: 0, removed: 0 },
     failures: 0,
+    unreachableDirectories: 0,
     discovered: 2,
     processed: 0,
     indexed: 2,

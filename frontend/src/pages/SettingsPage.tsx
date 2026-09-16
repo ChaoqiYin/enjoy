@@ -9,7 +9,6 @@ import { libraryApi } from '../shared/api';
 import { useLibraryContext } from '../features/library/LibraryProvider';
 import { DirectoryActions } from '../features/library/DirectoryActions';
 import { DirectoryDialog } from '../features/library/DirectoryDialog';
-import { directoryScanAction } from '../features/library/scanDirectories';
 import { EmptyRescanConfirmation } from '../features/library/EmptyRescanConfirmation';
 import { PageFrame } from '../features/library/PageFrame';
 import packageInfo from '../../../package.json';
@@ -19,12 +18,11 @@ export function SettingsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [showEmptyRescan, setShowEmptyRescan] = useState(false);
   const rescan = () => {
-    const paths = library.directories.data ?? [];
-    if (paths.length === 0) {
+    if ((library.directories.data ?? []).length === 0) {
       setShowEmptyRescan(true);
       return;
     }
-    void library.run(directoryScanAction(paths));
+    void library.run(libraryApi.rescan);
   };
   return (
     <PageFrame>
@@ -79,7 +77,7 @@ export function SettingsPage() {
           onCancel={() => setShowEmptyRescan(false)}
           onConfirm={() => {
             setShowEmptyRescan(false);
-            void library.run(directoryScanAction([]));
+            void library.run(libraryApi.rescan);
           }}
         />
       )}

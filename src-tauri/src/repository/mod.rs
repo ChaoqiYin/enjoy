@@ -19,6 +19,28 @@ pub struct IndexChanges {
     pub removed: usize,
 }
 
+/// What one configured directory contributed to a scan.
+pub struct DirectoryScan {
+    pub path: String,
+    /// `None` when the directory could not be read at all. Its records are then
+    /// left alone: this scan says nothing about what is inside it.
+    pub files: Option<Vec<ScannedFile>>,
+}
+
+/// Removes the records that no longer belong to the scan universe.
+///
+/// A record survives when one of its directories either was not scanned this
+/// run — an unreadable directory keeps its records — or was scanned and still
+/// holds the file. A record with no membership at all is removed: removing a
+/// saved directory cascades its membership rows away, so this is also what
+/// clears the records of a directory the user removed, without a cascade
+/// delete of its own.
+const REMOVAL_SQL: &str = "DELETE FROM videos WHERE NOT EXISTS (
+        SELECT 1 FROM directory_videos AS membership
+        WHERE membership.video_id = videos.id
+          AND (membership.directory_path NOT IN (SELECT path FROM scanned_directories)
+               OR videos.path IN (SELECT path FROM scan_paths)))";
+
 pub struct Repository {
     connection: Connection,
 }
@@ -62,11 +84,7 @@ impl Repository {
         directory: &str,
         files: &[ScannedFile],
     ) -> Result<IndexChanges, AppError> {
-        let tx = self.connection.transaction()?;
-        tx.execute_batch("CREATE TEMP TABLE IF NOT EXISTS scan_paths(path TEXT PRIMARY KEY); DELETE FROM scan_paths;")?;
-        let changes = Self::index_files(&tx, directory, files, &|| Ok(()))?;
-        tx.commit()?;
-        Ok(changes)
+        self.replace_videos(&[(directory.into(), files.to_vec())])
     }
 
     fn index_files(
@@ -140,29 +158,51 @@ impl Repository {
         &mut self,
         directories: &[(String, Vec<ScannedFile>)],
     ) -> Result<IndexChanges, AppError> {
-        self.replace_videos_controlled(directories, || Ok(()))
+        let scans: Vec<_> = directories
+            .iter()
+            .map(|(path, files)| DirectoryScan {
+                path: path.clone(),
+                files: Some(files.clone()),
+            })
+            .collect();
+        self.replace_videos_controlled(&scans, || Ok(()))
     }
 
+    /// Syncs the index with what a scan of the saved directories found.
+    ///
+    /// `scans` reports one entry per configured directory, and the removal
+    /// step is decided against those directories rather than against the
+    /// entries the caller happened to pass: a directory that is missing from
+    /// `scans` keeps its records just like an unreadable one.
     pub fn replace_videos_controlled(
         &mut self,
-        directories: &[(String, Vec<ScannedFile>)],
+        scans: &[DirectoryScan],
         checkpoint: impl Fn() -> Result<(), AppError>,
     ) -> Result<IndexChanges, AppError> {
         let tx = self.connection.transaction()?;
         checkpoint()?;
-        tx.execute_batch("CREATE TEMP TABLE IF NOT EXISTS scan_paths(path TEXT PRIMARY KEY); DELETE FROM scan_paths;")?;
+        tx.execute_batch(
+            "CREATE TEMP TABLE IF NOT EXISTS scan_paths(path TEXT PRIMARY KEY);
+             CREATE TEMP TABLE IF NOT EXISTS scanned_directories(path TEXT PRIMARY KEY);
+             DELETE FROM scan_paths;
+             DELETE FROM scanned_directories;",
+        )?;
         let mut changes = IndexChanges::default();
-        for (directory, files) in directories {
+        for scan in scans {
             checkpoint()?;
-            let indexed = Self::index_files(&tx, directory, files, &checkpoint)?;
+            let Some(files) = &scan.files else {
+                continue;
+            };
+            let indexed = Self::index_files(&tx, &scan.path, files, &checkpoint)?;
             changes.added += indexed.added;
             changes.updated += indexed.updated;
+            tx.execute(
+                "INSERT OR IGNORE INTO scanned_directories(path) VALUES (?1)",
+                [&scan.path],
+            )?;
         }
         checkpoint()?;
-        changes.removed = tx.execute(
-            "DELETE FROM videos WHERE path NOT IN (SELECT path FROM scan_paths)",
-            [],
-        )?;
+        changes.removed = tx.execute(REMOVAL_SQL, [])?;
         checkpoint()?;
         tx.commit()?;
         Ok(changes)

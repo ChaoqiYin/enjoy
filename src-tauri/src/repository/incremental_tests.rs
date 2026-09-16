@@ -4,7 +4,7 @@ use std::fs;
 use crate::error::AppError;
 use crate::media::Metadata;
 use crate::repository::tests::Fixture;
-use crate::repository::Repository;
+use crate::repository::{DirectoryScan, Repository};
 use crate::scan::scanner;
 
 #[test]
@@ -72,7 +72,10 @@ fn cancellation_before_commit_rolls_back_insertions_and_deletions() {
     fs::write(fixture.0.join("new.mp4"), b"new").unwrap();
     let calls = Cell::new(0);
     let result = repository.replace_videos_controlled(
-        &[(root.clone(), scanner::collect(&fixture.0).unwrap())],
+        &[DirectoryScan {
+            path: root.clone(),
+            files: Some(scanner::collect(&fixture.0).unwrap()),
+        }],
         || {
             calls.set(calls.get() + 1);
             if calls.get() == 5 {
@@ -142,4 +145,80 @@ fn full_sync_reports_records_it_removes() {
     let rows = repository.list().unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].file_name, "kept.mp4");
+}
+
+#[test]
+fn removing_a_configured_directory_clears_its_records_on_the_next_scan() {
+    let fixture = Fixture::new();
+    let kept = fixture.0.join("kept");
+    let dropped = fixture.0.join("dropped");
+    fs::create_dir(&kept).unwrap();
+    fs::create_dir(&dropped).unwrap();
+    fs::write(kept.join("kept.mp4"), b"video").unwrap();
+    fs::write(dropped.join("dropped.mp4"), b"video").unwrap();
+    let kept_root = kept.to_string_lossy().into_owned();
+    let dropped_root = dropped.to_string_lossy().into_owned();
+    let mut repository = Repository::open(&fixture.0.join("index.db")).unwrap();
+    repository
+        .replace_videos(&[
+            (kept_root.clone(), scanner::collect(&kept).unwrap()),
+            (dropped_root.clone(), scanner::collect(&dropped).unwrap()),
+        ])
+        .unwrap();
+    assert_eq!(repository.list().unwrap().len(), 2);
+    // Removing a saved directory only drops the configuration: it triggers no
+    // scan, and its records leave the library on the next one, because their
+    // directory is no longer part of the scan universe.
+    repository.remove_directory(&dropped_root).unwrap();
+    assert_eq!(repository.list().unwrap().len(), 2);
+    let removed = repository
+        .replace_videos(&[(kept_root, scanner::collect(&kept).unwrap())])
+        .unwrap()
+        .removed;
+    assert_eq!(removed, 1);
+    let rows = repository.list().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].file_name, "kept.mp4");
+}
+
+#[test]
+fn unreadable_directories_keep_their_records_while_scanned_ones_are_cleaned() {
+    let fixture = Fixture::new();
+    let cleared = fixture.0.join("cleared");
+    let skipped = fixture.0.join("skipped");
+    fs::create_dir(&cleared).unwrap();
+    fs::create_dir(&skipped).unwrap();
+    fs::write(cleared.join("gone.mp4"), b"video").unwrap();
+    fs::write(skipped.join("stranded.mp4"), b"video").unwrap();
+    let cleared_root = cleared.to_string_lossy().into_owned();
+    let skipped_root = skipped.to_string_lossy().into_owned();
+    let mut repository = Repository::open(&fixture.0.join("index.db")).unwrap();
+    repository
+        .replace_videos(&[
+            (cleared_root.clone(), scanner::collect(&cleared).unwrap()),
+            (skipped_root.clone(), scanner::collect(&skipped).unwrap()),
+        ])
+        .unwrap();
+    fs::remove_file(cleared.join("gone.mp4")).unwrap();
+    let changes = repository
+        .replace_videos_controlled(
+            &[
+                // Read successfully, and now empty: its records are all stale.
+                DirectoryScan {
+                    path: cleared_root,
+                    files: Some(scanner::collect(&cleared).unwrap()),
+                },
+                // Could not be read: this scan says nothing about its records.
+                DirectoryScan {
+                    path: skipped_root,
+                    files: None,
+                },
+            ],
+            || Ok(()),
+        )
+        .unwrap();
+    assert_eq!((changes.added, changes.updated, changes.removed), (0, 0, 1));
+    let rows = repository.list().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].file_name, "stranded.mp4");
 }

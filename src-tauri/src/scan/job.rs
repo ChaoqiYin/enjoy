@@ -3,12 +3,11 @@ use std::sync::{Arc, Mutex};
 use crate::error::AppError;
 use crate::media::MediaProcessor;
 use crate::model::VideoFile;
-use crate::repository::Repository;
+use crate::repository::{DirectoryScan, Repository};
 use crate::scan::control::{ScanControl, ScanStatus};
 use crate::scan::scanner;
 
 pub fn run(
-    paths: &[String],
     media: &MediaProcessor,
     repository: &Arc<Mutex<Repository>>,
     control: &ScanControl,
@@ -24,23 +23,54 @@ pub fn run(
     };
     control.publish(progress.clone());
     on_progress(control.status());
-    let mut directories = Vec::new();
-    for path in paths {
+    // The scan universe is read from the repository, not received from the
+    // caller, so no caller can scan a subset and have the cleanup of the
+    // directories it left out be decided by this run.
+    let directories = {
+        repository
+            .lock()
+            .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
+            .directories()?
+    };
+    let mut scans = Vec::with_capacity(directories.len());
+    for path in directories {
         control.checkpoint()?;
         progress.current_path = path.clone();
         control.publish(progress.clone());
         on_progress(control.status());
-        let root = std::fs::canonicalize(path).map_err(|error| AppError::io(error, path))?;
-        let files = scanner::collect_controlled(&root, || control.checkpoint())?;
-        directories.push((path.clone(), files));
+        let scanned = std::fs::canonicalize(&path)
+            .map_err(|error| AppError::io(error, &path))
+            .and_then(|root| {
+                scanner::collect_controlled(
+                    &root,
+                    || control.checkpoint(),
+                    |error| {
+                        progress.failures += 1;
+                        on_error(error);
+                    },
+                )
+            });
+        match scanned {
+            Ok(files) => scans.push(DirectoryScan {
+                path,
+                files: Some(files),
+            }),
+            Err(error) if error.code == "media.scan.cancelled" => return Err(error),
+            // Reported through the dedicated count instead of an error notice:
+            // one unreadable directory must not stop the other directories from
+            // being cleaned up, and the notice is the place for that count.
+            Err(_) => {
+                progress.unreachable_directories += 1;
+                scans.push(DirectoryScan { path, files: None });
+            }
+        }
     }
     control.checkpoint()?;
     let videos = {
         let mut guard = repository
             .lock()
             .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?;
-        progress.changes =
-            guard.replace_videos_controlled(&directories, || control.checkpoint())?;
+        progress.changes = guard.replace_videos_controlled(&scans, || control.checkpoint())?;
         guard.list()?
     };
     progress.phase = "processing".into();

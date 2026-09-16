@@ -75,6 +75,7 @@
   "actions": "Actions",
   "scanComplete": "Scan complete",
   "scanChanges": "{{added}} added, {{updated}} updated, {{removed}} removed.",
+  "scanUnreachable": "{{countText}} folders are currently unreachable.",
   "scanFailures": "{{countText}} media operations failed.",
   "codec": "Codec",
   "fileSize": "Size",

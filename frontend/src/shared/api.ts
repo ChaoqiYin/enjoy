@@ -31,6 +31,7 @@ export interface ScanStatus {
   background: boolean;
   changes: { added: number; updated: number; removed: number };
   failures: number;
+  unreachableDirectories: number;
   phase: string;
   discovered: number;
   processed: number;
@@ -46,7 +47,6 @@ export const libraryApi = {
     invoke<void>('regenerate_thumbnails', { path }),
   list: () => invoke<Video[]>('list_videos'),
   directories: () => invoke<string[]>('list_directories'),
-  scan: (path: string) => invoke<Video[]>('scan_directory', { path }),
   scanStatus: () => invoke<ScanStatus>('scan_status'),
   controlScan: (action: 'pause' | 'resume' | 'cancel') =>
     invoke<void>('scan_action', { action }),
@@ -55,7 +55,9 @@ export const libraryApi = {
   remove: (path: string) => invoke<void>('remove_video', { path }),
   removeDirectory: (path: string) => invoke<void>('remove_directory', { path }),
   addDirectory: (path: string) => invoke<void>('add_directory', { path }),
-  rescan: (paths: string[]) => invoke<Video[]>('rescan_directories', { paths }),
+  // The scanned range is the saved directories; the backend reads them, so
+  // there is no directory list to pass and no way to narrow the scan.
+  rescan: () => invoke<Video[]>('rescan_directories'),
   play: (path: string) => invoke<void>('open_video', { path }),
   refreshInfo: (path: string) => invoke<void>('refresh_video_info', { path }),
 };

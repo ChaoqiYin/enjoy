@@ -39,7 +39,6 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let guard = control.begin().unwrap();
     let result = job::run(
-        std::slice::from_ref(&root),
         &media,
         &repository,
         &control,
@@ -66,7 +65,6 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
         .unwrap();
     let guard = control.begin().unwrap();
     let result = job::run(
-        std::slice::from_ref(&root),
         &media,
         &repository,
         &control,
@@ -86,7 +84,6 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
         let guard = control.begin().unwrap();
         let mut visited = false;
         let rows = job::run(
-            std::slice::from_ref(&root),
             &media,
             &repository,
             &control,
@@ -112,44 +109,81 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
 }
 
 #[test]
-fn discovery_failure_or_cancellation_preserves_existing_records() {
+fn an_unreadable_directory_is_counted_and_skipped_without_aborting_the_scan() {
+    let fixture = Fixture::new();
+    let readable = fixture.0.join("readable");
+    let vanished = fixture.0.join("vanished");
+    fs::create_dir(&readable).unwrap();
+    fs::create_dir(&vanished).unwrap();
+    fs::write(readable.join("kept.mp4"), b"kept").unwrap();
+    fs::write(readable.join("stale.mp4"), b"stale").unwrap();
+    fs::write(vanished.join("stranded.mp4"), b"stranded").unwrap();
+    let readable_root = readable.to_string_lossy().into_owned();
+    let vanished_root = vanished.to_string_lossy().into_owned();
+    let mut repo = Repository::open(&fixture.0.join("library.db")).unwrap();
+    repo.replace_videos(&[
+        (readable_root, scanner::collect(&readable).unwrap()),
+        (vanished_root, scanner::collect(&vanished).unwrap()),
+    ])
+    .unwrap();
+    for video in repo.list().unwrap() {
+        repo.save_metadata(
+            &video,
+            &Metadata {
+                duration_ms: Some(500),
+                width: 160,
+                height: 90,
+                codec: None,
+            },
+        )
+        .unwrap();
+        repo.save_thumbnail(&video, "cached.jpg").unwrap();
+        repo.complete_media(&video).unwrap();
+    }
+    fs::remove_file(readable.join("stale.mp4")).unwrap();
+    fs::remove_dir_all(&vanished).unwrap();
+    let repository = Arc::new(Mutex::new(repo));
+    let control = Arc::new(ScanControl::default());
+    let media = MediaProcessor::on_path(fixture.0.join("cache"));
+    let guard = control.begin().unwrap();
+    let rows = job::run(&media, &repository, &control, false, |_| {}, |_| {})
+        .expect("One unreadable directory must not fail the scan");
+    drop(guard);
+    let status = control.status();
+    assert_eq!(status.phase, "complete");
+    assert_eq!(status.unreachable_directories, 1);
+    assert_eq!(status.failures, 0);
+    assert_eq!(status.changes.removed, 1);
+    let names: Vec<_> = rows.iter().map(|video| video.file_name.as_str()).collect();
+    assert_eq!(names, vec!["stranded.mp4", "kept.mp4"]);
+}
+
+#[test]
+fn cancellation_aborts_the_scan_and_preserves_existing_records() {
     let fixture = Fixture::new();
     let root = fixture.0.to_string_lossy().into_owned();
     fs::write(fixture.0.join("old.mp4"), b"old").unwrap();
     let mut repo = Repository::open(&fixture.0.join("library.db")).unwrap();
-    repo.replace_videos(&[(root.clone(), scanner::collect(&fixture.0).unwrap())])
+    repo.replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
     fs::remove_file(fixture.0.join("old.mp4")).unwrap();
     let repository = Arc::new(Mutex::new(repo));
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
-    for cancel in [false, true] {
-        let guard = control.begin().unwrap();
-        let result = job::run(
-            &[
-                root.clone(),
-                fixture.0.join("missing").to_string_lossy().into_owned(),
-            ],
-            &media,
-            &repository,
-            &control,
-            false,
-            |_| {
-                if cancel {
-                    control.action("cancel").unwrap();
-                }
-            },
-            |_| {},
-        );
-        assert!(result.is_err());
-        drop(guard);
-        assert_eq!(
-            control.status().phase,
-            if cancel { "cancelled" } else { "failed" }
-        );
-        assert_eq!(
-            repository.lock().unwrap().list().unwrap()[0].file_name,
-            "old.mp4"
-        );
-    }
+    let guard = control.begin().unwrap();
+    let result = job::run(
+        &media,
+        &repository,
+        &control,
+        false,
+        |_| control.action("cancel").unwrap(),
+        |_| {},
+    );
+    assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
+    drop(guard);
+    assert_eq!(control.status().phase, "cancelled");
+    assert_eq!(
+        repository.lock().unwrap().list().unwrap()[0].file_name,
+        "old.mp4"
+    );
 }

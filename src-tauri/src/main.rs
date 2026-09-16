@@ -35,28 +35,9 @@ fn database_path(app: &tauri::AppHandle) -> Result<PathBuf, AppError> {
 }
 
 #[tauri::command]
-async fn scan_directory(
-    path: String,
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-) -> Result<Vec<VideoFile>, AppError> {
-    scan_directory_impl(vec![path], app, state, false).await
-}
-
-#[tauri::command]
 async fn rescan_directories(
-    paths: Vec<String>,
     app: tauri::AppHandle,
     state: State<'_, AppState>,
-) -> Result<Vec<VideoFile>, AppError> {
-    scan_directory_impl(paths, app, state, false).await
-}
-
-async fn scan_directory_impl(
-    paths: Vec<String>,
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-    background: bool,
 ) -> Result<Vec<VideoFile>, AppError> {
     let repository = Arc::clone(&state.repository);
     let control = Arc::clone(&state.scan);
@@ -66,12 +47,12 @@ async fn scan_directory_impl(
         let _guard = guard;
         let cache = database_path(&app)?.with_file_name("thumbnails");
         let media = media::MediaProcessor::for_app(&app, cache)?;
+        // No command starts a background scan: every scan is user-initiated.
         scan_job::run(
-            &paths,
             &media,
             &repository,
             &control,
-            background,
+            false,
             |status| {
                 let _ = app.emit("scan-progress", status);
             },
@@ -299,7 +280,6 @@ fn main() {
             language::set_language,
             settings::get_settings,
             settings::save_settings,
-            scan_directory,
             regenerate_thumbnails,
             scan_action,
             scan_status,

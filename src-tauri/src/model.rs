@@ -23,7 +23,7 @@ pub struct VideoFile {
     pub updated_at: i64,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ScannedFile {
     pub path: String,
     pub file_name: String,

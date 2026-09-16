@@ -12,6 +12,10 @@ pub struct ScanStatus {
     pub phase: String,
     pub changes: IndexChanges,
     pub failures: usize,
+    /// Configured directories this run could not read at all. Counted apart
+    /// from `failures`: it is a fact about the scan universe, not a media
+    /// failure, and it must not extend the completion notice's stay.
+    pub unreachable_directories: usize,
     pub discovered: usize,
     pub processed: usize,
     pub indexed: usize,

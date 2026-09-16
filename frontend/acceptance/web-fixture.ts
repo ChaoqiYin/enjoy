@@ -32,6 +32,7 @@ let scan: ScanStatus = {
   metadataReady: 36,
   thumbnailsReady: 0,
   failures: 0,
+  unreachableDirectories: 0,
   currentPath: '',
   changes: { added: 0, updated: 0, removed: 0 },
 };

@@ -56,6 +56,11 @@ fn verify_scan_failure_counts_and_cache(directory: &Path) {
     let repository = Arc::new(Mutex::new(
         Repository::open(&directory.join("index.db")).unwrap(),
     ));
+    repository
+        .lock()
+        .unwrap()
+        .add_directory(&directory.to_string_lossy())
+        .unwrap();
     let control = Arc::new(ScanControl::default());
     let cache = directory.join("scan-cache");
     let media = media::MediaProcessor::on_path(cache);
@@ -65,7 +70,6 @@ fn verify_scan_failure_counts_and_cache(directory: &Path) {
         let mut errors = Vec::new();
         let mut events = Vec::new();
         let videos = scan_job::run(
-            &[directory.to_string_lossy().into_owned()],
             &media,
             &repository,
             &control,
@@ -124,10 +128,13 @@ fn verify_cancelled_metadata_resumes(parent: &Path, source: &Path) {
     let repository = Arc::new(Mutex::new(Repository::open(&db).unwrap()));
     let control = Arc::new(ScanControl::default());
     let media = media::MediaProcessor::on_path(directory.join("cache"));
-    let paths = [directory.to_string_lossy().into_owned()];
+    repository
+        .lock()
+        .unwrap()
+        .add_directory(&directory.to_string_lossy())
+        .unwrap();
     let guard = control.begin().unwrap();
     let result = scan_job::run(
-        &paths,
         &media,
         &repository,
         &control,
@@ -149,7 +156,6 @@ fn verify_cancelled_metadata_resumes(parent: &Path, source: &Path) {
     let repository = Arc::new(Mutex::new(Repository::open(&db).unwrap()));
     let guard = control.begin().unwrap();
     let rows = scan_job::run(
-        &paths,
         &media,
         &repository,
         &control,

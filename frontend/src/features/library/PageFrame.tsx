@@ -50,6 +50,9 @@ export function PageFrame({ children }: { children: ReactNode }) {
             {library.completion.failures > 0
               ? ` ${t('scanFailures', { countText: library.completion.failures.toLocaleString(i18n.language) })}`
               : ''}
+            {library.completion.unreachableDirectories > 0
+              ? ` ${t('scanUnreachable', { countText: library.completion.unreachableDirectories.toLocaleString(i18n.language) })}`
+              : ''}
           </p>
         </Toast>
       )}
