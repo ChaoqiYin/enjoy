@@ -25,13 +25,18 @@ pub struct DirectoryScan {
     /// `None` when the directory could not be read at all. Its records are then
     /// left alone: this scan says nothing about what is inside it.
     pub files: Option<Vec<ScannedFile>>,
+    /// Paths under this directory that failed this run although they are still
+    /// there. They are absent from `files`, so their records are kept exactly
+    /// as they were rather than read as videos that disappeared.
+    pub unreadable: Vec<String>,
 }
 
 /// Removes the records that no longer belong to the scan universe.
 ///
 /// A record survives when one of its directories either was not scanned this
 /// run — an unreadable directory keeps its records — or was scanned and still
-/// holds the file. A record with no membership at all is removed: removing a
+/// accounts for the file: the file was found there, or its path was there but
+/// could not be read. A record with no membership at all is removed: removing a
 /// saved directory cascades its membership rows away, so this is also what
 /// clears the records of a directory the user removed, without a cascade
 /// delete of its own.
@@ -51,7 +56,7 @@ impl Repository {
         connection.busy_timeout(std::time::Duration::from_secs(5))?;
         let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
         let tx = connection.transaction()?;
-        if version < 3 {
+        if version < 2 {
             tx.execute_batch("DROP TABLE IF EXISTS directory_videos; DROP TABLE IF EXISTS videos; DROP TABLE IF EXISTS directories;")?;
         }
         tx.execute_batch(
@@ -72,10 +77,32 @@ impl Repository {
                 video_id INTEGER REFERENCES videos(id) ON DELETE CASCADE,
                 PRIMARY KEY(directory_path, video_id));",
         )?;
+        if version == 2 {
+            // Version 2 carried a `videos.available` column that no code reads
+            // any more. Dropping it upgrades the database in place: rebuilding
+            // the table would throw away the favorites, the play history and
+            // the saved directories along with it.
+            Self::drop_available_column(&tx)?;
+        }
         tx.pragma_update(None, "user_version", 3_i64)?;
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", true)?;
         Ok(Self { connection })
+    }
+
+    /// Drops the legacy `available` column, which version 2 databases still
+    /// have. The column is looked up first, so a database that lost it while
+    /// its version number stayed at 2 can still be opened.
+    fn drop_available_column(tx: &Connection) -> Result<(), AppError> {
+        let present: i64 = tx.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('videos') WHERE name = 'available'",
+            [],
+            |row| row.get(0),
+        )?;
+        if present > 0 {
+            tx.execute_batch("ALTER TABLE videos DROP COLUMN available;")?;
+        }
+        Ok(())
     }
 
     #[cfg(test)]
@@ -163,6 +190,7 @@ impl Repository {
             .map(|(path, files)| DirectoryScan {
                 path: path.clone(),
                 files: Some(files.clone()),
+                unreadable: Vec::new(),
             })
             .collect();
         self.replace_videos_controlled(&scans, || Ok(()))
@@ -200,6 +228,19 @@ impl Repository {
                 "INSERT OR IGNORE INTO scanned_directories(path) VALUES (?1)",
                 [&scan.path],
             )?;
+            // A path that failed while still being there must not read as a
+            // video that disappeared: the records under it are kept out of the
+            // removal step below. Only existing records are selected, so a
+            // failed path can never bring a record into being. The prefix is
+            // matched with `substr` rather than `LIKE`, because a path may
+            // contain the wildcards `%` and `_`.
+            for path in &scan.unreadable {
+                tx.execute(
+                    "INSERT OR IGNORE INTO scan_paths(path)
+                     SELECT path FROM videos WHERE path = ?1 OR substr(path, 1, length(?2)) = ?2",
+                    params![path, format!("{path}/")],
+                )?;
+            }
         }
         checkpoint()?;
         changes.removed = tx.execute(REMOVAL_SQL, [])?;

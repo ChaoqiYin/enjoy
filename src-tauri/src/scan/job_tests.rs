@@ -1,5 +1,9 @@
+use std::cell::Cell;
 use std::fs;
 use std::sync::{Arc, Mutex};
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 use crate::media::{MediaProcessor, Metadata};
 use crate::repository::tests::Fixture;
@@ -108,24 +112,9 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
     }
 }
 
-#[test]
-fn an_unreadable_directory_is_counted_and_skipped_without_aborting_the_scan() {
-    let fixture = Fixture::new();
-    let readable = fixture.0.join("readable");
-    let vanished = fixture.0.join("vanished");
-    fs::create_dir(&readable).unwrap();
-    fs::create_dir(&vanished).unwrap();
-    fs::write(readable.join("kept.mp4"), b"kept").unwrap();
-    fs::write(readable.join("stale.mp4"), b"stale").unwrap();
-    fs::write(vanished.join("stranded.mp4"), b"stranded").unwrap();
-    let readable_root = readable.to_string_lossy().into_owned();
-    let vanished_root = vanished.to_string_lossy().into_owned();
-    let mut repo = Repository::open(&fixture.0.join("library.db")).unwrap();
-    repo.replace_videos(&[
-        (readable_root, scanner::collect(&readable).unwrap()),
-        (vanished_root, scanner::collect(&vanished).unwrap()),
-    ])
-    .unwrap();
+/// Gives every record a completed media state, so the media phase has nothing
+/// to do and the counts under test come from the scan alone.
+fn complete_media(repo: &Repository) {
     for video in repo.list().unwrap() {
         repo.save_metadata(
             &video,
@@ -140,22 +129,198 @@ fn an_unreadable_directory_is_counted_and_skipped_without_aborting_the_scan() {
         repo.save_thumbnail(&video, "cached.jpg").unwrap();
         repo.complete_media(&video).unwrap();
     }
-    fs::remove_file(readable.join("stale.mp4")).unwrap();
+}
+
+#[test]
+fn a_configured_directory_that_vanished_clears_its_records_without_being_counted() {
+    let fixture = Fixture::new();
+    let readable = fixture.0.join("readable");
+    let vanished = fixture.0.join("vanished");
+    fs::create_dir(&readable).unwrap();
+    fs::create_dir(&vanished).unwrap();
+    fs::write(readable.join("kept.mp4"), b"kept").unwrap();
+    let stranded = vanished.join("stranded.mp4");
+    fs::write(&stranded, b"stranded").unwrap();
+    let readable_root = readable.to_string_lossy().into_owned();
+    let vanished_root = vanished.to_string_lossy().into_owned();
+    let mut repo = Repository::open(&fixture.0.join("library.db")).unwrap();
+    repo.replace_videos(&[
+        (readable_root, scanner::collect(&readable).unwrap()),
+        (vanished_root, scanner::collect(&vanished).unwrap()),
+    ])
+    .unwrap();
+    repo.favorite(stranded.to_str().unwrap(), true).unwrap();
+    repo.record_play(stranded.to_str().unwrap()).unwrap();
+    complete_media(&repo);
     fs::remove_dir_all(&vanished).unwrap();
     let repository = Arc::new(Mutex::new(repo));
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let guard = control.begin().unwrap();
     let rows = job::run(&media, &repository, &control, false, |_| {}, |_| {})
-        .expect("One unreadable directory must not fail the scan");
+        .expect("A directory that vanished must not fail the scan");
     drop(guard);
     let status = control.status();
     assert_eq!(status.phase, "complete");
-    assert_eq!(status.unreachable_directories, 1);
+    // A directory that is no longer there reads as one whose videos all went
+    // with it, not as a directory this run failed to cover.
+    assert_eq!(status.unreachable_directories, 0);
     assert_eq!(status.failures, 0);
     assert_eq!(status.changes.removed, 1);
     let names: Vec<_> = rows.iter().map(|video| video.file_name.as_str()).collect();
-    assert_eq!(names, vec!["stranded.mp4", "kept.mp4"]);
+    assert_eq!(names, vec!["kept.mp4"]);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_configured_directory_that_cannot_be_read_is_counted_and_keeps_its_records() {
+    let fixture = Fixture::new();
+    let locked = fixture.0.join("locked");
+    fs::create_dir(&locked).unwrap();
+    let movie = locked.join("movie.mp4");
+    fs::write(&movie, b"video").unwrap();
+    let locked_root = locked.to_string_lossy().into_owned();
+    let mut repo = Repository::open(&fixture.0.join("library.db")).unwrap();
+    repo.replace_videos(&[(locked_root, scanner::collect(&locked).unwrap())])
+        .unwrap();
+    repo.favorite(movie.to_str().unwrap(), true).unwrap();
+    repo.record_play(movie.to_str().unwrap()).unwrap();
+    complete_media(&repo);
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+    let repository = Arc::new(Mutex::new(repo));
+    let control = Arc::new(ScanControl::default());
+    let media = MediaProcessor::on_path(fixture.0.join("cache"));
+    let guard = control.begin().unwrap();
+    let errors = Cell::new(0);
+    let rows = job::run(
+        &media,
+        &repository,
+        &control,
+        false,
+        |_| {},
+        |_| errors.set(errors.get() + 1),
+    )
+    .expect("A directory that cannot be read must not fail the scan");
+    drop(guard);
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
+    let status = control.status();
+    assert_eq!(status.phase, "complete");
+    assert_eq!(status.unreachable_directories, 1);
+    // It is a fact about the scan's range, not a media failure: neither count
+    // nor notice belongs to the other.
+    assert_eq!(status.failures, 0);
+    assert_eq!(errors.get(), 0);
+    assert_eq!(status.changes.removed, 0);
+    let video = rows
+        .iter()
+        .find(|video| video.path == movie.to_str().unwrap())
+        .expect("The record of an unreadable directory stays");
+    assert!(video.favorite);
+    assert_eq!(video.play_count, 1);
+    assert!(video.media_complete);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_locked_subtree_keeps_its_records_while_the_rest_of_the_directory_is_scanned() {
+    let fixture = Fixture::new();
+    let locked = fixture.0.join("locked");
+    fs::create_dir(&locked).unwrap();
+    let stranded = locked.join("stranded.mp4");
+    fs::write(&stranded, b"stranded").unwrap();
+    let gone = fixture.0.join("gone.mp4");
+    fs::write(&gone, b"gone").unwrap();
+    let root = fixture.0.to_string_lossy().into_owned();
+    let mut repo = Repository::open(&fixture.0.join("library.db")).unwrap();
+    repo.replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])
+        .unwrap();
+    repo.favorite(stranded.to_str().unwrap(), true).unwrap();
+    repo.record_play(stranded.to_str().unwrap()).unwrap();
+    complete_media(&repo);
+    fs::remove_file(&gone).unwrap();
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+    fs::write(fixture.0.join("added.mp4"), b"added").unwrap();
+    let repository = Arc::new(Mutex::new(repo));
+    let control = Arc::new(ScanControl::default());
+    let media = MediaProcessor::on_path(fixture.0.join("cache"));
+    let guard = control.begin().unwrap();
+    let rows = job::run(&media, &repository, &control, false, |_| {}, |_| {})
+        .expect("A subtree that cannot be read must not fail the scan");
+    drop(guard);
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
+    let status = control.status();
+    assert_eq!(status.phase, "complete");
+    assert_eq!(status.unreachable_directories, 0);
+    assert_eq!(status.changes.added, 1);
+    // The file that disappeared is cleared as usual, while the record behind
+    // the locked subtree stays: this run says nothing about the files in it.
+    assert_eq!(status.changes.removed, 1);
+    let names: Vec<_> = rows.iter().map(|video| video.file_name.as_str()).collect();
+    assert!(names.contains(&"added.mp4"));
+    assert!(names.contains(&"stranded.mp4"));
+    assert!(!names.contains(&"gone.mp4"));
+    let video = rows
+        .iter()
+        .find(|video| video.file_name == "stranded.mp4")
+        .unwrap();
+    assert!(video.favorite);
+    assert_eq!(video.play_count, 1);
+    assert!(video.media_complete);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_file_that_cannot_be_read_keeps_its_record_and_leaves_the_others_alone() {
+    let fixture = Fixture::new();
+    let locked = fixture.0.join("locked.mp4");
+    fs::write(&locked, b"locked").unwrap();
+    fs::write(fixture.0.join("kept.mp4"), b"kept").unwrap();
+    let root = fixture.0.to_string_lossy().into_owned();
+    let mut repo = Repository::open(&fixture.0.join("library.db")).unwrap();
+    repo.replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])
+        .unwrap();
+    repo.favorite(locked.to_str().unwrap(), true).unwrap();
+    repo.record_play(locked.to_str().unwrap()).unwrap();
+    complete_media(&repo);
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+    let repository = Arc::new(Mutex::new(repo));
+    let control = Arc::new(ScanControl::default());
+    let media = MediaProcessor::on_path(fixture.0.join("cache"));
+    let guard = control.begin().unwrap();
+    let errors = Cell::new(0);
+    let rows = job::run(
+        &media,
+        &repository,
+        &control,
+        false,
+        |_| {},
+        |_| errors.set(errors.get() + 1),
+    )
+    .expect("A file that cannot be read must not fail the scan");
+    drop(guard);
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
+    let status = control.status();
+    assert_eq!(status.phase, "complete");
+    assert_eq!(status.unreachable_directories, 0);
+    // The file is skipped and counted as a failure, and nothing else moves.
+    assert_eq!(status.failures, 1);
+    assert_eq!(errors.get(), 1);
+    assert_eq!(
+        (
+            status.changes.added,
+            status.changes.updated,
+            status.changes.removed
+        ),
+        (0, 0, 0)
+    );
+    assert_eq!(rows.len(), 2);
+    let video = rows
+        .iter()
+        .find(|video| video.file_name == "locked.mp4")
+        .expect("The record of a file that could not be read stays");
+    assert!(video.favorite);
+    assert_eq!(video.play_count, 1);
+    assert!(rows.iter().any(|video| video.file_name == "kept.mp4"));
 }
 
 #[test]

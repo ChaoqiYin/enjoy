@@ -63,7 +63,7 @@ fn rescan_preserves_identity_and_playback_after_reopen() {
 }
 
 #[test]
-fn a_directory_that_was_scanned_clears_the_records_of_files_that_disappeared() {
+fn a_scanned_directory_clears_the_stale_records_of_files_it_no_longer_holds() {
     let fixture = Fixture::new();
     let movie = fixture.0.join("clip.mkv");
     fs::write(&movie, b"sample").unwrap();

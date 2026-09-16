@@ -7,7 +7,7 @@
   "media.file.not_found": "视频文件或索引不存在，请刷新视频库。",
   "media.file.removed": "该视频已不再可用，并已从视频库中移除。",
   "media.filesystem.failed": "无法访问文件，请检查目录和访问权限。",
-  "media.scan.permission_denied": "无法访问目录“{{path}}”，请检查访问权限。",
+  "media.scan.permission_denied": "无法访问“{{path}}”，请检查访问权限。",
   "media.scan.failed": "目录扫描失败，请重试。",
   "media.scan.busy": "已有扫描任务，请等待完成后重试。",
   "media.scan.cancelled": "扫描已取消。",
