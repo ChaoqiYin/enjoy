@@ -370,20 +370,7 @@ fn a_file_whose_size_changed_is_processed_again() {
     repository
         .replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
-    let video = repository.list().unwrap().remove(0);
-    repository
-        .save_metadata(
-            &video,
-            &Metadata {
-                duration_ms: Some(500),
-                width: 160,
-                height: 90,
-                codec: None,
-            },
-        )
-        .unwrap();
-    repository.save_thumbnail(&video, "cached.jpg").unwrap();
-    repository.complete_media(&video).unwrap();
+    complete_media(&repository);
     // The file grows by one byte. Under ADR 0004 that alone is a changed
     // identity, so its media must be derived again instead of reused -- the
     // difference between this file and the skipped one in the case above is the
