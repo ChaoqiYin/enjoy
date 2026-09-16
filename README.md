@@ -17,7 +17,7 @@ Your video index and thumbnails stay on your machine. No separate server is requ
 - **One video library**: Add multiple folders and recursively scan common video formats, including MP4, MKV, AVI, MOV, and WEBM.
 - **Thumbnails and details**: Generate thumbnails and extract duration, resolution, codec, and other metadata.
 - **Find videos quickly**: Search by filename, filter by folder, sort your collection, and revisit favorites or recently played videos.
-- **Open and play**: Double-click a card or use its play button to launch the default player. Open the containing folder when you need the original file.
+- **Open and play**: Click a card to open its details, or use the play button to launch the default player. Open the containing folder when you need the original file.
 - **Keep your library current**: Watch folders for added or removed files, rescan manually, and rebuild thumbnails. Pause, resume, or cancel processing tasks.
 - **Smooth browsing**: A responsive card grid uses virtual scrolling to render only items near the visible area.
 - **Make it yours**: Choose English, Simplified Chinese, or the system language, with light, dark, and system theme options.
@@ -70,7 +70,7 @@ Packages are generated in `src-tauri/target/release/bundle/`. The packaged app i
 1. Open the library, select **Add folder**, choose one or more video folders, and start scanning.
 2. Browse cards as the initial index becomes available. Metadata and thumbnails fill in as processing continues.
 3. Use search, folder filters, and sorting to find videos, or save favorites for later.
-4. Double-click a card or select its play icon to open the video in your default player.
+4. Select a card's play icon to open the video in your default player.
 5. Use Settings to manage folders, rebuild thumbnails, and change the language or theme.
 
 ### Files and Playback History
