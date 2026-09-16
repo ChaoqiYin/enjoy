@@ -146,8 +146,12 @@ describe('video card actions', () => {
     fireEvent.keyDown(card, { key: 'Enter' });
     fireEvent.keyDown(card, { key: ' ' });
     expect(actions.details).toHaveBeenCalledTimes(2);
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Play' }), { key: 'Enter' });
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Favorites' }), { key: ' ' });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Play' }), {
+      key: 'Enter',
+    });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Favorites' }), {
+      key: ' ',
+    });
     expect(actions.details).toHaveBeenCalledTimes(2);
   });
   it('prevents unavailable videos from starting', () => {
