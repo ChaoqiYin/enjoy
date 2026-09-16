@@ -147,17 +147,18 @@ fn scanned_file(file: &Path, root: &Path) -> Result<ScannedFile, AppError> {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
+
+    use super::collect_controlled;
+    use crate::error::AppError;
+    use crate::repository::tests::Fixture;
+
     #[cfg(unix)]
     use std::cell::RefCell;
     #[cfg(unix)]
     use std::fs;
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
-
-    #[cfg(unix)]
-    use super::collect_controlled;
-    #[cfg(unix)]
-    use crate::repository::tests::Fixture;
 
     #[cfg(unix)]
     #[test]
@@ -237,5 +238,35 @@ mod tests {
             collected.unreadable,
             vec![locked.to_string_lossy().into_owned()]
         );
+    }
+
+    #[test]
+    fn a_cancelled_pass_stops_at_the_next_directory_entry() {
+        let fixture = Fixture::new();
+        for name in ["one.mp4", "two.mp4", "three.mp4"] {
+            std::fs::write(fixture.0.join(name), b"video").unwrap();
+        }
+        let checkpoints = Cell::new(0);
+        let result = collect_controlled(
+            &fixture.0,
+            || {
+                checkpoints.set(checkpoints.get() + 1);
+                if checkpoints.get() == 2 {
+                    Err(AppError::new(
+                        "media.scan.cancelled",
+                        "Cancelled while walking",
+                    ))
+                } else {
+                    Ok(())
+                }
+            },
+            |_| {},
+        );
+        // Cancellation is never swallowed: the pass stops where it was told to
+        // rather than walking the rest of the directory. The checkpoint runs
+        // once per entry -- with discovery reading no content there is no finer
+        // step left (ADR 0004) -- so the count also says the walk did not go on.
+        assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
+        assert_eq!(checkpoints.get(), 2);
     }
 }

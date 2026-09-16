@@ -153,3 +153,44 @@ fn a_version_3_database_is_upgraded_in_place_and_keeps_what_it_holds() {
         .unwrap();
     assert_eq!(hash_column, 0);
 }
+
+#[test]
+fn a_database_whose_version_lags_behind_its_columns_still_opens() {
+    let fixture = Fixture::new();
+    let database = fixture.0.join("library.db");
+    let connection = rusqlite::Connection::open(&database).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE videos (
+                id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE,
+                file_name TEXT NOT NULL, folder_path TEXT NOT NULL,
+                file_size INTEGER NOT NULL, modified_at INTEGER NOT NULL,
+                media_complete INTEGER NOT NULL DEFAULT 0,
+                duration_ms INTEGER, width INTEGER, height INTEGER, codec TEXT,
+                thumbnail_path TEXT, favorite INTEGER NOT NULL DEFAULT 0,
+                play_count INTEGER NOT NULL DEFAULT 0,
+                last_played_at INTEGER,
+                created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+             CREATE TABLE directories (path TEXT PRIMARY KEY);
+             CREATE TABLE directory_videos (
+                directory_path TEXT REFERENCES directories(path) ON DELETE CASCADE,
+                video_id INTEGER REFERENCES videos(id) ON DELETE CASCADE,
+                PRIMARY KEY(directory_path, video_id));
+             INSERT INTO videos VALUES (1,'/movies/kept.mp4','kept.mp4','/movies',10,20,
+                1,500,160,90,'h264','cached.jpg',1,3,7,30,40);
+             PRAGMA user_version=3;",
+        )
+        .unwrap();
+    drop(connection);
+    // The column the migration drops is looked up before it is named, so a
+    // database that lost it while its version number stayed at 3 opens like any
+    // other: the version is brought forward, and the records it holds are read
+    // exactly as they were left.
+    let repository = Repository::open(&database).unwrap();
+    assert_eq!(repository.list().unwrap()[0].play_count, 3);
+    let connection = rusqlite::Connection::open(&database).unwrap();
+    let version: i64 = connection
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 4);
+}

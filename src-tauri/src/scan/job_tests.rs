@@ -358,3 +358,47 @@ fn cancellation_aborts_the_scan_and_preserves_existing_records() {
         "old.mp4"
     );
 }
+
+#[test]
+fn a_file_whose_size_changed_is_processed_again() {
+    let fixture = Fixture::new();
+    let movie = fixture.0.join("movie.mp4");
+    fs::write(&movie, b"first").unwrap();
+    let db = fixture.0.join("library.db");
+    let root = fixture.0.to_string_lossy().into_owned();
+    let mut repository = Repository::open(&db).unwrap();
+    repository
+        .replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])
+        .unwrap();
+    let video = repository.list().unwrap().remove(0);
+    repository
+        .save_metadata(
+            &video,
+            &Metadata {
+                duration_ms: Some(500),
+                width: 160,
+                height: 90,
+                codec: None,
+            },
+        )
+        .unwrap();
+    repository.save_thumbnail(&video, "cached.jpg").unwrap();
+    repository.complete_media(&video).unwrap();
+    // The file grows by one byte. Under ADR 0004 that alone is a changed
+    // identity, so its media must be derived again instead of reused -- the
+    // difference between this file and the skipped one in the case above is the
+    // whole point of the change.
+    fs::write(&movie, b"second").unwrap();
+    let repository = Arc::new(Mutex::new(repository));
+    let control = Arc::new(ScanControl::default());
+    let media = MediaProcessor::on_path(fixture.0.join("cache"));
+    let guard = control.begin().unwrap();
+    let result = job::run(&media, &repository, &control, false, |_| {}, |_| {});
+    assert!(result.is_ok());
+    drop(guard);
+    // Both halves of the media phase were attempted for it: the bytes are not a
+    // video, so the probe and the thumbnail each fail and are counted. A file
+    // that had been skipped would leave the count at zero.
+    assert_eq!(control.status().failures, 2);
+    assert!(!repository.lock().unwrap().list().unwrap()[0].media_complete);
+}
