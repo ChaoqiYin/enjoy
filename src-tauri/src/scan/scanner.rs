@@ -166,17 +166,23 @@ fn fingerprint(
 
 #[cfg(test)]
 mod tests {
-    use std::cell::{Cell, RefCell};
+    use std::cell::Cell;
     use std::io::Cursor;
 
-    use super::{collect_controlled, fingerprint};
+    use super::fingerprint;
     use crate::error::AppError;
-    use crate::repository::tests::Fixture;
 
+    #[cfg(unix)]
+    use std::cell::RefCell;
     #[cfg(unix)]
     use std::fs;
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
+
+    #[cfg(unix)]
+    use super::collect_controlled;
+    #[cfg(unix)]
+    use crate::repository::tests::Fixture;
 
     #[cfg(unix)]
     #[test]

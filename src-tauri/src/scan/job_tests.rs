@@ -1,3 +1,4 @@
+#[cfg(unix)]
 use std::cell::Cell;
 use std::fs;
 use std::sync::{Arc, Mutex};
