@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ScanStatus } from '../../shared/api';
-import { shouldAnnounceScan } from './scanFeedback';
+import { completionAutoCloseMs, shouldAnnounceScan } from './scanFeedback';
 
 const completed: ScanStatus = {
   background: true,
@@ -33,5 +33,13 @@ describe('scan completion feedback', () => {
     expect(
       shouldAnnounceScan({ ...completed, phase: 'processing', failures: 1 }),
     ).toBe(false);
+  });
+  it('keeps a completion that reported failures until it is dismissed', () => {
+    expect(
+      completionAutoCloseMs({ ...completed, failures: 1 }),
+    ).toBeUndefined();
+  });
+  it('closes a clean completion after the agreed delay', () => {
+    expect(completionAutoCloseMs(completed)).toBe(3000);
   });
 });

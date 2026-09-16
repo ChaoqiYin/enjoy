@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 import { Toast } from '../../shared/Toast';
 import { ScanProgress } from './ScanProgress';
+import { completionAutoCloseMs } from './scanFeedback';
 import { ThumbnailProgress } from './ThumbnailProgress';
 import { useLibraryContext } from './LibraryProvider';
 export function PageFrame({ children }: { children: ReactNode }) {
@@ -25,6 +26,7 @@ export function PageFrame({ children }: { children: ReactNode }) {
           type="success"
           closeLabel={t('close')}
           onClose={library.dismissCompletion}
+          autoCloseMs={completionAutoCloseMs(library.completion)}
         >
           <h3 className="font-bold">
             {t(
