@@ -82,6 +82,10 @@ export function useLibrary() {
 
   async function run(action: () => Promise<unknown>) {
     setError(null);
+    // A new action makes the previous completion notice stale: without this it
+    // stays on screen showing counts from the scan that already finished, and
+    // is only replaced once the new scan completes with something to announce.
+    setCompletion(null);
     setPending((count) => count + 1);
     try {
       await action();

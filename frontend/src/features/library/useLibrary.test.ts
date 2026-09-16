@@ -5,6 +5,7 @@ import { createElement } from 'react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { libraryApi } from '../../shared/api';
+import type { ScanStatus } from '../../shared/api';
 import { useLibrary } from './useLibrary';
 
 vi.mock('@tauri-apps/api/event', () => ({
@@ -73,4 +74,33 @@ it('allows scan query errors to be dismissed', async () => {
   await waitFor(() => expect(result.current.error?.errorId).toBe('err_retry'));
   act(() => result.current.setError(null));
   expect(result.current.error).toBeNull();
+});
+const completed: ScanStatus = {
+  background: false,
+  phase: 'complete',
+  changes: { added: 1, updated: 0, unavailable: 0 },
+  failures: 0,
+  discovered: 1,
+  processed: 1,
+  indexed: 1,
+  metadataReady: 1,
+  thumbnailsReady: 1,
+  currentPath: '/movies',
+};
+it('clears the previous completion notice when a new action starts', async () => {
+  const handlers = new Map<string, (event: { payload: unknown }) => void>();
+  const capture = ((
+    event: string,
+    handler: (event: { payload: unknown }) => void,
+  ) => {
+    handlers.set(event, handler);
+    return Promise.resolve(() => {});
+  }) as unknown as typeof listen;
+  vi.mocked(listen).mockImplementation(capture);
+  const { result } = mount();
+  await waitFor(() => expect(handlers.has('scan-progress')).toBe(true));
+  act(() => handlers.get('scan-progress')!({ payload: completed }));
+  expect(result.current.completion?.phase).toBe('complete');
+  await act(() => result.current.run(() => Promise.resolve()));
+  expect(result.current.completion).toBeNull();
 });
