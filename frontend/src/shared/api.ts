@@ -14,7 +14,6 @@ export interface Video {
   codec: string | null;
   thumbnail_path: string | null;
   favorite: boolean;
-  available: boolean;
   play_count: number;
   last_played_at: number | null;
   created_at: number;

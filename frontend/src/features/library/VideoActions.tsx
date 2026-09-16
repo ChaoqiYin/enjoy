@@ -43,7 +43,7 @@ export function VideoActions({
               ? 'btn btn-outline btn-xs btn-square btn-primary'
               : 'btn btn-outline btn-sm btn-primary'
           }
-          disabled={busy || !video.available}
+          disabled={busy}
           onClick={() => actions.play(video)}
           aria-label={t('play')}
         >

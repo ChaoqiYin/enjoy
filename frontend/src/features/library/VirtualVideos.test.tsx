@@ -20,7 +20,6 @@ const videos: Video[] = Array.from({ length: 1203 }, (_, index) => ({
   codec: 'h264',
   thumbnail_path: null,
   favorite: false,
-  available: true,
   play_count: 0,
   last_played_at: null,
   created_at: 0,

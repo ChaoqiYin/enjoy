@@ -31,7 +31,6 @@ const video: Video = {
   codec: 'h264',
   thumbnail_path: null,
   favorite: false,
-  available: true,
   play_count: 0,
   last_played_at: null,
   created_at: 0,
@@ -102,7 +101,7 @@ describe('localized errors', () => {
 });
 
 describe('video card actions', () => {
-  function mount(available = true) {
+  function mount() {
     const actions = {
       play: vi.fn(),
       favorite: vi.fn(),
@@ -116,7 +115,7 @@ describe('video card actions', () => {
     render(
       <I18nextProvider i18n={i18n}>
         <VideoCard
-          video={{ ...video, available }}
+          video={video}
           selectedId={null}
           onSelect={vi.fn()}
           onMenu={vi.fn()}
@@ -154,14 +153,14 @@ describe('video card actions', () => {
     });
     expect(actions.details).toHaveBeenCalledTimes(2);
   });
-  it('prevents unavailable videos from starting', () => {
-    const actions = mount(false);
+  it('does not gate play on any per-record availability state', () => {
+    const actions = mount();
     fireEvent.doubleClick(screen.getByText('00:01:05'));
     expect(actions.play).not.toHaveBeenCalled();
     expect(
       (screen.getByRole('button', { name: 'Play' }) as HTMLButtonElement)
         .disabled,
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 

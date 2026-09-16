@@ -17,7 +17,6 @@ pub struct VideoFile {
     pub codec: Option<String>,
     pub thumbnail_path: Option<String>,
     pub favorite: bool,
-    pub available: bool,
     pub play_count: i64,
     pub last_played_at: Option<i64>,
     pub created_at: i64,

@@ -50,22 +50,14 @@ export function VideoMenu({
   }, [onClose]);
   const items = [
     { key: 'details', action: actions.details, disabled: false },
-    {
-      key: 'play',
-      action: actions.play,
-      disabled: busy || !target.video.available,
-    },
+    { key: 'play', action: actions.play, disabled: busy },
     {
       key: target.video.favorite ? 'unfavorite' : 'favorites',
       action: actions.favorite,
       disabled: busy,
     },
     { key: 'reveal', action: actions.reveal, disabled: busy },
-    {
-      key: 'regenerate',
-      action: actions.regenerate,
-      disabled: busy || !target.video.available,
-    },
+    { key: 'regenerate', action: actions.regenerate, disabled: busy },
     { key: 'removeIndex', action: actions.remove, disabled: busy },
   ];
   function keyboard(event: KeyboardEvent) {

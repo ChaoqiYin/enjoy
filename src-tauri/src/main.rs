@@ -212,7 +212,7 @@ async fn regenerate_thumbnails(
         let media = media::MediaProcessor::for_app(&app, cache)?;
         let videos: Vec<_> = videos
             .iter()
-            .filter(|video| video.available && path.as_ref().is_none_or(|path| &video.path == path))
+            .filter(|video| path.as_ref().is_none_or(|path| &video.path == path))
             .collect();
         let mut progress = ScanStatus {
             phase: "processing".into(),

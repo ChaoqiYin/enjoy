@@ -56,14 +56,14 @@ fn rescan_preserves_identity_and_playback_after_reopen() {
     assert_eq!(before.id, after.id);
     assert_eq!(before.created_at, after.created_at);
     assert_eq!(before.updated_at, after.updated_at);
-    assert!(after.favorite && after.available);
+    assert!(after.favorite);
     assert_eq!(after.play_count, 1);
     assert_eq!(after.last_played_at, before.last_played_at);
     assert_eq!(repository.directories().unwrap(), vec![root]);
 }
 
 #[test]
-fn deletion_marks_unavailable_and_index_removal_keeps_files() {
+fn index_keeps_missing_records_and_index_removal_keeps_files() {
     let fixture = Fixture::new();
     let movie = fixture.0.join("clip.mkv");
     fs::write(&movie, b"sample").unwrap();
@@ -73,16 +73,24 @@ fn deletion_marks_unavailable_and_index_removal_keeps_files() {
     repository
         .index(root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
+    repository.favorite(path, true).unwrap();
+    let before = repository.list().unwrap().remove(0);
     fs::remove_file(&movie).unwrap();
     repository
         .index(root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
-    assert!(!repository.list().unwrap()[0].available);
+    // Only the full sync prunes; a single-directory index leaves the record
+    // and its user state untouched when the file is gone.
+    let missing = repository.list().unwrap().remove(0);
+    assert_eq!(missing.id, before.id);
+    assert!(missing.favorite);
     fs::write(&movie, b"restored").unwrap();
     repository
         .index(root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
-    assert!(repository.list().unwrap()[0].available);
+    let restored = repository.list().unwrap().remove(0);
+    assert_eq!(restored.id, before.id);
+    assert!(restored.favorite);
     repository.remove(path).unwrap();
     assert!(repository.list().unwrap().is_empty());
     assert!(movie.exists());
@@ -241,14 +249,14 @@ fn overlapping_directories_share_identity_and_keep_tracking_after_removal() {
     repository
         .index(child, &scanner::collect(&nested).unwrap())
         .unwrap();
-    assert!(!repository.list().unwrap()[0].available);
+    assert_eq!(repository.list().unwrap().len(), 1);
     fs::write(&movie, b"restored").unwrap();
     repository
         .index(child, &scanner::collect(&nested).unwrap())
         .unwrap();
     let after = repository.list().unwrap().remove(0);
     assert_eq!(before.id, after.id);
-    assert!(after.favorite && after.available);
+    assert!(after.favorite);
     assert_eq!(after.play_count, 1);
     assert_eq!(repository.directories().unwrap(), vec![child]);
 }

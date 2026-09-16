@@ -76,7 +76,7 @@ Packages are generated in `src-tauri/target/release/bundle/`. The packaged app i
 ### Files and Playback History
 
 - Removing a video from the library index does not delete the original file.
-- If a file is moved or its folder becomes inaccessible, the video is marked unavailable and playback is disabled. Favorites and history are retained.
+- If a file is moved or its folder becomes inaccessible, the interface shows no marker; opening the video reports a localized error.
 - Recently played records successful requests to open a video, including their time and count. It does not confirm that you watched the video or track playback progress inside the player.
 - Video details show metadata beyond the card view. Errors appear as floating notifications, with a retry action when supported.
 

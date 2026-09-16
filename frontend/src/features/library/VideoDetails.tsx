@@ -61,7 +61,6 @@ export function VideoDetails({
       }).format(video.modified_at),
     ],
   ];
-  const maintenanceDisabled = busy || !video.available;
   return (
     <div
       className="drawer drawer-end fixed inset-0 z-40"
@@ -125,9 +124,6 @@ export function VideoDetails({
               <span className="text-success text-sm">{t('copied')}</span>
             )}
           </div>
-          {!video.available && (
-            <p className="text-warning">{t('unavailable')}</p>
-          )}
           <dl className="space-y-3">
             {values.map(([label, value]) => (
               <div key={label} className="flex justify-between gap-4">
@@ -152,7 +148,7 @@ export function VideoDetails({
                 variant="secondary"
                 icon={<RefreshCw size={18} aria-hidden="true" />}
                 label={t('regenerate')}
-                disabled={maintenanceDisabled}
+                disabled={busy}
               />
               <MaintenanceButton
                 video={video}
@@ -160,7 +156,7 @@ export function VideoDetails({
                 variant="primary"
                 icon={<RefreshCw size={18} aria-hidden="true" />}
                 label={t('refreshInfo')}
-                disabled={maintenanceDisabled}
+                disabled={busy}
               />
             </div>
             {busy && <p className="text-sm opacity-60">{t('busy')}</p>}
