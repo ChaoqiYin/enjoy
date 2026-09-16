@@ -62,9 +62,7 @@ export function LibraryHeader({
             value={folder}
             onChange={(event) => onFolderChange(event.target.value)}
           >
-            <option value="">
-              {t('all')} {t('folder')}
-            </option>
+            <option value="">{t('allFolders')}</option>
             {folders.map((path) => (
               <option key={path}>{path}</option>
             ))}
