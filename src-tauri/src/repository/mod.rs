@@ -247,12 +247,15 @@ impl Repository {
             // removal step below. Only existing records are selected, so a
             // failed path can never bring a record into being. The prefix is
             // matched with `substr` rather than `LIKE`, because a path may
-            // contain the wildcards `%` and `_`.
+            // contain the wildcards `%` and `_`. It is built with the platform's
+            // own separator, because the stored paths were rendered from native
+            // ones: a subtree is a prefix of its records only when it is spelled
+            // the same way they are, and on Windows a `/` would match nothing.
             for path in &scan.unreadable {
                 tx.execute(
                     "INSERT OR IGNORE INTO scan_paths(path)
                      SELECT path FROM videos WHERE path = ?1 OR substr(path, 1, length(?2)) = ?2",
-                    params![path, format!("{path}/")],
+                    params![path, format!("{path}{}", std::path::MAIN_SEPARATOR)],
                 )?;
             }
         }
