@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
-import { ErrorToast } from './shared/ErrorToast';
+import { Toast } from './shared/Toast';
 import { App } from './app/App';
 import { initializeLanguage } from './i18n/language';
 import english from '../../shared/locales/en/common.json';
@@ -27,16 +27,22 @@ async function start() {
       ? chinese
       : english;
     root.render(
-      <ErrorToast
-        title={messages.operationFailed}
-        description={messages.startupFailed}
-        retryLabel={messages.retry}
+      <Toast
+        type="error"
         closeLabel={messages.close}
-        onRetry={() => {
-          void start();
-        }}
         onClose={() => root.render(null)}
-      />,
+      >
+        <h3 className="font-bold">{messages.operationFailed}</h3>
+        <p className="text-sm break-words">{messages.startupFailed}</p>
+        <button
+          className="btn btn-outline btn-sm btn-primary mt-2"
+          onClick={() => {
+            void start();
+          }}
+        >
+          {messages.retry}
+        </button>
+      </Toast>,
     );
   }
 }

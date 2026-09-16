@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { ErrorToast } from './ErrorToast';
+import { Toast } from './Toast';
 import type { AppError } from './api';
 
 export function ErrorNotice({
@@ -17,14 +17,20 @@ export function ErrorNotice({
     ? t(key, error.params)
     : t('errors:app.unexpected');
   return (
-    <ErrorToast
-      title={t('operationFailed')}
-      description={message}
-      reference={t('errorId', { id: error.errorId })}
-      retryLabel={t('retry')}
-      closeLabel={t('close')}
-      onRetry={onRetry}
-      onClose={onClose}
-    />
+    <Toast type="error" closeLabel={t('close')} onClose={onClose}>
+      <h3 className="font-bold">{t('operationFailed')}</h3>
+      <p className="text-sm break-words">{message}</p>
+      <p className="text-xs opacity-60 break-all">
+        {t('errorId', { id: error.errorId })}
+      </p>
+      {onRetry && (
+        <button
+          className="btn btn-outline btn-sm btn-primary mt-2"
+          onClick={onRetry}
+        >
+          {t('retry')}
+        </button>
+      )}
+    </Toast>
   );
 }
