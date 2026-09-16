@@ -1,27 +1,20 @@
 use std::cell::Cell;
 use std::fs;
+use std::path::Path;
+use std::time::{Duration, UNIX_EPOCH};
 
 use crate::error::AppError;
 use crate::media::Metadata;
+use crate::model::VideoFile;
 use crate::repository::tests::Fixture;
 use crate::repository::{DirectoryScan, Repository};
 use crate::scan::scanner;
 
-#[test]
-fn completed_identity_survives_reopen_and_content_change_resets_media() {
-    let fixture = Fixture::new();
-    let path = fixture.0.join("movie.mp4");
-    fs::write(&path, b"first").unwrap();
-    let db = fixture.0.join("library.db");
-    let root = fixture.0.to_string_lossy().into_owned();
-    let mut repository = Repository::open(&db).unwrap();
-    let original = scanner::collect(&fixture.0).unwrap();
-    let modified = original[0].modified_at;
-    repository
-        .replace_videos(&[(root.clone(), original)])
-        .unwrap();
+/// Gives the only record a finished media state, and hands its row back, so
+/// that whatever the next scan decides about it is the only thing left that
+/// can move it.
+fn complete(repository: &Repository) -> VideoFile {
     let video = repository.list().unwrap().remove(0);
-    assert!(!video.media_complete);
     repository
         .save_metadata(
             &video,
@@ -35,27 +28,83 @@ fn completed_identity_survives_reopen_and_content_change_resets_media() {
         .unwrap();
     repository.save_thumbnail(&video, "cached.jpg").unwrap();
     repository.complete_media(&video).unwrap();
-    drop(repository);
-    let mut repository = Repository::open(&db).unwrap();
-    let mut unchanged = scanner::collect(&fixture.0).unwrap();
-    unchanged[0].modified_at += 1000;
-    repository
-        .replace_videos(&[(root.clone(), unchanged)])
+    repository.list().unwrap().remove(0)
+}
+
+/// Puts a file's modification time back to the millisecond the record holds,
+/// the way a tool that preserves timestamps would leave it.
+fn restore_modified(path: &Path, modified_at: i64) {
+    let file = fs::File::options().write(true).open(path).unwrap();
+    file.set_modified(UNIX_EPOCH + Duration::from_millis(modified_at as u64))
         .unwrap();
-    let retained = repository.list().unwrap().remove(0);
-    assert!(retained.media_complete);
-    assert_eq!(retained.thumbnail_path.as_deref(), Some("cached.jpg"));
-    assert_eq!(retained.id, video.id);
-    fs::write(&path, b"other").unwrap();
-    let mut changed = scanner::collect(&fixture.0).unwrap();
-    changed[0].modified_at = modified + 1000;
-    let changes = repository.replace_videos(&[(root, changed)]).unwrap();
-    assert_eq!(changes.updated, 1);
-    let pending = repository.list().unwrap().remove(0);
-    assert!(!pending.media_complete);
-    assert!(pending.width.is_none() && pending.thumbnail_path.is_none());
-    repository.complete_media(&video).unwrap();
+}
+
+#[test]
+fn a_changed_modification_time_resets_the_media_and_keeps_the_record_and_its_use() {
+    let fixture = Fixture::new();
+    fs::write(fixture.0.join("movie.mp4"), b"first").unwrap();
+    let database = fixture.0.join("library.db");
+    let root = fixture.0.to_string_lossy().into_owned();
+    let mut repository = Repository::open(&database).unwrap();
+    repository
+        .replace_videos(&[(root.clone(), scanner::collect(&fixture.0).unwrap())])
+        .unwrap();
+    let completed = complete(&repository);
+    repository.favorite(&completed.path, true).unwrap();
+    repository.record_play(&completed.path).unwrap();
+    let before = repository.list().unwrap().remove(0);
+    assert!(before.media_complete && before.favorite);
+    drop(repository);
+    let mut repository = Repository::open(&database).unwrap();
+    // Nothing on disk changes; only the modification time moves. Under the new
+    // rule that alone is a changed identity (ADR 0004), so the media derived
+    // from this path no longer belong to the file that is there now.
+    let mut touched = scanner::collect(&fixture.0).unwrap();
+    touched[0].modified_at += 1000;
+    let changes = repository.replace_videos(&[(root, touched)]).unwrap();
+    assert_eq!((changes.added, changes.updated, changes.removed), (0, 1, 0));
+    let after = repository.list().unwrap().remove(0);
+    assert_eq!(after.id, before.id);
+    assert_eq!(after.created_at, before.created_at);
+    assert!(!after.media_complete);
+    assert!(after.duration_ms.is_none() && after.width.is_none() && after.height.is_none());
+    assert!(after.codec.is_none() && after.thumbnail_path.is_none());
+    // The record and its use stay: the path is what they are anchored to.
+    assert!(after.favorite);
+    assert_eq!(after.play_count, 1);
+    assert_eq!(after.last_played_at, before.last_played_at);
+    // The completion write is guarded by the same pair of fields the identity
+    // is decided from, so a stale writer cannot mark the new file as done.
+    repository.complete_media(&before).unwrap();
     assert!(!repository.list().unwrap()[0].media_complete);
+}
+
+#[test]
+fn a_rewrite_that_keeps_the_size_and_the_modification_time_is_not_noticed() {
+    let fixture = Fixture::new();
+    let movie = fixture.0.join("movie.mp4");
+    fs::write(&movie, b"first").unwrap();
+    let root = fixture.0.to_string_lossy().into_owned();
+    let mut repository = Repository::open(&fixture.0.join("library.db")).unwrap();
+    repository
+        .replace_videos(&[(root.clone(), scanner::collect(&fixture.0).unwrap())])
+        .unwrap();
+    let before = complete(&repository);
+    // Other bytes, same length, and the modification time put back to what the
+    // record already holds -- what a tool that preserves timestamps leaves
+    // behind. This is the replacement ADR 0004 accepts as a blind spot: it is
+    // not noticed, so the record keeps serving the old media and the old
+    // thumbnail until the path changes size or modification time.
+    fs::write(&movie, b"other").unwrap();
+    restore_modified(&movie, before.modified_at);
+    let changes = repository
+        .replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])
+        .unwrap();
+    assert_eq!((changes.added, changes.updated, changes.removed), (0, 0, 0));
+    let after = repository.list().unwrap().remove(0);
+    assert!(after.media_complete);
+    assert_eq!(after.duration_ms, Some(500));
+    assert_eq!(after.thumbnail_path.as_deref(), Some("cached.jpg"));
 }
 
 #[test]
@@ -88,9 +137,10 @@ fn a_changed_file_identity_restarts_media_processing_and_keeps_usage_history() {
     repository.record_play(&path).unwrap();
     let before = repository.list().unwrap().remove(0);
     assert!(before.media_complete);
-    // The same path now holds other content: the file identity changed, while
-    // the path -- which is what the record and its use are anchored to -- did
-    // not.
+    // The same path now holds longer content, so the file's size differs and
+    // its identity changed -- file size and modification time are what the
+    // verdict is read from now (ADR 0004) -- while the path, which is what the
+    // record and its use are anchored to, did not.
     fs::write(&movie, b"second").unwrap();
     let changes = repository
         .replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])
@@ -149,92 +199,6 @@ fn cancellation_before_commit_rolls_back_insertions_and_deletions() {
     let rows = repository.list().unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].file_name, "new.mp4");
-}
-
-#[test]
-fn old_schema_is_reset_once_and_new_database_survives_reopen() {
-    let fixture = Fixture::new();
-    let db = fixture.0.join("library.db");
-    let connection = rusqlite::Connection::open(&db).unwrap();
-    connection
-        .execute_batch(
-            "CREATE TABLE videos(path TEXT); INSERT INTO videos VALUES ('old');
-        CREATE TABLE directories(path TEXT); INSERT INTO directories VALUES ('old');
-        PRAGMA user_version=1;",
-        )
-        .unwrap();
-    drop(connection);
-    let repository = Repository::open(&db).unwrap();
-    assert!(repository.list().unwrap().is_empty());
-    assert!(repository.directories().unwrap().is_empty());
-    repository.add_directory("saved").unwrap();
-    drop(repository);
-    assert_eq!(
-        Repository::open(&db).unwrap().directories().unwrap(),
-        vec!["saved"]
-    );
-}
-
-#[test]
-fn a_version_2_database_is_upgraded_in_place_and_keeps_what_it_holds() {
-    let fixture = Fixture::new();
-    let database = fixture.0.join("library.db");
-    let connection = rusqlite::Connection::open(&database).unwrap();
-    connection
-        .execute_batch(
-            "CREATE TABLE videos (
-                id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE,
-                file_name TEXT NOT NULL, folder_path TEXT NOT NULL,
-                file_size INTEGER NOT NULL, modified_at INTEGER NOT NULL, file_md5 TEXT NOT NULL,
-                media_complete INTEGER NOT NULL DEFAULT 0,
-                duration_ms INTEGER, width INTEGER, height INTEGER, codec TEXT,
-                thumbnail_path TEXT, favorite INTEGER NOT NULL DEFAULT 0,
-                available INTEGER NOT NULL DEFAULT 1, play_count INTEGER NOT NULL DEFAULT 0,
-                last_played_at INTEGER,
-                created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-             CREATE TABLE directories (path TEXT PRIMARY KEY);
-             CREATE TABLE directory_videos (
-                directory_path TEXT REFERENCES directories(path) ON DELETE CASCADE,
-                video_id INTEGER REFERENCES videos(id) ON DELETE CASCADE,
-                PRIMARY KEY(directory_path, video_id));
-             INSERT INTO directories VALUES ('/movies');
-             INSERT INTO videos VALUES (1,'/movies/kept.mp4','kept.mp4','/movies',10,20,'abc',
-                1,500,160,90,'h264','cached.jpg',1,1,3,7,30,40);
-             INSERT INTO directory_videos VALUES ('/movies',1);
-             PRAGMA user_version=2;",
-        )
-        .unwrap();
-    drop(connection);
-    let repository = Repository::open(&database).unwrap();
-    let rows = repository.list().unwrap();
-    assert_eq!(rows.len(), 1);
-    let video = &rows[0];
-    assert_eq!(video.id, 1);
-    assert_eq!(video.created_at, 30);
-    assert!(video.media_complete);
-    assert_eq!(video.duration_ms, Some(500));
-    assert_eq!(video.thumbnail_path.as_deref(), Some("cached.jpg"));
-    assert!(video.favorite);
-    assert_eq!(video.play_count, 3);
-    assert_eq!(video.last_played_at, Some(7));
-    assert_eq!(repository.directories().unwrap(), vec!["/movies"]);
-    let connection = rusqlite::Connection::open(&database).unwrap();
-    let version: i64 = connection
-        .pragma_query_value(None, "user_version", |row| row.get(0))
-        .unwrap();
-    assert_eq!(version, 3);
-    let columns: i64 = connection
-        .query_row(
-            "SELECT COUNT(*) FROM pragma_table_info('videos') WHERE name = 'available'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap();
-    assert_eq!(columns, 0);
-    drop(connection);
-    // Opening it again finds the current version and touches nothing.
-    let repository = Repository::open(&database).unwrap();
-    assert_eq!(repository.list().unwrap()[0].play_count, 3);
 }
 
 #[test]

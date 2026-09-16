@@ -171,6 +171,9 @@ fn scan_changes_count_new_and_updated_files() {
         .index(root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
     assert_eq!((same.added, same.updated), (0, 0));
+    // The rewrite is longer than what it replaces, so the file's size moves and
+    // the change is caught -- size and modification time are the whole rule now
+    // (ADR 0004), not a hint that a content hash still confirms.
     fs::write(&movie, b"updated content").unwrap();
     let changed = repository
         .index(root, &scanner::collect(&fixture.0).unwrap())
@@ -338,6 +341,10 @@ fn refresh_metadata_does_not_overwrite_a_concurrent_scan() {
         .replace_videos(&[(root.clone(), scanner::collect(&fixture.0).unwrap())])
         .unwrap();
     let stale = repository.list().unwrap().remove(0);
+    // A scan in the middle of the read below changes the same pair of fields
+    // the write is guarded by: the write's lock and the identity verdict are
+    // one and the same comparison now (ADR 0004), and growing the file is
+    // enough to move it.
     fs::write(&movie, b"updated content").unwrap();
     repository
         .replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])

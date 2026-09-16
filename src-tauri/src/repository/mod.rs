@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod incremental_tests;
 #[cfg(test)]
+mod migration_tests;
+#[cfg(test)]
 pub(crate) mod tests;
 
 use rusqlite::{params, Connection, OptionalExtension};
@@ -64,7 +66,7 @@ impl Repository {
              CREATE TABLE IF NOT EXISTS videos (
                 id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE,
                 file_name TEXT NOT NULL, folder_path TEXT NOT NULL,
-                file_size INTEGER NOT NULL, modified_at INTEGER NOT NULL, file_md5 TEXT NOT NULL,
+                file_size INTEGER NOT NULL, modified_at INTEGER NOT NULL,
                 media_complete INTEGER NOT NULL DEFAULT 0,
                 duration_ms INTEGER, width INTEGER, height INTEGER, codec TEXT,
                 thumbnail_path TEXT, favorite INTEGER NOT NULL DEFAULT 0,
@@ -84,7 +86,15 @@ impl Repository {
             // the saved directories along with it.
             Self::drop_legacy_column(&tx, "available")?;
         }
-        tx.pragma_update(None, "user_version", 3_i64)?;
+        if version < 4 {
+            // Versions 2 and 3 carried the MD5 of each file's contents, which
+            // used to decide whether the file had changed. Version 4 decides
+            // that from the stored size and modification time instead, so the
+            // column is dead weight and goes -- in place, for the same reason
+            // as above (ADR 0004).
+            Self::drop_legacy_column(&tx, "file_md5")?;
+        }
+        tx.pragma_update(None, "user_version", 4_i64)?;
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", true)?;
         Ok(Self { connection })
@@ -133,15 +143,9 @@ impl Repository {
             checkpoint()?;
             let previous = tx
                 .query_row(
-                    "SELECT file_size,modified_at,file_md5 FROM videos WHERE path=?1",
+                    "SELECT file_size,modified_at FROM videos WHERE path=?1",
                     [&file.path],
-                    |row| {
-                        Ok((
-                            row.get::<_, i64>(0)?,
-                            row.get::<_, i64>(1)?,
-                            row.get::<_, String>(2)?,
-                        ))
-                    },
+                    |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
                 )
                 .optional()?;
             // Whether a file counts as changed is decided here, once, from the
@@ -157,8 +161,14 @@ impl Repository {
             // records are counted exactly as they are written.
             let changed = match &previous {
                 // The row is read whole -- it is the stored identity of the
-                // file -- but the content hash is the field this rule compares.
-                Some((_, _, md5)) => *md5 != file.file_md5,
+                // file -- but the size and the modification time are the pair
+                // this rule compares: a difference in either one means the
+                // file is no longer the one the media were derived from. A
+                // rewrite that leaves both untouched is not noticed, which is
+                // the blind spot ADR 0004 accepts.
+                Some((file_size, modified_at)) => {
+                    *file_size != file.file_size || *modified_at != file.modified_at
+                }
                 None => false,
             };
             if previous.is_none() {
@@ -171,19 +181,19 @@ impl Repository {
                 [&file.path],
             )?;
             tx.execute(
-                "INSERT INTO videos(path,file_name,folder_path,file_size,modified_at,file_md5,created_at,updated_at)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?7)
+                "INSERT INTO videos(path,file_name,folder_path,file_size,modified_at,created_at,updated_at)
+                 VALUES (?1,?2,?3,?4,?5,?6,?6)
                  ON CONFLICT(path) DO UPDATE SET
                     file_name=excluded.file_name, folder_path=excluded.folder_path,
-                    media_complete=CASE WHEN ?8 THEN 0 ELSE videos.media_complete END,
-                    duration_ms=CASE WHEN ?8 THEN NULL ELSE videos.duration_ms END,
-                    width=CASE WHEN ?8 THEN NULL ELSE videos.width END,
-                    height=CASE WHEN ?8 THEN NULL ELSE videos.height END,
-                    codec=CASE WHEN ?8 THEN NULL ELSE videos.codec END,
-                    thumbnail_path=CASE WHEN ?8 THEN NULL ELSE videos.thumbnail_path END,
-                    updated_at=CASE WHEN ?8 THEN excluded.updated_at ELSE videos.updated_at END,
-                    file_size=excluded.file_size, modified_at=excluded.modified_at, file_md5=excluded.file_md5",
-                params![file.path, file.file_name, file.folder_path, file.file_size, file.modified_at, file.file_md5, now(), changed],
+                    media_complete=CASE WHEN ?7 THEN 0 ELSE videos.media_complete END,
+                    duration_ms=CASE WHEN ?7 THEN NULL ELSE videos.duration_ms END,
+                    width=CASE WHEN ?7 THEN NULL ELSE videos.width END,
+                    height=CASE WHEN ?7 THEN NULL ELSE videos.height END,
+                    codec=CASE WHEN ?7 THEN NULL ELSE videos.codec END,
+                    thumbnail_path=CASE WHEN ?7 THEN NULL ELSE videos.thumbnail_path END,
+                    updated_at=CASE WHEN ?7 THEN excluded.updated_at ELSE videos.updated_at END,
+                    file_size=excluded.file_size, modified_at=excluded.modified_at",
+                params![file.path, file.file_name, file.folder_path, file.file_size, file.modified_at, now(), changed],
             )?;
             tx.execute(
                 "INSERT OR IGNORE INTO directory_videos(directory_path,video_id)
@@ -267,7 +277,7 @@ impl Repository {
     }
 
     pub fn list(&self) -> Result<Vec<VideoFile>, AppError> {
-        let mut query = self.connection.prepare("SELECT id,path,file_name,folder_path,file_size,modified_at,file_md5,duration_ms,width,height,codec,thumbnail_path,favorite,play_count,last_played_at,created_at,updated_at,media_complete FROM videos ORDER BY created_at DESC,id DESC")?;
+        let mut query = self.connection.prepare("SELECT id,path,file_name,folder_path,file_size,modified_at,duration_ms,width,height,codec,thumbnail_path,favorite,play_count,last_played_at,created_at,updated_at,media_complete FROM videos ORDER BY created_at DESC,id DESC")?;
         let rows = query.query_map([], |row| {
             Ok(VideoFile {
                 id: row.get(0)?,
@@ -276,18 +286,17 @@ impl Repository {
                 folder_path: row.get(3)?,
                 file_size: row.get(4)?,
                 modified_at: row.get(5)?,
-                file_md5: row.get(6)?,
-                duration_ms: row.get(7)?,
-                width: row.get(8)?,
-                height: row.get(9)?,
-                codec: row.get(10)?,
-                thumbnail_path: row.get(11)?,
-                favorite: row.get(12)?,
-                play_count: row.get(13)?,
-                last_played_at: row.get(14)?,
-                created_at: row.get(15)?,
-                updated_at: row.get(16)?,
-                media_complete: row.get(17)?,
+                duration_ms: row.get(6)?,
+                width: row.get(7)?,
+                height: row.get(8)?,
+                codec: row.get(9)?,
+                thumbnail_path: row.get(10)?,
+                favorite: row.get(11)?,
+                play_count: row.get(12)?,
+                last_played_at: row.get(13)?,
+                created_at: row.get(14)?,
+                updated_at: row.get(15)?,
+                media_complete: row.get(16)?,
             })
         })?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
@@ -354,9 +363,9 @@ impl Repository {
 
     pub fn complete_media(&self, video: &VideoFile) -> Result<(), AppError> {
         self.connection.execute(
-            "UPDATE videos SET media_complete=1 WHERE id=?1 AND path=?2 AND file_md5=?3
+            "UPDATE videos SET media_complete=1 WHERE id=?1 AND path=?2 AND file_size=?3 AND modified_at=?4
              AND width IS NOT NULL AND thumbnail_path IS NOT NULL",
-            params![video.id, video.path, video.file_md5],
+            params![video.id, video.path, video.file_size, video.modified_at],
         )?;
         Ok(())
     }

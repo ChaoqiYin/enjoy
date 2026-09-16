@@ -246,6 +246,10 @@ mod tests {
         let root = fixture.0.to_string_lossy().into_owned();
         let control = Arc::new(ScanControl::default());
         let guard = control.begin().unwrap();
+        // The rescan below moves the file while the refresh is in flight, and
+        // the write is refused afterwards: the stamps the refresh read are the
+        // very fields the scan now compares to decide whether a file changed
+        // (ADR 0004), so growing the file is all it takes to lose the race.
         let wrote = refresh::refresh_video(&path, &repository, &control, |file| {
             fs::write(file, b"updated content").unwrap();
             repository

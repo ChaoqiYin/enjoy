@@ -1,6 +1,5 @@
 use std::path::Path;
 use std::time::UNIX_EPOCH;
-use std::{fs::File, io::Read};
 use walkdir::WalkDir;
 
 use crate::error::AppError;
@@ -22,20 +21,28 @@ pub struct Collected {
     /// The videos this pass indexed.
     pub files: Vec<ScannedFile>,
     /// The paths that failed this pass although they are still on disk: a file
-    /// that could not be opened, a subtree that could not be listed. They are
-    /// absent from `files`, so without this list their existing records would
-    /// read as files that had disappeared; they are kept instead, untouched.
+    /// whose metadata could not be read, a subtree that could not be listed.
+    /// They are absent from `files`, so without this list their existing
+    /// records would read as files that had disappeared; they are kept
+    /// instead, untouched.
     pub unreadable: Vec<String>,
 }
 
 /// Collects the videos under `root` for one configured directory.
 ///
-/// A failure that concerns a single entry — the file cannot be opened, its
-/// metadata cannot be read or its fingerprint cannot be computed — is handed to
-/// `on_file_error` and skipped, so one bad file cannot hold up the rest. Only a
-/// failure that concerns the directory itself (`root` cannot be read or is not
-/// a directory) is returned, leaving the caller to decide what to do with a
-/// directory it cannot scan. Cancellation is never swallowed.
+/// Discovery only reads metadata: it never opens a video, so a file the user
+/// may not read is still indexed, and its failure to be processed shows up in
+/// the media phase instead (ADR 0004). A failure that concerns a single entry —
+/// its metadata cannot be read — is handed to `on_file_error` and skipped, so
+/// one bad entry cannot hold up the rest. Only a failure that concerns the
+/// directory itself (`root` cannot be read or is not a directory) is returned,
+/// leaving the caller to decide what to do with a directory it cannot scan.
+/// Cancellation is never swallowed.
+///
+/// `checkpoint` runs once per directory entry. That is the only place left
+/// where a scan in progress can be paused or cancelled without waiting for the
+/// pass to end: hashing used to check every 64 KB block, and with no content
+/// read there is no finer step than an entry (ADR 0004).
 pub fn collect_controlled(
     root: &Path,
     checkpoint: impl Fn() -> Result<(), AppError>,
@@ -72,7 +79,7 @@ pub fn collect_controlled(
         if !entry.file_type().is_file() || !is_video(entry.path()) {
             continue;
         }
-        match scanned_file(entry.path(), root, &checkpoint) {
+        match scanned_file(entry.path(), root) {
             Ok(file) => files.push(file),
             Err(error) if error.code == "media.scan.cancelled" => return Err(error),
             Err(error) => {
@@ -112,11 +119,9 @@ fn is_video(path: &Path) -> bool {
     })
 }
 
-fn scanned_file(
-    file: &Path,
-    root: &Path,
-    checkpoint: &impl Fn() -> Result<(), AppError>,
-) -> Result<ScannedFile, AppError> {
+/// Reads what identifies a file, from its metadata alone: the file is never
+/// opened, so a pass over a large library reads no content at all (ADR 0004).
+fn scanned_file(file: &Path, root: &Path) -> Result<ScannedFile, AppError> {
     let path = file.to_string_lossy().into_owned();
     let metadata = file
         .metadata()
@@ -127,8 +132,6 @@ fn scanned_file(
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis();
-    let mut handle = File::open(file).map_err(|error| AppError::io(error, &path))?;
-    let file_md5 = fingerprint(&mut handle, &path, checkpoint)?;
     Ok(ScannedFile {
         path,
         file_name: file
@@ -139,39 +142,11 @@ fn scanned_file(
         folder_path: file.parent().unwrap_or(root).to_string_lossy().into_owned(),
         file_size: i64::try_from(metadata.len()).unwrap_or(i64::MAX),
         modified_at: i64::try_from(modified).unwrap_or(i64::MAX),
-        file_md5,
     })
-}
-
-fn fingerprint(
-    reader: &mut impl Read,
-    path: &str,
-    checkpoint: impl Fn() -> Result<(), AppError>,
-) -> Result<String, AppError> {
-    let mut context = md5::Context::new();
-    let mut buffer = [0_u8; 64 * 1024];
-    loop {
-        checkpoint()?;
-        let count = reader
-            .read(&mut buffer)
-            .map_err(|error| AppError::io(error, path))?;
-        if count == 0 {
-            break;
-        }
-        context.consume(&buffer[..count]);
-    }
-    checkpoint()?;
-    Ok(format!("{:x}", context.compute()))
 }
 
 #[cfg(test)]
 mod tests {
-    use std::cell::Cell;
-    use std::io::Cursor;
-
-    use super::fingerprint;
-    use crate::error::AppError;
-
     #[cfg(unix)]
     use std::cell::RefCell;
     #[cfg(unix)]
@@ -186,12 +161,12 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn an_unreadable_file_is_reported_and_skipped_without_losing_the_rest() {
+    fn a_file_whose_permissions_deny_reading_is_still_indexed() {
         let fixture = Fixture::new();
         fs::write(fixture.0.join("readable.mp4"), b"video").unwrap();
-        let broken = fixture.0.join("broken.mp4");
-        fs::write(&broken, b"video").unwrap();
-        fs::set_permissions(&broken, fs::Permissions::from_mode(0o000)).unwrap();
+        let locked = fixture.0.join("locked.mp4");
+        fs::write(&locked, b"video").unwrap();
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
         let errors = RefCell::new(Vec::new());
         let collected = collect_controlled(
             &fixture.0,
@@ -201,17 +176,21 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(
-            errors.into_inner(),
-            vec!["media.scan.permission_denied".to_string()]
-        );
-        assert_eq!(collected.files.len(), 1);
-        assert_eq!(collected.files[0].file_name, "readable.mp4");
-        // The file is there, so its record stays: only the read failed.
-        assert_eq!(
-            collected.unreadable,
-            vec![broken.to_string_lossy().into_owned()]
-        );
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
+        // Discovery decides what is in the library from metadata alone, so it
+        // sees a file it may not read as any other file. The price is the
+        // one ADR 0004 accepts: a file that cannot be opened is no longer
+        // noticed here -- it is indexed, and reading its content fails later,
+        // in the media phase, where the failure is counted and notified.
+        assert!(errors.into_inner().is_empty());
+        let mut names: Vec<_> = collected
+            .files
+            .iter()
+            .map(|file| file.file_name.clone())
+            .collect();
+        names.sort();
+        assert_eq!(names, vec!["locked.mp4", "readable.mp4"]);
+        assert!(collected.unreadable.is_empty());
     }
 
     #[cfg(unix)]
@@ -257,30 +236,6 @@ mod tests {
         assert_eq!(
             collected.unreadable,
             vec![locked.to_string_lossy().into_owned()]
-        );
-    }
-
-    #[test]
-    fn hashing_is_chunked_and_stops_before_reading_the_remaining_file() {
-        let bytes = vec![42; 256 * 1024];
-        let mut reader = Cursor::new(&bytes);
-        let checkpoints = Cell::new(0);
-        let result = fingerprint(&mut reader, "movie.mp4", || {
-            checkpoints.set(checkpoints.get() + 1);
-            if checkpoints.get() == 2 {
-                Err(AppError::new(
-                    "media.scan.cancelled",
-                    "Cancelled during hashing",
-                ))
-            } else {
-                Ok(())
-            }
-        });
-        assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
-        assert!(reader.position() > 0 && reader.position() < bytes.len() as u64);
-        assert_eq!(
-            fingerprint(&mut Cursor::new(&bytes), "movie.mp4", || Ok(())).unwrap(),
-            format!("{:x}", md5::compute(&bytes))
         );
     }
 }

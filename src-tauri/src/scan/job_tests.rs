@@ -271,7 +271,7 @@ fn a_locked_subtree_keeps_its_records_while_the_rest_of_the_directory_is_scanned
 
 #[cfg(unix)]
 #[test]
-fn a_file_that_cannot_be_read_keeps_its_record_and_leaves_the_others_alone() {
+fn a_file_that_cannot_be_read_is_indexed_and_keeps_its_record() {
     let fixture = Fixture::new();
     let locked = fixture.0.join("locked.mp4");
     fs::write(&locked, b"locked").unwrap();
@@ -303,9 +303,13 @@ fn a_file_that_cannot_be_read_keeps_its_record_and_leaves_the_others_alone() {
     let status = control.status();
     assert_eq!(status.phase, "complete");
     assert_eq!(status.unreachable_directories, 0);
-    // The file is skipped and counted as a failure, and nothing else moves.
-    assert_eq!(status.failures, 1);
-    assert_eq!(errors.get(), 1);
+    // Discovery reads metadata only, so a file the user may not read looks
+    // exactly like any other file to it: the file is collected like the rest,
+    // it is not a discovery failure, and nothing else moves. That is the price
+    // ADR 0004 accepts -- failing to read its content is a media-phase failure
+    // now, counted and notified there rather than here.
+    assert_eq!(status.failures, 0);
+    assert_eq!(errors.get(), 0);
     assert_eq!(
         (
             status.changes.added,
@@ -318,9 +322,10 @@ fn a_file_that_cannot_be_read_keeps_its_record_and_leaves_the_others_alone() {
     let video = rows
         .iter()
         .find(|video| video.file_name == "locked.mp4")
-        .expect("The record of a file that could not be read stays");
+        .expect("The record of a file that cannot be read stays");
     assert!(video.favorite);
     assert_eq!(video.play_count, 1);
+    assert!(video.media_complete);
     assert!(rows.iter().any(|video| video.file_name == "kept.mp4"));
 }
 
