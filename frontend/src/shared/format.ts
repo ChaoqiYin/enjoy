@@ -1,3 +1,23 @@
+/**
+ * The path as the interface shows it.
+ *
+ * Windows filesystem APIs that resolve a path hand it back in verbatim form:
+ * `\\?\E:\...` for a drive path, `\\?\UNC\server\share\...` for a network one.
+ * The prefix exists so long paths and reserved names survive those APIs; it is
+ * not part of the path anyone typed or recognises, and it is only noise in the
+ * interface, so display drops it.
+ *
+ * Only display drops it. Every other use keeps the verbatim form: it is what
+ * the scan indexed, and the stored records, the filters and the paths sent
+ * back to the backend are compared against it.
+ */
+export function displayPath(path: string): string {
+  const verbatim = '\\\\?\\';
+  if (!path.startsWith(verbatim)) return path;
+  const remainder = path.slice(verbatim.length);
+  return /^UNC\\/i.test(remainder) ? `\\\\${remainder.slice(4)}` : remainder;
+}
+
 export function duration(milliseconds: number | null): string {
   if (milliseconds === null) return '—';
   const seconds = Math.max(0, Math.floor(milliseconds / 1000));

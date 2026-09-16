@@ -55,11 +55,16 @@ beforeEach(async () => {
   };
 });
 afterEach(cleanup);
-function view(handlers = actions(), onClose = vi.fn(), busy = false) {
+function view(
+  handlers = actions(),
+  onClose = vi.fn(),
+  busy = false,
+  source = video,
+) {
   return (
     <I18nextProvider i18n={i18n}>
       <VideoDetails
-        video={video}
+        video={source}
         actions={handlers}
         busy={busy}
         onClose={onClose}
@@ -95,6 +100,15 @@ it('falls back to the page when the original card was unmounted', () => {
   result.unmount();
   expect(document.activeElement).toBe(page);
   page.remove();
+});
+it('shows the indexed path without the verbatim prefix it carries', () => {
+  render(
+    view(actions(), vi.fn(), false, {
+      ...video,
+      path: '\\\\?\\E:\\movies\\example.mp4',
+    }),
+  );
+  expect(screen.getByText('E:\\movies\\example.mp4')).toBeTruthy();
 });
 it('closes with Escape or the backdrop and confines keyboard focus', () => {
   const close = vi.fn();

@@ -1,6 +1,7 @@
 import { ArrowDownUp, Folder, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
+import { displayPath } from '../../shared/format';
 import type { SortOrder } from './libraryView';
 
 type LibraryHeaderProps = {
@@ -64,7 +65,9 @@ export function LibraryHeader({
           >
             <option value="">{t('allFolders')}</option>
             {folders.map((path) => (
-              <option key={path}>{path}</option>
+              <option key={path} value={path}>
+                {displayPath(path)}
+              </option>
             ))}
           </select>
         </label>

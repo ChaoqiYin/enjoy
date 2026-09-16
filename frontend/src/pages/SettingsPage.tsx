@@ -6,6 +6,7 @@ import { ThemeSetting } from '../theme/ThemeSetting';
 import { ConfirmTooltip } from '../shared/ConfirmTooltip';
 import { ScrollViewport } from '../shared/ScrollViewport';
 import { libraryApi } from '../shared/api';
+import { displayPath } from '../shared/format';
 import { useLibraryContext } from '../features/library/LibraryProvider';
 import { DirectoryActions } from '../features/library/DirectoryActions';
 import { DirectoryDialog } from '../features/library/DirectoryDialog';
@@ -36,9 +37,9 @@ export function SettingsPage() {
             key={path}
             className="flex items-center gap-4 bg-base-200 p-4 rounded-box"
           >
-            <span className="break-all flex-1">{path}</span>
+            <span className="break-all flex-1">{displayPath(path)}</span>
             <ConfirmTooltip
-              message={t('removeQuestion', { name: path })}
+              message={t('removeQuestion', { name: displayPath(path) })}
               confirmLabel={t('confirm')}
               cancelLabel={t('cancel')}
               disabled={library.busy}

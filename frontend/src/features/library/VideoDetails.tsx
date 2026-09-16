@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Copy, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ScanStatus, Video } from '../../shared/api';
-import { duration, fileSize } from '../../shared/format';
+import { displayPath, duration, fileSize } from '../../shared/format';
 import { MaintenanceButton } from './MaintenanceButton';
 import { Thumbnail } from './Thumbnail';
 import { VideoActions } from './VideoActions';
@@ -106,7 +106,9 @@ export function VideoDetails({
           />
           <h3 className="text-xl break-all">{video.file_name}</h3>
           <div className="flex items-start gap-2">
-            <p className="break-all text-sm opacity-70 flex-1">{video.path}</p>
+            <p className="break-all text-sm opacity-70 flex-1">
+              {displayPath(video.path)}
+            </p>
             <Tooltip text={t('copyPath')}>
               <button
                 className="btn btn-outline btn-xs btn-square btn-info"

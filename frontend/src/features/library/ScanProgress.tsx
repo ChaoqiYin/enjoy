@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import type { ScanStatus } from '../../shared/api';
+import { displayPath } from '../../shared/format';
 
 export function ScanProgress({
   status,
@@ -23,6 +24,7 @@ export function ScanProgress({
     processed: status.processed.toLocaleString(i18n.language),
   });
   const progress = Math.min(status.processed, status.discovered);
+  const current = displayPath(status.currentPath);
   return (
     <section
       aria-live="polite"
@@ -60,11 +62,8 @@ export function ScanProgress({
           aria-hidden="true"
         />
       )}
-      <p
-        className="truncate"
-        title={status.currentPath.replace(/^\\\\\?\\/, '')}
-      >
-        {status.currentPath.replace(/^\\\\\?\\/, '')}
+      <p className="truncate" title={current}>
+        {current}
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <button
