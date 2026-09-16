@@ -17,3 +17,20 @@ html {
     overflow-y: scroll;
   }
 }
+
+/* The countdown line along a notice's bottom edge. Draining it is the engine's
+   work, not React's: the line keeps its full width and is scaled down over the
+   notice's remaining time, which the compositor does without the main thread.
+   A line narrowed one step at a time from a timer was one render per step, and
+   a step is late or lost exactly when the main thread is busy — which, for a
+   notice that appears as a scan finishes, is most of its life. Not silenced for
+   `prefers-reduced-motion`: the line is not an entrance flourish, it is how
+   much time the notice has left. */
+@keyframes notice-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}

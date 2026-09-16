@@ -4,28 +4,57 @@ import { useLatestRef } from './useLatestRef';
 /** The one non-error notice currently on screen, and how to close it. */
 type RegisteredNotice = { close: () => void };
 
-let host: HTMLDivElement | null = null;
-let users = 0;
+/**
+ * Where a floating notice sits on screen. Every notice of one placement shares
+ * the same container, so two notices of the same placement stack instead of
+ * overlapping each other.
+ */
+export type NoticePlacement = 'end' | 'center';
+
+/**
+ * The container is what carries the position and the width, because that is
+ * what daisyUI's `.toast` is: a fixed column, empty and transparent, that its
+ * children are laid into. Which placement a notice asks for is therefore the
+ * notice's own choice, and a component that reads as a different thing on
+ * screen can say so without a second portal implementation here.
+ *
+ * The centre container is only as wide as what it holds. That matters for a
+ * notice that swallows clicks rather than letting them through: the rectangle
+ * it takes out of the page has to be the one the user can see, not a wider box
+ * with invisible margins either side.
+ */
+const placements: Record<NoticePlacement, string> = {
+  end: 'toast toast-top toast-end z-[1000] w-[min(32rem,100vw)] max-h-dvh overflow-y-auto whitespace-normal',
+  center:
+    'toast toast-top toast-center z-[1000] max-w-[min(20rem,90vw)] whitespace-normal',
+};
+
+const hosts = new Map<NoticePlacement, HTMLDivElement>();
+const users = new Map<NoticePlacement, number>();
 let observer: MutationObserver | null = null;
 let exclusiveNotice: RegisteredNotice | null = null;
 
-function attachHost() {
-  if (!host) return;
+function attachHosts() {
   const dialogs = document.querySelectorAll('dialog[open]');
   const parent = dialogs.item(dialogs.length - 1) ?? document.body;
-  if (host.parentElement !== parent) parent.append(host);
+  for (const host of hosts.values()) {
+    if (host.parentElement !== parent) parent.append(host);
+  }
 }
 
-export function useNotificationHost() {
+export function useNotificationHost(placement: NoticePlacement) {
   const [element, setElement] = useState<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
+    let host = hosts.get(placement);
     if (!host) {
       host = document.createElement('div');
-      host.className =
-        'toast toast-top toast-end z-[1000] w-[min(32rem,100vw)] max-h-dvh overflow-y-auto whitespace-normal';
-      host.dataset.notificationHost = '';
-      attachHost();
-      observer = new MutationObserver(attachHost);
+      host.className = placements[placement];
+      host.dataset.notificationHost = placement;
+      hosts.set(placement, host);
+      attachHosts();
+    }
+    if (!observer) {
+      observer = new MutationObserver(attachHosts);
       observer.observe(document.body, {
         childList: true,
         subtree: true,
@@ -33,18 +62,19 @@ export function useNotificationHost() {
         attributeFilter: ['open'],
       });
     }
-    users += 1;
+    users.set(placement, (users.get(placement) ?? 0) + 1);
     setElement(host);
     return () => {
-      users -= 1;
-      if (users === 0) {
-        observer?.disconnect();
-        observer = null;
-        host?.remove();
-        host = null;
-      }
+      const remaining = (users.get(placement) ?? 1) - 1;
+      users.set(placement, remaining);
+      if (remaining > 0) return;
+      hosts.get(placement)?.remove();
+      hosts.delete(placement);
+      if (hosts.size > 0) return;
+      observer?.disconnect();
+      observer = null;
     };
-  }, []);
+  }, [placement]);
   return element;
 }
 

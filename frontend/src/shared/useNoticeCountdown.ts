@@ -2,13 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import type { FocusEvent, MouseEvent } from 'react';
 import { useLatestRef } from './useLatestRef';
 
-// The progress bar only has to look like it is shrinking; ten steps a second is
-// smoother than the eye needs and cheap enough to run beside a scan.
-const TICK_MS = 100;
-
 type Countdown = {
-  /** `null` while the notice is resident and has no time to count down. */
-  progress: { value: number; max: number } | null;
+  /**
+   * What the line along the notice's edge needs to drain itself, or `null`
+   * while the notice is resident and has no time to count down.
+   */
+  indicator: { durationMs: number; held: boolean } | null;
   /**
    * Spread onto the notice so hovering or focusing it holds the countdown.
    * React names the focus handlers `onFocus`/`onBlur` but wires them to the
@@ -36,65 +35,73 @@ function hasLeft(element: HTMLElement, next: EventTarget | null) {
  * it here rather than inside the notice keeps the timing separate from the
  * markup it drives.
  *
- * Remaining time is derived from timestamps rather than decremented once per
- * tick, so an interval that fires late does not stretch the countdown.
+ * That time is spent on two clocks which have to agree: this one, which decides
+ * when to close the notice, and the line's own animation, which the engine runs
+ * on the compositor. They are armed together, held together, and released
+ * together, so the line the user sees is the line this hook has left. What the
+ * browser is trusted with is only the drawing between those moments — a line
+ * redrawn from here would be one React render per step, and a step is missed or
+ * arrives late exactly when the main thread is busy, which for a notice sitting
+ * beside the end of a scan is most of the time.
+ *
+ * The remaining time is derived from timestamps rather than counted down once
+ * per step, so a clock that is held does not stretch the countdown: time spent
+ * held is not spent, and time spent running is spent in full.
  */
 export function useNoticeCountdown(
   durationMs: number | undefined,
   onClose: () => void,
 ): Countdown {
-  const [remaining, setRemaining] = useState(durationMs ?? 0);
-  const [hovered, setHovered] = useState(false);
-  const [focused, setFocused] = useState(false);
+  const [held, setHeld] = useState(false);
   const remainingMs = useRef(durationMs ?? 0);
   const close = useLatestRef(onClose);
 
   // A new duration means a new notice in this slot: start over rather than
   // inherit the time the previous one had already spent. A replacement that
   // keeps the same duration arrives as a remount — the owner clears its slot
-  // before refilling it — and re-initialising above is what gives the new
-  // notice the full time. An in-place update is the same notice reporting
-  // again and deliberately keeps counting.
+  // before refilling it — and starting from the duration the hook was born with
+  // is what gives the new notice the full time. An in-place update is the same
+  // notice reporting again, and deliberately keeps counting.
   useEffect(() => {
     remainingMs.current = durationMs ?? 0;
-    setRemaining(remainingMs.current);
   }, [durationMs]);
 
-  // Two flags rather than one: moving the mouse away must not release a hold
-  // that focus is still keeping.
-  const held = hovered || focused;
+  // One timeout for the whole remaining time rather than a step per fraction of
+  // it, and the cleanup is where the remaining time is banked: an instance that
+  // stops — the notice is held, retimed, or taken off the screen — is an
+  // instance that has spent everything since it started. React runs the
+  // cleanups before the setups of the same commit, so a hold banks its time
+  // before the idled hook reads it back, and a new duration is banked before
+  // the reset above overwrites it.
   useEffect(() => {
     if (durationMs === undefined || held || remainingMs.current <= 0) return;
-    let last = performance.now();
-    const timer = setInterval(() => {
-      const now = performance.now();
-      remainingMs.current -= now - last;
-      last = now;
-      if (remainingMs.current > 0) {
-        setRemaining(remainingMs.current);
-        return;
-      }
+    const startedAt = performance.now();
+    const timer = setTimeout(() => {
       remainingMs.current = 0;
-      setRemaining(0);
-      clearInterval(timer);
       close.current();
-    }, TICK_MS);
-    return () => clearInterval(timer);
+    }, remainingMs.current);
+    return () => {
+      clearTimeout(timer);
+      // Clamped because the timer may already have run the remaining time down
+      // to zero before the notice unmounts, and a spent countdown must not bank
+      // a negative one.
+      remainingMs.current = Math.max(
+        0,
+        remainingMs.current - (performance.now() - startedAt),
+      );
+    };
   }, [durationMs, held]);
 
   return {
-    progress:
-      durationMs === undefined ? null : { value: remaining, max: durationMs },
+    indicator: durationMs === undefined ? null : { durationMs, held },
     pauseProps: {
-      onMouseOver: () => setHovered(true),
+      onMouseOver: () => setHeld(true),
       onMouseOut: (event) => {
-        if (hasLeft(event.currentTarget, event.relatedTarget))
-          setHovered(false);
+        if (hasLeft(event.currentTarget, event.relatedTarget)) setHeld(false);
       },
-      onFocus: () => setFocused(true),
+      onFocus: () => setHeld(true),
       onBlur: (event) => {
-        if (hasLeft(event.currentTarget, event.relatedTarget))
-          setFocused(false);
+        if (hasLeft(event.currentTarget, event.relatedTarget)) setHeld(false);
       },
     },
   };

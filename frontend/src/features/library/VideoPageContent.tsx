@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { FolderPlus } from 'lucide-react';
 import { libraryApi } from '../../shared/api';
 import type { AppError, Video } from '../../shared/api';
+import { displayPath } from '../../shared/format';
 import { ScrollViewport } from '../../shared/ScrollViewport';
 import { useLibraryContext } from './LibraryProvider';
 import type { useVideoPageView } from './useVideoPageView';
@@ -56,14 +57,16 @@ export function VideoPageContent({
   const copyPath = async (video: Video) => {
     if (!navigator.clipboard) {
       library.setError(clientError('app.clipboard.failed'));
-      return false;
+      return;
     }
     try {
-      await navigator.clipboard.writeText(video.path);
-      return true;
+      // The clipboard gets the path the panel shows, not the verbatim one the
+      // index stores: they are two spellings of the same file, and the user
+      // asked for the one in front of them.
+      await navigator.clipboard.writeText(displayPath(video.path));
+      library.showCopyHint();
     } catch {
       library.setError(clientError('app.clipboard.failed'));
-      return false;
     }
   };
   const actions = {

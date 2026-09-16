@@ -16,6 +16,10 @@ export function useLibrary() {
     setFailure(error ? { error, retry } : null);
   }
   const [completion, setCompletion] = useState<ScanStatus | null>(null);
+  // A short hint is not a notice and does not take the notice slot: it is a
+  // different kind of thing, telling the user an action landed rather than
+  // something to read and act on. See the development guide.
+  const [copyHint, setCopyHint] = useState(false);
   const [pending, setPending] = useState(0);
   const busy = pending > 0;
   const [dismissedQueryErrors, setDismissedQueryErrors] = useState<unknown[]>(
@@ -124,6 +128,9 @@ export function useLibrary() {
     videos,
     completion,
     dismissCompletion: () => setCompletion(null),
+    copyHint,
+    showCopyHint: () => setCopyHint(true),
+    dismissCopyHint: () => setCopyHint(false),
     directories,
     scan,
     busy,

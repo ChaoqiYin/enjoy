@@ -40,6 +40,9 @@ const { library } = vi.hoisted(() => {
     busy: false,
     run: vi.fn(async () => {}),
     setError: vi.fn(),
+    copyHint: false,
+    showCopyHint: vi.fn(),
+    dismissCopyHint: vi.fn(),
   };
   return { library };
 });
@@ -71,6 +74,7 @@ beforeEach(async () => {
   library.busy = false;
   library.run.mockReset();
   library.setError.mockReset();
+  library.showCopyHint.mockReset();
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -109,12 +113,16 @@ function setClipboard(writeText?: (text: string) => Promise<void>) {
   });
 }
 
-it('shows the copied indicator when copying the path succeeds', async () => {
-  setClipboard(vi.fn().mockResolvedValue(undefined));
+it('copies the path the panel shows, and announces it', async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  setClipboard(writeText);
+  library.videos.data = [{ ...video, path: '\\\\?\\E:\\movies\\example.mp4' }];
   render(page());
   fireEvent.click(screen.getByRole('button', { name: video.file_name }));
+  expect(screen.getByText('E:\\movies\\example.mp4')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: english.copyPath }));
-  await waitFor(() => expect(screen.getByText(english.copied)).toBeTruthy());
+  await waitFor(() => expect(library.showCopyHint).toHaveBeenCalledOnce());
+  expect(writeText).toHaveBeenCalledWith('E:\\movies\\example.mp4');
   expect(library.setError).not.toHaveBeenCalled();
 });
 
@@ -128,7 +136,7 @@ it('surfaces a notification when copying the path fails', async () => {
       expect.objectContaining({ code: 'app.clipboard.failed' }),
     ),
   );
-  expect(screen.queryByText(english.copied)).toBeNull();
+  expect(library.showCopyHint).not.toHaveBeenCalled();
 });
 
 it('closes the drawer and notifies when a rescan removes the video', async () => {

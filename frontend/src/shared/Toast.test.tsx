@@ -175,9 +175,23 @@ it('drains a countdown along the frame without announcing itself', () => {
   // made of and disappear into it.
   expect(drain.classList.contains('bg-current')).toBe(true);
   expect(drain.classList.contains('progress')).toBe(false);
-  expect(parseFloat(drain.style.width)).toBe(100);
+  // The line is drawn at its full width and scaled down over the notice's
+  // remaining time, so it never steps: nothing rewrites it between the start
+  // and the end. jsdom runs no animation, so what is pinned here is the
+  // declaration the engine animates — that the line then moves smoothly is the
+  // engine's part of the bargain, which no test in this environment can see.
+  expect(drain.classList.contains('w-full')).toBe(true);
+  expect(drain.classList.contains('origin-left')).toBe(true);
+  expect(drain.style.animationName).toBe('notice-countdown');
+  expect(drain.style.animationDuration).toBe('3000ms');
+  expect(drain.style.animationTimingFunction).toBe('linear');
+  // Without `forwards` the line would spring back to full for the moment
+  // between the time running out and the notice leaving.
+  expect(drain.style.animationFillMode).toBe('forwards');
+  expect(drain.style.animationPlayState).toBe('running');
+  const declared = drain.getAttribute('style');
   act(() => vi.advanceTimersByTime(1000));
-  expect(parseFloat(drain.style.width)).toBeCloseTo(66.7, 1);
+  expect(drain.getAttribute('style')).toBe(declared);
 });
 
 it('holds the countdown while hovered and picks it up where it stopped', () => {
@@ -185,11 +199,21 @@ it('holds the countdown while hovered and picks it up where it stopped', () => {
   const onClose = vi.fn();
   renderCountdown(onClose, 3000);
   const notice = screen.getByRole('status');
+  const drain = document.querySelector<HTMLElement>('[data-notice-countdown]')!;
   act(() => vi.advanceTimersByTime(1000));
   fireEvent.mouseOver(notice);
+  // The line is held where it stands, not redrawn: a paused animation keeps its
+  // own progress, so releasing it continues from the time that was left. The
+  // same element at the same duration is what makes that true — replacing the
+  // element, or shortening its duration, is how the line would silently start
+  // over instead.
+  expect(drain.style.animationPlayState).toBe('paused');
+  expect(document.querySelector('[data-notice-countdown]')).toBe(drain);
+  expect(drain.style.animationDuration).toBe('3000ms');
   act(() => vi.advanceTimersByTime(10000));
   expect(onClose).not.toHaveBeenCalled();
   fireEvent.mouseOut(notice);
+  expect(drain.style.animationPlayState).toBe('running');
   act(() => vi.advanceTimersByTime(1900));
   expect(onClose).not.toHaveBeenCalled();
   act(() => vi.advanceTimersByTime(200));
@@ -202,7 +226,10 @@ it('holds the countdown while focus is inside and releases it on leaving', () =>
   renderCountdown(onClose, 3000, <button type="button">Details</button>);
   const details = screen.getByRole('button', { name: 'Details' });
   const closeButton = screen.getByRole('button', { name: 'Close' });
+  const drain = document.querySelector<HTMLElement>('[data-notice-countdown]')!;
   fireEvent.focusIn(details);
+  // Keyboard focus holds the line itself, not only the clock behind it.
+  expect(drain.style.animationPlayState).toBe('paused');
   act(() => vi.advanceTimersByTime(10000));
   expect(onClose).not.toHaveBeenCalled();
   // Moving between the notice's own controls is not leaving the notice.
@@ -211,8 +238,86 @@ it('holds the countdown while focus is inside and releases it on leaving', () =>
   act(() => vi.advanceTimersByTime(10000));
   expect(onClose).not.toHaveBeenCalled();
   fireEvent.focusOut(closeButton, { relatedTarget: document.body });
+  expect(drain.style.animationPlayState).toBe('running');
   act(() => vi.advanceTimersByTime(3000));
   expect(onClose).toHaveBeenCalledOnce();
+});
+
+it('carries the same line on when the same notice reports again', () => {
+  vi.useFakeTimers();
+  const reported = vi.fn();
+  const latest = vi.fn();
+  const { rerender } = render(
+    <Toast
+      type="success"
+      closeLabel="Close"
+      onClose={reported}
+      autoCloseMs={3000}
+    >
+      <p>Scan complete</p>
+    </Toast>,
+  );
+  const drain = document.querySelector<HTMLElement>('[data-notice-countdown]')!;
+  act(() => vi.advanceTimersByTime(1000));
+  // A scan publishes its completion twice, and the second one lands in the same
+  // slot without remounting the notice. Both describe the same scan, so it is
+  // the same three seconds: the line carries on where it was instead of
+  // restarting, which would leave it a tenth of the way short of the notice's
+  // own lifetime.
+  rerender(
+    <Toast
+      type="success"
+      closeLabel="Close"
+      onClose={latest}
+      autoCloseMs={3000}
+    >
+      <p>Scan complete</p>
+    </Toast>,
+  );
+  expect(document.querySelector('[data-notice-countdown]')).toBe(drain);
+  act(() => vi.advanceTimersByTime(1900));
+  expect(latest).not.toHaveBeenCalled();
+  act(() => vi.advanceTimersByTime(200));
+  expect(latest).toHaveBeenCalledOnce();
+});
+
+it('starts the line over when the same slot reports a different time', () => {
+  vi.useFakeTimers();
+  const latest = vi.fn();
+  const { rerender } = render(
+    <Toast
+      type="success"
+      closeLabel="Close"
+      onClose={vi.fn()}
+      autoCloseMs={3000}
+    >
+      <p>Scan complete</p>
+    </Toast>,
+  );
+  const drain = document.querySelector<HTMLElement>('[data-notice-countdown]')!;
+  act(() => vi.advanceTimersByTime(2000));
+  // A different time is a different notice in the same slot, so it gets its own
+  // line: a fresh element, whose animation starts at the beginning, rather than
+  // the old line retimed part of the way through.
+  rerender(
+    <Toast
+      type="success"
+      closeLabel="Close"
+      onClose={latest}
+      autoCloseMs={5000}
+    >
+      <p>Scan complete</p>
+    </Toast>,
+  );
+  const replaced = document.querySelector<HTMLElement>(
+    '[data-notice-countdown]',
+  )!;
+  expect(replaced).not.toBe(drain);
+  expect(replaced.style.animationDuration).toBe('5000ms');
+  act(() => vi.advanceTimersByTime(4900));
+  expect(latest).not.toHaveBeenCalled();
+  act(() => vi.advanceTimersByTime(200));
+  expect(latest).toHaveBeenCalledOnce();
 });
 
 it('closes the previous non-error notice when a newer one appears', () => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Copy, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ScanStatus, Video } from '../../shared/api';
@@ -27,7 +27,6 @@ export function VideoDetails({
   const previousFocus = useRef<HTMLElement | null>(
     document.activeElement as HTMLElement,
   );
-  const [copied, setCopied] = useState(false);
   useEffect(() => {
     panel.current?.focus();
     const onKey = (event: KeyboardEvent) => {
@@ -113,18 +112,11 @@ export function VideoDetails({
               <button
                 className="btn btn-outline btn-xs btn-square btn-info"
                 aria-label={t('copyPath')}
-                onClick={() => {
-                  void actions
-                    .copyPath(video)
-                    .then((copiedOk) => setCopied(copiedOk));
-                }}
+                onClick={() => void actions.copyPath(video)}
               >
                 <Copy size={14} aria-hidden="true" />
               </button>
             </Tooltip>
-            {copied && (
-              <span className="text-success text-sm">{t('copied')}</span>
-            )}
           </div>
           <dl className="space-y-3">
             {values.map(([label, value]) => (

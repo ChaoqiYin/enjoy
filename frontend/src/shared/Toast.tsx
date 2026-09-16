@@ -80,11 +80,11 @@ export function Toast({
   children,
 }: ToastProps) {
   const { icon: Icon, role, frame, exclusive } = toastTypes[type];
-  const host = useNotificationHost();
+  const host = useNotificationHost('end');
   const countdown = useNoticeCountdown(autoCloseMs, onClose);
   useExclusiveNotice(exclusive, onClose);
   if (!host) return null;
-  const { progress } = countdown;
+  const { indicator } = countdown;
   return createPortal(
     <section
       role={role}
@@ -100,7 +100,7 @@ export function Toast({
       >
         <X size={14} aria-hidden="true" />
       </button>
-      {progress && progress.max > 0 && (
+      {indicator && (
         // Hidden from assistive technology on purpose: a countdown that
         // announces itself makes a screen reader report every step of a timer
         // the user did not ask to hear.
@@ -114,9 +114,30 @@ export function Toast({
         >
           <span className="absolute inset-x-0 bottom-0 h-0.5 bg-current opacity-25" />
           <span
+            // The line is drawn full width and scaled down, rather than
+            // narrowed step by step: a `transform` animation is the engine's to
+            // run on the compositor, so the line drains smoothly whatever the
+            // main thread is doing. The `@keyframes` live in `style.css`; only
+            // parts that change at run time are here.
+            //
+            // A different duration is a different notice in this slot, so the
+            // key replaces the line and its animation starts from the top. The
+            // same duration arriving again — a scan reporting its completion
+            // twice — keeps this element, and a running animation is not
+            // restarted by re-rendering it.
+            key={indicator.durationMs}
             data-notice-countdown=""
-            className="absolute bottom-0 left-0 h-0.5 bg-current"
-            style={{ width: `${(progress.value / progress.max) * 100}%` }}
+            className="absolute bottom-0 left-0 h-0.5 w-full origin-left bg-current"
+            style={{
+              animationName: 'notice-countdown',
+              animationDuration: `${indicator.durationMs}ms`,
+              animationTimingFunction: 'linear',
+              // The line must stay drained for the moment between the time
+              // running out and the notice leaving, instead of springing back
+              // to full width.
+              animationFillMode: 'forwards',
+              animationPlayState: indicator.held ? 'paused' : 'running',
+            }}
           />
         </span>
       )}

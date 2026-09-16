@@ -5,6 +5,7 @@ import { Toast } from '../../shared/Toast';
 import { ScanProgress } from './ScanProgress';
 import { completionAutoCloseMs } from './scanFeedback';
 import { ThumbnailProgress } from './ThumbnailProgress';
+import { Hint } from '../../shared/Hint';
 import { useLibraryContext } from './LibraryProvider';
 export function PageFrame({ children }: { children: ReactNode }) {
   const library = useLibraryContext();
@@ -55,6 +56,9 @@ export function PageFrame({ children }: { children: ReactNode }) {
               : ''}
           </p>
         </Toast>
+      )}
+      {library.copyHint && (
+        <Hint text={t('copied')} onClose={library.dismissCopyHint} />
       )}
       {scanning && (
         <dialog open className="modal" aria-labelledby="scan-progress-title">
