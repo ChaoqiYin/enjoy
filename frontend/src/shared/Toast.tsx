@@ -12,16 +12,18 @@ export type ToastType = 'success' | 'error' | 'info' | 'warning';
 //
 // The frame is the solid alert with `alert-soft` layered back on in the dark
 // theme. A soft alert colours its text with the tone itself, which on the light
-// theme's near-white tint lands near 2.6:1 and leaves the progress bar's fill
-// only 1.7:1 against its own track — and that bar is the only thing telling the
-// user how long the notice has left. Dark tints sit on a dark base and clear
-// 3:1, so the softer look is kept there.
+// theme's near-white tint lands near 2.6:1 — and the countdown is drawn in that
+// same colour. Dark tints sit on a dark base and clear 3:1, so the softer look
+// is kept there.
 //
-// The bar cannot use `progress-{type}`. daisyUI paints `.progress` with
-// `currentColor` over a 20% mix of that same colour, so a tone-coloured bar on
-// the solid theme's tone-coloured background disappears. The solid frame gives
-// the bar the alert's own foreground instead; the soft frame gives it the tone,
-// which is what `progress-{type}` set before.
+// The countdown is a hairline on the frame's own bottom edge, not a daisyUI
+// `.progress` bar under the text. A full-width bar in the body reads as task
+// progress, and this notice is not reporting progress — it is running out of
+// time; on the frame's edge the body stays plain text and the shrinking line
+// belongs to the notice rather than to its content. Drawing it in the frame's
+// own foreground also settles the colour: a `progress-{type}` fill would take
+// the tone the solid frame is already made of and vanish into it, which is what
+// the previous bar had to work around.
 //
 // `exclusive` marks the types that share the single non-error slot. Errors are
 // exempt: they neither displace another notice nor are displaced by one, and
@@ -31,28 +33,24 @@ const toastTypes = {
     icon: CheckCircle,
     role: 'status',
     frame: 'alert alert-success dark:alert-soft',
-    bar: 'progress text-success-content dark:text-success',
     exclusive: true,
   },
   error: {
     icon: CircleAlert,
     role: 'alert',
     frame: 'alert alert-error dark:alert-soft',
-    bar: 'progress text-error-content dark:text-error',
     exclusive: false,
   },
   info: {
     icon: Info,
     role: 'status',
     frame: 'alert alert-info dark:alert-soft',
-    bar: 'progress text-info-content dark:text-info',
     exclusive: true,
   },
   warning: {
     icon: TriangleAlert,
     role: 'status',
     frame: 'alert alert-warning dark:alert-soft',
-    bar: 'progress text-warning-content dark:text-warning',
     exclusive: true,
   },
 } as const;
@@ -81,32 +79,20 @@ export function Toast({
   autoCloseMs,
   children,
 }: ToastProps) {
-  const { icon: Icon, role, frame, bar, exclusive } = toastTypes[type];
+  const { icon: Icon, role, frame, exclusive } = toastTypes[type];
   const host = useNotificationHost();
   const countdown = useNoticeCountdown(autoCloseMs, onClose);
   useExclusiveNotice(exclusive, onClose);
   if (!host) return null;
+  const { progress } = countdown;
   return createPortal(
     <section
       role={role}
-      className={`alert ${frame} alert-vertical sm:alert-horizontal shadow-lg pointer-events-auto text-left`}
+      className={`alert ${frame} alert-vertical sm:alert-horizontal shadow-lg pointer-events-auto text-left relative`}
       {...countdown.pauseProps}
     >
       <Icon size={24} className="shrink-0" aria-hidden="true" />
-      <div className="min-w-0 w-full space-y-1">
-        {children}
-        {countdown.progress && (
-          // Hidden from assistive technology on purpose: a <progress> carries a
-          // polite announcement, so leaving it exposed makes a screen reader
-          // report every step of a countdown the user did not ask to hear.
-          <progress
-            className={`progress ${bar} w-full`}
-            value={countdown.progress.value}
-            max={countdown.progress.max}
-            aria-hidden="true"
-          />
-        )}
-      </div>
+      <div className="min-w-0 w-full space-y-1">{children}</div>
       <button
         className="btn btn-outline btn-xs btn-square btn-neutral self-start"
         aria-label={closeLabel}
@@ -114,6 +100,26 @@ export function Toast({
       >
         <X size={14} aria-hidden="true" />
       </button>
+      {progress && progress.max > 0 && (
+        // Hidden from assistive technology on purpose: a countdown that
+        // announces itself makes a screen reader report every step of a timer
+        // the user did not ask to hear.
+        //
+        // The clipping sits on a full-size wrapper rather than on the section,
+        // because `overflow-hidden` on the section would swallow the close
+        // button's focus outline. Only the hairline needs rounding away.
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden rounded-box"
+        >
+          <span className="absolute inset-x-0 bottom-0 h-0.5 bg-current opacity-25" />
+          <span
+            data-notice-countdown=""
+            className="absolute bottom-0 left-0 h-0.5 bg-current"
+            style={{ width: `${(progress.value / progress.max) * 100}%` }}
+          />
+        </span>
+      )}
     </section>,
     host,
   );

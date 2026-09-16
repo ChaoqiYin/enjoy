@@ -154,30 +154,30 @@ it('closes itself when the given time is up, and only once', () => {
   expect(onClose).toHaveBeenCalledOnce();
 });
 
-it('stays put when no time is given, with no progress to show', () => {
+it('stays put when no time is given, with no countdown to show', () => {
   vi.useFakeTimers();
   const onClose = vi.fn();
   renderCountdown(onClose);
   act(() => vi.advanceTimersByTime(60000));
   expect(onClose).not.toHaveBeenCalled();
-  expect(document.querySelector('progress')).toBeNull();
+  expect(document.querySelector('[data-notice-countdown]')).toBeNull();
 });
 
-it('shows a progress bar that shrinks with the time left and stays silent', () => {
+it('drains a countdown along the frame without announcing itself', () => {
   vi.useFakeTimers();
   renderCountdown(vi.fn(), 3000);
-  const bar = document.querySelector('progress')!;
-  expect(bar.getAttribute('aria-hidden')).toBe('true');
-  expect(bar.getAttribute('max')).toBe('3000');
-  expect(bar.getAttribute('value')).toBe('3000');
-  // Not `progress-success`: daisyUI paints the fill with `currentColor` over a
-  // 20% mix of it, so a tone-coloured fill would vanish into the solid frame's
-  // tone-coloured background. Light takes the frame's foreground, dark the tone.
-  expect(bar.classList.contains('progress-success')).toBe(false);
-  expect(bar.classList.contains('text-success-content')).toBe(true);
-  expect(bar.classList.contains('dark:text-success')).toBe(true);
+  const drain = document.querySelector<HTMLElement>('[data-notice-countdown]')!;
+  // Silenced on purpose: an exposed countdown makes a screen reader report
+  // every step of a timer the user never asked to hear.
+  expect(drain.closest('[aria-hidden="true"]')).toBeTruthy();
+  // It draws itself in the frame's own foreground rather than a tone class. A
+  // `progress-{type}` fill would take the very tone the solid frame is already
+  // made of and disappear into it.
+  expect(drain.classList.contains('bg-current')).toBe(true);
+  expect(drain.classList.contains('progress')).toBe(false);
+  expect(parseFloat(drain.style.width)).toBe(100);
   act(() => vi.advanceTimersByTime(1000));
-  expect(bar.getAttribute('value')).toBe('2000');
+  expect(parseFloat(drain.style.width)).toBeCloseTo(66.7, 1);
 });
 
 it('holds the countdown while hovered and picks it up where it stopped', () => {
