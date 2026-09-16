@@ -8,10 +8,21 @@ export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 // Class names are written out in full and never interpolated: Tailwind only
 // generates the utilities it can see as literal strings, so a built-up
-// `alert-${type}` would render an uncoloured alert. The progress colour is
-// spelled out for the same reason, and is needed because daisyUI's `.progress`
-// hardcodes `color: var(--color-base-content)` and so does not inherit the
-// tone the alert gives its text.
+// `alert-${type}` would render an uncoloured alert.
+//
+// The frame is the solid alert with `alert-soft` layered back on in the dark
+// theme. A soft alert colours its text with the tone itself, which on the light
+// theme's near-white tint lands near 2.6:1 and leaves the progress bar's fill
+// only 1.7:1 against its own track — and that bar is the only thing telling the
+// user how long the notice has left. Dark tints sit on a dark base and clear
+// 3:1, so the softer look is kept there.
+//
+// The bar cannot use `progress-{type}`. daisyUI paints `.progress` with
+// `currentColor` over a 20% mix of that same colour, so a tone-coloured bar on
+// the solid theme's tone-coloured background disappears. The solid frame gives
+// the bar the alert's own foreground instead; the soft frame gives it the tone,
+// which is what `progress-{type}` set before.
+//
 // `exclusive` marks the types that share the single non-error slot. Errors are
 // exempt: they neither displace another notice nor are displaced by one, and
 // stay on screen until the user deals with them or retries successfully.
@@ -19,29 +30,29 @@ const toastTypes = {
   success: {
     icon: CheckCircle,
     role: 'status',
-    frame: 'alert-soft alert-success',
-    bar: 'progress-success',
+    frame: 'alert alert-success dark:alert-soft',
+    bar: 'progress text-success-content dark:text-success',
     exclusive: true,
   },
   error: {
     icon: CircleAlert,
     role: 'alert',
-    frame: 'alert-soft alert-error',
-    bar: 'progress-error',
+    frame: 'alert alert-error dark:alert-soft',
+    bar: 'progress text-error-content dark:text-error',
     exclusive: false,
   },
   info: {
     icon: Info,
     role: 'status',
-    frame: 'alert-soft alert-info',
-    bar: 'progress-info',
+    frame: 'alert alert-info dark:alert-soft',
+    bar: 'progress text-info-content dark:text-info',
     exclusive: true,
   },
   warning: {
     icon: TriangleAlert,
     role: 'status',
-    frame: 'alert-soft alert-warning',
-    bar: 'progress-warning',
+    frame: 'alert alert-warning dark:alert-soft',
+    bar: 'progress text-warning-content dark:text-warning',
     exclusive: true,
   },
 } as const;

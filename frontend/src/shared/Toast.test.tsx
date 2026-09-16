@@ -67,9 +67,12 @@ it('takes its colours from the native alert type', () => {
   for (const type of ['success', 'error', 'info', 'warning'] as ToastType[]) {
     const { unmount } = renderToast(type);
     const notice = screen.getByRole(type === 'error' ? 'alert' : 'status');
+    // Solid by default; the soft frame layers back on in the dark theme, where
+    // its tint sits on a dark base instead of the near-white one that made the
+    // light-theme text unreadable.
     expect(notice.classList.contains('alert')).toBe(true);
-    expect(notice.classList.contains('alert-soft')).toBe(true);
     expect(notice.classList.contains(`alert-${type}`)).toBe(true);
+    expect(notice.classList.contains('dark:alert-soft')).toBe(true);
     unmount();
   }
 });
@@ -167,7 +170,12 @@ it('shows a progress bar that shrinks with the time left and stays silent', () =
   expect(bar.getAttribute('aria-hidden')).toBe('true');
   expect(bar.getAttribute('max')).toBe('3000');
   expect(bar.getAttribute('value')).toBe('3000');
-  expect(bar.classList.contains('progress-success')).toBe(true);
+  // Not `progress-success`: daisyUI paints the fill with `currentColor` over a
+  // 20% mix of it, so a tone-coloured fill would vanish into the solid frame's
+  // tone-coloured background. Light takes the frame's foreground, dark the tone.
+  expect(bar.classList.contains('progress-success')).toBe(false);
+  expect(bar.classList.contains('text-success-content')).toBe(true);
+  expect(bar.classList.contains('dark:text-success')).toBe(true);
   act(() => vi.advanceTimersByTime(1000));
   expect(bar.getAttribute('value')).toBe('2000');
 });

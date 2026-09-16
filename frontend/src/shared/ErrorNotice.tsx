@@ -20,9 +20,7 @@ export function ErrorNotice({
     <Toast type="error" closeLabel={t('close')} onClose={onClose}>
       <h3 className="font-bold">{t('operationFailed')}</h3>
       <p className="text-sm break-words">{message}</p>
-      <p className="text-xs opacity-60 break-all">
-        {t('errorId', { id: error.errorId })}
-      </p>
+      <p className="text-xs break-all">{t('errorId', { id: error.errorId })}</p>
       {onRetry && (
         <button
           className="btn btn-outline btn-sm btn-primary mt-2"
