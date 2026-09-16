@@ -82,7 +82,7 @@ impl Repository {
             // any more. Dropping it upgrades the database in place: rebuilding
             // the table would throw away the favorites, the play history and
             // the saved directories along with it.
-            Self::drop_available_column(&tx)?;
+            Self::drop_legacy_column(&tx, "available")?;
         }
         tx.pragma_update(None, "user_version", 3_i64)?;
         tx.commit()?;
@@ -90,17 +90,20 @@ impl Repository {
         Ok(Self { connection })
     }
 
-    /// Drops the legacy `available` column, which version 2 databases still
-    /// have. The column is looked up first, so a database that lost it while
-    /// its version number stayed at 2 can still be opened.
-    fn drop_available_column(tx: &Connection) -> Result<(), AppError> {
+    /// Drops a column a legacy version of the schema carried and no code reads
+    /// any more, upgrading the database in place. The column is looked up
+    /// first, so a database that lost it while its version number stayed behind
+    /// can still be opened, and dropping a column that is already gone is a
+    /// no-op rather than an error. The name is spelled out at the call site in
+    /// this file -- never taken from outside it -- so it needs no quoting.
+    fn drop_legacy_column(tx: &Connection, name: &str) -> Result<(), AppError> {
         let present: i64 = tx.query_row(
-            "SELECT COUNT(*) FROM pragma_table_info('videos') WHERE name = 'available'",
-            [],
+            "SELECT COUNT(*) FROM pragma_table_info('videos') WHERE name = ?1",
+            [name],
             |row| row.get(0),
         )?;
         if present > 0 {
-            tx.execute_batch("ALTER TABLE videos DROP COLUMN available;")?;
+            tx.execute_batch(&format!("ALTER TABLE videos DROP COLUMN {name};"))?;
         }
         Ok(())
     }
@@ -141,16 +144,27 @@ impl Repository {
                     },
                 )
                 .optional()?;
-            match previous {
-                None => changes.added += 1,
-                Some((size, modified, md5))
-                    if size != file.file_size
-                        || modified != file.modified_at
-                        || md5 != file.file_md5 =>
-                {
-                    changes.updated += 1
-                }
-                _ => {}
+            // Whether a file counts as changed is decided here, once, from the
+            // row just read: the write below consumes that verdict as a bound
+            // parameter instead of comparing the columns a second time in SQL,
+            // so the rule has a single home. Deciding it in Rust and deciding it
+            // inside the statement say the same thing, because the read and the
+            // write run on one connection inside one transaction and nothing
+            // touches this path in between: the row the statement sees is the
+            // row read here. A path with no stored row is an addition rather
+            // than a change -- it holds nothing of its own to invalidate -- and
+            // the counters below follow the same verdict, so new and updated
+            // records are counted exactly as they are written.
+            let changed = match &previous {
+                // The row is read whole -- it is the stored identity of the
+                // file -- but the content hash is the field this rule compares.
+                Some((_, _, md5)) => *md5 != file.file_md5,
+                None => false,
+            };
+            if previous.is_none() {
+                changes.added += 1;
+            } else if changed {
+                changes.updated += 1;
             }
             tx.execute(
                 "INSERT OR IGNORE INTO scan_paths(path) VALUES (?1)",
@@ -161,15 +175,15 @@ impl Repository {
                  VALUES (?1,?2,?3,?4,?5,?6,?7,?7)
                  ON CONFLICT(path) DO UPDATE SET
                     file_name=excluded.file_name, folder_path=excluded.folder_path,
-                    media_complete=CASE WHEN videos.file_md5!=excluded.file_md5 THEN 0 ELSE videos.media_complete END,
-                    duration_ms=CASE WHEN videos.file_md5!=excluded.file_md5 THEN NULL ELSE videos.duration_ms END,
-                    width=CASE WHEN videos.file_md5!=excluded.file_md5 THEN NULL ELSE videos.width END,
-                    height=CASE WHEN videos.file_md5!=excluded.file_md5 THEN NULL ELSE videos.height END,
-                    codec=CASE WHEN videos.file_md5!=excluded.file_md5 THEN NULL ELSE videos.codec END,
-                    thumbnail_path=CASE WHEN videos.file_md5!=excluded.file_md5 THEN NULL ELSE videos.thumbnail_path END,
-                    updated_at=CASE WHEN videos.file_md5!=excluded.file_md5 THEN excluded.updated_at ELSE videos.updated_at END,
+                    media_complete=CASE WHEN ?8 THEN 0 ELSE videos.media_complete END,
+                    duration_ms=CASE WHEN ?8 THEN NULL ELSE videos.duration_ms END,
+                    width=CASE WHEN ?8 THEN NULL ELSE videos.width END,
+                    height=CASE WHEN ?8 THEN NULL ELSE videos.height END,
+                    codec=CASE WHEN ?8 THEN NULL ELSE videos.codec END,
+                    thumbnail_path=CASE WHEN ?8 THEN NULL ELSE videos.thumbnail_path END,
+                    updated_at=CASE WHEN ?8 THEN excluded.updated_at ELSE videos.updated_at END,
                     file_size=excluded.file_size, modified_at=excluded.modified_at, file_md5=excluded.file_md5",
-                params![file.path, file.file_name, file.folder_path, file.file_size, file.modified_at, file.file_md5, now()],
+                params![file.path, file.file_name, file.folder_path, file.file_size, file.modified_at, file.file_md5, now(), changed],
             )?;
             tx.execute(
                 "INSERT OR IGNORE INTO directory_videos(directory_path,video_id)
