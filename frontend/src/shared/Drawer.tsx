@@ -78,8 +78,17 @@ export function Drawer({
       />
       <div className="drawer-content" />
       <div className="drawer-side">
+        {/* A button only so that a click anywhere on it closes the drawer; it
+            is not a control the user aims at. daisyUI marks every
+            `.drawer-overlay` with a pointer cursor, which would put a hand over
+            most of the screen and drown out the same hand on the things the
+            user does aim at — the panel's own buttons, a video card. daisyUI's
+            own `.modal-backdrop` carries no such rule, so clearing it here is
+            also what keeps the two backdrops in this app reading alike.
+            The utility wins over the component class because daisyUI nests its
+            rules in a sublayer of `utilities`, where this one lands directly. */}
         <button
-          className="drawer-overlay"
+          className="drawer-overlay cursor-default"
           aria-label={closeLabel}
           onClick={onClose}
         />

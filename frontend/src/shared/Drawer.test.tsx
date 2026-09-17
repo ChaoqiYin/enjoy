@@ -69,6 +69,17 @@ it('closes with Escape and with the backdrop', () => {
   expect(onClose).toHaveBeenCalledTimes(2);
 });
 
+/** The backdrop is clickable, so daisyUI styles it with a pointer cursor, and
+ *  the whole content area under a hand reads as one big button. jsdom loads no
+ *  stylesheets and computes no styles, so all this can pin is the class that
+ *  clears it; the arrow a browser paints is confirmed by a desktop walkthrough. */
+it('keeps the backdrop on the default cursor', () => {
+  render(drawer());
+  const backdrop = closeButtons()[0];
+  expect(backdrop.classList.contains('drawer-overlay')).toBe(true);
+  expect(backdrop.classList.contains('cursor-default')).toBe(true);
+});
+
 it('stops listening for Escape once it is closed', () => {
   const onClose = vi.fn();
   const result = render(drawer({ onClose }));
