@@ -4,6 +4,7 @@ import { FolderPlus } from 'lucide-react';
 import { libraryApi } from '../../shared/api';
 import type { AppError, Video } from '../../shared/api';
 import { displayPath } from '../../shared/format';
+import { Drawer } from '../../shared/Drawer';
 import { ScrollViewport } from '../../shared/ScrollViewport';
 import { useLibraryContext } from './LibraryProvider';
 import type { useVideoPageView } from './useVideoPageView';
@@ -32,21 +33,29 @@ export function VideoPageContent({
   const library = useLibraryContext();
   const { collectionKey, videos, search, folder, clearFilters } = view;
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [detailsId, setDetailsId] = useState<number | null>(null);
-  const detailVideo = library.videos.data?.find(
-    (video) => video.id === detailsId,
-  );
+  // `detailVideo` is the panel's contents, not a mount gate: the drawer shell
+  // is always mounted and only `detailsOpen` moves it, so the video stays put
+  // through the closing slide and is replaced the next time one is opened.
+  const [detailVideo, setDetailVideo] = useState<Video | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   const [remove, setRemove] = useState<Video | null>(null);
   useEffect(() => {
-    if (detailsId === null || library.videos.isPending) return;
+    // Only a drawer that is open can report its video missing. Closing it here
+    // is what stops the effect from firing again — the panel keeps its video
+    // now, so without this every later rescan would repeat the same notice. It
+    // also keeps a deliberate removal, which closes the drawer before removing,
+    // from announcing itself a second time.
+    if (!detailsOpen || !detailVideo || library.videos.isPending) return;
     if (!library.videos.data) return;
-    if (library.videos.data.some((video) => video.id === detailsId)) return;
-    setDetailsId(null);
+    if (library.videos.data.some((video) => video.id === detailVideo.id))
+      return;
+    setDetailsOpen(false);
     library.setError(clientError('media.file.removed'));
   }, [
-    detailsId,
+    detailsOpen,
+    detailVideo,
     library.videos.isPending,
     library.videos.data,
     library.setError,
@@ -74,10 +83,13 @@ export function VideoPageContent({
     favorite,
     reveal: (video: Video) => library.run(() => libraryApi.reveal(video.path)),
     remove: (video: Video) => {
-      setDetailsId(null);
+      setDetailsOpen(false);
       setRemove(video);
     },
-    details: (video: Video) => setDetailsId(video.id),
+    details: (video: Video) => {
+      setDetailVideo(video);
+      setDetailsOpen(true);
+    },
     copyPath,
     regenerate: (video: Video) =>
       library.run(() => libraryApi.regenerate(video.path)),
@@ -133,15 +145,21 @@ export function VideoPageContent({
           />
         )}
       </div>
-      {detailVideo && (
-        <VideoDetails
-          scan={library.scan.data}
-          video={detailVideo}
-          busy={library.busy}
-          actions={actions}
-          onClose={() => setDetailsId(null)}
-        />
-      )}
+      <Drawer
+        open={detailsOpen}
+        title={t('details')}
+        closeLabel={t('closeDetails')}
+        onClose={() => setDetailsOpen(false)}
+      >
+        {detailVideo && (
+          <VideoDetails
+            scan={library.scan.data}
+            video={detailVideo}
+            busy={library.busy}
+            actions={actions}
+          />
+        )}
+      </Drawer>
       {remove && (
         <RemoveConfirmation
           video={remove}

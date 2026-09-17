@@ -47,86 +47,26 @@ beforeEach(async () => {
     lng: 'en',
     resources: { en: { translation: english, errors } },
   });
-  HTMLDialogElement.prototype.showModal = function () {
-    this.setAttribute('open', '');
-  };
-  HTMLDialogElement.prototype.close = function () {
-    this.removeAttribute('open');
-  };
 });
-afterEach(cleanup);
-function view(
-  handlers = actions(),
-  onClose = vi.fn(),
-  busy = false,
-  source = video,
-) {
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+function view(handlers = actions(), busy = false, source = video) {
   return (
     <I18nextProvider i18n={i18n}>
-      <VideoDetails
-        video={source}
-        actions={handlers}
-        busy={busy}
-        onClose={onClose}
-      />
+      <VideoDetails video={source} actions={handlers} busy={busy} />
     </I18nextProvider>
   );
 }
-it('keeps focus stable through updates and restores it on dismissal', () => {
-  const trigger = document.createElement('button');
-  document.body.append(trigger);
-  trigger.focus();
-  const result = render(view());
-  expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(
-    true,
-  );
-  const copy = screen.getByRole('button', { name: english.copyPath });
-  copy.focus();
-  result.rerender(view());
-  expect(document.activeElement).toBe(copy);
-  result.unmount();
-  expect(document.activeElement).toBe(trigger);
-  trigger.remove();
-});
-it('falls back to the page when the original card was unmounted', () => {
-  const page = document.createElement('main');
-  page.tabIndex = -1;
-  const trigger = document.createElement('button');
-  page.append(trigger);
-  document.body.append(page);
-  trigger.focus();
-  const result = render(view());
-  trigger.remove();
-  result.unmount();
-  expect(document.activeElement).toBe(page);
-  page.remove();
-});
 it('shows the indexed path without the verbatim prefix it carries', () => {
   render(
-    view(actions(), vi.fn(), false, {
+    view(actions(), false, {
       ...video,
       path: '\\\\?\\E:\\movies\\example.mp4',
     }),
   );
   expect(screen.getByText('E:\\movies\\example.mp4')).toBeTruthy();
-});
-it('closes with Escape or the backdrop and confines keyboard focus', () => {
-  const close = vi.fn();
-  render(view(actions(), close));
-  const dialog = screen.getByRole('dialog');
-  const buttons = Array.from(
-    dialog.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
-  );
-  const last = buttons[buttons.length - 1];
-  last.focus();
-  fireEvent.keyDown(last, { key: 'Tab' });
-  expect(document.activeElement).toBe(buttons[0]);
-  fireEvent.keyDown(dialog, { key: 'Escape' });
-  expect(close).toHaveBeenCalledOnce();
-  fireEvent.click(
-    screen.getAllByRole('button', { name: english.closeDetails })[0],
-  );
-  expect(close).toHaveBeenCalledTimes(2);
 });
 it('reports maintenance failure and retries without losing existing details', async () => {
   const handlers = actions();

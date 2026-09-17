@@ -305,6 +305,13 @@ fn main() {
                     let error = AppError::new("app.startup.failed", error);
                     native::startup_failure(app.handle(), &error);
                 }
+                // macOS gives a WKWebView no context-menu entry for the Web
+                // inspector, and this app turns the default menu bar off, so a
+                // debug build would otherwise have no way to open one. The call
+                // itself only exists under `debug_assertions` (or the `devtools`
+                // feature), so release builds are unchanged.
+                #[cfg(debug_assertions)]
+                window.open_devtools();
             }
             Ok(())
         })

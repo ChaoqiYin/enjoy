@@ -150,5 +150,12 @@ it('closes the drawer and notifies when a rescan removes the video', async () =>
       expect.objectContaining({ code: 'media.file.removed' }),
     ),
   );
-  expect(screen.queryByRole('dialog')).toBeNull();
+  // The shell outlives the close, so wait for it to become `inert` rather than
+  // to leave the DOM: that attribute is what takes the closed panel out of the
+  // tab order and the accessibility tree.
+  await waitFor(() =>
+    expect(
+      document.querySelector('[role="dialog"]')?.hasAttribute('inert'),
+    ).toBe(true),
+  );
 });

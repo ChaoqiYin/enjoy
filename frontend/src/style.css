@@ -6,6 +6,34 @@ html {
   font-size: 14px;
 }
 
+/* An open drawer must not re-tint the root background. daisyUI's
+   `rootscrolllock` module darkens `:root` by 40% through `--page-scroll-bg`
+   whenever a `.drawer-toggle` is checked. Page content covers that with its own
+   `bg-base-100`, but the root background still fills the WKWebView
+   `contentInset` strip at the very top, which the macOS title bar shows through
+   — so the title bar turned from white to grey (255 -> 153) as the drawer
+   opened, while the native title bar is not ours to restyle. Clearing the
+   variable here takes the drawer out of that mechanism; the modals are
+   unaffected because they key off `.modal[open]` and friends. Note the
+   `.drawer-overlay` is not the culprit and cannot fix this: it starts at the
+   content area's top edge and never reaches that strip, so its shade is free to
+   keep daisyUI's default. */
+:root:has(.drawer-toggle:checked) {
+  --page-scroll-lock: initial;
+}
+
+/* The drawer's slide and its backdrop fade are daisyUI's own transitions, and
+   daisyUI leaves them running under `prefers-reduced-motion`. They are
+   decoration — nothing is learned from the panel having travelled — so the
+   preference turns them into an instant state change. Written unlayered here,
+   which outranks anything inside daisyUI's cascade layers. */
+@media (prefers-reduced-motion: reduce) {
+  .drawer-side,
+  .drawer-side > :not(.drawer-overlay) {
+    transition: none;
+  }
+}
+
 .scroll-viewport {
   overflow: auto;
   scrollbar-gutter: stable;
