@@ -67,8 +67,6 @@ it('bounds mounted videos while scrolling and resets filtered results', async ()
       <VirtualVideos
         key={key}
         videos={items}
-        selectedId={null}
-        onSelect={vi.fn()}
         onMenu={vi.fn()}
         busy={false}
         actions={actions}

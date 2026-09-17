@@ -116,8 +116,6 @@ describe('video card actions', () => {
       <I18nextProvider i18n={i18n}>
         <VideoCard
           video={video}
-          selectedId={null}
-          onSelect={vi.fn()}
           onMenu={vi.fn()}
           busy={false}
           actions={actions}
@@ -152,6 +150,32 @@ describe('video card actions', () => {
       key: ' ',
     });
     expect(actions.details).toHaveBeenCalledTimes(2);
+  });
+  it('keeps the card the only tab stop its press gesture adds', () => {
+    mount();
+    // The animation library's press gesture turns the element carrying it into
+    // a tab stop when that element has no tabindex of its own, and the actions
+    // container now carries the gesture so it can claim the pointer press
+    // before the card does. Tabbing into a card must not land on that wrapper.
+    // This only asserts the DOM the gesture leaves behind: it proves no new
+    // `tabindex="0"` appears inside the card, not that the press really stops at
+    // the actions container, and jsdom does not render the gesture at all. Both
+    // are confirmed by a desktop walkthrough.
+    const card = screen.getByRole('article');
+    expect(card.querySelectorAll('[tabindex="0"]')).toHaveLength(0);
+  });
+  it('marks the card and its file name button as pointer targets', () => {
+    mount();
+    const card = screen.getByRole('article');
+    // The file name is a <button>, and the UA stylesheet gives buttons
+    // `cursor: default`, which beats inheritance from the card, so it has to
+    // declare the pointer cursor itself.
+    const fileName = screen.getByRole('button', { name: video.file_name });
+    // jsdom loads no stylesheets and computes no styles, so these assertions only
+    // prove the utilities are applied; they do not verify the pointer cursor a
+    // browser would paint. The real cursor is confirmed by a desktop walkthrough.
+    expect(card.classList.contains('cursor-pointer')).toBe(true);
+    expect(fileName.classList.contains('cursor-pointer')).toBe(true);
   });
   it('does not gate play on any per-record availability state', () => {
     const actions = mount();

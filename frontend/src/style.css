@@ -46,6 +46,50 @@ html {
   }
 }
 
+/* The hover shadow has to live here rather than with the animation library:
+   that library interpolates literal values only, so `var()` and the semantic
+   colour tokens are out of its reach — which is why the card used to carry a
+   fixed `rgb(0 0 0 / 0.18)`, a black shadow with nowhere to darken against a
+   near-black background. `base-content` flips with the theme, so in dark themes
+   the shadow below paints a light halo instead, which is how a dark UI usually
+   reads as "lifted"; the outline already varies with the theme for the same
+   reason. The measurements behind the 18% mix, and every alternative weighed
+   against it, are in ADR 0008.
+
+   The cost, accepted: `transition-property` takes a single value, so keeping
+   daisyUI's `transition: outline .2s ease-in-out` on `.card` means restating
+   that declaration here, beside `box-shadow` — the vendor's declaration copied
+   into a second place that a vendor upgrade will not carry along. The
+   alternative, Tailwind's `transition-shadow`, is worse: it would replace the
+   whole property and turn the outline into an instant change. */
+.video-card {
+  /* The geometry, kept in one place so the fallback below restates only the
+     colour that it exists to replace. */
+  --video-card-shadow: 0 8px 16px -4px;
+  transition:
+    outline 0.2s ease-in-out,
+    box-shadow 0.2s ease-out;
+}
+
+.video-card:hover {
+  box-shadow: var(--video-card-shadow)
+    color-mix(in oklab, var(--color-base-content) 18%, transparent);
+}
+
+/* Where `color-mix` is unavailable the mix above does not apply, and the
+   pipeline's own fallback would paint an opaque band instead of a shadow. This
+   states the fallback by hand, the way the `scrollbar-gutter` block above does,
+   with the fixed black the card carried before the shadow moved here — the
+   alpha is the point, and light themes want that black anyway. The two
+   `@supports` conditions are mutually exclusive, so this one's order against
+   the pipeline's does not matter. Not an unreachable corner: WKWebView only
+   took `color-mix` in Safari 16.2, while macOS 12 ships 15.4. */
+@supports not (color: color-mix(in lab, red, red)) {
+  .video-card:hover {
+    box-shadow: var(--video-card-shadow) rgb(0 0 0 / 0.18);
+  }
+}
+
 /* The countdown line along a notice's bottom edge. Draining it is the engine's
    work, not React's: the line keeps its full width and is scaled down over the
    notice's remaining time, which the compositor does without the main thread.

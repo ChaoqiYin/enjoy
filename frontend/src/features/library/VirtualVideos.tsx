@@ -24,9 +24,21 @@ export function VirtualVideos({
         100,
       measurementKey: i18n.language,
     });
+  // Room on the viewport's start edge for the hover feedback of the first row
+  // and first column, which the padding-box clip cuts flat; taking it with a
+  // negative margin of the same value is what keeps that growth out of the
+  // static layout, so no card moves. The value and its derivation are in
+  // `virtualGridLayout.hoverRoom`, the measurements in ADR 0008.
+  const hoverRoom = virtualGridLayout.hoverRoom;
   return (
     <ScrollViewport
       ref={viewport}
+      style={{
+        paddingTop: hoverRoom,
+        paddingInlineStart: hoverRoom,
+        marginTop: -hoverRoom,
+        marginInlineStart: -hoverRoom,
+      }}
       className="min-h-0 flex-1 overscroll-contain"
       tabIndex={0}
       aria-label={t('library')}

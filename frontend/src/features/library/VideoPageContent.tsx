@@ -32,7 +32,6 @@ export function VideoPageContent({
   const { t, i18n } = useTranslation();
   const library = useLibraryContext();
   const { collectionKey, videos, search, folder, clearFilters } = view;
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   // `detailVideo` is the panel's contents, not a mount gate: the drawer shell
   // is always mounted and only `detailsOpen` moves it, so the video stays put
   // through the closing slide and is replaced the next time one is opened.
@@ -136,8 +135,6 @@ export function VideoPageContent({
             key={collectionKey}
             scan={library.scan.data}
             videos={videos}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
             onMenu={setMenu}
             busy={library.busy}
             actions={actions}
