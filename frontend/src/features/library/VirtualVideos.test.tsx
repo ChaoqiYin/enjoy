@@ -70,6 +70,7 @@ it('bounds mounted videos while scrolling and resets filtered results', async ()
         onMenu={vi.fn()}
         busy={false}
         actions={actions}
+        lastPlayedId={null}
         onScroll={onScroll}
       />
     </I18nextProvider>

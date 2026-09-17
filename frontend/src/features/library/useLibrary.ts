@@ -20,6 +20,14 @@ export function useLibrary() {
   // different kind of thing, telling the user an action landed rather than
   // something to read and act on. See the development guide.
   const [copyHint, setCopyHint] = useState(false);
+  // Which card carries the "last played" marker. It is the video the user just
+  // handed to the system player, held for as long as the app runs and no
+  // longer: the index already keeps the history across runs (`last_played_at`,
+  // which the history page sorts on), while this marker answers "which one did
+  // I play a moment ago", so it belongs to the session. Held here rather than
+  // in a page because all three pages render the same card and share this
+  // provider, so the marker follows the user across them.
+  const [lastPlayedId, setLastPlayedId] = useState<number | null>(null);
   const [pending, setPending] = useState(0);
   const busy = pending > 0;
   const [dismissedQueryErrors, setDismissedQueryErrors] = useState<unknown[]>(
@@ -131,6 +139,8 @@ export function useLibrary() {
     copyHint,
     showCopyHint: () => setCopyHint(true),
     dismissCopyHint: () => setCopyHint(false),
+    lastPlayedId,
+    markPlayed: (id: number) => setLastPlayedId(id),
     directories,
     scan,
     busy,

@@ -59,7 +59,15 @@ export function VideoPageContent({
     library.videos.data,
     library.setError,
   ]);
-  const play = (video: Video) => library.run(() => libraryApi.play(video.path));
+  // The marker is written after the call resolves, not beside the click: a
+  // launch that never reached the system player raises instead, `run` turns
+  // that into a notice, and the card keeps whatever marker it had — the same
+  // rule the record follows, where a failed launch does not count as a play.
+  const play = (video: Video) =>
+    library.run(async () => {
+      await libraryApi.play(video.path);
+      library.markPlayed(video.id);
+    });
   const favorite = (video: Video) =>
     library.run(() => libraryApi.favorite(video.path, !video.favorite));
   const copyPath = async (video: Video) => {
@@ -138,6 +146,7 @@ export function VideoPageContent({
             onMenu={setMenu}
             busy={library.busy}
             actions={actions}
+            lastPlayedId={library.lastPlayedId}
             onScroll={closeMenu}
           />
         )}

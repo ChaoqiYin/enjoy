@@ -38,6 +38,7 @@
   "addVideos": "添加视频目录",
   "metadataPending": "元数据待处理",
   "play": "播放",
+  "lastPlayedMarker": "上次播放",
   "unfavorite": "取消收藏",
   "reveal": "打开所在目录",
   "removeIndex": "移除索引",

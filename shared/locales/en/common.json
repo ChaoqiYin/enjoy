@@ -38,6 +38,7 @@
   "addVideos": "Add video folders",
   "metadataPending": "Metadata pending",
   "play": "Play",
+  "lastPlayedMarker": "Last played",
   "unfavorite": "Remove favorite",
   "reveal": "Open containing folder",
   "removeIndex": "Remove from index",

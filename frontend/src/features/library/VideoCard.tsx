@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import type { ScanStatus, Video } from '../../shared/api';
 import { Tooltip } from '../../shared/Tooltip';
 import { duration } from '../../shared/format';
@@ -12,12 +13,14 @@ export function VideoCard({
   onMenu,
   busy,
   actions,
+  lastPlayedId,
   scan,
 }: {
   video: Video;
   onMenu: (target: MenuTarget) => void;
   busy: boolean;
   actions: VideoActionHandlers;
+  lastPlayedId: number | null;
   scan?: ScanStatus;
 }) {
   // The preference has to drop the movement but keep the affordance: the
@@ -31,6 +34,7 @@ export function VideoCard({
   // from a target value handed to the library, so it fades in as usual while
   // the card stays put.
   const reduceMotion = useReducedMotion();
+  const { t } = useTranslation();
   const hover = reduceMotion ? undefined : { y: -4, scale: 1.02 };
   return (
     <motion.article
@@ -87,6 +91,32 @@ export function VideoCard({
       // three run on one clock rather than racing on two.
       transition={{ duration: 0.2, ease: 'easeOut' }}
     >
+      {/* The marker the user last handed to the system player. It is taken out
+          of flow over the thumbnail's corner rather than added to the body's
+          rows: the card's height then does not move, so the virtualiser's row
+          estimate and every geometry the hover feedback was measured against
+          (ADR 0008) stay as they are — measured, not assumed: with the marker
+          in place every card, row and scroll height is unchanged.
+
+          `badge-neutral` rather than a bare `badge`: measured on the built
+          page, `--color-neutral` is `oklch(14% .005 285.823)` in **both**
+          themes, where `base-100` is white in one and `oklch(25% …)` in the
+          other. So this is one near-black chip with near-white text whichever
+          theme is on — the same label over the same thumbnail either way, and
+          15.68:1 within itself, which is what keeps the text readable over an
+          arbitrary picture. The limit is the chip's own edge, not its text:
+          over a very dark thumbnail a near-black box stops being visible as a
+          box while its text still reads.
+
+          The card's own outline is left alone — hover and focus already write
+          it, and a second writer on one property is the defect ADR 0007
+          records. Backgrounds would do the same to the card's surface, which
+          is why the distinction is drawn on a new element. */}
+      {video.id === lastPlayedId && (
+        <span className="badge badge-sm badge-neutral absolute top-2 start-2">
+          {t('lastPlayedMarker')}
+        </span>
+      )}
       <Thumbnail
         videoPath={video.path}
         scan={scan}

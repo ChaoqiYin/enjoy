@@ -101,7 +101,7 @@ describe('localized errors', () => {
 });
 
 describe('video card actions', () => {
-  function mount() {
+  function mount(lastPlayedId: number | null = null) {
     const actions = {
       play: vi.fn(),
       favorite: vi.fn(),
@@ -119,6 +119,7 @@ describe('video card actions', () => {
           onMenu={vi.fn()}
           busy={false}
           actions={actions}
+          lastPlayedId={lastPlayedId}
         />
       </I18nextProvider>,
     );
@@ -176,6 +177,23 @@ describe('video card actions', () => {
     // browser would paint. The real cursor is confirmed by a desktop walkthrough.
     expect(card.classList.contains('cursor-pointer')).toBe(true);
     expect(fileName.classList.contains('cursor-pointer')).toBe(true);
+  });
+  it('leaves a card the user has not played unmarked', () => {
+    mount();
+    expect(screen.queryByText('Last played')).toBeNull();
+  });
+  it('marks the card of the video the user last played', () => {
+    mount(video.id);
+    const card = screen.getByRole('article');
+    // The marker is written over the thumbnail's corner rather than into one of
+    // the card's rows, so that the card keeps its height — every row estimate
+    // and every geometry measured for the hover feedback hang off it. jsdom
+    // lays nothing out, so this proves where the element is put, not where it
+    // lands: the corner it paints on is measured in the browser.
+    const marker = screen.getByText('Last played');
+    expect(card.contains(marker)).toBe(true);
+    expect(marker.classList.contains('absolute')).toBe(true);
+    expect(card.querySelector('.card-body')?.contains(marker)).toBe(false);
   });
   it('does not gate play on any per-record availability state', () => {
     const actions = mount();
