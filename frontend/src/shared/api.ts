@@ -41,6 +41,29 @@ export interface ScanStatus {
   currentPath: string;
 }
 
+export interface AvailableUpdate {
+  version: string;
+  currentVersion: string;
+  notes: string | null;
+  /** RFC 3339, or null when the release does not carry a date. */
+  date: string | null;
+}
+
+export interface UpdateCheck {
+  /** False on platforms the updater does not publish for; no request is made. */
+  supported: boolean;
+  currentVersion: string;
+  available: AvailableUpdate | null;
+  readyToRestart: boolean;
+}
+
+export interface UpdateProgress {
+  phase: string;
+  downloaded: number;
+  total: number | null;
+  version: string;
+}
+
 export const libraryApi = {
   reveal: (path: string) => revealItemInDir(path),
   regenerate: (path: string | null) =>
@@ -60,6 +83,11 @@ export const libraryApi = {
   rescan: () => invoke<Video[]>('rescan_directories'),
   play: (path: string) => invoke<void>('open_video', { path }),
   refreshInfo: (path: string) => invoke<void>('refresh_video_info', { path }),
+  checkForUpdate: () => invoke<UpdateCheck>('check_for_update'),
+  installUpdate: () => invoke<void>('install_update'),
+  // Installing hands the update to the platform installer and exits, so this
+  // never answers a restart that worked; the caller swallows the rejection.
+  restartApp: () => invoke<void>('restart_app'),
 };
 
 export function normalizeError(error: unknown): AppError {

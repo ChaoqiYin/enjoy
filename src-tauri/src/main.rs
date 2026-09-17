@@ -8,6 +8,7 @@ mod process;
 mod repository;
 mod scan;
 mod settings;
+mod update;
 
 use error::AppError;
 use i18n::{language, native};
@@ -18,10 +19,12 @@ use scan::job as scan_job;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager, State};
+use update::UpdateControl;
 
-struct AppState {
-    scan: Arc<ScanControl>,
-    repository: Arc<Mutex<Repository>>,
+pub(crate) struct AppState {
+    pub(crate) scan: Arc<ScanControl>,
+    pub(crate) repository: Arc<Mutex<Repository>>,
+    pub(crate) update: Arc<UpdateControl>,
 }
 
 fn database_path(app: &tauri::AppHandle) -> Result<PathBuf, AppError> {
@@ -260,6 +263,7 @@ fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError> {
     app.manage(AppState {
         repository: Arc::new(Mutex::new(repository)),
         scan: Arc::new(ScanControl::default()),
+        update: Arc::new(UpdateControl::default()),
     });
     Ok(())
 }
@@ -275,6 +279,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             language::get_language,
             language::set_language,
@@ -291,7 +296,10 @@ fn main() {
             rescan_directories,
             set_favorite,
             open_video,
-            refresh_video_info
+            refresh_video_info,
+            update::commands::check_for_update,
+            update::commands::install_update,
+            update::commands::restart_app
         ])
         .setup(|app| {
             app.manage(language::load(app.handle()));

@@ -1,5 +1,7 @@
 {
   "bundle": {
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "resources": {
       "../resources/ffmpeg/windows-x86_64/": "resources/ffmpeg/windows-x86_64/"
     }

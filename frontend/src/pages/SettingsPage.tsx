@@ -12,7 +12,7 @@ import { DirectoryActions } from '../features/library/DirectoryActions';
 import { DirectoryDialog } from '../features/library/DirectoryDialog';
 import { EmptyRescanConfirmation } from '../features/library/EmptyRescanConfirmation';
 import { PageFrame } from '../features/library/PageFrame';
-import packageInfo from '../../../package.json';
+import { UpdateSetting } from '../features/update/UpdateSetting';
 export function SettingsPage() {
   const { t } = useTranslation();
   const library = useLibraryContext();
@@ -66,7 +66,7 @@ export function SettingsPage() {
           }
         />
         <h2 className="text-xl">{t('about')}</h2>
-        <p className="text-sm opacity-65">v{packageInfo.version}</p>
+        <UpdateSetting />
       </ScrollViewport>
       {showAdd && <DirectoryDialog onClose={() => setShowAdd(false)} />}
       {showEmptyRescan && (

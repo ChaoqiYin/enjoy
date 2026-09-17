@@ -4,7 +4,7 @@
     "build": "tsc -b frontend/tsconfig.json && vite build --config frontend/vite.config.ts",
     "desktop": "tauri dev",
     "format": "prettier --write frontend/src shared/locales frontend/vite.config.ts frontend/vitest.config.ts",
-    "check": "node scripts/check-source.mjs && node scripts/check-translations.mjs && prettier --check frontend/src shared/locales frontend/vite.config.ts frontend/vitest.config.ts",
+    "check": "node scripts/check-source.mjs && node scripts/check-translations.mjs && node scripts/check-version.mjs && prettier --check frontend/src shared/locales frontend/vite.config.ts frontend/vitest.config.ts",
     "test": "vitest run --config frontend/vitest.config.ts",
     "dev:ensure": "node scripts/dev-server.mjs",
     "dev:stop": "node scripts/dev-server.mjs --stop"

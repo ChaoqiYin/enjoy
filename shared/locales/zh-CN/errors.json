@@ -31,5 +31,12 @@
   "media.player.unsupported": "此平台暂不支持进度回传播放。",
   "settings.read_failed": "无法读取设置。",
   "settings.save_failed": "无法保存设置，请重试。",
-  "settings.invalid": "所选设置无效。"
+  "settings.invalid": "所选设置无效。",
+  "update.unsupported": "自动更新仅在 Windows 版提供。",
+  "update.busy": "已有更新正在下载。",
+  "update.not_downloaded": "尚未下载更新。",
+  "update.blocked.scanning": "请先完成或取消正在进行的扫描，再重启更新。",
+  "update.check_failed": "无法检查更新，请检查网络后重试。",
+  "update.download_failed": "更新下载失败，请重试。",
+  "update.install_failed": "更新安装失败，请到发布页面重新下载。"
 }

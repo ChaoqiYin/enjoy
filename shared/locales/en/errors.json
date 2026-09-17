@@ -31,5 +31,12 @@
   "media.player.unsupported": "Tracked playback is not yet supported on this platform.",
   "settings.read_failed": "Could not read settings.",
   "settings.save_failed": "Could not save settings. Please try again.",
-  "settings.invalid": "The selected settings are invalid."
+  "settings.invalid": "The selected settings are invalid.",
+  "update.unsupported": "Automatic updates are available in the Windows version only.",
+  "update.busy": "An update download is already running.",
+  "update.not_downloaded": "No update has been downloaded yet.",
+  "update.blocked.scanning": "Finish or cancel the running scan before restarting to update.",
+  "update.check_failed": "Could not check for updates. Check your connection and try again.",
+  "update.download_failed": "The update could not be downloaded. Please try again.",
+  "update.install_failed": "The update could not be installed. Download it again from the releases page."
 }

@@ -1,0 +1,68 @@
+name: Release
+
+# Tagging is the release action: the version lives in three files, so the tag
+# is what states which one this build is.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - run: npm ci --no-audit --no-fund
+
+      # The same checks the verify workflow runs. Repeated here so a release
+      # stops before building rather than publishing a manifest whose version
+      # disagrees with the build.
+      - run: npm run check
+
+      - name: Check the tag matches the packaged version
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          if ("v$version" -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} does not match the packaged version $version"
+          }
+
+      # The media binaries are gitignored, and the release build asserts they
+      # are present, so they are fetched here rather than committed. They hang
+      # off a dedicated release tag so every build gets the same pair instead of
+      # whatever the upstream latest happens to be that day.
+      - name: Fetch the pinned media tools
+        shell: pwsh
+        run: |
+          $base = 'https://github.com/ChaoqiYin/enjoy/releases/download/ffmpeg-tools'
+          $target = 'resources/ffmpeg/windows-x86_64'
+          Invoke-WebRequest -Uri "$base/ffmpeg.exe" -OutFile "$target/ffmpeg.exe"
+          Invoke-WebRequest -Uri "$base/ffprobe.exe" -OutFile "$target/ffprobe.exe"
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Enjoy v__VERSION__'
+          # A draft, deliberately. The updater endpoint resolves
+          # releases/latest, which skips drafts, so the artifacts can be
+          # installed and checked by hand before the endpoint starts offering
+          # them. The cost is that the first release has to be installed by
+          # hand; automatic updates begin with the release after it.
+          releaseDraft: true
+          prerelease: false
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true

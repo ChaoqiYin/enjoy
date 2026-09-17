@@ -26,7 +26,7 @@ function* rustFiles(directory) {
 
 for (const file of rustFiles(join('src-tauri', 'src'))) {
   const source = readFileSync(file, 'utf8');
-  for (const match of source.matchAll(/"((?:media|settings)\.[a-z_.]+)"/g)) {
+  for (const match of source.matchAll(/"((?:media|settings|update)\.[a-z_.]+)"/g)) {
     assert.ok(errors[match[1]], `Missing error translation: ${match[1]}`);
   }
 }

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 import { Toast } from '../../shared/Toast';
 import { ScanProgress } from './ScanProgress';
-import { completionAutoCloseMs } from './scanFeedback';
+import { completionAutoCloseMs, isScanRunning } from './scanFeedback';
 import { ThumbnailProgress } from './ThumbnailProgress';
 import { Hint } from '../../shared/Hint';
 import { useLibraryContext } from './LibraryProvider';
@@ -11,8 +11,7 @@ export function PageFrame({ children }: { children: ReactNode }) {
   const library = useLibraryContext();
   const { t, i18n } = useTranslation();
   const status = library.scan.data;
-  const scanning =
-    status && ['discovering', 'processing', 'paused'].includes(status.phase);
+  const scanning = isScanRunning(status);
   return (
     <main className="w-full max-w-7xl mx-auto p-6 min-h-0 flex-1 flex flex-col gap-6 overflow-hidden">
       {library.error && (
@@ -60,7 +59,7 @@ export function PageFrame({ children }: { children: ReactNode }) {
       {library.copyHint && (
         <Hint text={t('copied')} onClose={library.dismissCopyHint} />
       )}
-      {scanning && (
+      {scanning && status && (
         <dialog open className="modal" aria-labelledby="scan-progress-title">
           <div className="modal-box max-w-lg">
             <h2 id="scan-progress-title" className="sr-only">

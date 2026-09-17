@@ -1,6 +1,6 @@
 import { mockIPC, mockConvertFileSrc } from '@tauri-apps/api/mocks';
 import { emit } from '@tauri-apps/api/event';
-import type { ScanStatus, Video } from '../src/shared/api';
+import type { ScanStatus, UpdateCheck, Video } from '../src/shared/api';
 import type { SettingsState } from '../src/settings/SettingsProvider';
 
 const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
@@ -35,6 +35,12 @@ let scan: ScanStatus = {
   unreachableDirectories: 0,
   currentPath: '',
   changes: { added: 0, updated: 0, removed: 0 },
+};
+let updateCheck: UpdateCheck = {
+  supported: true,
+  currentVersion: '0.1.0',
+  available: null,
+  readyToRestart: false,
 };
 mockConvertFileSrc('macos');
 Object.defineProperty(window, 'isTauri', { value: true });
@@ -75,6 +81,11 @@ mockIPC(
         if (video) video.favorite = Boolean(payload.favorite);
         return;
       }
+      case 'check_for_update':
+        return { ...updateCheck };
+      case 'install_update':
+      case 'restart_app':
+        return;
       default:
         console.warn(`Unexpected acceptance command: ${command}`);
         throw new Error(`Unexpected acceptance command: ${command}`);
@@ -93,6 +104,33 @@ Object.assign(window, {
         currentPath: videos[35].path,
       };
       await emit('scan-progress', scan);
+    },
+    // Covers the four shapes the update section can render. The startup check
+    // has already run by the time this is called, so follow it with a press of
+    // "Check for updates" to see the chosen state on the page.
+    setUpdate: async (
+      state: 'none' | 'available' | 'ready' | 'unsupported',
+    ) => {
+      const release = {
+        version: '0.2.0',
+        currentVersion: '0.1.0',
+        notes: 'Faster thumbnail generation.\nFixed a crash on empty folders.',
+        date: '2026-09-01T00:00:00Z',
+      };
+      updateCheck = {
+        supported: state !== 'unsupported',
+        currentVersion: '0.1.0',
+        available: state === 'available' || state === 'ready' ? release : null,
+        readyToRestart: state === 'ready',
+      };
+      if (state === 'ready') {
+        await emit('update-progress', {
+          phase: 'ready',
+          downloaded: 0,
+          total: null,
+          version: release.version,
+        });
+      }
     },
   },
 });
