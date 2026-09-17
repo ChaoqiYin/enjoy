@@ -125,9 +125,23 @@ export function VideoCard({
       />
       <div className="card-body p-3 gap-1.5">
         <h2 className="card-title min-w-0 text-sm font-semibold leading-snug">
-          <Tooltip text={video.file_name} className="block min-w-0 w-full">
+          {/* The anchor carrying `data-tip` is what the pointer has to reach:
+              daisyUI opens the bubble on that element's `:hover`, which its
+              descendants satisfy too, so an anchor spanning the whole title row
+              pops the tip from the empty space beside the name. Worse, the
+              bubble is aligned to the anchor's inline end, so a row-wide anchor
+              parks it at the far edge of the card instead of over the name.
+              `w-fit` brings the anchor back to the name's own box while
+              `w-full` keeps the button filling it. `max-w-full` is what keeps
+              the truncation: `w-fit` on its own lets a name that cannot wrap
+              hold the anchor out at its own untruncated width, so the anchor
+              runs past the row instead of ellipsising — measured in the
+              browser at 435px of anchor inside a 226px row once the cap was
+              dropped. With the cap, a name that fits gets a box exactly its
+              size and a long one ellipsises at the row's edge. */}
+          <Tooltip text={video.file_name} className="block w-fit max-w-full">
             <button
-              className="block min-w-0 w-full truncate text-left cursor-pointer"
+              className="block w-full truncate text-left cursor-pointer"
               onClick={(event) => {
                 event.stopPropagation();
                 actions.details(video);

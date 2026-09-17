@@ -178,6 +178,24 @@ describe('video card actions', () => {
     expect(card.classList.contains('cursor-pointer')).toBe(true);
     expect(fileName.classList.contains('cursor-pointer')).toBe(true);
   });
+  it('anchors the title tooltip to the file name, not the title row', () => {
+    mount();
+    // daisyUI opens the bubble on the `:hover` of the element carrying
+    // `data-tip`, and descendants satisfy that too, so an anchor spanning the
+    // title row pops the tip from the empty space beside the name — and, the
+    // bubble being aligned to the anchor's inline end, parks it at the far edge
+    // of the card. `w-fit` is what keeps the anchor on the name; `max-w-full`
+    // is what still lets a long name ellipsise instead of running past the row.
+    // jsdom lays nothing out, so this only proves the utilities are applied.
+    // The trigger region itself was measured on the built page with a real
+    // pointer: the bubble opens between the name's own edges and nowhere else.
+    const anchor = screen
+      .getByRole('article')
+      .querySelector('.card-title > .tooltip');
+    expect(anchor?.classList.contains('w-fit')).toBe(true);
+    expect(anchor?.classList.contains('max-w-full')).toBe(true);
+    expect(anchor?.classList.contains('w-full')).toBe(false);
+  });
   it('leaves a card the user has not played unmarked', () => {
     mount();
     expect(screen.queryByText('Last played')).toBeNull();
