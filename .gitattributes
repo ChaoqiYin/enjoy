@@ -1,0 +1,12 @@
+# Text files are checked out with LF everywhere. Prettier expects LF, and a
+# Windows checkout with core.autocrlf=true rewrites the working copy to CRLF,
+# which fails `npm run check` there. That includes the Windows release runner,
+# so without this the release build stops before it compiles anything.
+* text=auto eol=lf
+
+# Never text, whatever content sniffing decides.
+*.exe binary
+*.dll binary
+*.ico binary
+*.icns binary
+*.png binary
