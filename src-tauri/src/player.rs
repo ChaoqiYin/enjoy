@@ -3,6 +3,7 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 
 use crate::error::AppError;
+use crate::process;
 use crate::repository::Repository;
 
 pub fn play(
@@ -41,21 +42,10 @@ fn validate_file(path: &str) -> Result<PathBuf, AppError> {
 }
 
 pub fn launch(path: &Path) -> Result<(), AppError> {
-    #[cfg(target_os = "macos")]
-    let output = Command::new("open").arg(path).output();
-    #[cfg(target_os = "linux")]
-    let output = Command::new("xdg-open").arg(path).output();
-    #[cfg(target_os = "windows")]
-    let output = Command::new("powershell.exe")
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "Start-Process -FilePath $env:ENJOY_PLAYBACK_PATH -ErrorAction Stop",
-        ])
-        .env("ENJOY_PLAYBACK_PATH", path)
-        .output();
-    let output = output.map_err(|error| AppError::new("media.player.start_failed", error))?;
+    let mut command = command_for(path);
+    let output = process::hidden(&mut command)
+        .output()
+        .map_err(|error| AppError::new("media.player.start_failed", error))?;
     if !output.status.success() {
         return Err(AppError::new(
             "media.player.start_failed",
@@ -63,6 +53,34 @@ pub fn launch(path: &Path) -> Result<(), AppError> {
         ));
     }
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn command_for(path: &Path) -> Command {
+    let mut command = Command::new("open");
+    command.arg(path);
+    command
+}
+
+#[cfg(target_os = "linux")]
+fn command_for(path: &Path) -> Command {
+    let mut command = Command::new("xdg-open");
+    command.arg(path);
+    command
+}
+
+#[cfg(target_os = "windows")]
+fn command_for(path: &Path) -> Command {
+    let mut command = Command::new("powershell.exe");
+    command
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Start-Process -FilePath $env:ENJOY_PLAYBACK_PATH -ErrorAction Stop",
+        ])
+        .env("ENJOY_PLAYBACK_PATH", path);
+    command
 }
 
 #[cfg(all(test, target_os = "macos"))]

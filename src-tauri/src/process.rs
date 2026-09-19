@@ -3,7 +3,25 @@ use std::process::{Command, Output, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 use crate::error::AppError;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// Runs `command` without giving it a console window of its own.
+///
+/// The app is a GUI process and owns no console, so Windows hands every child
+/// it starts a fresh one — a window that appears and disappears for each media
+/// file processed. Nothing here reads the child's console; the output comes
+/// through pipes. This is a no-op off Windows.
+pub fn hidden(command: &mut Command) -> &mut Command {
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+    command
+}
 
 pub fn run(
     command: &mut Command,
@@ -11,7 +29,7 @@ pub fn run(
     cancelled: impl Fn() -> bool,
 ) -> Result<Output, AppError> {
     let tool = command.get_program().to_string_lossy().into_owned();
-    let mut child = command
+    let mut child = hidden(command)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
