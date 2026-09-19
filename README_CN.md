@@ -34,10 +34,10 @@ Enjoy 是基于 Tauri、React 和 Rust 构建的本地视频库桌面客户端�
 | npm             | 11，安装依赖并执行项目命令                                                     |
 | Rust            | stable，编译桌面后端                                                           |
 | 系统构建工具    | 按 [Tauri 环境准备](https://v2.tauri.app/start/prerequisites/)安装对应平台依赖 |
-| FFmpeg、FFprobe | 生成缩略图、读取视频元数据，需在应用进程的 `PATH` 中可用                       |
+| FFmpeg、FFprobe | Windows 安装包已内置；其他情况需在应用进程的 `PATH` 中可用                   |
 | 视频播放器      | 安装可打开相应视频格式的播放器，并设置系统文件关联                             |
 
-当前未随应用分发 FFmpeg 和 FFprobe，需要自行安装。可通过 [FFmpeg 下载页面](https://ffmpeg.org/download.html)获取适合平台的安装方式，并在终端确认：
+Windows 安装包已内置 FFmpeg 和 FFprobe，无需另行安装。其他平台以及从源码运行时需要自行安装，可通过 [FFmpeg 下载页面](https://ffmpeg.org/download.html)获取适合平台的安装方式，并在终端确认：
 
 ```sh
 ffmpeg -version
@@ -63,7 +63,9 @@ npm run desktop
 npm exec tauri build
 ```
 
-构建产物位于 `src-tauri/target/release/bundle/`。打包后的界面随应用内置，运行时无需启动 Vite；媒体处理仍需可用的 FFmpeg 和 FFprobe。
+构建产物位于 `src-tauri/target/release/bundle/`。打包后的界面随应用内置，运行时无需启动 Vite。
+
+Windows 发布构建需要 `resources/ffmpeg/windows-x86_64/` 中的 `ffmpeg.exe`、`ffprobe.exe` 和 `LICENSE.txt`，缺少时构建失败。`LICENSE.txt` 随仓库保存，两个可执行文件不入库，由发布流程从仓库的 `ffmpeg-tools` 发布附件取回。本地打包需先按[媒体工具说明](resources/ffmpeg/windows-x86_64/README.md)放入配套工具。Windows 安装包会内置这三项，安装后不依赖 `PATH`。
 
 ## 使用说明
 

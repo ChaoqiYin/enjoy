@@ -34,10 +34,10 @@ You can currently run Enjoy from source or build a local package. Builds and run
 | npm                | 11, for dependency installation and project commands                                                                        |
 | Rust               | stable, for compiling the desktop backend                                                                                   |
 | System build tools | Install the dependencies for your platform using the [Tauri prerequisites guide](https://v2.tauri.app/start/prerequisites/) |
-| FFmpeg and FFprobe | Required for thumbnails and metadata; both must be available on the app process's `PATH`                                    |
+| FFmpeg and FFprobe | Bundled in the Windows installer; otherwise it must be on the app process's `PATH`                                           |
 | Video player       | Install a player that supports your files and configure the system's file associations                                      |
 
-FFmpeg and FFprobe are not currently bundled with Enjoy. Install them using the options on the [FFmpeg download page](https://ffmpeg.org/download.html), then verify them in your terminal:
+The Windows installer bundles FFmpeg and FFprobe, so no separate installation is needed there. On other platforms, and when running from source, install them using the options on the [FFmpeg download page](https://ffmpeg.org/download.html), then verify them in your terminal:
 
 ```sh
 ffmpeg -version
@@ -63,7 +63,9 @@ Run from the repository root:
 npm exec tauri build
 ```
 
-Packages are generated in `src-tauri/target/release/bundle/`. The packaged app includes the frontend and does not need Vite at runtime. Media processing still requires FFmpeg and FFprobe.
+Packages are generated in `src-tauri/target/release/bundle/`. The packaged app includes the frontend and does not need Vite at runtime.
+
+A Windows release build needs `ffmpeg.exe`, `ffprobe.exe` and `LICENSE.txt` in `resources/ffmpeg/windows-x86_64/` and fails without them. `LICENSE.txt` is tracked by Git; the two executables are not, and the release workflow fetches them from the repository's `ffmpeg-tools` release. To package locally, place a matching pair there first, as described in the [media tools notes](resources/ffmpeg/windows-x86_64/README.md). The Windows installer bundles all three, so an installed app does not rely on `PATH`.
 
 ## Usage
 
