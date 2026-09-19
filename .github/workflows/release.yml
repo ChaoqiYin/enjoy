@@ -41,13 +41,27 @@ jobs:
       # are present, so they are fetched here rather than committed. They hang
       # off a dedicated release tag so every build gets the same pair instead of
       # whatever the upstream latest happens to be that day.
+      #
+      # The hashes are the ones recorded in SOURCE.md next to the binaries.
+      # Without them a replaced asset would be packed into a release unremarked.
       - name: Fetch the pinned media tools
         shell: pwsh
+        env:
+          FFMPEG_SHA256: e50359db4a15de57b5f744f330573b9c7364ed6b4f98a992b4fd5fb54c015b5c
+          FFPROBE_SHA256: a8c1e6b5c130af6ed18e1963e5b5a602796f8b848155a82f728bf791ba99a58a
         run: |
+          $ProgressPreference = 'SilentlyContinue'
           $base = 'https://github.com/ChaoqiYin/enjoy/releases/download/ffmpeg-tools'
           $target = 'resources/ffmpeg/windows-x86_64'
-          Invoke-WebRequest -Uri "$base/ffmpeg.exe" -OutFile "$target/ffmpeg.exe"
-          Invoke-WebRequest -Uri "$base/ffprobe.exe" -OutFile "$target/ffprobe.exe"
+          foreach ($pair in @(@('ffmpeg.exe', $env:FFMPEG_SHA256), @('ffprobe.exe', $env:FFPROBE_SHA256))) {
+            $path = Join-Path $target $pair[0]
+            Invoke-WebRequest -Uri "$base/$($pair[0])" -OutFile $path
+            $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($hash -ne $pair[1]) {
+              throw "$($pair[0]) checksum mismatch: expected $($pair[1]), got $hash"
+            }
+            Write-Host "$($pair[0]) verified: $hash"
+          }
 
       - uses: tauri-apps/tauri-action@v0
         env:
