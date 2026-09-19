@@ -42,7 +42,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE0M0RCNkNBMEI1NEEzQjgKUldTNG8xUUx5clk5RlBjYXNldVZZQmdwQ2xlSzI2SGxZSTJKYVRscWJpUG9BUXF4UCt4REo4NFMK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZFRDU1NzhDRjM5OTRFMjMKUldRalRwbnpqRmZWL3Q4TE51b0NueTdOOFVkU25sUCtMd1QyUkdkVkRnSTAxcmxJRzE5aVBieGkK",
       "endpoints": [
         "https://github.com/ChaoqiYin/enjoy/releases/latest/download/latest.json"
       ],
