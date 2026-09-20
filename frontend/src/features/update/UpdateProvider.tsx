@@ -1,13 +1,21 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 import { Toast } from '../../shared/Toast';
 import { useLibraryContext } from '../library/LibraryProvider';
 import { isScanRunning } from '../library/scanFeedback';
-import { UpdatePrompt } from './UpdatePrompt';
 import { useUpdate } from './useUpdate';
 import type { UpdateState } from './useUpdate';
+
+/**
+ * How long a check's answer stays. Neither notice asks the user for anything —
+ * one confirms the latest version, the other explains why nothing can be
+ * checked here — so both close themselves, the rule the scan's clean
+ * completion already follows. The stay is longer than that one's because the
+ * unsupported notice is a sentence to read rather than a status to recognise.
+ */
+const CHECK_NOTICE_MS = 5000;
 
 const UpdateContext = createContext<UpdateState | null>(null);
 
@@ -18,55 +26,32 @@ export function useUpdateContext() {
 }
 
 /**
- * Runs the startup check and owns everything the update flow shows on its own:
- * the offer to download, the notice that a restart is pending, and any failure.
+ * Holds the update state above the settings page and shows what the flow has
+ * to say on its own: the notice that a restart is pending, and any failure.
  *
- * These live here rather than on the settings page because the check runs at
- * launch, when the user is on whichever page they left off on — an offer that
- * only appeared once they opened settings would not be an offer.
+ * No check runs here. Checking is something only the button in the settings
+ * section does, so `check` stays null until the user presses it; the state
+ * still lives above that page because a download started there has to survive
+ * leaving it.
  */
 export function UpdateProvider({ children }: { children: ReactNode }) {
   const update = useUpdate();
   const library = useLibraryContext();
   const { t } = useTranslation();
-  const { startupCheck, check, downloading, restarting, error } = update;
-  const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
+  const { check, downloading, restarting, error, notice } = update;
   const [dismissedReady, setDismissedReady] = useState<string | null>(null);
-
-  useEffect(() => {
-    startupCheck();
-  }, [startupCheck]);
 
   const scanning = isScanRunning(library.scan.data);
   const available = check?.available ?? null;
   const readyVersion = check?.readyToRestart
     ? (available?.version ?? '')
     : null;
-  // Declining an offer is remembered for this session: asking again on every
-  // page change would be nagging, and the settings section keeps the offer
-  // visible with a way to act on it.
-  const showPrompt =
-    available !== null &&
-    !check?.readyToRestart &&
-    !downloading &&
-    !scanning &&
-    available.version !== dismissedVersion;
   const showReady =
     readyVersion !== null && readyVersion !== dismissedReady && !downloading;
 
   return (
     <UpdateContext.Provider value={update}>
       {children}
-      {/* A scan holds the same slot the installer would interrupt, so the offer
-          waits rather than stacking a second dialog on the scan's. */}
-      {showPrompt && available && (
-        <UpdatePrompt
-          available={available}
-          busy={downloading}
-          onDownload={update.install}
-          onClose={() => setDismissedVersion(available.version)}
-        />
-      )}
       {showReady && readyVersion !== null && (
         <Toast
           type="success"
@@ -89,9 +74,27 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
           )}
         </Toast>
       )}
-      {/* Failures float over whatever page the user is on: the download can be
-          started from a dialog raised on the library page, so an error confined
-          to the settings section could go unseen. */}
+      {/* The answer to a check that leaves nothing to act on. Shown as a
+          notice rather than written into the settings section, which keeps one
+          shape — the version line, the button, and whatever there is to
+          download — instead of changing its wording per outcome. */}
+      {notice && (
+        <Toast
+          type={notice === 'unsupported' ? 'info' : 'success'}
+          closeLabel={t('close')}
+          autoCloseMs={CHECK_NOTICE_MS}
+          onClose={update.dismissNotice}
+        >
+          <p className="text-sm break-words">
+            {notice === 'unsupported'
+              ? t('updateUnsupported')
+              : t('updateUpToDate')}
+          </p>
+        </Toast>
+      )}
+      {/* Failures float over whatever page the user is on: a download started
+          in the settings section keeps running after they leave it, so an
+          error confined to that section could go unseen. */}
       {error && <ErrorNotice error={error} onClose={update.dismissError} />}
     </UpdateContext.Provider>
   );

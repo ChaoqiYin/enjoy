@@ -105,9 +105,11 @@ Object.assign(window, {
       };
       await emit('scan-progress', scan);
     },
-    // Covers the four shapes the update section can render. The startup check
-    // has already run by the time this is called, so follow it with a press of
-    // "Check for updates" to see the chosen state on the page.
+    // Covers the four shapes the update section can render. Nothing is checked
+    // at startup, so press "Check for updates" first and call this after it:
+    // the section renders from the answer that press brings back. The "ready"
+    // event only marks a version a check has already reported, so emit it
+    // after that press too.
     setUpdate: async (
       state: 'none' | 'available' | 'ready' | 'unsupported',
     ) => {

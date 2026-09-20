@@ -50,10 +50,11 @@ beforeEach(async () => {
     progress: null,
     restarting: false,
     error: null,
-    startupCheck: vi.fn(),
+    notice: null,
     checkNow: vi.fn(),
     install: vi.fn(),
     restart: vi.fn(),
+    dismissNotice: vi.fn(),
     dismissError: vi.fn(),
   });
 });
@@ -71,19 +72,32 @@ function view() {
   );
 }
 
-it('offers no check on a platform without published updates', () => {
+it('keeps offering the check on a platform without published updates', () => {
+  // The button is the only way to ask, so an answer of "not published here"
+  // arrives as a notice rather than by taking the button away.
   update.check = { ...update.check!, supported: false };
   render(view());
   expect(
-    screen.queryByRole('button', { name: english.updateCheck }),
-  ).toBeNull();
-  // The version line explains why there is nothing to press.
-  expect(screen.getByText(/Automatic updates are available/)).toBeTruthy();
+    screen.getByRole('button', { name: english.updateCheck }),
+  ).toBeTruthy();
+  expect(screen.queryByText(english.updateUnsupported)).toBeNull();
 });
 
-it('says so when the installed version is the latest', () => {
+it('offers the check before any answer has arrived', () => {
+  // Nothing has been asked yet, so nothing is known about this platform, and
+  // the button is the only thing that can find out.
+  update.check = null;
   render(view());
-  expect(screen.getByText(english.updateUpToDate)).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: english.updateCheck }),
+  ).toBeTruthy();
+});
+
+it('writes no outcome into the section', () => {
+  // "Latest" is a notice too: the section keeps one shape whatever the check
+  // answered, instead of changing its wording per outcome.
+  render(view());
+  expect(screen.queryByText(english.updateUpToDate)).toBeNull();
 });
 
 it('offers the download once a newer version is known', () => {
@@ -92,6 +106,16 @@ it('offers the download once a newer version is known', () => {
   expect(screen.getByText('Version 0.2.0 is available.')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: english.updateDownload }));
   expect(update.install).toHaveBeenCalled();
+});
+
+it('shows what the release contains before the download is offered', () => {
+  // The notes are what the decision to download rests on, so they sit in the
+  // section next to the button rather than behind a dialog.
+  update.check = { ...update.check!, available: release };
+  render(view());
+  expect(screen.getByText(english.updateNotes)).toBeTruthy();
+  expect(screen.getByText(/Faster thumbnail generation\./)).toBeTruthy();
+  expect(screen.getByText(/Released/)).toBeTruthy();
 });
 
 it('shows download progress while it runs', () => {

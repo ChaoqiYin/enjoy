@@ -4,6 +4,14 @@ import type { UnlistenFn } from '@tauri-apps/api/event';
 import { libraryApi, normalizeError } from '../../shared/api';
 import type { AppError, UpdateCheck, UpdateProgress } from '../../shared/api';
 
+/**
+ * What a finished check has to say when there is nothing to act on. Shown as a
+ * floating notice rather than written into the settings section, which holds
+ * the offer itself: a release to download or restart into is content the
+ * section renders, while these two are answers to having asked.
+ */
+export type CheckNotice = 'upToDate' | 'unsupported';
+
 export function useUpdate() {
   const [check, setCheck] = useState<UpdateCheck | null>(null);
   const [checking, setChecking] = useState(false);
@@ -11,6 +19,7 @@ export function useUpdate() {
   const [progress, setProgress] = useState<UpdateProgress | null>(null);
   const [restarting, setRestarting] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
+  const [notice, setNotice] = useState<CheckNotice | null>(null);
 
   useEffect(() => {
     let disposed = false;
@@ -49,24 +58,27 @@ export function useUpdate() {
   }, []);
 
   /**
-   * `report` separates the two callers. The startup check stays silent — an
-   * offline machine or a blocked endpoint should not raise a notice on every
-   * launch — while a check the user asked for says what went wrong.
+   * The only check is the one the user asked for by pressing the button, so a
+   * failure is always reported: they are owed an answer for the press.
    */
-  const runCheck = useCallback(async (report: boolean) => {
+  const checkNow = useCallback(() => {
     setChecking(true);
-    if (report) setError(null);
-    try {
-      setCheck(await libraryApi.checkForUpdate());
-    } catch (cause) {
-      if (report) setError(normalizeError(cause));
-    } finally {
-      setChecking(false);
-    }
+    setError(null);
+    void libraryApi
+      .checkForUpdate()
+      .then((result) => {
+        setCheck(result);
+        // A release to act on speaks for itself in the section; the two
+        // answers that leave nothing to press are what the notice is for.
+        if (!result.supported) setNotice('unsupported');
+        else if (!result.available) setNotice('upToDate');
+        else setNotice(null);
+      })
+      .catch((cause) => setError(normalizeError(cause)))
+      .finally(() => setChecking(false));
   }, []);
 
-  const startupCheck = useCallback(() => void runCheck(false), [runCheck]);
-  const checkNow = useCallback(() => void runCheck(true), [runCheck]);
+  const dismissNotice = useCallback(() => setNotice(null), []);
   const dismissError = useCallback(() => setError(null), []);
 
   const install = useCallback(() => {
@@ -100,10 +112,11 @@ export function useUpdate() {
     progress,
     restarting,
     error,
-    startupCheck,
+    notice,
     checkNow,
     install,
     restart,
+    dismissNotice,
     dismissError,
   };
 }

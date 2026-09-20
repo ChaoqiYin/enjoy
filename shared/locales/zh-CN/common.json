@@ -117,7 +117,6 @@
   "updateNotes": "更新内容",
   "updateReleasedAt": "发布于 {{date}}",
   "updateDownload": "下载",
-  "updateLater": "稍后",
   "updateDownloading": "正在下载更新…",
   "updateProgressKnown": "{{downloaded}} / {{total}}",
   "updateProgressUnknown": "已下载 {{downloaded}}",

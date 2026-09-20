@@ -38,17 +38,13 @@ beforeEach(() => {
 
 afterEach(() => vi.resetAllMocks());
 
-it('keeps the startup check silent when it fails', async () => {
-  // An offline machine must not raise a notice on every launch.
-  vi.mocked(invoke).mockRejectedValue({
-    code: 'update.check_failed',
-    params: {},
-    errorId: 'err_check',
-  });
+it('does not ask for an update until the user asks', async () => {
+  // Nothing checks at launch: the settings button is the only trigger.
   const { result } = renderHook(() => useUpdate());
-  act(() => result.current.startupCheck());
-  await waitFor(() => expect(result.current.checking).toBe(false));
-  expect(result.current.error).toBeNull();
+  // Drains the mount effects' microtasks, so a check deferred past mount
+  // would still be caught here.
+  await act(async () => {});
+  expect(invoke).not.toHaveBeenCalled();
   expect(result.current.check).toBeNull();
 });
 
@@ -91,6 +87,20 @@ it('follows download progress and switches to ready', async () => {
     version: '0.2.0',
   });
   await waitFor(() => expect(result.current.check?.readyToRestart).toBe(true));
+  expect(result.current.downloading).toBe(false);
+  expect(result.current.progress).toBeNull();
+});
+
+it('ignores a ready event that arrives before any check', () => {
+  // A stray ready event cannot invent a check that never happened.
+  const { result } = renderHook(() => useUpdate());
+  emitProgress({
+    phase: 'ready',
+    downloaded: 0,
+    total: null,
+    version: '0.2.0',
+  });
+  expect(result.current.check).toBeNull();
   expect(result.current.downloading).toBe(false);
   expect(result.current.progress).toBeNull();
 });

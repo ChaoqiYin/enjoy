@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Download, RefreshCw, RotateCw } from 'lucide-react';
 import packageInfo from '../../../../package.json';
-import type { UpdateProgress } from '../../shared/api';
+import type { AvailableUpdate, UpdateProgress } from '../../shared/api';
 import { useLibraryContext } from '../library/LibraryProvider';
 import { isScanRunning } from '../library/scanFeedback';
 import { useUpdateContext } from './UpdateProvider';
@@ -30,63 +30,98 @@ export function UpdateSetting() {
               // one only stands in until the first check answers.
               version: check?.currentVersion ?? packageInfo.version,
             })}
-            {check && !check.supported ? ` · ${t('updateUnsupported')}` : ''}
           </p>
         </div>
-        {check?.supported && (
-          <button
-            className="btn btn-primary btn-soft btn-md gap-3"
-            disabled={busy}
-            onClick={update.checkNow}
-          >
-            <RefreshCw size={18} aria-hidden="true" />
-            {update.checking ? t('updateChecking') : t('updateCheck')}
-          </button>
-        )}
+        {/* Always offered. Only this button starts a check, so whether the
+            platform has published updates is unknown until it is pressed, and
+            an answer of "none" arrives as a notice rather than by taking away
+            the button the user just pressed. */}
+        <button
+          className="btn btn-primary btn-soft btn-md gap-3"
+          disabled={busy}
+          onClick={update.checkNow}
+        >
+          <RefreshCw size={18} aria-hidden="true" />
+          {update.checking ? t('updateChecking') : t('updateCheck')}
+        </button>
       </div>
 
       {update.downloading && <UpdateProgressBlock progress={update.progress} />}
 
-      {ready && available && !update.downloading && (
+      {available && !update.downloading && (
         <div className="space-y-3">
-          <p className="text-sm">
-            {t('updateReady', { version: available.version })}
-          </p>
+          {/* The button stays on the version line rather than below the notes:
+              a long release would otherwise push it out of the viewport, and
+              this section scrolls with the page rather than holding its own
+              scroll area the way the dialog it replaced did. */}
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              className="btn btn-primary btn-soft btn-md gap-3"
-              disabled={scanning || update.restarting}
-              onClick={update.restart}
-            >
-              <RotateCw size={18} aria-hidden="true" />
-              {update.restarting ? t('updateRestarting') : t('updateRestart')}
-            </button>
-            {scanning && (
+            <p className="text-sm">
+              {ready
+                ? t('updateReady', { version: available.version })
+                : t('updateAvailable', { version: available.version })}
+            </p>
+            {ready ? (
+              <button
+                className="btn btn-primary btn-soft btn-md gap-3"
+                disabled={scanning || update.restarting}
+                onClick={update.restart}
+              >
+                <RotateCw size={18} aria-hidden="true" />
+                {update.restarting ? t('updateRestarting') : t('updateRestart')}
+              </button>
+            ) : (
+              <button
+                className="btn btn-primary btn-soft btn-md gap-3"
+                onClick={update.install}
+              >
+                <Download size={18} aria-hidden="true" />
+                {t('updateDownload')}
+              </button>
+            )}
+            {ready && scanning && (
               <p className="text-sm opacity-65">{t('updateRestartBlocked')}</p>
             )}
           </div>
+          <ReleaseNotes available={available} />
         </div>
-      )}
-
-      {available && !ready && !update.downloading && (
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm">
-            {t('updateAvailable', { version: available.version })}
-          </p>
-          <button
-            className="btn btn-primary btn-soft btn-md gap-3"
-            onClick={update.install}
-          >
-            <Download size={18} aria-hidden="true" />
-            {t('updateDownload')}
-          </button>
-        </div>
-      )}
-
-      {check?.supported && !available && !update.downloading && (
-        <p className="text-sm">{t('updateUpToDate')}</p>
       )}
     </section>
+  );
+}
+
+/**
+ * What the check said the release contains, shown in the section rather than in
+ * a dialog: it is what the decision to download rests on, so it belongs next to
+ * the button that makes that decision.
+ */
+function ReleaseNotes({ available }: { available: AvailableUpdate }) {
+  const { t, i18n } = useTranslation();
+  if (!available.date && !available.notes) return null;
+  return (
+    <div className="space-y-2">
+      {available.date && (
+        <p className="text-sm opacity-65">
+          {t('updateReleasedAt', {
+            date: new Intl.DateTimeFormat(i18n.language, {
+              dateStyle: 'medium',
+            }).format(new Date(available.date)),
+          })}
+        </p>
+      )}
+      {available.notes && (
+        <>
+          <h4 className="font-medium">{t('updateNotes')}</h4>
+          {/* Release notes come from our own release manifest, but they are
+              still text fetched over the network: rendered as plain text,
+              never as markup. No height cap: this section already scrolls
+              with the page, and a second scroll area would trap the wheel and
+              hide the very text the button was pressed to read. */}
+          <p className="text-sm break-words whitespace-pre-wrap">
+            {available.notes}
+          </p>
+        </>
+      )}
+    </div>
   );
 }
 
