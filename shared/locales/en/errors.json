@@ -39,6 +39,7 @@
   "update.blocked.scanning": "Finish or cancel the running scan before restarting to update.",
   "update.check_failed": "Could not check for updates. Check your connection and try again.",
   "update.download_failed": "The update could not be downloaded. Please try again.",
+  "update.verify_failed": "The update did not pass its signature check and was not installed. Download it again from the releases page.",
   "update.install_failed": "The update could not be installed. Download it again from the releases page.",
   "space.name.empty": "Enter a name for the space.",
   "space.name.too_long": "A space name can be at most {{max}} characters.",

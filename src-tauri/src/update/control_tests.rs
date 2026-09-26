@@ -1,6 +1,5 @@
 use super::control::{
-    download_gate, install_gate, is_same_offer, published_at, DownloadTracker, ProgressThrottle,
-    UpdateControl,
+    download_gate, install_gate, is_same_offer, published_at, ProgressThrottle, UpdateControl,
 };
 use crate::error::AppError;
 use time::{Duration, OffsetDateTime};
@@ -84,30 +83,6 @@ fn download_refuses_a_second_download() {
 #[test]
 fn download_allows_a_first_download() {
     assert!(download_gate(true, false).is_ok());
-}
-
-#[test]
-fn tracker_adds_chunk_lengths_instead_of_replacing() {
-    // The callback reports the size of one chunk, not a running total. Reading
-    // it as a total would freeze the bar at the size of the last chunk.
-    let mut tracker = DownloadTracker::default();
-    assert_eq!(tracker.record(100, Some(1_000)), 100);
-    assert_eq!(tracker.record(250, Some(1_000)), 350);
-}
-
-#[test]
-fn tracker_keeps_the_first_total_and_ignores_later_ones() {
-    let mut tracker = DownloadTracker::default();
-    tracker.record(10, Some(1_000));
-    tracker.record(10, None);
-    assert_eq!(tracker.total(), Some(1_000));
-}
-
-#[test]
-fn tracker_survives_a_chunk_larger_than_its_counter() {
-    let mut tracker = DownloadTracker::default();
-    assert_eq!(tracker.record(usize::MAX, None), usize::MAX as u64);
-    assert_eq!(tracker.record(usize::MAX, None), u64::MAX);
 }
 
 #[test]

@@ -39,6 +39,7 @@
   "update.blocked.scanning": "请先完成或取消正在进行的扫描，再重启更新。",
   "update.check_failed": "无法检查更新，请检查网络后重试。",
   "update.download_failed": "更新下载失败，请重试。",
+  "update.verify_failed": "更新包未通过签名校验，已放弃安装。请到发布页面重新下载。",
   "update.install_failed": "更新安装失败，请到发布页面重新下载。",
   "space.name.empty": "请输入空间名称。",
   "space.name.too_long": "空间名称最长 {{max}} 个字符。",

@@ -80,33 +80,6 @@ pub fn describe(update: &Update) -> AvailableUpdate {
     }
 }
 
-/// Accumulates the download progress callbacks.
-///
-/// `Update::download` hands each callback the length of *that* chunk rather
-/// than a running total, and the server may omit the total entirely. Both are
-/// easy to get backwards, so the arithmetic lives here where it can be tested
-/// without an app handle.
-#[derive(Default)]
-pub struct DownloadTracker {
-    downloaded: u64,
-    total: Option<u64>,
-}
-
-impl DownloadTracker {
-    /// Adds one chunk and returns the running total.
-    pub fn record(&mut self, chunk: usize, total: Option<u64>) -> u64 {
-        self.downloaded = self.downloaded.saturating_add(chunk as u64);
-        if self.total.is_none() {
-            self.total = total;
-        }
-        self.downloaded
-    }
-
-    pub fn total(&self) -> Option<u64> {
-        self.total
-    }
-}
-
 /// Decides which progress updates are worth sending to the webview.
 ///
 /// A fast download fires hundreds of chunk callbacks; one event each would

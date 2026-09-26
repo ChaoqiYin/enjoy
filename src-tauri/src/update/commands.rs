@@ -1,15 +1,16 @@
 use std::sync::Arc;
 
 use tauri::{AppHandle, Emitter, State};
-use tauri_plugin_updater::UpdaterExt;
+use tauri_plugin_updater::{Config as UpdaterConfig, UpdaterExt};
 
 use crate::error::AppError;
 use crate::AppState;
 
 use super::control::{
-    describe, download_gate, install_gate, is_supported, DownloadTracker, ProgressThrottle,
-    UpdateCheck, UpdateProgress,
+    describe, download_gate, install_gate, is_supported, ProgressThrottle, UpdateCheck,
+    UpdateProgress,
 };
+use super::{download, verify};
 
 /// Asks the release endpoint whether a newer version exists.
 ///
@@ -49,54 +50,90 @@ pub async fn check_for_update(
 
 /// Downloads and verifies the offered release. Progress goes out as
 /// `update-progress` events; the return value only tells the caller it ended.
+///
+/// The transfer is this module's own rather than the plugin's, because the
+/// plugin's reads its response in one pass and keeps nothing when a connection
+/// ends early: on a link that drops every few seconds, a release of this size
+/// could never arrive. What comes with taking it over is the signature check
+/// the plugin used to do on the way out, which is why the payload is verified
+/// here before anything is held.
 #[tauri::command]
 pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Result<(), AppError> {
     let control = Arc::clone(&state.update);
     download_gate(is_supported(), control.is_downloading())?;
     let update = control.pending()?;
+    // Read before the download starts: a configuration that cannot name the key
+    // is not a reason to spend half an hour transferring bytes nobody can
+    // accept.
+    let pubkey = updater_pubkey(&app)?;
     control.begin_download()?;
-    let events = app.clone();
+
+    let user_agent = format!("Enjoy/{}", app.package_info().version);
+    let client = download::client(&user_agent)
+        .map_err(|error| AppError::new("update.download_failed", error))?;
     let version = update.version.clone();
-    let mut tracker = DownloadTracker::default();
+    let events = app.clone();
     let mut throttle = ProgressThrottle::default();
-    let result = update
-        .download(
-            |chunk, total| {
-                let downloaded = tracker.record(chunk, total);
-                if throttle.should_emit(downloaded, tracker.total()) {
-                    let _ = events.emit(
-                        "update-progress",
-                        UpdateProgress {
-                            phase: "downloading".into(),
-                            downloaded,
-                            total: tracker.total(),
-                            version: version.clone(),
-                        },
-                    );
-                }
-            },
-            || {},
-        )
-        .await;
-    match result {
-        Ok(bytes) => {
-            control.finish_download(bytes);
-            let _ = app.emit(
+    let bytes = match download::fetch(&client, &update.download_url, |downloaded, total| {
+        if throttle.should_emit(downloaded, total) {
+            let _ = events.emit(
                 "update-progress",
                 UpdateProgress {
-                    phase: "ready".into(),
-                    downloaded: 0,
-                    total: None,
-                    version,
+                    phase: "downloading".into(),
+                    downloaded,
+                    total,
+                    version: version.clone(),
                 },
             );
-            Ok(())
         }
+    })
+    .await
+    {
+        Ok(bytes) => bytes,
         Err(error) => {
             control.fail_download();
-            Err(AppError::new("update.download_failed", error))
+            return Err(AppError::new("update.download_failed", error));
         }
+    };
+
+    if let Err(reason) = verify::verify(&bytes, &update.signature, &pubkey) {
+        control.fail_download();
+        // Its own code, not the download's: the bytes arrived and are not the
+        // ones that were signed, which is a different answer to give the user
+        // than a connection that never finished.
+        return Err(AppError::new("update.verify_failed", reason));
     }
+
+    control.finish_download(bytes);
+    let _ = app.emit(
+        "update-progress",
+        UpdateProgress {
+            phase: "ready".into(),
+            downloaded: 0,
+            total: None,
+            version,
+        },
+    );
+    Ok(())
+}
+
+/// The key a release's signature has to answer to.
+///
+/// Read out of the same `plugins.updater` block the plugin was initialized
+/// from — the configuration compiled into this binary, not a file beside it —
+/// and parsed with the plugin's own schema, so a key that the plugin would
+/// refuse is refused here too.
+fn updater_pubkey(app: &AppHandle) -> Result<String, AppError> {
+    let section = app
+        .config()
+        .plugins
+        .0
+        .get("updater")
+        .cloned()
+        .ok_or_else(|| AppError::new("update.verify_failed", "no updater configuration"))?;
+    let config: UpdaterConfig = serde_json::from_value(section)
+        .map_err(|error| AppError::new("update.verify_failed", error))?;
+    Ok(config.pubkey)
 }
 
 /// Hands the verified installer to the platform installer and exits.

@@ -16,6 +16,18 @@ rusqlite= {version="0.31",features= ["bundled"] }
 tauri-plugin-opener = "^2"
 tauri-plugin-updater="2"
 time= {version="0.3",features= ["formatting"] }
+base64="0.22"
+futures-util="0.3"
+minisign-verify="0.2"
+reqwest= {version="0.13",default-features=false,features= ["stream","rustls-no-provider"] }
+rustls= {version="0.23",default-features=false,features= ["ring"] }
+tokio= {version="1",features= ["time"] }
+
+[dev-dependencies]
+# Only for the signature tests, which have to bring a key of their own: a valid
+# minisign signature cannot be made without the private key that makes it, and
+# the one that signs our releases is not in this repository.
+ring="0.17"
 
 [build-dependencies]
 tauri-build= {version="2", features = [] }
