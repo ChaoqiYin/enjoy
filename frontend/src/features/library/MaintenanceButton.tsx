@@ -24,7 +24,13 @@ export function MaintenanceButton({
       disabled={disabled || busy}
       onClick={() => {
         setBusy(true);
-        void Promise.resolve(action(video)).finally(() => setBusy(false));
+        // Reporting is the caller's: every call site routes the action through
+        // the library's `run`, which records the failure and puts it on screen.
+        // Catching here is what keeps a rejection from reaching the runtime as
+        // an unhandled one — all this button owns is the busy state.
+        void Promise.resolve(action(video))
+          .catch(() => {})
+          .finally(() => setBusy(false));
       }}
     >
       {busy ? <span className="loading loading-spinner" /> : icon}

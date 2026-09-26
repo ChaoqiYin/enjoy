@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
@@ -68,20 +69,44 @@ it('shows the indexed path without the verbatim prefix it carries', () => {
   );
   expect(screen.getByText('E:\\movies\\example.mp4')).toBeTruthy();
 });
-it('reports maintenance failure and retries without losing existing details', async () => {
+it('hands a maintenance action the video and reflects that it is running', async () => {
   const handlers = actions();
-  handlers.refreshInfo
-    .mockRejectedValueOnce(new Error('failed'))
-    .mockResolvedValue(undefined);
+  let finish!: () => void;
+  handlers.refreshInfo.mockImplementation(
+    () =>
+      new Promise<void>((done) => {
+        finish = done;
+      }),
+  );
+  render(view(handlers));
+  const button = () =>
+    screen.getByRole('button', {
+      name: english.refreshInfo,
+    }) as HTMLButtonElement;
+  fireEvent.click(button());
+  expect(handlers.refreshInfo).toHaveBeenCalledWith(video);
+  expect(button().disabled).toBe(true);
+  await act(async () => finish());
+  await waitFor(() => expect(button().disabled).toBe(false));
+});
+
+// Reporting the failure and offering the retry belong to the library's error
+// notice, which is where the action's rejection is recorded; this component only
+// has to keep the rejection from escaping as an unhandled one.
+it('leaves a failing maintenance action to the caller that reports it', async () => {
+  const handlers = actions();
+  handlers.refreshInfo.mockRejectedValueOnce(new Error('failed'));
   render(view(handlers));
   await act(async () =>
     fireEvent.click(screen.getByRole('button', { name: english.refreshInfo })),
   );
-  expect(screen.getByRole('alert')).toBeTruthy();
-  expect(screen.getByText('example.mp4')).toBeTruthy();
-  await act(async () =>
-    fireEvent.click(screen.getByRole('button', { name: english.retry })),
+  await waitFor(() =>
+    expect(
+      (
+        screen.getByRole('button', {
+          name: english.refreshInfo,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false),
   );
-  expect(handlers.refreshInfo).toHaveBeenCalledTimes(2);
-  expect(screen.queryByRole('alert')).toBeNull();
 });
