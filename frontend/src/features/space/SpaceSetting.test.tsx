@@ -78,7 +78,7 @@ it('lists every space and marks the one the interface is showing', async () => {
   // The badge sits on the row of the space being shown, not merely somewhere on
   // the page: which one the rest of the interface is about is the whole point of
   // it.
-  const marked = screen.getByText(english.spaceCurrent).closest('div');
+  const marked = screen.getByText(english.spaceCurrent).closest('li');
   expect(marked?.textContent).toContain(films.name);
   expect(marked?.textContent).not.toContain(shows.name);
 });
@@ -152,6 +152,54 @@ it('says what a deletion costs, and moves the library onto a space that is there
   await waitFor(() =>
     expect(vi.mocked(libraryApi.list)).toHaveBeenCalledWith(shows.id),
   );
+});
+
+it('takes the row away when a space that is not the one shown is removed', async () => {
+  vi.spyOn(libraryApi, 'deleteSpace').mockResolvedValue(films);
+  // The answer is the space being shown, unchanged — removing Shows leaves the
+  // interface on Films — so nothing moves and the move is not what brings the
+  // list up to date. A row for a space that is gone is a row whose next rename
+  // is refused for a space that does not exist.
+  vi.mocked(libraryApi.listSpaces)
+    .mockResolvedValueOnce([films, shows])
+    .mockResolvedValue([films]);
+  mount();
+  await screen.findByText(shows.name);
+  fireEvent.click(
+    screen.getAllByRole('button', { name: english.spaceRemove })[1],
+  );
+  fireEvent.click(screen.getByRole('button', { name: english.confirm }));
+  await waitFor(() => expect(screen.queryByText(shows.name)).toBeNull());
+});
+
+it('shows a renamed space under its new name, wherever it sits', async () => {
+  // Renaming never moves the interface: the answer is the space being shown,
+  // whose name did not change. The list is still the thing that changed.
+  vi.spyOn(libraryApi, 'renameSpace').mockResolvedValue(films);
+  vi.mocked(libraryApi.listSpaces)
+    .mockResolvedValueOnce([films, shows])
+    .mockResolvedValue([films, { ...shows, name: 'Series' }]);
+  mount();
+  await screen.findByText(shows.name);
+  fireEvent.click(
+    screen.getAllByRole('button', { name: english.spaceRename })[1],
+  );
+  fireEvent.change(nameField(), { target: { value: 'Series' } });
+  fireEvent.click(screen.getByRole('button', { name: english.confirm }));
+  await waitFor(() => expect(screen.getByText('Series')).toBeTruthy());
+});
+
+it('mounts its dialog outside the column it would otherwise push down', async () => {
+  mount();
+  await screen.findByText(shows.name);
+  fireEvent.click(screen.getByRole('button', { name: english.spaceCreate }));
+  const dialog = document.querySelector('dialog')!;
+  // `space-y` puts a bottom margin on every child that is not the last one, so a
+  // dialog mounted inside the column stops the button from being last, gives it
+  // a margin, and moves everything below the section down by one gap. jsdom has
+  // no layout, so what is checked is the arrangement that avoids it — measured
+  // in a real browser at 10.5px of shift before this was fixed.
+  expect(dialog.parentElement?.className ?? '').not.toMatch(/space-y/);
 });
 
 it('offers the space operations while no media task holds the scan slot', async () => {

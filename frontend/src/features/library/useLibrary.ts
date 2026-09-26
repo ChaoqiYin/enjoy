@@ -175,12 +175,25 @@ export function useLibrary() {
   // reason belongs, and it stays open with the text still in it. Removing has no
   // dialog to report into, so it goes out through `run` like every other action
   // that could not be carried out.
+  // The list of spaces is not part of what one space holds, so it is not in
+  // `refreshSpace`; what changes it is the command, not the move. Only creating,
+  // renaming and removing change the set at all, and two of those three leave
+  // the interface exactly where it was — the answer they give is the space
+  // being shown, unchanged — so a refresh attached to moving would never run for
+  // them. The list would then keep a name that is no longer the one on the row,
+  // or a space that is no longer there, and the next rename of that row would be
+  // refused for a space that does not exist. Reading it again before the move is
+  // decided is what keeps those two in step.
+  const refreshSpaces = () =>
+    client.invalidateQueries({ queryKey: ['spaces'] });
+
   async function moveInto(action: Promise<Space>) {
     // The command is asked first, because its answer is what says whether the
     // interface is moving at all: renaming, or removing a space that is not the
     // one being shown, leaves it exactly where it was, and what it is showing
     // still stands.
     const next = await action;
+    await refreshSpaces();
     if (next.id === spaceId) return;
     // Everything below is about a move. The filters go before the space does,
     // so that no render puts the library that is arriving under the search that
@@ -190,7 +203,7 @@ export function useLibrary() {
     // left and came back -- so without that it could show what the space held
     // the last time it was open.
     clearFilters();
-    await adopt(next);
+    adopt(next);
     await refreshSpace(next.id);
   }
   const createSpace = (name: string) => moveInto(libraryApi.createSpace(name));

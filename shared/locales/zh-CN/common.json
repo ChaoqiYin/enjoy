@@ -25,7 +25,6 @@
   "spaceRename": "重命名空间",
   "spaceRemove": "删除空间",
   "spaceCurrent": "当前",
-  "spaceManage": "管理空间",
   "spaceBlockedScanning": "扫描进行中，请先完成或取消扫描。",
   "spaceName": "空间名称",
   "spaceRemoveQuestion": "删除空间“{{name}}”？该空间的收藏与播放记录会被清空，磁盘上的视频文件不会被删除。",

@@ -1,11 +1,13 @@
 import { Check, ChevronDown } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { NavLink } from 'react-router';
-import { Tooltip } from '../../shared/Tooltip';
 import { useLibraryContext } from '../library/LibraryProvider';
 import { isScanRunning } from '../library/scanFeedback';
 import { useSpaces } from './SpaceProvider';
+
+/// One width for the trigger and for the list under it, so the control does not
+/// resize as spaces are renamed and the list lines up with what opened it.
+const WIDTH = 'w-40';
 
 // Nothing here is disabled while an ordinary action is in flight — playing a
 // video, favouriting one — because none of those is in the way. What is in the
@@ -68,29 +70,25 @@ export function SpaceSwitcher() {
         onClick={(event) => {
           if (scanning) event.preventDefault();
         }}
-        className={`btn btn-outline btn-sm btn-neutral list-none [&::-webkit-details-marker]:hidden ${scanning ? 'btn-disabled' : ''}`}
+        className={`btn btn-outline btn-sm btn-neutral ${WIDTH} list-none [&::-webkit-details-marker]:hidden ${scanning ? 'btn-disabled' : ''}`}
       >
-        {/* The full name is ordinarily one hover away: it is the control's whole
-            label, and a name too long for the row is exactly the case where the
-            truncation has to be recoverable. While a scan is running the reason
-            takes that place instead — the name has not become unreadable, and a
-            control that will not open owes the user the reason. The same
-            sentence reaches a reader who never sees a tooltip, through
-            `aria-describedby` below. */}
-        <Tooltip
-          text={scanning ? t('spaceBlockedScanning') : space.name}
-          className="min-w-0 max-w-32"
-        >
-          <span className="block truncate">{space.name}</span>
-        </Tooltip>
+        {/* A name too long for the fixed width is cut here, and is read in full
+            in the list below — the same click that would open a tooltip opens
+            that list, and it has room to wrap. So nothing repeats the name on
+            hover. While a scan is running the control will not open, and the
+            reason reaches assistive technology through `aria-describedby`; the
+            settings section states it in sight as well. */}
+        <span className="min-w-0 flex-1 truncate text-left">{space.name}</span>
         {scanning && (
           <span id="space-switch-blocked" className="sr-only">
             {t('spaceBlockedScanning')}
           </span>
         )}
-        <ChevronDown size={14} aria-hidden="true" />
+        <ChevronDown size={14} aria-hidden="true" className="shrink-0" />
       </summary>
-      <ul className="dropdown-content menu z-30 w-56 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
+      <ul
+        className={`dropdown-content menu z-30 ${WIDTH} rounded-box border border-base-300 bg-base-100 p-2 shadow-lg`}
+      >
         {(spaces.data ?? []).map((item) => (
           <li key={item.id}>
             <button
@@ -109,11 +107,6 @@ export function SpaceSwitcher() {
             </button>
           </li>
         ))}
-        <li>
-          <NavLink to="/settings#spaces" onClick={close}>
-            {t('spaceManage')}
-          </NavLink>
-        </li>
       </ul>
     </details>
   );

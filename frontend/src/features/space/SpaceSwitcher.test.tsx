@@ -88,14 +88,16 @@ it('lists every space and marks the one being shown', async () => {
   expect(screen.getByRole('button', { name: shows.name })).toBeTruthy();
 });
 
-it('keeps the whole of a name that does not fit, one hover away', async () => {
+it('shows a name too long for the trigger in the list, not on hover', async () => {
   const long: Space = { id: 3, name: 'Feature films and documentaries' };
   vi.mocked(libraryApi.listSpaces).mockResolvedValue([long]);
   mount(long);
-  await screen.findByText(long.name);
-  // The trigger is truncated by width, so the full name has to be readable
-  // somewhere other than the control itself.
-  expect(document.querySelector(`[data-tip="${long.name}"]`)).toBeTruthy();
+  // The trigger is one fixed width, so a long name is cut there by CSS. Nothing
+  // recovers it on hover: the list below wraps rather than cutting, so the whole
+  // name is one click away instead — the click a tooltip would have asked for.
+  const item = await screen.findByRole('button', { name: long.name });
+  expect(item.textContent).toBe(long.name);
+  expect(document.querySelector('[data-tip]')).toBeNull();
 });
 
 it('moves the library to the space that was chosen', async () => {
@@ -140,19 +142,22 @@ it('will not open while a media task holds the scan slot, and says why', async (
   );
   fireEvent.click(trigger());
   expect(menu().open).toBe(false);
-  // The reason takes the place of the name: a control that will not open owes
-  // the user the reason rather than a label they can already read.
-  expect(
-    document.querySelector(`[data-tip="${english.spaceBlockedScanning}"]`),
-  ).toBeTruthy();
+  // Nothing repeats the name or the reason on hover any more, so the reason has
+  // to reach the accessibility tree some other way: a control that will not open
+  // owes the user the reason.
+  const described = trigger().getAttribute('aria-describedby');
+  expect(described).toBeTruthy();
+  expect(document.getElementById(described!)?.textContent).toBe(
+    english.spaceBlockedScanning,
+  );
 });
 
-it('offers the way to the settings section it is about', async () => {
+it('offers no way into settings from the list', async () => {
   mount();
-  const link = await screen.findByRole('link', {
-    name: english.spaceManage,
-  });
-  expect(link.getAttribute('href')).toBe('/settings#spaces');
+  await screen.findByText(shows.name);
+  // The list is the spaces and nothing else. Settings has its own entry in the
+  // navigation, which is where the whole application is reached from.
+  expect(menu().querySelector('a')).toBeNull();
 });
 
 it('closes on Escape and hands the focus back to the trigger', async () => {

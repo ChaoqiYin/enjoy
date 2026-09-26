@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { createContext, useContext, useState } from 'react';
 import type { ReactNode } from 'react';
 import { libraryApi } from '../../shared/api';
@@ -14,7 +14,6 @@ import type { Space } from '../../shared/api';
  * they move — the notice, the busy flag, the caches — is the library's.
  */
 function useSpaceState(initialSpace: Space) {
-  const client = useQueryClient();
   const [space, setSpace] = useState(initialSpace);
   const spaces = useQuery({
     queryKey: ['spaces'],
@@ -37,10 +36,14 @@ function useSpaceState(initialSpace: Space) {
      * It takes the space rather than the promise that will produce it, so that
      * a caller which has to do something with the answer first — the library
      * does — can wait for it and still decide before the interface moves.
+     *
+     * Nothing is read again here. Moving and re-reading are not the same event:
+     * a rename never moves the interface, and it still changes this list, so the
+     * refresh belongs to the command rather than to the move — the library is
+     * where it is done.
      */
-    async adopt(next: Space) {
+    adopt(next: Space) {
       setSpace(next);
-      await client.invalidateQueries({ queryKey: ['spaces'] });
     },
   };
 }

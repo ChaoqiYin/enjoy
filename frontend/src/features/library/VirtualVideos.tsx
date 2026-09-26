@@ -19,9 +19,17 @@ export function VirtualVideos({
       items: props.videos,
       getItemKey: (video) => video.id,
       getColumnCount: virtualGridLayout.getColumnCount,
+      // Rounded, because that is what the measurement it stands in for reports:
+      // `measureElement` reads `offsetHeight`, an integer. A fractional estimate
+      // leaves a fraction of a pixel per row, and those add up down the grid.
       estimateRowHeight: (width, columns) =>
-        (((width - (columns - 1) * virtualGridLayout.gap) / columns) * 9) / 16 +
-        100,
+        Math.round(
+          (((width - (columns - 1) * virtualGridLayout.gap) / columns -
+            virtualGridLayout.cardBorder * 2) *
+            9) /
+            16 +
+            virtualGridLayout.rowFooter,
+        ),
       measurementKey: i18n.language,
     });
   // Room on the viewport's start edge for the hover feedback of the first row

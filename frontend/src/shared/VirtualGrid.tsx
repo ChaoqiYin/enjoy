@@ -2,6 +2,21 @@ import type { Key, ReactNode } from 'react';
 
 export const virtualGridLayout = {
   gap: 20,
+  // The card's own border, on each side. The picture is 16:9 of what the column
+  // has left once these are off, not of the column itself.
+  cardBorder: 1,
+  // Everything in a row whose height does not depend on how wide the column is:
+  // the card's body, its two borders and the gap the row keeps below it — 86.53
+  // pixels for a card at the 14px root font size, measured in the browser as
+  // 64.53 + 1 + 1 + 20. Only the picture scales with the column, so this is the
+  // whole of the estimate's constant part.
+  //
+  // It has to be measured again when the card's own box changes, because
+  // nothing else can catch it: a wrong value here is not an error, it is a
+  // first paint laid out at the wrong row height that then moves every row
+  // below the first when the real one is measured — 14.6 pixels a row, before
+  // this was measured and set.
+  rowFooter: 86.53,
   // Room the scroll viewport keeps on its start edge, so the hover feedback of
   // the first row and first column is not clipped flat at the padding box. It
   // has to cover `4px lift + 1% of the card's height` at the top edge and `1%
