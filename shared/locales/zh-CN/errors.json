@@ -1,5 +1,6 @@
 {
   "app.unexpected": "操作未完成，请重试。",
+  "app.render_failed": "界面绘制失败，请重试。",
   "app.clipboard.failed": "无法将路径复制到剪贴板。",
   "media.database.failed": "无法读取或写入视频索引。",
   "media.database.lock_failed": "视频索引暂时不可用，请重启应用。",

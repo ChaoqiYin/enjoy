@@ -10,6 +10,7 @@ import { SettingsPage } from '../pages/SettingsPage';
 import { AppNavigation } from './AppNavigation';
 import { SettingsProvider } from '../settings/SettingsProvider';
 import { SpaceProvider } from '../features/space/SpaceProvider';
+import { ErrorBoundary } from '../shared/ErrorBoundary';
 import type { Space } from '../shared/api';
 
 export function App({ initialSpace }: { initialSpace: Space }) {
@@ -17,31 +18,38 @@ export function App({ initialSpace }: { initialSpace: Space }) {
   // provider covers every page, since the library, favourites and history all
   // render the one card; the card's own transform targets are documented where
   // they are declared.
+  //
+  // The boundary is outside every provider for the same reason it exists: it is
+  // what the whole composition falls back to, so nothing it is meant to catch
+  // may sit above it.
   return (
-    <MotionConfig reducedMotion="user">
-      <SettingsProvider>
-        {/* Outside the library provider: the library is read and written within
-            a space, so the space has to be known before it is asked for. */}
-        <SpaceProvider initialSpace={initialSpace}>
-          <LibraryProvider>
-            {/* Inside the library provider: the update flow asks it whether a
-                scan is running before it interrupts one. */}
-            <UpdateProvider>
-              <div className="h-dvh overflow-hidden flex flex-col bg-base-100 text-base-content">
-                <LanguageFocusSync />
-                <AppNavigation />
-                <Routes>
-                  <Route path="/" element={<LibraryPage />} />
-                  <Route path="/favorites" element={<FavoritesPage />} />
-                  <Route path="/history" element={<HistoryPage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </div>
-            </UpdateProvider>
-          </LibraryProvider>
-        </SpaceProvider>
-      </SettingsProvider>
-    </MotionConfig>
+    <ErrorBoundary>
+      <MotionConfig reducedMotion="user">
+        <SettingsProvider>
+          {/* Outside the library provider: the library is read and written
+              within a space, so the space has to be known before it is asked
+              for. */}
+          <SpaceProvider initialSpace={initialSpace}>
+            <LibraryProvider>
+              {/* Inside the library provider: the update flow asks it whether a
+                  scan is running before it interrupts one. */}
+              <UpdateProvider>
+                <div className="h-dvh overflow-hidden flex flex-col bg-base-100 text-base-content">
+                  <LanguageFocusSync />
+                  <AppNavigation />
+                  <Routes>
+                    <Route path="/" element={<LibraryPage />} />
+                    <Route path="/favorites" element={<FavoritesPage />} />
+                    <Route path="/history" element={<HistoryPage />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                  </Routes>
+                </div>
+              </UpdateProvider>
+            </LibraryProvider>
+          </SpaceProvider>
+        </SettingsProvider>
+      </MotionConfig>
+    </ErrorBoundary>
   );
 }

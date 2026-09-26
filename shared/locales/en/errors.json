@@ -1,5 +1,6 @@
 {
   "app.unexpected": "The operation could not be completed. Please try again.",
+  "app.render_failed": "This screen could not be drawn. Please try again.",
   "app.clipboard.failed": "Could not copy the path to the clipboard.",
   "media.database.failed": "Could not read or write the video index.",
   "media.database.lock_failed": "The video index is unavailable. Please restart the app.",
