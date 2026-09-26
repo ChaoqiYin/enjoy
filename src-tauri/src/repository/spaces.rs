@@ -176,7 +176,9 @@ impl Repository {
         // the answer is the oldest remaining space: the same choice every time,
         // rather than whatever order the table happens to hand back.
         let holder: Option<i64> = tx
-            .query_row("SELECT id FROM spaces WHERE current=1", [], |row| row.get(0))
+            .query_row("SELECT id FROM spaces WHERE current=1", [], |row| {
+                row.get(0)
+            })
             .optional()?;
         if holder.is_none() {
             let oldest: i64 = tx.query_row(

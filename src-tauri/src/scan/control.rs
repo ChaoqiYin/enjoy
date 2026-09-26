@@ -182,9 +182,7 @@ mod tests {
         // a single file takes it the same way, so this covers both of them.
         let guard = control.begin().unwrap();
         assert_eq!(
-            space_change_gate(control.is_running())
-                .unwrap_err()
-                .code,
+            space_change_gate(control.is_running()).unwrap_err().code,
             "space.blocked.scanning"
         );
         // A paused pass is still a pass: the slot is held and its progress is

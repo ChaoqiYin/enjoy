@@ -12,9 +12,9 @@ mod spaces;
 // the rule that spaces share no records (ADR 0011), the management one is
 // adding, renaming and removing them.
 #[cfg(test)]
-mod space_management_tests;
-#[cfg(test)]
 mod space_isolation_tests;
+#[cfg(test)]
+mod space_management_tests;
 #[cfg(test)]
 pub(crate) mod tests;
 

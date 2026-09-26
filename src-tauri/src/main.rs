@@ -158,7 +158,9 @@ fn rename_space(
     name: String,
     state: State<'_, AppState>,
 ) -> Result<Space, AppError> {
-    changing_spaces(&state, |repository| repository.rename_space(space_id, &name))
+    changing_spaces(&state, |repository| {
+        repository.rename_space(space_id, &name)
+    })
 }
 
 #[tauri::command]
