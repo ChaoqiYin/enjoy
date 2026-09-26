@@ -119,6 +119,45 @@ fn a_cut_connection_is_resumed_rather_than_restarted() {
 }
 
 #[test]
+fn a_server_that_never_continues_what_is_held_gives_up() {
+    // Every answer claims to start at the beginning, whatever was asked for, so
+    // nothing that arrives can be kept. That is a loss rather than a lack of
+    // progress — worse, in fact — and it has to end the loop rather than have
+    // the download asked for again a thousand times.
+    let listener = TcpListener::bind("127.0.0.1:0").expect("a port on the loopback");
+    let address = format!("http://{}", listener.local_addr().expect("a bound address"));
+    let whole = body(200_000);
+    thread::spawn(move || {
+        for connection in listener.incoming() {
+            let Ok(mut connection) = connection else {
+                break;
+            };
+            let _ = read_head(&mut connection);
+            let cut = &whole[..40_000];
+            let head = format!(
+                "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes 0-{}/{}\r\n\r\n",
+                cut.len(),
+                whole.len() - 1,
+                whole.len()
+            );
+            let _ = connection.write_all(head.as_bytes());
+            let _ = connection.write_all(cut);
+            let _ = connection.flush();
+        }
+    });
+    let started = std::time::Instant::now();
+    assert!(
+        fetch_from(&address).is_err(),
+        "a range that never continues what is held cannot be assembled"
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(30),
+        "and it is given up on, which took {:?}",
+        started.elapsed()
+    );
+}
+
+#[test]
 fn a_server_that_answers_nothing_at_all_gives_up() {
     // A listener that accepts and closes without a byte: the connections run
     // out rather than the loop running forever.

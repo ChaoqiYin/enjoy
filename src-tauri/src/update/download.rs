@@ -110,9 +110,12 @@ pub(super) async fn fetch(
             // payload: something closed the connection without saying so.
             Ok(()) => barren += 1,
             Err(FetchError::Restart) => {
-                // Nothing about the transfer survived, so the run of empty
-                // connections starts over with it.
-                barren = 0;
+                // Bytes went backwards, which is worse than bringing none, so
+                // this counts as one of the connections that got nowhere. A
+                // server that keeps answering with a range that does not
+                // continue the download therefore ends the attempt rather than
+                // being asked again and again.
+                barren += 1;
             }
             Err(error) => {
                 tracing::debug!(%error, attempts, "Update download attempt failed");
