@@ -11,10 +11,13 @@ import { DirectoryActions } from '../features/library/DirectoryActions';
 import { DirectoryDialog } from '../features/library/DirectoryDialog';
 import { EmptyRescanConfirmation } from '../features/library/EmptyRescanConfirmation';
 import { PageFrame } from '../features/library/PageFrame';
+import { SpaceSetting } from '../features/space/SpaceSetting';
+import { useSpace } from '../features/space/SpaceProvider';
 import { UpdateSetting } from '../features/update/UpdateSetting';
 export function SettingsPage() {
   const { t } = useTranslation();
   const library = useLibraryContext();
+  const space = useSpace();
   const [showAdd, setShowAdd] = useState(false);
   const [showEmptyRescan, setShowEmptyRescan] = useState(false);
   const rescan = () => {
@@ -30,7 +33,12 @@ export function SettingsPage() {
         <h1 className="text-3xl font-bold">{t('settings')}</h1>
         <LanguageSetting />
         <ThemeSetting />
-        <h2 className="text-xl">{t('folders')}</h2>
+        <h2 className="text-xl">{t('spaces')}</h2>
+        <SpaceSetting />
+        {/* Named after the space it belongs to, because it does not belong to
+            the application: each space has its own directories, and this is the
+            list of one of them. */}
+        <h2 className="text-xl">{t('foldersInSpace', { name: space.name })}</h2>
         {(library.directories.data ?? []).map((path) => (
           <div
             key={path}

@@ -7,8 +7,14 @@ mod metadata_tests;
 #[cfg(test)]
 mod migration_tests;
 pub(crate) mod schema;
+mod spaces;
+// Two modules about spaces, told apart by what they hold: the isolation one is
+// the rule that spaces share no records (ADR 0011), the management one is
+// adding, renaming and removing them.
 #[cfg(test)]
-mod space_tests;
+mod space_management_tests;
+#[cfg(test)]
+mod space_isolation_tests;
 #[cfg(test)]
 pub(crate) mod tests;
 
@@ -19,7 +25,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::AppError;
 use crate::media::Metadata;
-use crate::model::{FileStamp, ScannedFile, Space, VideoFile};
+use crate::model::{FileStamp, ScannedFile, VideoFile};
 
 #[derive(Clone, Default, Debug, Serialize)]
 pub struct IndexChanges {
@@ -83,19 +89,6 @@ impl Repository {
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", true)?;
         Ok(Self { connection })
-    }
-
-    /// The space the interface is showing. There is always exactly one: the
-    /// schema is created with one and the last one cannot be removed.
-    pub fn current_space(&self) -> Result<Space, AppError> {
-        self.connection
-            .query_row("SELECT id,name FROM spaces WHERE current=1", [], |row| {
-                Ok(Space {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                })
-            })
-            .map_err(|error| AppError::new("media.database.failed", error))
     }
 
     #[cfg(test)]

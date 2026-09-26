@@ -1,9 +1,11 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from './App';
+import { libraryApi } from '../shared/api';
 import { useLibraryView } from '../features/library/libraryView';
 import english from '../../../shared/locales/en/common.json';
 
@@ -26,8 +28,12 @@ vi.mock('../i18n/LanguageSetting', () => ({
   LanguageSetting: () => null,
 }));
 const i18n = createInstance();
+const space = { id: 1, name: 'Library' };
+let client: QueryClient;
 beforeEach(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: english } } });
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  vi.spyOn(libraryApi, 'listSpaces').mockResolvedValue([space]);
   vi.stubGlobal('matchMedia', () => ({
     matches: false,
     addEventListener: vi.fn(),
@@ -44,17 +50,20 @@ beforeEach(async () => {
 });
 afterEach(() => {
   cleanup();
+  client.clear();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
-const space = { id: 1, name: 'Library' };
 
 function mount(path = '/') {
   render(
-    <I18nextProvider i18n={i18n}>
-      <MemoryRouter initialEntries={[path]}>
-        <App space={space} />
-      </MemoryRouter>
-    </I18nextProvider>,
+    <QueryClientProvider client={client}>
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter initialEntries={[path]}>
+          <App initialSpace={space} />
+        </MemoryRouter>
+      </I18nextProvider>
+    </QueryClientProvider>,
   );
 }
 function navigate(name: string) {
@@ -84,6 +93,14 @@ it('renders independent pages with shared navigation and page-specific actions',
   );
   expect(screen.queryByPlaceholderText(english.searchPlaceholder)).toBeNull();
   expect(screen.getByRole('button', { name: english.add })).toBeTruthy();
+  // The folder list is named after the space it belongs to, because each space
+  // keeps its own and this is the list of one of them.
+  expect(
+    screen.getByRole('heading', {
+      level: 2,
+      name: english.foldersInSpace.replace('{{name}}', space.name),
+    }),
+  ).toBeTruthy();
   expect(screen.getByRole('navigation')).toBe(navigation);
 });
 it('retains shared search and separate route sorting after page remounts', () => {

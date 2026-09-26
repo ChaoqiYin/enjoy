@@ -1,22 +1,13 @@
 use std::fs;
-use std::path::Path;
 
 use crate::repository::fixture::Fixture;
 use crate::repository::Repository;
 use crate::scan::scanner;
 
-/// Adds a space beside the first one. Creating spaces from the interface is a
-/// later change; these tests only need a second one to exist, so they write it
-/// straight into the file.
-fn add_space(database: &Path, name: &str) -> i64 {
-    let connection = rusqlite::Connection::open(database).unwrap();
-    connection
-        .execute(
-            "INSERT INTO spaces(name,created_at,current) VALUES (?1,0,0)",
-            [name],
-        )
-        .unwrap();
-    connection.last_insert_rowid()
+/// Adds a space beside the first one, through the call the interface makes.
+/// These tests need a second space to exist and nothing else about it.
+fn add_space(repository: &mut Repository, name: &str) -> i64 {
+    repository.create_space(name).unwrap().id
 }
 
 /// A database holding one file, indexed into both spaces.
@@ -26,7 +17,7 @@ fn two_spaces_holding_the_same_file() -> (Fixture, Repository, i64, i64) {
     let database = fixture.0.join("library.db");
     let mut repository = Repository::open(&database, "First").unwrap();
     let first = repository.current_space().unwrap().id;
-    let second = add_space(&database, "Second");
+    let second = add_space(&mut repository, "Second");
     let scanned = vec![(
         fixture.0.to_string_lossy().into_owned(),
         scanner::collect(&fixture.0).unwrap(),

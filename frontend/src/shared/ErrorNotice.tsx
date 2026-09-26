@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Toast } from './Toast';
+import { errorMessage } from './errorMessage';
 import type { AppError } from './api';
 
 export function ErrorNotice({
@@ -11,11 +12,9 @@ export function ErrorNotice({
   onRetry?: () => void;
   onClose: () => void;
 }) {
-  const { t, i18n } = useTranslation();
-  const key = `errors:${error.code}`;
-  const message = i18n.exists(key)
-    ? t(key, error.params)
-    : t('errors:app.unexpected');
+  const translator = useTranslation();
+  const { t } = translator;
+  const message = errorMessage(translator, error);
   return (
     <Toast type="error" closeLabel={t('close')} onClose={onClose}>
       <h3 className="font-bold">{t('operationFailed')}</h3>

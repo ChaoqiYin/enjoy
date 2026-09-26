@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { libraryApi, normalizeError } from '../../shared/api';
-import type { AppError, ScanStatus, Video } from '../../shared/api';
-import { useSpace } from '../space/SpaceProvider';
+import type { AppError, ScanStatus, Space, Video } from '../../shared/api';
+import { useAdoptSpace, useSpace } from '../space/SpaceProvider';
 import { shouldAnnounceScan } from './scanFeedback';
 
 export function useLibrary() {
@@ -13,6 +13,7 @@ export function useLibrary() {
   // key and every command — is addressed to it, so a stale read here would be
   // the only way to write into the wrong space (ADR 0012).
   const { id: spaceId } = useSpace();
+  const adopt = useAdoptSpace();
   const [failure, setFailure] = useState<{
     error: AppError;
     retry?: () => Promise<unknown>;
@@ -97,6 +98,17 @@ export function useLibrary() {
     };
   }, [client, spaceId]);
 
+  // Everything cached for one space, marked for reading again. Named once
+  // because two things need it -- an action that may have changed what a space
+  // holds, and a move into a space whose answer may be in the cache from an
+  // earlier visit -- and the set of keys has to grow together either way.
+  const refreshSpace = (id: number) =>
+    Promise.all([
+      client.invalidateQueries({ queryKey: ['videos', id] }),
+      client.invalidateQueries({ queryKey: ['directories', id] }),
+      client.invalidateQueries({ queryKey: ['scan', id] }),
+    ]);
+
   async function run(action: () => Promise<unknown>) {
     setError(null);
     // A new action makes the previous completion notice stale: without this it
@@ -110,11 +122,7 @@ export function useLibrary() {
       const failure = normalizeError(cause);
       if (failure.code !== 'media.scan.cancelled') setError(failure, action);
     } finally {
-      await Promise.all([
-        client.invalidateQueries({ queryKey: ['videos', spaceId] }),
-        client.invalidateQueries({ queryKey: ['directories', spaceId] }),
-        client.invalidateQueries({ queryKey: ['scan', spaceId] }),
-      ]);
+      await refreshSpace(spaceId);
       setPending((count) => count - 1);
     }
   }
@@ -151,6 +159,32 @@ export function useLibrary() {
   const removeDirectory = (path: string) =>
     run(() => libraryApi.removeDirectory(spaceId, path));
   const rescan = () => run(() => libraryApi.rescan(spaceId));
+
+  // Creating, renaming and removing a space live here rather than beside the
+  // provider that holds the current space, because they move the library itself:
+  // they decide *which* one is being read.
+  //
+  // Naming reports where the name was typed, so the two that name a space raise
+  // instead of writing a notice -- the dialog that asked is the one place the
+  // reason belongs, and it stays open with the text still in it. Removing has no
+  // dialog to report into, so it goes out through `run` like every other action
+  // that could not be carried out.
+  async function moveInto(action: Promise<Space>) {
+    const next = await adopt(action);
+    // Only a move has to be read again. The space the interface lands on may
+    // have been read earlier in this session, and its cache has no way of
+    // knowing the interface left and came back -- so without this the library
+    // page can show what that space held last time it was open. Renaming, or
+    // removing a space that is not the one being shown, leaves the interface
+    // exactly where it was, and what it is showing still stands.
+    if (next.id !== spaceId) await refreshSpace(next.id);
+    return next;
+  }
+  const createSpace = (name: string) => moveInto(libraryApi.createSpace(name));
+  const renameSpace = (target: number, name: string) =>
+    moveInto(libraryApi.renameSpace(target, name));
+  const removeSpace = (target: number) =>
+    run(() => moveInto(libraryApi.deleteSpace(target)));
 
   async function controlScan(action: 'pause' | 'resume' | 'cancel') {
     try {
@@ -201,5 +235,8 @@ export function useLibrary() {
     removeDirectory,
     rescan,
     controlScan,
+    createSpace,
+    renameSpace,
+    removeSpace,
   };
 }

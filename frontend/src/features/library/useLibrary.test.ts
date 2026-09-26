@@ -69,7 +69,7 @@ function mount() {
       createElement(
         QueryClientProvider,
         { client },
-        createElement(SpaceProvider, { space, children }),
+        createElement(SpaceProvider, { initialSpace: space, children }),
       ),
   });
 }

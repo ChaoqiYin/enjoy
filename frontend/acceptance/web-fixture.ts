@@ -1,6 +1,12 @@
 import { mockIPC, mockConvertFileSrc } from '@tauri-apps/api/mocks';
 import { emit } from '@tauri-apps/api/event';
-import type { ScanStatus, Space, UpdateCheck, Video } from '../src/shared/api';
+import type {
+  AppError,
+  ScanStatus,
+  Space,
+  UpdateCheck,
+  Video,
+} from '../src/shared/api';
 import type { SettingsState } from '../src/settings/SettingsProvider';
 
 const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
@@ -23,9 +29,34 @@ const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
 }));
 let language = 'en';
 let settings: SettingsState = { language: 'en', theme: 'dark' };
-// The acceptance fixture holds one space. Switching between spaces is a later
-// change; until then this only has to answer which one the interface is on.
-const space: Space = { id: 1, name: 'Acceptance' };
+// The acceptance fixture stands in for the backend, so the space rules are
+// repeated here rather than shared with it: they are the backend's, and the
+// tests that hold them are Rust's. What they are for here is letting someone
+// walking the interface see a refusal reported, which they could not otherwise.
+const NAME_MAX = 24;
+let spaces: Space[] = [{ id: 1, name: 'Acceptance' }];
+let currentSpaceId = 1;
+function currentSpace(): Space {
+  return spaces.find((space) => space.id === currentSpaceId)!;
+}
+function refusalFor(raw: string, ignore?: number): AppError | null {
+  const name = raw.trim();
+  if (!name)
+    return { code: 'space.name.empty', params: {}, errorId: 'acceptance' };
+  if ([...name].length > NAME_MAX)
+    return {
+      code: 'space.name.too_long',
+      params: { max: String(NAME_MAX) },
+      errorId: 'acceptance',
+    };
+  const taken = spaces.some(
+    (space) =>
+      space.id !== ignore && space.name.toLowerCase() === name.toLowerCase(),
+  );
+  return taken
+    ? { code: 'space.name.taken', params: { name }, errorId: 'acceptance' }
+    : null;
+}
 let scan: ScanStatus = {
   background: false,
   phase: 'complete',
@@ -68,7 +99,43 @@ mockIPC(
         settings = { ...(payload.settings as SettingsState) };
         return { ...settings };
       case 'current_space':
-        return { ...space };
+        return { ...currentSpace() };
+      case 'list_spaces':
+        return spaces.map((space) => ({ ...space }));
+      case 'create_space': {
+        const refusal = refusalFor(String(payload.name));
+        if (refusal) throw refusal;
+        const created = {
+          id: Math.max(...spaces.map((space) => space.id)) + 1,
+          name: String(payload.name).trim(),
+        };
+        spaces = [...spaces, created];
+        currentSpaceId = created.id;
+        return { ...created };
+      }
+      case 'rename_space': {
+        const target = Number(payload.spaceId);
+        const refusal = refusalFor(String(payload.name), target);
+        if (refusal) throw refusal;
+        spaces = spaces.map((space) =>
+          space.id === target
+            ? { ...space, name: String(payload.name).trim() }
+            : space,
+        );
+        return { ...currentSpace() };
+      }
+      case 'delete_space': {
+        const target = Number(payload.spaceId);
+        if (spaces.length <= 1)
+          throw {
+            code: 'space.remove_last',
+            params: {},
+            errorId: 'acceptance',
+          };
+        spaces = spaces.filter((space) => space.id !== target);
+        if (currentSpaceId === target) currentSpaceId = spaces[0].id;
+        return { ...currentSpace() };
+      }
       case 'list_videos':
         return videos.map((video) => ({ ...video }));
       case 'list_directories':

@@ -16,6 +16,16 @@ for (const namespace of ['common', 'errors', 'native']) {
   }
 }
 const errors = read('en', 'errors');
+// The families of error codes are read out of the translations rather than
+// listed here, so a family this check should cover is covered from the moment
+// it lands: a name added to the translations but forgotten in a list like this
+// one would go unchecked, which is exactly the mistake this check exists to
+// catch. A family that has no translations yet is still invisible to it, so the
+// first code of a new family has to arrive together with its words.
+const families = [
+  ...new Set(Object.keys(errors).map((key) => key.split('.')[0])),
+];
+const errorCode = new RegExp(`"((?:${families.join('|')})\\.[a-z_.]+)"`, 'g');
 function* rustFiles(directory) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
@@ -26,7 +36,7 @@ function* rustFiles(directory) {
 
 for (const file of rustFiles(join('src-tauri', 'src'))) {
   const source = readFileSync(file, 'utf8');
-  for (const match of source.matchAll(/"((?:media|settings|update)\.[a-z_.]+)"/g)) {
+  for (const match of source.matchAll(errorCode)) {
     assert.ok(errors[match[1]], `Missing error translation: ${match[1]}`);
   }
 }

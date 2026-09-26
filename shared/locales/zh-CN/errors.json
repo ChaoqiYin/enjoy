@@ -38,5 +38,10 @@
   "update.blocked.scanning": "请先完成或取消正在进行的扫描，再重启更新。",
   "update.check_failed": "无法检查更新，请检查网络后重试。",
   "update.download_failed": "更新下载失败，请重试。",
-  "update.install_failed": "更新安装失败，请到发布页面重新下载。"
+  "update.install_failed": "更新安装失败，请到发布页面重新下载。",
+  "space.name.empty": "请输入空间名称。",
+  "space.name.too_long": "空间名称最长 {{max}} 个字符。",
+  "space.name.taken": "已有名为“{{name}}”的空间。",
+  "space.not_found": "该空间已不存在。",
+  "space.remove_last": "至少要保留一个空间，最后一个空间不能删除。"
 }

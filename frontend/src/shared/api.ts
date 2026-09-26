@@ -79,6 +79,14 @@ export const libraryApi = {
   // library's: it is addressed to a path, which one space already names.
   reveal: (path: string) => revealItemInDir(path),
   currentSpace: () => invoke<Space>('current_space'),
+  listSpaces: () => invoke<Space[]>('list_spaces'),
+  // Each of the three that change the set of spaces answers with the one to
+  // show afterwards, so moving between them never costs a second round trip
+  // and never leaves the interface on a space that is already gone.
+  createSpace: (name: string) => invoke<Space>('create_space', { name }),
+  renameSpace: (spaceId: number, name: string) =>
+    invoke<Space>('rename_space', { spaceId, name }),
+  deleteSpace: (spaceId: number) => invoke<Space>('delete_space', { spaceId }),
   regenerate: (spaceId: number, path: string | null) =>
     invoke<void>('regenerate_thumbnails', { spaceId, path }),
   list: (spaceId: number) => invoke<Video[]>('list_videos', { spaceId }),

@@ -31,6 +31,15 @@ impl AppError {
         }
     }
 
+    /// Carries one value the message needs. It travels to the interface as it
+    /// stands, so a rule stated in a number -- how long a name may be -- is
+    /// written down once, where the rule is enforced, and only read out in the
+    /// translation.
+    pub fn with_param(mut self, key: &str, value: impl std::fmt::Display) -> Self {
+        self.params.insert(key.into(), value.to_string());
+        self
+    }
+
     pub fn io(error: std::io::Error, path: &str) -> Self {
         let code = match error.kind() {
             std::io::ErrorKind::PermissionDenied => "media.scan.permission_denied",

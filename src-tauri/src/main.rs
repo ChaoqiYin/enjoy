@@ -108,6 +108,53 @@ fn current_space(state: State<'_, AppState>) -> Result<Space, AppError> {
 }
 
 #[tauri::command]
+fn list_spaces(state: State<'_, AppState>) -> Result<Vec<Space>, AppError> {
+    state
+        .repository
+        .lock()
+        .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
+        .spaces()
+}
+
+// The three commands that change the set of spaces all answer the same
+// question: which space is the interface showing now? Creating moves into the
+// new one, removing moves out of the one that is gone, and renaming a space
+// that happens to be the current one answers with its new name. Keeping the
+// answer the same shape is what lets the interface adopt it without asking, and
+// so without a moment where it is showing a space that no longer exists.
+
+#[tauri::command]
+fn create_space(name: String, state: State<'_, AppState>) -> Result<Space, AppError> {
+    state
+        .repository
+        .lock()
+        .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
+        .create_space(&name)
+}
+
+#[tauri::command]
+fn rename_space(
+    space_id: i64,
+    name: String,
+    state: State<'_, AppState>,
+) -> Result<Space, AppError> {
+    state
+        .repository
+        .lock()
+        .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
+        .rename_space(space_id, &name)
+}
+
+#[tauri::command]
+fn delete_space(space_id: i64, state: State<'_, AppState>) -> Result<Space, AppError> {
+    state
+        .repository
+        .lock()
+        .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
+        .delete_space(space_id)
+}
+
+#[tauri::command]
 fn list_directories(space_id: i64, state: State<'_, AppState>) -> Result<Vec<String>, AppError> {
     state
         .repository
@@ -323,6 +370,10 @@ fn main() {
             list_videos,
             list_directories,
             current_space,
+            list_spaces,
+            create_space,
+            rename_space,
+            delete_space,
             remove_video,
             remove_directory,
             add_directory,

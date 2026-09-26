@@ -12,7 +12,7 @@ import { SettingsProvider } from '../settings/SettingsProvider';
 import { SpaceProvider } from '../features/space/SpaceProvider';
 import type { Space } from '../shared/api';
 
-export function App({ space }: { space: Space }) {
+export function App({ initialSpace }: { initialSpace: Space }) {
   // Reading the reduced-motion preference is the app-level provider's job — one
   // provider covers every page, since the library, favourites and history all
   // render the one card; the card's own transform targets are documented where
@@ -22,7 +22,7 @@ export function App({ space }: { space: Space }) {
       <SettingsProvider>
         {/* Outside the library provider: the library is read and written within
             a space, so the space has to be known before it is asked for. */}
-        <SpaceProvider space={space}>
+        <SpaceProvider initialSpace={initialSpace}>
           <LibraryProvider>
             {/* Inside the library provider: the update flow asks it whether a
                 scan is running before it interrupts one. */}

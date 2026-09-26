@@ -22,7 +22,7 @@ async function start() {
     root.render(
       <QueryClientProvider client={client}>
         <BrowserRouter>
-          <App space={space} />
+          <App initialSpace={space} />
         </BrowserRouter>
       </QueryClientProvider>,
     );
