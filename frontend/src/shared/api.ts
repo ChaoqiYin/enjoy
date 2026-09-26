@@ -67,8 +67,17 @@ export interface UpdateCheck {
   readyToRestart: boolean;
 }
 
+/**
+ * One progress report. `downloading` while bytes are arriving, and then the
+ * ending: `ready` (the installer is verified and held, only a restart is
+ * missing), `paused` (the bytes are held for continuing) or `cancelled`.
+ *
+ * The ending is not sent as an event. `installUpdate` answers with the last
+ * report of the transfer, so the section settles on exactly one state instead
+ * of on whichever of an event and an answer arrived first.
+ */
 export interface UpdateProgress {
-  phase: string;
+  phase: 'downloading' | 'ready' | 'paused' | 'cancelled';
   downloaded: number;
   total: number | null;
   version: string;
@@ -115,7 +124,14 @@ export const libraryApi = {
   refreshInfo: (spaceId: number, path: string) =>
     invoke<void>('refresh_video_info', { spaceId, path }),
   checkForUpdate: () => invoke<UpdateCheck>('check_for_update'),
-  installUpdate: () => invoke<void>('install_update'),
+  // Answers with how the transfer ended, so a download that was paused or
+  // cancelled is told apart from one that finished without reading an event.
+  installUpdate: () => invoke<UpdateProgress>('install_update'),
+  // Named the way the scan's control is, and for the same reason: continuing is
+  // not an action on a download but a download started again, so it has no name
+  // here and goes through `installUpdate`.
+  controlUpdate: (action: 'pause' | 'cancel') =>
+    invoke<void>('control_update', { action }),
   // Installing hands the update to the platform installer and exits, so this
   // never answers a restart that worked; the caller swallows the rejection.
   restartApp: () => invoke<void>('restart_app'),

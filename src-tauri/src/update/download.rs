@@ -4,6 +4,8 @@ use futures_util::StreamExt;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, CONTENT_RANGE, RANGE};
 use reqwest::{Client, Response, StatusCode, Url};
 
+use super::control::{Stop, StopFlag};
+
 /// A connection that has produced nothing for this long is treated as dead.
 ///
 /// Without this a half-open socket — the shape a dropped transfer often takes —
@@ -60,6 +62,34 @@ impl std::fmt::Display for FetchError {
     }
 }
 
+/// The two asks a transfer can be given. `Stop::Run` is not one of them: it is
+/// the absence of an ask, so a transfer that ended by being stopped always has
+/// one of these to report rather than a value the caller has to re-check.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum Asked {
+    Pause,
+    Cancel,
+}
+
+/// How a transfer ended. Every way out of the loop is one of these, and the
+/// ones that carry bytes carry them so the caller decides what they mean: the
+/// loop knows how far it got, not whether that distance is worth keeping.
+pub(super) enum Transfer {
+    /// The payload is whole. A payload resumed from earlier bytes is whole in
+    /// the same sense, and the caller cannot tell the difference — which is the
+    /// point.
+    Complete(Vec<u8>),
+    /// The user asked for it to stop.
+    Stopped {
+        asked: Asked,
+        bytes: Vec<u8>,
+        total: Option<u64>,
+    },
+    /// The connections ran out. No length is handed back with it: a failed
+    /// transfer shows a failure, and the next one announces the length again.
+    Failed { error: FetchError, bytes: Vec<u8> },
+}
+
 /// The client every attempt goes through.
 ///
 /// Two settings are deliberate. There is a read timeout but no total one: a
@@ -82,34 +112,53 @@ pub(super) fn client(user_agent: &str) -> reqwest::Result<Client> {
         .build()
 }
 
-/// Fetches the payload, resuming across as many connections as it takes.
+/// Fetches the payload, resuming across as many connections as it takes, and
+/// stopping when the user asks it to.
 ///
 /// The updater plugin reads its response in one pass and drops what it had when
 /// the connection ends early, so on a link that drops every few seconds a
 /// release of any size can never arrive — which is the state this replaces. The
 /// bytes are kept and the rest is asked for with a range, so a transfer that
 /// dies at 700 KiB has lost 700 KiB of waiting and nothing else.
+///
+/// `from` is what an earlier transfer arrived at, so continuing one is the same
+/// call as starting one. The stop is checked between connections as well as
+/// during them: a pause asked for while the last connection was closing would
+/// otherwise be answered by opening another one.
 pub(super) async fn fetch(
     client: &Client,
     url: &Url,
+    from: Vec<u8>,
+    stop: &StopFlag,
     mut on_progress: impl FnMut(u64, Option<u64>),
-) -> Result<Vec<u8>, FetchError> {
-    let mut buffer: Vec<u8> = Vec::new();
+) -> Transfer {
+    let mut buffer = from;
     let mut total: Option<u64> = None;
     let mut attempts = 0u32;
     let mut barren = 0u32;
     loop {
+        if let Some(asked) = asked(stop.requested()) {
+            return Transfer::Stopped {
+                asked,
+                bytes: buffer,
+                total,
+            };
+        }
         attempts += 1;
         let before = buffer.len() as u64;
-        let outcome = attempt(client, url, &mut buffer, &mut total, &mut on_progress).await;
-        match outcome {
-            // An announced length is the finish line. Without one the stream
-            // ending is the only end there is, so it counts as one.
-            Ok(()) if total.is_none_or(|total| buffer.len() as u64 >= total) => return Ok(buffer),
+        match attempt(client, url, &mut buffer, &mut total, &mut on_progress, stop).await {
+            Attempt::Stopped(asked) => {
+                return Transfer::Stopped {
+                    asked,
+                    bytes: buffer,
+                    total,
+                }
+            }
+            Attempt::Ended(Ok(())) if whole(&buffer, total) => return Transfer::Complete(buffer),
             // A clean end short of the announced length is still a short
             // payload: something closed the connection without saying so.
-            Ok(()) => barren += 1,
-            Err(FetchError::Restart) => {
+            Attempt::Ended(Ok(())) => barren += 1,
+            Attempt::Ended(Err(FetchError::Restart)) => {
                 // Bytes went backwards, which is worse than bringing none, so
                 // this counts as one of the connections that got nowhere. A
                 // server that keeps answering with a range that does not
@@ -117,7 +166,7 @@ pub(super) async fn fetch(
                 // being asked again and again.
                 barren += 1;
             }
-            Err(error) => {
+            Attempt::Ended(Err(error)) => {
                 tracing::debug!(%error, attempts, "Update download attempt failed");
                 barren = if buffer.len() as u64 == before {
                     barren + 1
@@ -127,9 +176,40 @@ pub(super) async fn fetch(
             }
         }
         match next_attempt(attempts, barren) {
-            Some(wait) => tokio::time::sleep(wait).await,
-            None => return Err(FetchError::Exhausted(attempts)),
+            Some(wait) => wait_out(wait, stop).await,
+            None => {
+                return Transfer::Failed {
+                    error: FetchError::Exhausted(attempts),
+                    bytes: buffer,
+                }
+            }
         }
+    }
+}
+
+/// The ask a stop value stands for, when it stands for one.
+fn asked(stop: Stop) -> Option<Asked> {
+    match stop {
+        Stop::Run => None,
+        Stop::Pause => Some(Asked::Pause),
+        Stop::Cancel => Some(Asked::Cancel),
+    }
+}
+
+/// Whether the payload is complete. An announced length is the finish line;
+/// without one the stream ending is the only end there is, so it counts.
+fn whole(buffer: &[u8], total: Option<u64>) -> bool {
+    total.is_none_or(|total| buffer.len() as u64 >= total)
+}
+
+/// Waits out the backoff, or ends the wait as soon as the user asks to stop.
+///
+/// The wait is dead time by definition — the last connection brought nothing —
+/// so a pause that sat through it would look like a button that did not work.
+async fn wait_out(wait: Duration, stop: &StopFlag) {
+    tokio::select! {
+        _ = tokio::time::sleep(wait) => {}
+        _ = stop.changed() => {}
     }
 }
 
@@ -147,6 +227,14 @@ pub(super) fn next_attempt(attempts: u32, barren: u32) -> Option<Duration> {
     Some((FIRST_BACKOFF * factor).min(MAX_BACKOFF))
 }
 
+/// How one connection ended.
+enum Attempt {
+    /// It ended on its own, cleanly or otherwise.
+    Ended(Result<(), FetchError>),
+    /// The user asked for the transfer to stop, and the read let go.
+    Stopped(Asked),
+}
+
 /// One connection: ask for what is missing, keep what arrives.
 async fn attempt(
     client: &Client,
@@ -154,7 +242,8 @@ async fn attempt(
     buffer: &mut Vec<u8>,
     total: &mut Option<u64>,
     on_progress: &mut impl FnMut(u64, Option<u64>),
-) -> Result<(), FetchError> {
+    stop: &StopFlag,
+) -> Attempt {
     let have = buffer.len() as u64;
     let mut headers = HeaderMap::new();
     headers.insert(ACCEPT, HeaderValue::from_static("application/octet-stream"));
@@ -163,12 +252,10 @@ async fn attempt(
             .expect("a byte range is always a valid header value");
         headers.insert(RANGE, range);
     }
-    let response = client
-        .get(url.clone())
-        .headers(headers)
-        .send()
-        .await
-        .map_err(|error| FetchError::Transport(error.to_string()))?;
+    let response = match client.get(url.clone()).headers(headers).send().await {
+        Ok(response) => response,
+        Err(error) => return Attempt::Ended(Err(FetchError::Transport(error.to_string()))),
+    };
 
     match response.status() {
         StatusCode::PARTIAL_CONTENT => {
@@ -178,7 +265,7 @@ async fn attempt(
                 Some((_, length)) => *total = Some(length),
                 None => {
                     buffer.clear();
-                    return Err(FetchError::Restart);
+                    return Attempt::Ended(Err(FetchError::Restart));
                 }
             }
         }
@@ -194,18 +281,38 @@ async fn attempt(
             // Past the end of what the server has, so what is held is not this
             // file at all. Start over rather than trust it.
             buffer.clear();
-            return Err(FetchError::Restart);
+            return Attempt::Ended(Err(FetchError::Restart));
         }
-        status => return Err(FetchError::Status(status.as_u16())),
+        status => return Attempt::Ended(Err(FetchError::Status(status.as_u16()))),
     }
 
     let mut stream = response.bytes_stream();
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|error| FetchError::Transport(error.to_string()))?;
+    loop {
+        // Reading is where a download spends nearly all of its time, so this is
+        // where a stop has to be felt. Dropping the pending `next` loses
+        // nothing: the connection and what it has read belong to the stream,
+        // which is dropped with it.
+        //
+        // A wake that turns out not to be an ask — a notification left over
+        // from a request already answered — goes back to reading rather than
+        // ending a transfer nobody asked to end.
+        let chunk = tokio::select! {
+            chunk = stream.next() => chunk,
+            _ = stop.changed() => match asked(stop.requested()) {
+                Some(asked) => return Attempt::Stopped(asked),
+                None => continue,
+            },
+        };
+        let Some(chunk) = chunk else {
+            return Attempt::Ended(Ok(()));
+        };
+        let chunk = match chunk {
+            Ok(chunk) => chunk,
+            Err(error) => return Attempt::Ended(Err(FetchError::Transport(error.to_string()))),
+        };
         buffer.extend_from_slice(&chunk);
         on_progress(buffer.len() as u64, *total);
     }
-    Ok(())
 }
 
 fn content_length(response: &Response) -> Option<u64> {

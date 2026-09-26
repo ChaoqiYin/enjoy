@@ -36,6 +36,7 @@
   "update.unsupported": "Automatic updates are available in the Windows version only.",
   "update.busy": "An update download is already running.",
   "update.not_downloaded": "No update has been downloaded yet.",
+  "update.invalid_action": "This update action is not available.",
   "update.blocked.scanning": "Finish or cancel the running scan before restarting to update.",
   "update.check_failed": "Could not check for updates. Check your connection and try again.",
   "update.download_failed": "The update could not be downloaded. Please try again.",

@@ -21,7 +21,10 @@ futures-util="0.3"
 minisign-verify="0.2"
 reqwest= {version="0.13",default-features=false,features= ["stream","rustls-no-provider"] }
 rustls= {version="0.23",default-features=false,features= ["ring"] }
-tokio= {version="1",features= ["time"] }
+# `macros` for the select that lets a stop interrupt a read, `sync` for the
+# notification that makes it felt before the next byte rather than after it, and
+# `time` for the retry waits.
+tokio= {version="1",features= ["macros","sync","time"] }
 
 [dev-dependencies]
 # Only for the signature tests, which have to bring a key of their own: a valid

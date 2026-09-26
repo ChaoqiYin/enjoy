@@ -30,6 +30,10 @@ function emitProgress(payload: unknown) {
 beforeEach(() => {
   handlers.length = 0;
   stop.mockReset();
+  // The commands that answer with nothing — pausing, cancelling — resolve to
+  // `undefined` in the real bridge too; a test that cares what one answered
+  // queues its own value ahead of this.
+  vi.mocked(invoke).mockResolvedValue(undefined as never);
   vi.mocked(listen).mockImplementation(((_event: string, handler: Handler) => {
     handlers.push(handler);
     return Promise.resolve(stop);
@@ -60,49 +64,143 @@ it('reports a check the user asked for', async () => {
   expect(result.current.error?.errorId).toBe('err_check');
 });
 
-it('follows download progress and switches to ready', async () => {
-  vi.mocked(invoke).mockResolvedValue({
-    supported: true,
-    currentVersion: '0.1.0',
-    available,
-    readyToRestart: false,
+/** The check the settings button makes, then whatever the download answers. */
+function offerThen(ended: unknown) {
+  vi.mocked(invoke)
+    .mockResolvedValueOnce({
+      supported: true,
+      currentVersion: '0.1.0',
+      available,
+      readyToRestart: false,
+    })
+    .mockResolvedValueOnce(ended);
+}
+
+it('follows download progress and settles on ready', async () => {
+  offerThen({
+    phase: 'ready',
+    downloaded: 0,
+    total: null,
+    version: '0.2.0',
   });
   const { result } = renderHook(() => useUpdate());
   act(() => result.current.checkNow());
   await waitFor(() => expect(result.current.check).not.toBeNull());
 
+  act(() => result.current.install());
+  expect(result.current.downloading).toBe(true);
   emitProgress({
     phase: 'downloading',
     downloaded: 512,
     total: 1024,
     version: '0.2.0',
   });
-  await waitFor(() => expect(result.current.downloading).toBe(true));
-  expect(result.current.progress?.downloaded).toBe(512);
+  await waitFor(() => expect(result.current.progress?.downloaded).toBe(512));
 
-  emitProgress({
-    phase: 'ready',
-    downloaded: 0,
-    total: null,
-    version: '0.2.0',
-  });
   await waitFor(() => expect(result.current.check?.readyToRestart).toBe(true));
   expect(result.current.downloading).toBe(false);
+  expect(result.current.paused).toBe(false);
   expect(result.current.progress).toBeNull();
 });
 
-it('ignores a ready event that arrives before any check', () => {
-  // A stray ready event cannot invent a check that never happened.
+it('keeps a paused download on screen with how far it got', async () => {
+  // A paused download is one the user is coming back to, so the section stays
+  // on it and the numbers stay with it.
+  offerThen({
+    phase: 'paused',
+    downloaded: 700,
+    total: 1024,
+    version: '0.2.0',
+  });
   const { result } = renderHook(() => useUpdate());
-  emitProgress({
-    phase: 'ready',
+  act(() => result.current.checkNow());
+  await waitFor(() => expect(result.current.check).not.toBeNull());
+
+  act(() => result.current.install());
+  await waitFor(() => expect(result.current.paused).toBe(true));
+  expect(result.current.downloading).toBe(false);
+  expect(result.current.progress?.downloaded).toBe(700);
+  expect(result.current.check?.readyToRestart).toBe(false);
+});
+
+it('clears the progress a cancelled download had', async () => {
+  offerThen({
+    phase: 'cancelled',
     downloaded: 0,
     total: null,
     version: '0.2.0',
   });
-  expect(result.current.check).toBeNull();
-  expect(result.current.downloading).toBe(false);
+  const { result } = renderHook(() => useUpdate());
+  act(() => result.current.checkNow());
+  await waitFor(() => expect(result.current.check).not.toBeNull());
+
+  act(() => result.current.install());
+  await waitFor(() => expect(result.current.downloading).toBe(false));
+  expect(result.current.paused).toBe(false);
   expect(result.current.progress).toBeNull();
+  expect(result.current.check?.readyToRestart).toBe(false);
+});
+
+it('asks the backend to pause without settling the download itself', async () => {
+  // The transfer is still unwinding when this is pressed, so the section waits
+  // for its answer rather than moving on by itself.
+  const { result } = renderHook(() => useUpdate());
+  act(() => result.current.pause());
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('control_update', { action: 'pause' }),
+  );
+  expect(result.current.paused).toBe(false);
+});
+
+it('leaves a running cancel to the transfer to answer', async () => {
+  offerThen({
+    phase: 'cancelled',
+    downloaded: 0,
+    total: null,
+    version: '0.2.0',
+  });
+  const { result } = renderHook(() => useUpdate());
+  act(() => result.current.checkNow());
+  await waitFor(() => expect(result.current.check).not.toBeNull());
+  act(() => result.current.install());
+  expect(result.current.downloading).toBe(true);
+
+  act(() => result.current.cancel());
+  expect(result.current.downloading).toBe(true);
+  await waitFor(() => expect(result.current.downloading).toBe(false));
+});
+
+it('dismisses a paused download as soon as it is cancelled', async () => {
+  // Nothing is running to answer, so waiting for an ending that is not coming
+  // would leave the section on a download the user has already thrown away.
+  offerThen({
+    phase: 'paused',
+    downloaded: 700,
+    total: 1024,
+    version: '0.2.0',
+  });
+  const { result } = renderHook(() => useUpdate());
+  act(() => result.current.checkNow());
+  await waitFor(() => expect(result.current.check).not.toBeNull());
+  act(() => result.current.install());
+  await waitFor(() => expect(result.current.paused).toBe(true));
+
+  act(() => result.current.cancel());
+  expect(result.current.paused).toBe(false);
+  expect(result.current.progress).toBeNull();
+});
+
+it('does not treat a progress event as a download that was never started', () => {
+  // Progress is all the event carries now; a stray one cannot make the section
+  // offer to pause a download that is not running.
+  const { result } = renderHook(() => useUpdate());
+  emitProgress({
+    phase: 'downloading',
+    downloaded: 512,
+    total: 1024,
+    version: '0.2.0',
+  });
+  expect(result.current.downloading).toBe(false);
 });
 
 it('restores the restart state when the app is still running', async () => {

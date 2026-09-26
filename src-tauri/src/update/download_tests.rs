@@ -5,7 +5,8 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use super::download::{fetch, next_attempt, FIRST_BACKOFF, MAX_BACKOFF};
+use super::control::{Stop, StopFlag};
+use super::download::{fetch, next_attempt, Asked, Transfer, FIRST_BACKOFF, MAX_BACKOFF};
 use super::verify::verify;
 
 /// A server that serves `body` once, cutting the answer short after `cut`
@@ -91,14 +92,43 @@ fn body(length: usize) -> Vec<u8> {
 }
 
 fn fetch_from(address: &str) -> Result<Vec<u8>, super::download::FetchError> {
+    match fetch_whole(address, Vec::new(), &StopFlag::default()) {
+        Transfer::Complete(bytes) => Ok(bytes),
+        Transfer::Failed { error, .. } => Err(error),
+        Transfer::Stopped { .. } => panic!("nothing asked this transfer to stop"),
+    }
+}
+
+/// A transfer nobody interrupts, from whatever bytes are handed to it.
+fn fetch_whole(address: &str, from: Vec<u8>, stop: &StopFlag) -> Transfer {
     tauri::async_runtime::block_on(async {
         let client = super::download::client("Enjoy test").expect("a client can be built");
         let url = address.parse().expect("the test server address is a URL");
         let mut told = 0u64;
-        let bytes = fetch(&client, &url, |downloaded, _| told = downloaded).await?;
+        let transfer = fetch(&client, &url, from, stop, |downloaded, _| told = downloaded).await;
         // The progress a caller sees is the bytes it is holding, never more.
-        assert_eq!(told, bytes.len() as u64);
-        Ok(bytes)
+        if let Transfer::Complete(bytes) | Transfer::Stopped { bytes, .. } = &transfer {
+            assert_eq!(told, bytes.len() as u64);
+        }
+        transfer
+    })
+}
+
+/// A transfer the user stops from inside the progress callback, which is where
+/// the press lands: the bytes are arriving, and the ask comes between two of
+/// them.
+fn stop_after(address: &str, wanted: u64, ask: Stop) -> Transfer {
+    tauri::async_runtime::block_on(async {
+        let client = super::download::client("Enjoy test").expect("a client can be built");
+        let url = address.parse().expect("the test server address is a URL");
+        let stop = StopFlag::default();
+        let flag = &stop;
+        fetch(&client, &url, Vec::new(), flag, |downloaded, _| {
+            if downloaded >= wanted {
+                flag.request(ask);
+            }
+        })
+        .await
     })
 }
 
@@ -219,6 +249,97 @@ fn a_ceiling_end_is_reported_as_its_own_thing() {
     assert_eq!(error.to_string(), "gave up after 500 connections");
 }
 
+#[test]
+fn a_pause_ends_the_transfer_where_it_stands() {
+    let expected = body(200_000);
+    let (address, _) = spawn_cutting_server(expected.clone(), 60_000);
+    match stop_after(&address, 1, Stop::Pause) {
+        Transfer::Stopped {
+            asked,
+            bytes,
+            total,
+        } => {
+            assert_eq!(asked, Asked::Pause);
+            assert!(!bytes.is_empty(), "what had arrived is handed back");
+            assert!(
+                expected.starts_with(&bytes),
+                "and what is handed back is the payload itself, not a mixture of it"
+            );
+            assert_eq!(
+                total,
+                Some(expected.len() as u64),
+                "the announced length comes with it, so a paused bar can still say how far"
+            );
+        }
+        _ => panic!("a pause was asked for and not obeyed"),
+    }
+}
+
+#[test]
+fn a_cancel_ends_the_transfer_the_same_way_and_says_so() {
+    // The transfer reports which ask stopped it; keeping or dropping the bytes
+    // is the caller's decision, and this is the value it decides on.
+    let (address, _) = spawn_cutting_server(body(200_000), 60_000);
+    assert!(
+        matches!(
+            stop_after(&address, 1, Stop::Cancel),
+            Transfer::Stopped {
+                asked: Asked::Cancel,
+                ..
+            }
+        ),
+        "a cancel is told apart from a pause rather than both reading as a stop"
+    );
+}
+
+#[test]
+fn a_paused_transfer_continues_from_what_it_kept() {
+    let expected = body(200_000);
+    let (address, asked) = spawn_cutting_server(expected.clone(), 60_000);
+    let kept = match stop_after(&address, 1, Stop::Pause) {
+        Transfer::Stopped { bytes, .. } => bytes,
+        _ => panic!("a pause was asked for and not obeyed"),
+    };
+
+    let resumed = match fetch_whole(&address, kept.clone(), &StopFlag::default()) {
+        Transfer::Complete(bytes) => bytes,
+        _ => panic!("nothing stopped the second transfer"),
+    };
+    assert_eq!(resumed, expected, "the two halves are one payload");
+    let asked = asked.lock().expect("the offsets are shared").clone();
+    assert_eq!(
+        asked[1],
+        kept.len() as u64,
+        "and the second transfer asks for exactly what the first was missing"
+    );
+}
+
+#[test]
+fn a_stop_asked_for_before_the_first_connection_opens_none() {
+    // The moment between pressing download and pressing pause is short; a
+    // transfer that has been told to stop before it starts must not spend a
+    // connection finding that out.
+    let (address, asked) = spawn_cutting_server(body(200_000), 60_000);
+    let stop = StopFlag::default();
+    stop.request(Stop::Pause);
+    match fetch_whole(&address, Vec::new(), &stop) {
+        Transfer::Stopped {
+            asked,
+            bytes,
+            total,
+        } => {
+            assert_eq!(asked, Asked::Pause);
+            assert!(bytes.is_empty(), "there is nothing to hand back yet");
+            assert!(total.is_none(), "and no length was ever announced");
+        }
+        _ => panic!("a pause was asked for and not obeyed"),
+    }
+    assert!(
+        asked.lock().expect("the offsets are shared").is_empty(),
+        "and the server was never asked for anything"
+    );
+}
+
 /// The whole delivery path against the real endpoint, on demand.
 ///
 /// Run with `cargo test -- --ignored`. It fetches an installer of some tens of
@@ -254,9 +375,11 @@ fn the_published_release_downloads_and_verifies() {
             .as_str()
             .expect("the asset has a signature");
         let url = url.parse().expect("the asset url is a url");
-        let bytes = fetch(&client, &url, |_, _| {})
-            .await
-            .expect("the asset arrives");
+        let bytes = match fetch(&client, &url, Vec::new(), &StopFlag::default(), |_, _| {}).await {
+            Transfer::Complete(bytes) => bytes,
+            Transfer::Failed { error, .. } => panic!("the asset arrives: {error}"),
+            Transfer::Stopped { .. } => panic!("nothing asked this transfer to stop"),
+        };
         verify(&bytes, signature, &config.pubkey).expect("the asset is the signed one");
         (bytes, version)
     });

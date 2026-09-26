@@ -1,11 +1,85 @@
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Mutex, MutexGuard};
 
 use serde::Serialize;
 use tauri_plugin_updater::Update;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
+use tokio::sync::Notify;
 
 use crate::error::AppError;
+
+/// What a running download has been asked to do.
+///
+/// These are requests rather than actions: only the transfer loop can end a
+/// transfer cleanly, so asking it is all a command can do.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Stop {
+    /// Nothing asked: run until the payload is whole.
+    Run,
+    /// Stop, and keep what has arrived so a later attempt continues from it.
+    Pause,
+    /// Stop, and drop what has arrived.
+    Cancel,
+}
+
+const RUN: u8 = 0;
+const PAUSE: u8 = 1;
+const CANCEL: u8 = 2;
+
+impl Stop {
+    fn bits(self) -> u8 {
+        match self {
+            Self::Run => RUN,
+            Self::Pause => PAUSE,
+            Self::Cancel => CANCEL,
+        }
+    }
+
+    fn from_bits(bits: u8) -> Self {
+        match bits {
+            PAUSE => Self::Pause,
+            CANCEL => Self::Cancel,
+            _ => Self::Run,
+        }
+    }
+}
+
+/// What a transfer checks between chunks, and the way a command wakes one that
+/// is waiting on a connection which has gone quiet.
+///
+/// An atomic rather than a field of the state mutex, because the transfer reads
+/// it between every chunk and the mutex belongs to the commands; the
+/// notification is what turns a stop into something felt within a moment rather
+/// than at the next byte or the read timeout.
+#[derive(Default)]
+pub struct StopFlag {
+    asked: AtomicU8,
+    changed: Notify,
+}
+
+impl StopFlag {
+    pub fn request(&self, stop: Stop) {
+        self.asked.store(stop.bits(), Ordering::SeqCst);
+        // One waiter, and the permit is kept if there is none: the transfer is
+        // either reading, in which case it wakes, or between connections, in
+        // which case it finds this before opening the next one.
+        self.changed.notify_one();
+    }
+
+    pub fn requested(&self) -> Stop {
+        Stop::from_bits(self.asked.load(Ordering::SeqCst))
+    }
+
+    pub fn clear(&self) {
+        self.asked.store(RUN, Ordering::SeqCst);
+    }
+
+    /// Resolves once something has been asked for.
+    pub async fn changed(&self) {
+        self.changed.notified().await;
+    }
+}
 
 /// Updates are published for Windows x86_64 only.
 ///
@@ -164,6 +238,10 @@ struct State {
     /// returns bytes rather than a path, so this is memory instead of an
     /// unsigned file on disk that would need cleaning up.
     installer: Option<Vec<u8>>,
+    /// What a download that was paused had arrived at. Held so continuing asks
+    /// for the rest rather than starting the whole transfer again, and dropped
+    /// the moment it stops being what the user is being offered.
+    partial: Option<Vec<u8>>,
     downloading: bool,
 }
 
@@ -176,6 +254,7 @@ pub(super) fn is_same_offer(pending: Option<&str>, offered: &str) -> bool {
 #[derive(Default)]
 pub struct UpdateControl {
     state: Mutex<State>,
+    stop: StopFlag,
 }
 
 impl UpdateControl {
@@ -185,7 +264,7 @@ impl UpdateControl {
 
     /// Records the release currently being offered. An installer downloaded for
     /// a different version is dropped: those bytes no longer answer the
-    /// question being asked.
+    /// question being asked, and neither do half of them.
     pub fn remember(&self, update: Update) {
         let mut state = self.lock();
         let pending = state
@@ -194,8 +273,69 @@ impl UpdateControl {
             .map(|pending| pending.version.as_str());
         if !is_same_offer(pending, &update.version) {
             state.installer = None;
+            state.partial = None;
         }
         state.pending = Some(update);
+    }
+
+    /// The cursor a transfer watches, so a running download can be stopped.
+    pub fn flag(&self) -> &StopFlag {
+        &self.stop
+    }
+
+    /// Forgets an earlier request, so the next download starts running rather
+    /// than stopping the moment it opens a connection.
+    pub fn clear_stop(&self) {
+        self.stop.clear();
+    }
+
+    /// Keeps what a stopped transfer had, so continuing does not fetch it
+    /// again. An empty payload is nothing to keep.
+    pub fn park_partial(&self, bytes: Vec<u8>) {
+        self.lock().partial = if bytes.is_empty() { None } else { Some(bytes) };
+    }
+
+    /// Takes the held bytes for a transfer to continue from, leaving none:
+    /// they are that transfer's until it hands them back.
+    pub fn take_partial(&self) -> Vec<u8> {
+        self.lock().partial.take().unwrap_or_default()
+    }
+
+    /// Asks a running download to pause or to stop, by the name the interface
+    /// gives it.
+    ///
+    /// Continuing is deliberately not one of these. Continuing is a download
+    /// started again from what was kept, and it needs everything starting one
+    /// needs — the gate, the signature key, the progress reporting — so it is
+    /// `install_update`, called a second time, rather than a second path here
+    /// that would have to keep all of that in step.
+    ///
+    /// A cancel that arrives with nothing running is a paused download being
+    /// dismissed, so it is answered here rather than refused: the bytes it was
+    /// keeping are what has to go.
+    pub fn action(&self, action: &str) -> Result<(), AppError> {
+        let stop = match action {
+            "pause" => Stop::Pause,
+            "cancel" => Stop::Cancel,
+            _ => {
+                return Err(AppError::new(
+                    "update.invalid_action",
+                    "Unknown update action",
+                ))
+            }
+        };
+        let mut state = self.lock();
+        if state.downloading {
+            // Asked for under the lock, so a download cannot start between the
+            // check and the request and be stopped by an action meant for the
+            // one before it.
+            self.stop.request(stop);
+        } else if stop == Stop::Cancel {
+            state.partial = None;
+        }
+        // A pause with nothing to pause asks for the state the download is
+        // already in, so there is nothing to do and nothing to complain about.
+        Ok(())
     }
 
     pub fn pending(&self) -> Result<Update, AppError> {
@@ -227,7 +367,11 @@ impl UpdateControl {
         state.installer = Some(bytes);
     }
 
-    pub fn fail_download(&self) {
+    /// The transfer is over and produced no installer: it failed, the user
+    /// paused it, or the user cancelled it. The slot is freed either way, so
+    /// what separates those outcomes is what the caller does with the bytes it
+    /// got back, not the state left here.
+    pub fn end_download(&self) {
         self.lock().downloading = false;
     }
 

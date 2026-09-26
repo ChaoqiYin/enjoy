@@ -399,6 +399,7 @@ fn main() {
             refresh_video_info,
             update::commands::check_for_update,
             update::commands::install_update,
+            update::commands::control_update,
             update::commands::restart_app
         ])
         .setup(|app| {

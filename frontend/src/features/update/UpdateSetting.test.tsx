@@ -47,12 +47,15 @@ beforeEach(async () => {
     },
     checking: false,
     downloading: false,
+    paused: false,
     progress: null,
     restarting: false,
     error: null,
     notice: null,
     checkNow: vi.fn(),
     install: vi.fn(),
+    pause: vi.fn(),
+    cancel: vi.fn(),
     restart: vi.fn(),
     dismissNotice: vi.fn(),
     dismissError: vi.fn(),
@@ -144,6 +147,50 @@ it('shows download progress while it runs', () => {
   };
   render(view());
   expect(screen.getByRole('status').textContent).toContain('512 B');
+});
+
+it('offers to pause and to cancel while the download runs', () => {
+  update.check = { ...update.check!, available: release };
+  update.downloading = true;
+  render(view());
+  fireEvent.click(screen.getByRole('button', { name: english.updatePause }));
+  expect(update.pause).toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: english.updateCancel }));
+  expect(update.cancel).toHaveBeenCalled();
+});
+
+it('offers to continue rather than to download while paused', () => {
+  // Continuing is a download started again from what was kept, so it goes
+  // through the same call the first press did.
+  update.check = { ...update.check!, available: release };
+  update.paused = true;
+  update.progress = {
+    phase: 'paused',
+    downloaded: 512,
+    total: 1024,
+    version: '0.2.0',
+  };
+  render(view());
+  expect(screen.getByRole('status').textContent).toContain(
+    english.updatePaused,
+  );
+  expect(
+    screen.queryByRole('button', { name: english.updateDownload }),
+  ).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: english.updateResume }));
+  expect(update.install).toHaveBeenCalled();
+});
+
+it('keeps how far a paused download got', () => {
+  update.paused = true;
+  update.progress = {
+    phase: 'paused',
+    downloaded: 512,
+    total: 1024,
+    version: '0.2.0',
+  };
+  render(view());
+  expect(screen.getByRole('status').textContent).toContain('512 B of 1 KB');
 });
 
 it('offers the restart once the download is verified', () => {

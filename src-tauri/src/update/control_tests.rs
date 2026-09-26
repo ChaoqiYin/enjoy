@@ -1,5 +1,5 @@
 use super::control::{
-    download_gate, install_gate, is_same_offer, published_at, ProgressThrottle, UpdateControl,
+    download_gate, install_gate, is_same_offer, published_at, ProgressThrottle, Stop, UpdateControl,
 };
 use crate::error::AppError;
 use time::{Duration, OffsetDateTime};
@@ -155,9 +155,89 @@ fn control_refuses_a_second_download_until_the_first_ends() {
     assert!(control.begin_download().is_ok());
     assert!(control.is_downloading());
     assert_eq!(control.begin_download().unwrap_err().code, "update.busy");
-    control.fail_download();
+    control.end_download();
     assert!(!control.is_downloading());
     assert!(control.begin_download().is_ok());
+}
+
+#[test]
+fn a_paused_download_hands_its_bytes_to_the_next_one() {
+    let control = UpdateControl::default();
+    control.begin_download().unwrap();
+    control.park_partial(vec![1, 2, 3]);
+    control.end_download();
+
+    // Continuing takes them rather than copying them: they belong to one
+    // transfer at a time, and a second taking would ask the server for bytes
+    // the same transfer is already holding.
+    assert_eq!(control.take_partial(), vec![1, 2, 3]);
+    assert_eq!(control.take_partial(), Vec::<u8>::new());
+}
+
+#[test]
+fn a_cancel_leaves_nothing_to_continue_from() {
+    // The transfer hands its bytes back either way; dropping them is the
+    // caller's decision, and this is the value it decides on. What is asserted
+    // here is the other half: once dropped, the next download starts over.
+    let control = UpdateControl::default();
+    control.park_partial(vec![1, 2, 3]);
+    control.park_partial(Vec::new());
+    assert_eq!(control.take_partial(), Vec::<u8>::new());
+}
+
+#[test]
+fn a_cancel_with_nothing_running_is_what_dismisses_a_pause() {
+    let control = UpdateControl::default();
+    control.park_partial(vec![1, 2, 3]);
+    control.action("cancel").unwrap();
+    assert_eq!(control.take_partial(), Vec::<u8>::new());
+}
+
+#[test]
+fn a_pause_with_nothing_running_leaves_the_kept_bytes_alone() {
+    // Nothing is running to pause, so the download is already in the state the
+    // user asked for; throwing the bytes away would turn a pause into a cancel.
+    let control = UpdateControl::default();
+    control.park_partial(vec![1, 2, 3]);
+    control.action("pause").unwrap();
+    assert_eq!(control.take_partial(), vec![1, 2, 3]);
+}
+
+#[test]
+fn an_unknown_action_is_refused() {
+    // Including "resume": continuing is a download started again, not an action
+    // on one. A name that is neither is a failure rather than a button that
+    // quietly does nothing.
+    let control = UpdateControl::default();
+    assert_eq!(
+        control.action("resume").unwrap_err().code,
+        "update.invalid_action"
+    );
+    assert_eq!(
+        control.action("").unwrap_err().code,
+        "update.invalid_action"
+    );
+}
+
+#[test]
+fn an_ask_only_reaches_a_download_that_is_running() {
+    // A pause pressed a moment after the transfer ended would otherwise be
+    // waiting for the next one, stopping it the moment it opened a connection.
+    let control = UpdateControl::default();
+    control.action("pause").unwrap();
+    assert_eq!(control.flag().requested(), Stop::Run);
+
+    control.begin_download().unwrap();
+    control.action("pause").unwrap();
+    assert_eq!(control.flag().requested(), Stop::Pause);
+    control.action("cancel").unwrap();
+    assert_eq!(control.flag().requested(), Stop::Cancel);
+
+    // And the download that follows the request forgets it, so it is not
+    // stopped by an ask meant for the transfer before it.
+    control.end_download();
+    control.clear_stop();
+    assert_eq!(control.flag().requested(), Stop::Run);
 }
 
 #[test]

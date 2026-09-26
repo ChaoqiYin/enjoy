@@ -10,6 +10,7 @@ use super::control::{
     describe, download_gate, install_gate, is_supported, ProgressThrottle, UpdateCheck,
     UpdateProgress,
 };
+use super::download::{Asked, Transfer};
 use super::{download, verify};
 
 /// Asks the release endpoint whether a newer version exists.
@@ -48,8 +49,13 @@ pub async fn check_for_update(
     })
 }
 
-/// Downloads and verifies the offered release. Progress goes out as
-/// `update-progress` events; the return value only tells the caller it ended.
+/// Downloads and verifies the offered release, continuing one that was paused.
+///
+/// Progress goes out as `update-progress` events; how the transfer ended is
+/// this call's answer. That split is deliberate — the events carry the numbers
+/// because they arrive while nothing can be answered, and the ending is
+/// answered because the section has to settle on exactly one of "ready",
+/// "paused" or "cancelled", which is not a race it should have to win.
 ///
 /// The transfer is this module's own rather than the plugin's, because the
 /// plugin's reads its response in one pass and keeps nothing when a connection
@@ -58,7 +64,10 @@ pub async fn check_for_update(
 /// the plugin used to do on the way out, which is why the payload is verified
 /// here before anything is held.
 #[tauri::command]
-pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn install_update(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<UpdateProgress, AppError> {
     let control = Arc::clone(&state.update);
     download_gate(is_supported(), control.is_downloading())?;
     let update = control.pending()?;
@@ -66,55 +75,114 @@ pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Resul
     // is not a reason to spend half an hour transferring bytes nobody can
     // accept.
     let pubkey = updater_pubkey(&app)?;
-    control.begin_download()?;
-
     let user_agent = format!("Enjoy/{}", app.package_info().version);
+    // Still before anything is taken from the paused download: a client that
+    // cannot be built would otherwise consume those bytes on its way out.
     let client = download::client(&user_agent)
         .map_err(|error| AppError::new("update.download_failed", error))?;
+    control.begin_download()?;
+    // A stop asked for before this download started — or while the last one was
+    // unwinding — is not this one's business.
+    control.clear_stop();
+    // What a paused download arrived at. Empty when there is nothing to
+    // continue, which is the same thing as starting from the beginning.
+    let from = control.take_partial();
+
     let version = update.version.clone();
     let events = app.clone();
     let mut throttle = ProgressThrottle::default();
-    let bytes = match download::fetch(&client, &update.download_url, |downloaded, total| {
-        if throttle.should_emit(downloaded, total) {
-            let _ = events.emit(
-                "update-progress",
-                UpdateProgress {
-                    phase: "downloading".into(),
-                    downloaded,
-                    total,
-                    version: version.clone(),
-                },
-            );
-        }
-    })
-    .await
-    {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            control.fail_download();
-            return Err(AppError::new("update.download_failed", error));
-        }
-    };
-
-    if let Err(reason) = verify::verify(&bytes, &update.signature, &pubkey) {
-        control.fail_download();
-        // Its own code, not the download's: the bytes arrived and are not the
-        // ones that were signed, which is a different answer to give the user
-        // than a connection that never finished.
-        return Err(AppError::new("update.verify_failed", reason));
-    }
-
-    control.finish_download(bytes);
-    let _ = app.emit(
-        "update-progress",
-        UpdateProgress {
-            phase: "ready".into(),
-            downloaded: 0,
-            total: None,
-            version,
+    let transfer = download::fetch(
+        &client,
+        &update.download_url,
+        from,
+        control.flag(),
+        |downloaded, total| {
+            if throttle.should_emit(downloaded, total) {
+                let _ = events.emit(
+                    "update-progress",
+                    UpdateProgress {
+                        phase: "downloading".into(),
+                        downloaded,
+                        total,
+                        version: version.clone(),
+                    },
+                );
+            }
         },
-    );
-    Ok(())
+    )
+    .await;
+
+    match transfer {
+        Transfer::Complete(bytes) => {
+            if let Err(reason) = verify::verify(&bytes, &update.signature, &pubkey) {
+                control.end_download();
+                // Its own code, not the download's: the bytes arrived and are
+                // not the ones that were signed, which is a different answer to
+                // give the user than a connection that never finished.
+                return Err(AppError::new("update.verify_failed", reason));
+            }
+            control.finish_download(bytes);
+            Ok(ended("ready", 0, None, version))
+        }
+        Transfer::Stopped {
+            asked,
+            bytes,
+            total,
+        } => {
+            control.end_download();
+            match asked {
+                Asked::Pause => {
+                    // Kept, so pressing download again asks for the rest rather
+                    // than fetching the whole release over — which on the link
+                    // this exists for is the difference between finishing and
+                    // never finishing.
+                    let downloaded = bytes.len() as u64;
+                    control.park_partial(bytes);
+                    Ok(ended("paused", downloaded, total, version))
+                }
+                Asked::Cancel => {
+                    // Dropped, and dropped here rather than left for the next
+                    // download: bytes are only worth resuming if nobody said to
+                    // throw them away, and the user just did.
+                    control.park_partial(Vec::new());
+                    Ok(ended("cancelled", 0, None, version))
+                }
+            }
+        }
+        Transfer::Failed { error, bytes } => {
+            control.end_download();
+            // Kept rather than dropped, so pressing download again carries on
+            // from here. A failure on this link is expected rather than
+            // exceptional, and starting from nothing each time is what would
+            // make a release of this size unreachable.
+            control.park_partial(bytes);
+            Err(AppError::new("update.download_failed", error))
+        }
+    }
+}
+
+/// The ending, in the shape the progress events already carry, so the section
+/// reads one type for the numbers and for the outcome.
+fn ended(phase: &str, downloaded: u64, total: Option<u64>, version: String) -> UpdateProgress {
+    UpdateProgress {
+        phase: phase.into(),
+        downloaded,
+        total,
+        version,
+    }
+}
+
+/// Pauses or cancels the download that is running.
+///
+/// Named the way the scan's control command is, and for the same reason: the
+/// frontend names the action, and an unknown name is refused rather than
+/// ignored, so a typo is a failure a test can see instead of a button that
+/// silently does nothing. Continuing is not one of these — it is
+/// `install_update` again, which is where the gate, the key and the progress
+/// reporting already are.
+#[tauri::command]
+pub fn control_update(action: String, state: State<'_, AppState>) -> Result<(), AppError> {
+    state.update.action(&action)
 }
 
 /// The key a release's signature has to answer to.

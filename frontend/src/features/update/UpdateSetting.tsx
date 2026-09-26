@@ -19,6 +19,15 @@ export function UpdateSetting() {
   // backend refuses this outright; disabling here is only so the user is not
   // invited to press a button that cannot work.
   const scanning = isScanRunning(library.scan.data);
+  // The same vocabulary the scan's progress block uses, so pausing, continuing
+  // and cancelling mean the same thing wherever they appear. Continuing is not
+  // a control sent to the backend: it is the download started again from what
+  // was kept, which is the call the first press made.
+  const control = (action: 'pause' | 'resume' | 'cancel') => {
+    if (action === 'pause') update.pause();
+    else if (action === 'cancel') update.cancel();
+    else update.install();
+  };
   return (
     <section className="border-b border-base-300 pb-5 space-y-3">
       <div className="flex w-full items-center justify-between gap-8 max-md:flex-col max-md:items-start">
@@ -46,9 +55,18 @@ export function UpdateSetting() {
         </button>
       </div>
 
-      {update.downloading && <UpdateProgressBlock progress={update.progress} />}
+      {(update.downloading || update.paused) && (
+        <UpdateProgressBlock
+          progress={update.progress}
+          paused={update.paused}
+          onAction={control}
+        />
+      )}
 
-      {available && !update.downloading && (
+      {/* The offer and the progress block are alternatives: while a download is
+          running or paused, the buttons it needs are the ones in that block,
+          and a download button beside them would offer to start a second. */}
+      {available && !update.downloading && !update.paused && (
         <div className="space-y-3">
           {/* The button stays on the version line rather than below the notes:
               a long release would otherwise push it out of the viewport, and
@@ -128,16 +146,24 @@ function ReleaseNotes({ available }: { available: AvailableUpdate }) {
 
 function UpdateProgressBlock({
   progress,
+  paused,
+  onAction,
 }: {
   progress: UpdateProgress | null;
+  paused: boolean;
+  onAction: (action: 'pause' | 'resume' | 'cancel') => void;
 }) {
   const { t, i18n } = useTranslation();
   const downloaded = progress?.downloaded ?? 0;
   const total = progress?.total ?? null;
   const ratio = progressRatio(downloaded, total);
-  const label = t('updateDownloading');
+  const label = t(paused ? 'updatePaused' : 'updateDownloading');
   return (
-    <div role="status" className="rounded-box bg-base-200 p-4 space-y-3">
+    <div
+      role="status"
+      aria-live="polite"
+      className="rounded-box bg-base-200 p-4 space-y-3"
+    >
       <p>{label}</p>
       {ratio === null ? (
         <span
@@ -170,6 +196,27 @@ function UpdateProgressBlock({
               total: formatBytes(total, i18n.language),
             })}
       </p>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          className={
+            paused
+              ? 'btn btn-soft btn-md btn-success'
+              : 'btn btn-soft btn-md btn-warning'
+          }
+          onClick={() => onAction(paused ? 'resume' : 'pause')}
+        >
+          {paused ? t('updateResume') : t('updatePause')}
+        </button>
+        {/* Neutral rather than the scan's error red: cancelling a download
+            throws away a transfer, not anything the user has to be warned
+            about, and the bytes can be fetched again. */}
+        <button
+          className="btn btn-soft btn-md btn-neutral"
+          onClick={() => onAction('cancel')}
+        >
+          {t('updateCancel')}
+        </button>
+      </div>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import type {
   ScanStatus,
   Space,
   UpdateCheck,
+  UpdateProgress,
   Video,
 } from '../src/shared/api';
 import type { SettingsState } from '../src/settings/SettingsProvider';
@@ -89,6 +90,23 @@ let updateCheck: UpdateCheck = {
   available: null,
   readyToRestart: false,
 };
+
+/**
+ * The transfer the acceptance page is in the middle of, if any, and how far it
+ * has got.
+ *
+ * A real download answers only when it ends, so this holds the command's
+ * promise open and lets `control_update` settle it the way the backend would.
+ * Without that the pause, continue and cancel buttons could not be walked at
+ * all: the section only shows them while a transfer is running, and nothing
+ * short of a real 89 MB release makes one run.
+ */
+let transfer: {
+  version: string;
+  downloaded: number;
+  total: number;
+  settle: (ended: UpdateProgress) => void;
+} | null = null;
 mockConvertFileSrc('macos');
 Object.defineProperty(window, 'isTauri', { value: true });
 mockIPC(
@@ -158,7 +176,10 @@ mockIPC(
       }
       case 'list_videos': {
         const held = favoritesOf(Number(payload.spaceId));
-        return videos.map((video) => ({ ...video, favorite: held.has(video.id) }));
+        return videos.map((video) => ({
+          ...video,
+          favorite: held.has(video.id),
+        }));
       }
       case 'list_directories':
         return ['/acceptance/Movies', '/acceptance/Archive'];
@@ -180,7 +201,42 @@ mockIPC(
       }
       case 'check_for_update':
         return { ...updateCheck };
-      case 'install_update':
+      case 'install_update': {
+        // Continuing a paused download is this same command, so a second press
+        // arrives here and opens a fresh transfer rather than a resumed one --
+        // close enough for a walkthrough of the buttons, which is what this
+        // entry is for.
+        const version =
+          updateCheck.available?.version ?? updateCheck.currentVersion;
+        const held = { version, downloaded: 12_000_000, total: 42_000_000 };
+        void emit('update-progress', { phase: 'downloading', ...held });
+        return new Promise<UpdateProgress>((resolve) => {
+          transfer = { ...held, settle: resolve };
+        });
+      }
+      case 'control_update': {
+        const held = transfer;
+        transfer = null;
+        // Nothing running means a paused download is being dismissed, which is
+        // exactly what the backend answers with no transfer to tell.
+        if (!held) return;
+        held.settle(
+          payload.action === 'pause'
+            ? {
+                phase: 'paused',
+                downloaded: held.downloaded,
+                total: held.total,
+                version: held.version,
+              }
+            : {
+                phase: 'cancelled',
+                downloaded: 0,
+                total: null,
+                version: held.version,
+              },
+        );
+        return;
+      }
       case 'restart_app':
         return;
       default:
@@ -202,11 +258,11 @@ Object.assign(window, {
       };
       await emit('scan-progress', scan);
     },
-    // Covers the four shapes the update section can render. Nothing is checked
-    // at startup, so press "Check for updates" first and call this after it:
-    // the section renders from the answer that press brings back. The "ready"
-    // event only marks a version a check has already reported, so emit it
-    // after that press too.
+    // Covers the four shapes the update section can render from a check.
+    // Nothing is checked at startup, so press "Check for updates" first and
+    // call this after it: the section renders from the answer that press brings
+    // back. The progress and paused shapes are not here — they belong to a
+    // transfer, so press "Download" and then "Pause" to see those.
     setUpdate: async (
       state: 'none' | 'available' | 'ready' | 'unsupported',
     ) => {
@@ -222,14 +278,6 @@ Object.assign(window, {
         available: state === 'available' || state === 'ready' ? release : null,
         readyToRestart: state === 'ready',
       };
-      if (state === 'ready') {
-        await emit('update-progress', {
-          phase: 'ready',
-          downloaded: 0,
-          total: null,
-          version: release.version,
-        });
-      }
     },
   },
 });
