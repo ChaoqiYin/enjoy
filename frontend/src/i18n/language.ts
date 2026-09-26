@@ -8,23 +8,25 @@ import chineseErrors from '../../../shared/locales/zh-CN/errors.json';
 
 let languageRevision = 0;
 let pendingLanguageSaves = 0;
-let cachedSettings: LanguageSettings | null = null;
 
 export interface LanguageSettings {
   preference: 'system' | 'zh-CN' | 'en';
   language: 'zh-CN' | 'en';
 }
 
+// Reads the language resolved now, and deliberately remembers nothing between
+// calls: follow-system mode resolves the system language again every time the
+// app regains focus (baseline §10.1), so answering out of a cache would pin the
+// interface to whichever language happened to be read first.
 export async function readLanguage(): Promise<LanguageSettings> {
-  if (cachedSettings) return cachedSettings;
   if (!isTauri())
-    return (cachedSettings = {
+    return {
       preference: 'system',
       language: navigator.language.toLowerCase().startsWith('zh')
         ? 'zh-CN'
         : 'en',
-    });
-  return (cachedSettings = await invoke<LanguageSettings>('get_language'));
+    };
+  return invoke<LanguageSettings>('get_language');
 }
 
 export async function initializeLanguage() {
@@ -59,7 +61,6 @@ export async function saveLanguage(preference: LanguageSettings['preference']) {
 }
 
 export async function applyLanguage(settings: LanguageSettings) {
-  cachedSettings = settings;
   await i18n.changeLanguage(settings.language);
   document.documentElement.lang = settings.language;
 }
@@ -69,8 +70,4 @@ export async function synchronizeLanguage() {
   const revision = ++languageRevision;
   const settings = await readLanguage();
   if (revision === languageRevision) await applyLanguage(settings);
-}
-
-export function getCachedLanguagePreference(): LanguageSettings['preference'] {
-  return cachedSettings?.preference ?? 'system';
 }

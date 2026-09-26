@@ -89,3 +89,23 @@ it('restores focus synchronization after a failed preference save', async () => 
   await synchronizeLanguage();
   expect(i18n.language).toBe('zh-CN');
 });
+
+// The baseline (§10.1) has follow-system mode resolve the system language
+// again whenever the app regains focus, and a synchronisation is how that
+// arrives. Replaying the previous answer instead would leave the interface on
+// the system language it started with until the next launch.
+it('asks for the system language again on every synchronisation', async () => {
+  vi.mocked(invoke).mockResolvedValueOnce({
+    preference: 'system',
+    language: 'zh-CN',
+  });
+  await synchronizeLanguage();
+  expect(i18n.language).toBe('zh-CN');
+  vi.mocked(invoke).mockResolvedValueOnce({
+    preference: 'system',
+    language: 'en',
+  });
+  await synchronizeLanguage();
+  expect(invoke).toHaveBeenCalledTimes(2);
+  expect(i18n.language).toBe('en');
+});
