@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod error;
 mod i18n;
+mod logging;
 mod media;
 mod model;
 mod player;
@@ -367,11 +368,6 @@ fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError> {
 }
 
 fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
-        .init();
     tauri::Builder::default()
         .enable_macos_default_menu(false)
         .plugin(tauri_plugin_dialog::init())
@@ -406,6 +402,10 @@ fn main() {
             update::commands::restart_app
         ])
         .setup(|app| {
+            // First, so that a failure below is written down. The log file
+            // needs the application data folder, which only exists once there
+            // is an application to ask, so this cannot happen any earlier.
+            logging::init(app.handle());
             app.manage(language::load(app.handle()));
             let result = initialize_backend(app.handle());
             if let Err(error) = result {
