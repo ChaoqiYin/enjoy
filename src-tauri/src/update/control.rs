@@ -2,6 +2,8 @@ use std::sync::{Mutex, MutexGuard};
 
 use serde::Serialize;
 use tauri_plugin_updater::Update;
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 
 use crate::error::AppError;
 
@@ -22,7 +24,9 @@ pub struct AvailableUpdate {
     pub version: String,
     pub current_version: String,
     pub notes: Option<String>,
-    /// RFC 3339. The frontend formats it for the current language.
+    /// RFC 3339, which is the one string form the frontend turns back into an
+    /// instant; it then formats that for the current language. See
+    /// [`published_at`] for why this is not simply the date's own rendering.
     pub date: Option<String>,
 }
 
@@ -50,12 +54,29 @@ pub struct UpdateProgress {
     pub version: String,
 }
 
+/// The publish date in the form the frontend parses.
+///
+/// `Update::date` is a `time::OffsetDateTime`, and its own rendering is not RFC
+/// 3339: it comes out as `2026-09-26 14:34:10.0 +00:00:00`. JavaScript's `Date`
+/// reads none of that — an offset carrying seconds is enough to fail on its own
+/// — so `to_string` would hand the frontend an unreadable date. Formatting the
+/// instant here, where its type is known, is what keeps the string on the wire
+/// the same shape the release manifest arrived in.
+///
+/// A date that cannot be written is dropped rather than sent in another form:
+/// the frontend renders what it can read and leaves the line out otherwise, and
+/// a release note without its date is worth more than a screen that fails to
+/// draw. Only years outside RFC 3339's range can fail, which no release has.
+pub(super) fn published_at(date: Option<OffsetDateTime>) -> Option<String> {
+    date.and_then(|date| date.format(&Rfc3339).ok())
+}
+
 pub fn describe(update: &Update) -> AvailableUpdate {
     AvailableUpdate {
         version: update.version.clone(),
         current_version: update.current_version.clone(),
         notes: update.body.clone(),
-        date: update.date.map(|date| date.to_string()),
+        date: published_at(update.date),
     }
 }
 

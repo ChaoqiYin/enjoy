@@ -5,7 +5,7 @@ import type { AvailableUpdate, UpdateProgress } from '../../shared/api';
 import { useLibraryContext } from '../library/LibraryProvider';
 import { isScanRunning } from '../library/scanFeedback';
 import { useUpdateContext } from './UpdateProvider';
-import { formatBytes, progressRatio } from './updateFormat';
+import { formatBytes, formatReleaseDate, progressRatio } from './updateFormat';
 
 export function UpdateSetting() {
   const { t } = useTranslation();
@@ -96,16 +96,17 @@ export function UpdateSetting() {
  */
 function ReleaseNotes({ available }: { available: AvailableUpdate }) {
   const { t, i18n } = useTranslation();
-  if (!available.date && !available.notes) return null;
+  const released = available.date
+    ? formatReleaseDate(available.date, i18n.language)
+    : null;
+  // An unreadable date costs its own line and nothing else: the notes below it
+  // are what the download decision rests on, and they do not depend on it.
+  if (!released && !available.notes) return null;
   return (
     <div className="space-y-2">
-      {available.date && (
+      {released && (
         <p className="text-sm opacity-65">
-          {t('updateReleasedAt', {
-            date: new Intl.DateTimeFormat(i18n.language, {
-              dateStyle: 'medium',
-            }).format(new Date(available.date)),
-          })}
+          {t('updateReleasedAt', { date: released })}
         </p>
       )}
       {available.notes && (

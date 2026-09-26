@@ -118,6 +118,21 @@ it('shows what the release contains before the download is offered', () => {
   expect(screen.getByText(/Released/)).toBeTruthy();
 });
 
+it('keeps the release when its date is not one it can read', () => {
+  // The date arrives off the network. Formatting one that cannot be parsed
+  // used to throw from inside this render, and a throw that no boundary catches
+  // unmounts the whole tree, so a bad date cost the entire window rather than
+  // the line it belongs to.
+  update.check = {
+    ...update.check!,
+    available: { ...release, date: '2026-09-01 00:00:00.0 +00:00:00' },
+  };
+  render(view());
+  expect(screen.getByText(english.updateNotes)).toBeTruthy();
+  expect(screen.getByText(/Faster thumbnail generation\./)).toBeTruthy();
+  expect(screen.queryByText(/Released/)).toBeNull();
+});
+
 it('shows download progress while it runs', () => {
   update.check = { ...update.check!, available: release };
   update.downloading = true;

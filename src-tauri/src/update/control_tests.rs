@@ -1,10 +1,30 @@
 use super::control::{
-    download_gate, install_gate, is_same_offer, DownloadTracker, ProgressThrottle, UpdateControl,
+    download_gate, install_gate, is_same_offer, published_at, DownloadTracker, ProgressThrottle,
+    UpdateControl,
 };
 use crate::error::AppError;
+use time::OffsetDateTime;
 
 fn code(result: Result<(), AppError>) -> String {
     result.unwrap_err().code
+}
+
+#[test]
+fn a_published_date_is_written_as_rfc3339() {
+    // `OffsetDateTime`'s own rendering is not a date JavaScript reads, and the
+    // settings page formats this string while rendering: sending the rendering
+    // would leave the frontend with an invalid date, which throws and takes the
+    // whole window down with it.
+    let date = OffsetDateTime::from_unix_timestamp(1_756_000_000).unwrap();
+    assert_eq!(
+        published_at(Some(date)).as_deref(),
+        Some("2025-08-24T01:46:40Z")
+    );
+}
+
+#[test]
+fn a_release_without_a_date_sends_none() {
+    assert_eq!(published_at(None), None);
 }
 
 #[test]
