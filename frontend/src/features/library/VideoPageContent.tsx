@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderPlus } from 'lucide-react';
-import { libraryApi } from '../../shared/api';
 import type { AppError, Video } from '../../shared/api';
 import { displayPath } from '../../shared/format';
 import { Drawer } from '../../shared/Drawer';
@@ -59,17 +58,6 @@ export function VideoPageContent({
     library.videos.data,
     library.setError,
   ]);
-  // The marker is written after the call resolves, not beside the click: a
-  // launch that never reached the system player raises instead, `run` turns
-  // that into a notice, and the card keeps whatever marker it had — the same
-  // rule the record follows, where a failed launch does not count as a play.
-  const play = (video: Video) =>
-    library.run(async () => {
-      await libraryApi.play(video.path);
-      library.markPlayed(video.id);
-    });
-  const favorite = (video: Video) =>
-    library.run(() => libraryApi.favorite(video.path, !video.favorite));
   const copyPath = async (video: Video) => {
     if (!navigator.clipboard) {
       library.setError(clientError('app.clipboard.failed'));
@@ -86,9 +74,9 @@ export function VideoPageContent({
     }
   };
   const actions = {
-    play,
-    favorite,
-    reveal: (video: Video) => library.run(() => libraryApi.reveal(video.path)),
+    play: library.play,
+    favorite: library.toggleFavorite,
+    reveal: library.reveal,
     remove: (video: Video) => {
       setDetailsOpen(false);
       setRemove(video);
@@ -98,10 +86,8 @@ export function VideoPageContent({
       setDetailsOpen(true);
     },
     copyPath,
-    regenerate: (video: Video) =>
-      library.run(() => libraryApi.regenerate(video.path)),
-    refreshInfo: (video: Video) =>
-      library.run(() => libraryApi.refreshInfo(video.path)),
+    regenerate: library.regenerateThumbnail,
+    refreshInfo: library.refreshInfo,
   };
   return (
     <>
@@ -171,7 +157,7 @@ export function VideoPageContent({
           video={remove}
           onCancel={() => setRemove(null)}
           onConfirm={() => {
-            void library.run(() => libraryApi.remove(remove.path));
+            void library.removeVideo(remove);
             setRemove(null);
           }}
         />

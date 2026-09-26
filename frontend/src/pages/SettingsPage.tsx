@@ -5,7 +5,6 @@ import { LanguageSetting } from '../i18n/LanguageSetting';
 import { ThemeSetting } from '../theme/ThemeSetting';
 import { ConfirmTooltip } from '../shared/ConfirmTooltip';
 import { ScrollViewport } from '../shared/ScrollViewport';
-import { libraryApi } from '../shared/api';
 import { displayPath } from '../shared/format';
 import { useLibraryContext } from '../features/library/LibraryProvider';
 import { DirectoryActions } from '../features/library/DirectoryActions';
@@ -23,7 +22,7 @@ export function SettingsPage() {
       setShowEmptyRescan(true);
       return;
     }
-    void library.run(libraryApi.rescan);
+    void library.rescan();
   };
   return (
     <PageFrame>
@@ -43,9 +42,7 @@ export function SettingsPage() {
               confirmLabel={t('confirm')}
               cancelLabel={t('cancel')}
               disabled={library.busy}
-              onConfirm={() =>
-                library.run(() => libraryApi.removeDirectory(path))
-              }
+              onConfirm={() => library.removeDirectory(path)}
             >
               <button
                 className="btn btn-outline btn-xs btn-square btn-error"
@@ -61,9 +58,7 @@ export function SettingsPage() {
           busy={library.busy}
           onAdd={() => setShowAdd(true)}
           onRescan={rescan}
-          onRegenerate={() =>
-            void library.run(() => libraryApi.regenerate(null))
-          }
+          onRegenerate={() => void library.regenerateAllThumbnails()}
         />
         <h2 className="text-xl">{t('about')}</h2>
         <UpdateSetting />
@@ -78,7 +73,7 @@ export function SettingsPage() {
           onCancel={() => setShowEmptyRescan(false)}
           onConfirm={() => {
             setShowEmptyRescan(false);
-            void library.run(libraryApi.rescan);
+            void library.rescan();
           }}
         />
       )}

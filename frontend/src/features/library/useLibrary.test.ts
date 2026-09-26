@@ -5,7 +5,7 @@ import { createElement } from 'react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { libraryApi } from '../../shared/api';
-import type { ScanStatus } from '../../shared/api';
+import type { ScanStatus, Video } from '../../shared/api';
 import { useLibrary } from './useLibrary';
 
 vi.mock('@tauri-apps/api/event', () => ({
@@ -16,12 +16,31 @@ const failure = {
   params: {},
   errorId: 'err_retry',
 };
+const video: Video = {
+  id: 7,
+  path: '/movies/example.mp4',
+  file_name: 'example.mp4',
+  folder_path: '/movies',
+  file_size: 1024,
+  modified_at: 0,
+  duration_ms: 65000,
+  width: 1920,
+  height: 1080,
+  codec: 'h264',
+  thumbnail_path: null,
+  favorite: false,
+  play_count: 0,
+  last_played_at: null,
+  created_at: 0,
+  updated_at: 0,
+};
 let client: QueryClient;
 beforeEach(() => {
   vi.mocked(listen).mockResolvedValue(() => {});
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   vi.spyOn(libraryApi, 'list').mockResolvedValue([]);
   vi.spyOn(libraryApi, 'directories').mockResolvedValue([]);
+  vi.spyOn(libraryApi, 'rescan').mockResolvedValue([]);
   vi.spyOn(libraryApi, 'scanStatus').mockResolvedValue({
     background: false,
     phase: 'idle',
@@ -48,16 +67,14 @@ function mount() {
   });
 }
 it('retries the failed action and clears its error after success', async () => {
+  const rescan = vi.mocked(libraryApi.rescan);
+  rescan.mockRejectedValueOnce(failure).mockResolvedValueOnce([]);
   const { result } = mount();
-  const action = vi
-    .fn()
-    .mockRejectedValueOnce(failure)
-    .mockResolvedValueOnce(undefined);
-  await act(() => result.current.run(action));
+  await act(() => result.current.rescan());
   expect(result.current.error?.errorId).toBe('err_retry');
-  expect(action).toHaveBeenCalledTimes(1);
+  expect(rescan).toHaveBeenCalledTimes(1);
   await act(() => result.current.retryError!());
-  expect(action).toHaveBeenCalledTimes(2);
+  expect(rescan).toHaveBeenCalledTimes(2);
   expect(result.current.error).toBeNull();
   expect(result.current.busy).toBe(false);
 });
@@ -103,6 +120,24 @@ it('clears the previous completion notice when a new action starts', async () =>
   await waitFor(() => expect(handlers.has('scan-progress')).toBe(true));
   act(() => handlers.get('scan-progress')!({ payload: completed }));
   expect(result.current.completion?.phase).toBe('complete');
-  await act(() => result.current.run(() => Promise.resolve()));
+  await act(() => result.current.rescan());
   expect(result.current.completion).toBeNull();
+});
+
+it('marks the video the launch reached the player for', async () => {
+  const play = vi.spyOn(libraryApi, 'play').mockResolvedValue(undefined);
+  const { result } = mount();
+  await act(() => result.current.play(video));
+  expect(play).toHaveBeenCalledWith(video.path);
+  expect(result.current.lastPlayedId).toBe(video.id);
+});
+
+it('leaves the played marker alone when the launch fails', async () => {
+  vi.spyOn(libraryApi, 'play').mockRejectedValue(failure);
+  const { result } = mount();
+  await act(() => result.current.play(video));
+  // The marker follows the record, which counts only a launch that reached the
+  // player; a rejected one is a notice, not a play.
+  expect(result.current.lastPlayedId).toBeNull();
+  expect(result.current.error?.errorId).toBe('err_retry');
 });

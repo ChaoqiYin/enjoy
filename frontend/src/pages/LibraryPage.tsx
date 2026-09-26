@@ -8,7 +8,6 @@ import { DirectoryActions } from '../features/library/DirectoryActions';
 import { DirectoryDialog } from '../features/library/DirectoryDialog';
 import { useLibraryContext } from '../features/library/LibraryProvider';
 import { EmptyRescanConfirmation } from '../features/library/EmptyRescanConfirmation';
-import { libraryApi } from '../shared/api';
 export function LibraryPage() {
   const { t } = useTranslation();
   const view = useVideoPageView('/');
@@ -30,7 +29,7 @@ export function LibraryPage() {
                 setShowEmptyRescan(true);
                 return;
               }
-              void library.run(libraryApi.rescan);
+              void library.rescan();
             }}
           />
         }
@@ -51,7 +50,7 @@ export function LibraryPage() {
           onCancel={() => setShowEmptyRescan(false)}
           onConfirm={() => {
             setShowEmptyRescan(false);
-            void library.run(libraryApi.rescan);
+            void library.rescan();
           }}
         />
       )}

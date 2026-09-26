@@ -9,13 +9,16 @@ import english from '../../../shared/locales/en/common.json';
 
 vi.mock('../features/library/useLibrary', () => ({
   useLibrary: () => ({
-    run: async (action: () => Promise<unknown>) => action(),
     videos: { data: [], isPending: false },
     directories: { data: [] },
     scan: { data: undefined },
     busy: false,
     error: null,
     completion: null,
+    addDirectories: async () => {},
+    removeDirectory: async () => {},
+    regenerateAllThumbnails: async () => {},
+    rescan: async () => {},
   }),
 }));
 vi.mock('../i18n/LanguageSetting', () => ({

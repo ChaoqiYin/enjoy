@@ -33,35 +33,29 @@ const video: Video = {
   updated_at: 0,
 };
 
-const { library, api } = vi.hoisted(() => {
+const { library } = vi.hoisted(() => {
   const library = {
     videos: { data: [] as Video[], isPending: false },
     scan: { data: undefined as ScanStatus | undefined },
     busy: false,
-    run: vi.fn(),
     setError: vi.fn(),
     copyHint: false,
     showCopyHint: vi.fn(),
     dismissCopyHint: vi.fn(),
     lastPlayedId: null as number | null,
-    markPlayed: vi.fn(),
-  };
-  const api = {
     play: vi.fn(),
-    favorite: vi.fn(),
+    toggleFavorite: vi.fn(),
     reveal: vi.fn(),
-    remove: vi.fn(),
-    regenerate: vi.fn(),
+    removeVideo: vi.fn(),
+    regenerateThumbnail: vi.fn(),
     refreshInfo: vi.fn(),
   };
-  return { library, api };
+  return { library };
 });
 
 vi.mock('./LibraryProvider', () => ({
   useLibraryContext: () => library,
 }));
-
-vi.mock('../../shared/api', () => ({ libraryApi: api }));
 
 vi.mock('./VirtualVideos', () => ({
   VirtualVideos: (props: {
@@ -84,22 +78,19 @@ beforeEach(async () => {
   library.videos.isPending = false;
   library.scan.data = undefined;
   library.busy = false;
-  // The real `run` reports a failure as a notice and resolves, so the stub does
-  // the same. What it must not do is skip the action: whether the marker is
-  // written is decided inside it, after the launch resolves.
-  library.run
-    .mockReset()
-    .mockImplementation(async (action: () => Promise<unknown>) => {
-      try {
-        await action();
-      } catch (cause) {
-        library.setError(cause);
-      }
-    });
-  library.markPlayed.mockReset();
   library.setError.mockReset();
   library.showCopyHint.mockReset();
-  api.play.mockReset().mockResolvedValue(undefined);
+  // What each action does with its argument is the library's business and is
+  // covered where the library is; here they only have to be observable.
+  for (const action of [
+    library.play,
+    library.toggleFavorite,
+    library.reveal,
+    library.removeVideo,
+    library.regenerateThumbnail,
+    library.refreshInfo,
+  ])
+    action.mockReset();
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -164,24 +155,14 @@ it('surfaces a notification when copying the path fails', async () => {
   expect(library.showCopyHint).not.toHaveBeenCalled();
 });
 
-it('marks the video the launch reached the player for', async () => {
+// What a launch does to the record and the marker is the library's rule and is
+// covered beside the library; the page's job is to name the video, not to carry
+// the command.
+it('asks the library to play the video the click landed on', () => {
   render(page());
   fireEvent.click(screen.getByRole('button', { name: video.file_name }));
   fireEvent.click(screen.getByRole('button', { name: english.play }));
-  await waitFor(() =>
-    expect(library.markPlayed).toHaveBeenCalledWith(video.id),
-  );
-});
-
-it('leaves the played marker alone when the launch fails', async () => {
-  api.play.mockRejectedValue({ code: 'media.player.start_failed' });
-  render(page());
-  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
-  fireEvent.click(screen.getByRole('button', { name: english.play }));
-  // The marker follows the record, which counts only a launch that reached the
-  // player; a rejected one is a notice, not a play.
-  await waitFor(() => expect(library.setError).toHaveBeenCalled());
-  expect(library.markPlayed).not.toHaveBeenCalled();
+  expect(library.play).toHaveBeenCalledWith(video);
 });
 
 it('closes the drawer and notifies when a rescan removes the video', async () => {

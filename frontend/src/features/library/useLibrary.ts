@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { libraryApi, normalizeError } from '../../shared/api';
-import type { AppError, ScanStatus } from '../../shared/api';
+import type { AppError, ScanStatus, Video } from '../../shared/api';
 import { shouldAnnounceScan } from './scanFeedback';
 
 export function useLibrary() {
@@ -114,6 +114,38 @@ export function useLibrary() {
     }
   }
 
+  // Every operation the interface can ask of the library. They live here, beside
+  // the state they move, because a page should know *what* to do — play this
+  // video, rescan the library — and not which command carries it. Keeping the
+  // translation in one place is also what lets a change to the transport, such
+  // as a space id on every command, touch only this file.
+  const play = (video: Video) =>
+    // The marker is written after the call resolves, not beside the click: a
+    // launch that never reached the system player raises instead, `run` turns
+    // that into a notice, and the card keeps whatever marker it had — the same
+    // rule the record follows, where a failed launch does not count as a play.
+    run(async () => {
+      await libraryApi.play(video.path);
+      setLastPlayedId(video.id);
+    });
+  const toggleFavorite = (video: Video) =>
+    run(() => libraryApi.favorite(video.path, !video.favorite));
+  const reveal = (video: Video) => run(() => libraryApi.reveal(video.path));
+  const refreshInfo = (video: Video) =>
+    run(() => libraryApi.refreshInfo(video.path));
+  const regenerateThumbnail = (video: Video) =>
+    run(() => libraryApi.regenerate(video.path));
+  const regenerateAllThumbnails = () => run(() => libraryApi.regenerate(null));
+  const removeVideo = (video: Video) =>
+    run(() => libraryApi.remove(video.path));
+  const addDirectories = (paths: string[]) =>
+    run(async () => {
+      for (const path of paths) await libraryApi.addDirectory(path);
+    });
+  const removeDirectory = (path: string) =>
+    run(() => libraryApi.removeDirectory(path));
+  const rescan = () => run(() => libraryApi.rescan());
+
   async function controlScan(action: 'pause' | 'resume' | 'cancel') {
     try {
       await libraryApi.controlScan(action);
@@ -140,7 +172,6 @@ export function useLibrary() {
     showCopyHint: () => setCopyHint(true),
     dismissCopyHint: () => setCopyHint(false),
     lastPlayedId,
-    markPlayed: (id: number) => setLastPlayedId(id),
     directories,
     scan,
     busy,
@@ -153,7 +184,16 @@ export function useLibrary() {
       if (value === null)
         setDismissedQueryErrors([videos.error, directories.error, scan.error]);
     },
-    run,
+    play,
+    toggleFavorite,
+    reveal,
+    refreshInfo,
+    regenerateThumbnail,
+    regenerateAllThumbnails,
+    removeVideo,
+    addDirectories,
+    removeDirectory,
+    rescan,
     controlScan,
   };
 }
