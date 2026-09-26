@@ -121,7 +121,7 @@
   "updateChecking": "正在检查更新…",
   "updateUpToDate": "已是最新版本。",
   "updateUnsupported": "自动更新仅在 Windows 版提供。",
-  "updateAvailable": "发现新版本 {{version}}。",
+  "updateAvailable": "发现新版本 {{version}}",
   "updateNotes": "更新内容",
   "updateReleasedAt": "发布于 {{date}}",
   "updateDownload": "下载",

@@ -121,7 +121,7 @@
   "updateChecking": "Checking for updates…",
   "updateUpToDate": "You have the latest version.",
   "updateUnsupported": "Automatic updates are available in the Windows version only.",
-  "updateAvailable": "Version {{version}} is available.",
+  "updateAvailable": "Version {{version}} is available",
   "updateNotes": "What's new",
   "updateReleasedAt": "Released {{date}}",
   "updateDownload": "Download",

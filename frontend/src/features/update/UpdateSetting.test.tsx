@@ -103,7 +103,7 @@ it('writes no outcome into the section', () => {
 it('offers the download once a newer version is known', () => {
   update.check = { ...update.check!, available: release };
   render(view());
-  expect(screen.getByText('Version 0.2.0 is available.')).toBeTruthy();
+  expect(screen.getByText('Version 0.2.0 is available')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: english.updateDownload }));
   expect(update.install).toHaveBeenCalled();
 });
