@@ -20,6 +20,16 @@ export interface Video {
   updated_at: number;
 }
 
+/**
+ * One self-contained library: its own scan directories, records, favorites and
+ * play history. Spaces share no records at all — the same path is a different
+ * video in each of them (ADR 0011).
+ */
+export interface Space {
+  id: number;
+  name: string;
+}
+
 export interface AppError {
   code: string;
   params: Record<string, string>;
@@ -65,24 +75,36 @@ export interface UpdateProgress {
 }
 
 export const libraryApi = {
+  // Opening the file's folder is the system file manager's job, not the
+  // library's: it is addressed to a path, which one space already names.
   reveal: (path: string) => revealItemInDir(path),
-  regenerate: (path: string | null) =>
-    invoke<void>('regenerate_thumbnails', { path }),
-  list: () => invoke<Video[]>('list_videos'),
-  directories: () => invoke<string[]>('list_directories'),
+  currentSpace: () => invoke<Space>('current_space'),
+  regenerate: (spaceId: number, path: string | null) =>
+    invoke<void>('regenerate_thumbnails', { spaceId, path }),
+  list: (spaceId: number) => invoke<Video[]>('list_videos', { spaceId }),
+  directories: (spaceId: number) =>
+    invoke<string[]>('list_directories', { spaceId }),
+  // The scan slot is the application's, not a space's: one scan runs at a time
+  // and the progress it reports belongs to the space it was started on.
   scanStatus: () => invoke<ScanStatus>('scan_status'),
   controlScan: (action: 'pause' | 'resume' | 'cancel') =>
     invoke<void>('scan_action', { action }),
-  favorite: (path: string, favorite: boolean) =>
-    invoke<void>('set_favorite', { path, favorite }),
-  remove: (path: string) => invoke<void>('remove_video', { path }),
-  removeDirectory: (path: string) => invoke<void>('remove_directory', { path }),
-  addDirectory: (path: string) => invoke<void>('add_directory', { path }),
-  // The scanned range is the saved directories; the backend reads them, so
-  // there is no directory list to pass and no way to narrow the scan.
-  rescan: () => invoke<Video[]>('rescan_directories'),
-  play: (path: string) => invoke<void>('open_video', { path }),
-  refreshInfo: (path: string) => invoke<void>('refresh_video_info', { path }),
+  favorite: (spaceId: number, path: string, favorite: boolean) =>
+    invoke<void>('set_favorite', { spaceId, path, favorite }),
+  remove: (spaceId: number, path: string) =>
+    invoke<void>('remove_video', { spaceId, path }),
+  removeDirectory: (spaceId: number, path: string) =>
+    invoke<void>('remove_directory', { spaceId, path }),
+  addDirectory: (spaceId: number, path: string) =>
+    invoke<void>('add_directory', { spaceId, path }),
+  // The scanned range is the space's saved directories; the backend reads them,
+  // so there is no directory list to pass and no way to narrow the scan.
+  rescan: (spaceId: number) =>
+    invoke<Video[]>('rescan_directories', { spaceId }),
+  play: (spaceId: number, path: string) =>
+    invoke<void>('open_video', { spaceId, path }),
+  refreshInfo: (spaceId: number, path: string) =>
+    invoke<void>('refresh_video_info', { spaceId, path }),
   checkForUpdate: () => invoke<UpdateCheck>('check_for_update'),
   installUpdate: () => invoke<void>('install_update'),
   // Installing hands the update to the platform installer and exits, so this

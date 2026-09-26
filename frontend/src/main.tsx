@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router';
 import { Toast } from './shared/Toast';
 import { App } from './app/App';
 import { initializeLanguage } from './i18n/language';
+import { readCurrentSpace } from './features/space/space';
 import english from '../../shared/locales/en/common.json';
 import chinese from '../../shared/locales/zh-CN/common.json';
 import './style.css';
@@ -15,10 +16,13 @@ async function start() {
   try {
     initializeTheme();
     await initializeLanguage();
+    // Read here rather than inside a provider, so a failure to read it lands in
+    // the same startup notice the language read does.
+    const space = await readCurrentSpace();
     root.render(
       <QueryClientProvider client={client}>
         <BrowserRouter>
-          <App />
+          <App space={space} />
         </BrowserRouter>
       </QueryClientProvider>,
     );

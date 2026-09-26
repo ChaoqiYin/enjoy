@@ -1,3 +1,4 @@
 {
-  "startupFailed": "Enjoy \u65e0\u6cd5\u542f\u52a8\u3002\u6392\u67e5\u7f16\u53f7\uff1a{{id}}"
+  "startupFailed": "Enjoy 无法启动。排查编号：{{id}}",
+  "defaultSpace": "默认空间"
 }

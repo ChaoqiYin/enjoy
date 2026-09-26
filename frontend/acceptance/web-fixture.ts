@@ -1,6 +1,6 @@
 import { mockIPC, mockConvertFileSrc } from '@tauri-apps/api/mocks';
 import { emit } from '@tauri-apps/api/event';
-import type { ScanStatus, UpdateCheck, Video } from '../src/shared/api';
+import type { ScanStatus, Space, UpdateCheck, Video } from '../src/shared/api';
 import type { SettingsState } from '../src/settings/SettingsProvider';
 
 const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
@@ -23,6 +23,9 @@ const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
 }));
 let language = 'en';
 let settings: SettingsState = { language: 'en', theme: 'dark' };
+// The acceptance fixture holds one space. Switching between spaces is a later
+// change; until then this only has to answer which one the interface is on.
+const space: Space = { id: 1, name: 'Acceptance' };
 let scan: ScanStatus = {
   background: false,
   phase: 'complete',
@@ -64,6 +67,8 @@ mockIPC(
       case 'save_settings':
         settings = { ...(payload.settings as SettingsState) };
         return { ...settings };
+      case 'current_space':
+        return { ...space };
       case 'list_videos':
         return videos.map((video) => ({ ...video }));
       case 'list_directories':

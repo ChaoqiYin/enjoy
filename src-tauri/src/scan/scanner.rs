@@ -151,7 +151,7 @@ mod tests {
 
     use super::collect_controlled;
     use crate::error::AppError;
-    use crate::repository::tests::Fixture;
+    use crate::repository::fixture::Fixture;
 
     #[cfg(unix)]
     use std::cell::RefCell;

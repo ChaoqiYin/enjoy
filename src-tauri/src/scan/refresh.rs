@@ -16,6 +16,7 @@ use crate::scan::control::ScanControl;
 /// the command handler acquires the slot via `ScanControl::begin()` before
 /// calling this. `checkpoint()` here only observes cancellation.
 pub fn refresh_video(
+    space_id: i64,
     path: &str,
     repository: &Arc<Mutex<Repository>>,
     control: &Arc<ScanControl>,
@@ -27,7 +28,7 @@ pub fn refresh_video(
             .lock()
             .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?;
         guard
-            .find_file_stamp(path)?
+            .find_file_stamp(space_id, path)?
             .ok_or_else(|| AppError::new("media.file.not_found", "Video is not indexed"))?
     };
     let file = std::fs::metadata(path).map_err(|error| AppError::io(error, path))?;
@@ -45,7 +46,7 @@ pub fn refresh_video(
     repository
         .lock()
         .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-        .refresh_metadata(path, expected, updated, &metadata)
+        .refresh_metadata(space_id, path, expected, updated, &metadata)
 }
 
 #[cfg(test)]
@@ -55,18 +56,18 @@ mod tests {
 
     use crate::error::AppError;
     use crate::media::Metadata;
-    use crate::repository::tests::Fixture;
+    use crate::repository::fixture::{Fixture, FIRST_SPACE};
     use crate::repository::Repository;
     use crate::scan::control::ScanControl;
     use crate::scan::refresh;
     use crate::scan::scanner;
 
-    fn setup() -> (Fixture, String, Arc<Mutex<Repository>>) {
-        let (fixture, mut paths, repository) = setup_videos(&["movie.mp4"]);
-        (fixture, paths.remove(0), repository)
+    fn setup() -> (Fixture, String, Arc<Mutex<Repository>>, i64) {
+        let (fixture, mut paths, repository, space) = setup_videos(&["movie.mp4"]);
+        (fixture, paths.remove(0), repository, space)
     }
 
-    fn setup_videos(names: &[&str]) -> (Fixture, Vec<String>, Arc<Mutex<Repository>>) {
+    fn setup_videos(names: &[&str]) -> (Fixture, Vec<String>, Arc<Mutex<Repository>>, i64) {
         let fixture = Fixture::new();
         let mut paths = Vec::with_capacity(names.len());
         for name in names {
@@ -75,19 +76,20 @@ mod tests {
             paths.push(file.to_string_lossy().into_owned());
         }
         let root = fixture.0.to_string_lossy().into_owned();
-        let mut repository = Repository::open(&fixture.0.join("library.db")).unwrap();
+        let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+        let space = repository.current_space().unwrap().id;
         repository
-            .replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])
+            .replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
             .unwrap();
-        (fixture, paths, Arc::new(Mutex::new(repository)))
+        (fixture, paths, Arc::new(Mutex::new(repository)), space)
     }
 
     #[test]
     fn successful_refresh_updates_metadata_for_the_file() {
-        let (_fixture, path, repository) = setup();
+        let (_fixture, path, repository, space) = setup();
         let control = Arc::new(ScanControl::default());
         let guard = control.begin().unwrap();
-        let wrote = refresh::refresh_video(&path, &repository, &control, |_| {
+        let wrote = refresh::refresh_video(space, &path, &repository, &control, |_| {
             Ok(Metadata {
                 duration_ms: Some(500),
                 width: 640,
@@ -98,7 +100,7 @@ mod tests {
         .unwrap();
         assert!(wrote);
         drop(guard);
-        let row = repository.lock().unwrap().list().unwrap().remove(0);
+        let row = repository.lock().unwrap().list(space).unwrap().remove(0);
         assert_eq!(row.width, Some(640));
         assert_eq!(row.height, Some(360));
         assert_eq!(row.duration_ms, Some(500));
@@ -108,10 +110,10 @@ mod tests {
 
     #[test]
     fn cancellation_after_probe_returns_error_and_does_not_write() {
-        let (_fixture, path, repository) = setup();
+        let (_fixture, path, repository, space) = setup();
         let control = Arc::new(ScanControl::default());
         let guard = control.begin().unwrap();
-        let result = refresh::refresh_video(&path, &repository, &control, |_| {
+        let result = refresh::refresh_video(space, &path, &repository, &control, |_| {
             control.action("cancel").unwrap();
             Ok(Metadata {
                 duration_ms: None,
@@ -123,31 +125,31 @@ mod tests {
         assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
         drop(guard);
         assert_eq!(control.status().phase, "cancelled");
-        assert!(repository.lock().unwrap().list().unwrap()[0]
+        assert!(repository.lock().unwrap().list(space).unwrap()[0]
             .width
             .is_none());
     }
 
     #[test]
     fn probe_cancellation_propagates_as_an_error() {
-        let (_fixture, path, repository) = setup();
+        let (_fixture, path, repository, space) = setup();
         let control = Arc::new(ScanControl::default());
         let guard = control.begin().unwrap();
-        let result = refresh::refresh_video(&path, &repository, &control, |_| {
+        let result = refresh::refresh_video(space, &path, &repository, &control, |_| {
             control.action("cancel").unwrap();
             Err(AppError::new("media.scan.cancelled", "cancelled probe"))
         });
         assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
         drop(guard);
         assert_eq!(control.status().phase, "cancelled");
-        assert!(repository.lock().unwrap().list().unwrap()[0]
+        assert!(repository.lock().unwrap().list(space).unwrap()[0]
             .width
             .is_none());
     }
 
     #[test]
     fn successful_refresh_updates_only_the_target_file() {
-        let (_fixture, paths, repository) = setup_videos(&["movie.mp4", "other.mkv"]);
+        let (_fixture, paths, repository, space) = setup_videos(&["movie.mp4", "other.mkv"]);
         let path = paths
             .iter()
             .find(|video| video.ends_with("movie.mp4"))
@@ -155,12 +157,13 @@ mod tests {
             .clone();
         let (other_id, other_size) = {
             let repo = repository.lock().unwrap();
-            let rows = repo.list().unwrap();
+            let rows = repo.list(space).unwrap();
             let target = rows.iter().find(|video| video.path == path).unwrap();
             let other = rows.iter().find(|video| video.path != path).unwrap();
             let other_id = other.id;
             let other_size = other.file_size;
             repo.save_metadata(
+                space,
                 other,
                 &Metadata {
                     duration_ms: Some(700),
@@ -170,12 +173,12 @@ mod tests {
                 },
             )
             .unwrap();
-            repo.save_thumbnail(target, "cached.jpg").unwrap();
+            repo.save_thumbnail(space, target, "cached.jpg").unwrap();
             (other_id, other_size)
         };
         let control = Arc::new(ScanControl::default());
         let guard = control.begin().unwrap();
-        let wrote = refresh::refresh_video(&path, &repository, &control, |_| {
+        let wrote = refresh::refresh_video(space, &path, &repository, &control, |_| {
             Ok(Metadata {
                 duration_ms: Some(500),
                 width: 160,
@@ -186,7 +189,7 @@ mod tests {
         .unwrap();
         assert!(wrote);
         drop(guard);
-        let rows = repository.lock().unwrap().list().unwrap();
+        let rows = repository.lock().unwrap().list(space).unwrap();
         let target = rows.iter().find(|video| video.path == path).unwrap();
         assert_eq!(target.width, Some(160));
         assert_eq!(target.height, Some(90));
@@ -206,10 +209,10 @@ mod tests {
 
     #[test]
     fn failed_probe_preserves_existing_record_without_partial_write() {
-        let (_fixture, path, repository) = setup();
+        let (_fixture, path, repository, space) = setup();
         let control = Arc::new(ScanControl::default());
         let guard = control.begin().unwrap();
-        refresh::refresh_video(&path, &repository, &control, |_| {
+        refresh::refresh_video(space, &path, &repository, &control, |_| {
             Ok(Metadata {
                 duration_ms: Some(500),
                 width: 640,
@@ -219,9 +222,9 @@ mod tests {
         })
         .unwrap();
         drop(guard);
-        let before = repository.lock().unwrap().list().unwrap().remove(0);
+        let before = repository.lock().unwrap().list(space).unwrap().remove(0);
         let guard = control.begin().unwrap();
-        let result = refresh::refresh_video(&path, &repository, &control, |_| {
+        let result = refresh::refresh_video(space, &path, &repository, &control, |_| {
             Err(AppError::new(
                 "media.metadata.failed",
                 "probe could not read the stream",
@@ -229,7 +232,7 @@ mod tests {
         });
         assert_eq!(result.unwrap_err().code, "media.metadata.failed");
         drop(guard);
-        let after = repository.lock().unwrap().list().unwrap().remove(0);
+        let after = repository.lock().unwrap().list(space).unwrap().remove(0);
         assert_eq!(after.file_size, before.file_size);
         assert_eq!(after.modified_at, before.modified_at);
         assert_eq!(after.width, Some(640));
@@ -241,7 +244,7 @@ mod tests {
 
     #[test]
     fn refresh_video_does_not_overwrite_a_concurrent_scan() {
-        let (fixture, paths, repository) = setup_videos(&["clip.mp4"]);
+        let (fixture, paths, repository, space) = setup_videos(&["clip.mp4"]);
         let path = paths[0].clone();
         let root = fixture.0.to_string_lossy().into_owned();
         let control = Arc::new(ScanControl::default());
@@ -250,12 +253,15 @@ mod tests {
         // the write is refused afterwards: the stamps the refresh read are the
         // very fields the scan now compares to decide whether a file changed
         // (ADR 0004), so growing the file is all it takes to lose the race.
-        let wrote = refresh::refresh_video(&path, &repository, &control, |file| {
+        let wrote = refresh::refresh_video(space, &path, &repository, &control, |file| {
             fs::write(file, b"updated content").unwrap();
             repository
                 .lock()
                 .unwrap()
-                .replace_videos(&[(root.clone(), scanner::collect(&fixture.0).unwrap())])
+                .replace_videos(
+                    space,
+                    &[(root.clone(), scanner::collect(&fixture.0).unwrap())],
+                )
                 .unwrap();
             Ok(Metadata {
                 duration_ms: Some(500),
@@ -267,7 +273,7 @@ mod tests {
         .unwrap();
         assert!(!wrote);
         drop(guard);
-        let row = repository.lock().unwrap().list().unwrap().remove(0);
+        let row = repository.lock().unwrap().list(space).unwrap().remove(0);
         assert_eq!(row.file_size, 15);
         assert!(row.width.is_none());
         assert!(row.duration_ms.is_none());
@@ -276,17 +282,17 @@ mod tests {
 
     #[test]
     fn successful_refresh_flips_media_complete_once_thumbnail_exists() {
-        let (_fixture, path, repository) = setup();
-        let video = repository.lock().unwrap().list().unwrap().remove(0);
+        let (_fixture, path, repository, space) = setup();
+        let video = repository.lock().unwrap().list(space).unwrap().remove(0);
         repository
             .lock()
             .unwrap()
-            .save_thumbnail(&video, "cached.jpg")
+            .save_thumbnail(space, &video, "cached.jpg")
             .unwrap();
-        assert!(!repository.lock().unwrap().list().unwrap()[0].media_complete);
+        assert!(!repository.lock().unwrap().list(space).unwrap()[0].media_complete);
         let control = Arc::new(ScanControl::default());
         let guard = control.begin().unwrap();
-        let wrote = refresh::refresh_video(&path, &repository, &control, |_| {
+        let wrote = refresh::refresh_video(space, &path, &repository, &control, |_| {
             Ok(Metadata {
                 duration_ms: None,
                 width: 160,
@@ -297,7 +303,7 @@ mod tests {
         .unwrap();
         assert!(wrote);
         drop(guard);
-        let row = repository.lock().unwrap().list().unwrap().remove(0);
+        let row = repository.lock().unwrap().list(space).unwrap().remove(0);
         assert!(row.media_complete);
         assert_eq!(row.width, Some(160));
         assert_eq!(row.thumbnail_path.as_deref(), Some("cached.jpg"));

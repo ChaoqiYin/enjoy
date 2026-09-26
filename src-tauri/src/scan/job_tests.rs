@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::os::unix::fs::PermissionsExt;
 
 use crate::media::{MediaProcessor, Metadata};
-use crate::repository::tests::Fixture;
+use crate::repository::fixture::{Fixture, FIRST_SPACE};
 use crate::repository::Repository;
 use crate::scan::control::ScanControl;
 use crate::scan::{job, scanner};
@@ -20,13 +20,18 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
     fs::write(&thumbnail, b"cache").unwrap();
     let db = fixture.0.join("library.db");
     let root = fixture.0.to_string_lossy().into_owned();
-    let mut repository = Repository::open(&db).unwrap();
+    let mut repository = Repository::open(&db, FIRST_SPACE).unwrap();
+    let space = repository.current_space().unwrap().id;
     repository
-        .replace_videos(&[(root.clone(), scanner::collect(&fixture.0).unwrap())])
+        .replace_videos(
+            space,
+            &[(root.clone(), scanner::collect(&fixture.0).unwrap())],
+        )
         .unwrap();
-    let video = repository.list().unwrap().remove(0);
+    let video = repository.list(space).unwrap().remove(0);
     repository
         .save_metadata(
+            space,
             &video,
             &Metadata {
                 duration_ms: Some(500),
@@ -37,7 +42,7 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
         )
         .unwrap();
     repository
-        .save_thumbnail(&video, &thumbnail.to_string_lossy())
+        .save_thumbnail(space, &video, &thumbnail.to_string_lossy())
         .unwrap();
     let repository = Arc::new(Mutex::new(repository));
     let control = Arc::new(ScanControl::default());
@@ -45,6 +50,7 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
     let guard = control.begin().unwrap();
     let result = job::run(
         &media,
+        space,
         &repository,
         &control,
         false,
@@ -58,9 +64,11 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
     assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
     drop(guard);
     assert_eq!(control.status().phase, "cancelled");
-    assert!(!repository.lock().unwrap().list().unwrap()[0].media_complete);
+    assert!(!repository.lock().unwrap().list(space).unwrap()[0].media_complete);
     drop(repository);
-    let repository = Arc::new(Mutex::new(Repository::open(&db).unwrap()));
+    let repository = Repository::open(&db, FIRST_SPACE).unwrap();
+    let space = repository.current_space().unwrap().id;
+    let repository = Arc::new(Mutex::new(repository));
     let connection = rusqlite::Connection::open(&db).unwrap();
     connection
         .execute_batch(
@@ -71,6 +79,7 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
     let guard = control.begin().unwrap();
     let result = job::run(
         &media,
+        space,
         &repository,
         &control,
         false,
@@ -80,7 +89,7 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
     assert!(result.is_err());
     drop(guard);
     assert_eq!(control.status().phase, "failed");
-    assert!(!repository.lock().unwrap().list().unwrap()[0].media_complete);
+    assert!(!repository.lock().unwrap().list(space).unwrap()[0].media_complete);
     connection
         .execute_batch("DROP TRIGGER reject_completion;")
         .unwrap();
@@ -90,6 +99,7 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
         let mut visited = false;
         let rows = job::run(
             &media,
+            space,
             &repository,
             &control,
             false,
@@ -116,8 +126,10 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
 /// Gives every record a completed media state, so the media phase has nothing
 /// to do and the counts under test come from the scan alone.
 fn complete_media(repo: &Repository) {
-    for video in repo.list().unwrap() {
+    let space = repo.current_space().unwrap().id;
+    for video in repo.list(space).unwrap() {
         repo.save_metadata(
+            space,
             &video,
             &Metadata {
                 duration_ms: Some(500),
@@ -127,8 +139,8 @@ fn complete_media(repo: &Repository) {
             },
         )
         .unwrap();
-        repo.save_thumbnail(&video, "cached.jpg").unwrap();
-        repo.complete_media(&video).unwrap();
+        repo.save_thumbnail(space, &video, "cached.jpg").unwrap();
+        repo.complete_media(space, &video).unwrap();
     }
 }
 
@@ -144,21 +156,26 @@ fn a_configured_directory_that_vanished_clears_its_records_without_being_counted
     fs::write(&stranded, b"stranded").unwrap();
     let readable_root = readable.to_string_lossy().into_owned();
     let vanished_root = vanished.to_string_lossy().into_owned();
-    let mut repo = Repository::open(&fixture.0.join("library.db")).unwrap();
-    repo.replace_videos(&[
-        (readable_root, scanner::collect(&readable).unwrap()),
-        (vanished_root, scanner::collect(&vanished).unwrap()),
-    ])
+    let mut repo = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let space = repo.current_space().unwrap().id;
+    repo.replace_videos(
+        space,
+        &[
+            (readable_root, scanner::collect(&readable).unwrap()),
+            (vanished_root, scanner::collect(&vanished).unwrap()),
+        ],
+    )
     .unwrap();
-    repo.favorite(stranded.to_str().unwrap(), true).unwrap();
-    repo.record_play(stranded.to_str().unwrap()).unwrap();
+    repo.favorite(space, stranded.to_str().unwrap(), true)
+        .unwrap();
+    repo.record_play(space, stranded.to_str().unwrap()).unwrap();
     complete_media(&repo);
     fs::remove_dir_all(&vanished).unwrap();
     let repository = Arc::new(Mutex::new(repo));
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let guard = control.begin().unwrap();
-    let rows = job::run(&media, &repository, &control, false, |_| {}, |_| {})
+    let rows = job::run(&media, space, &repository, &control, false, |_| {}, |_| {})
         .expect("A directory that vanished must not fail the scan");
     drop(guard);
     let status = control.status();
@@ -181,11 +198,12 @@ fn a_configured_directory_that_cannot_be_read_is_counted_and_keeps_its_records()
     let movie = locked.join("movie.mp4");
     fs::write(&movie, b"video").unwrap();
     let locked_root = locked.to_string_lossy().into_owned();
-    let mut repo = Repository::open(&fixture.0.join("library.db")).unwrap();
-    repo.replace_videos(&[(locked_root, scanner::collect(&locked).unwrap())])
+    let mut repo = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let space = repo.current_space().unwrap().id;
+    repo.replace_videos(space, &[(locked_root, scanner::collect(&locked).unwrap())])
         .unwrap();
-    repo.favorite(movie.to_str().unwrap(), true).unwrap();
-    repo.record_play(movie.to_str().unwrap()).unwrap();
+    repo.favorite(space, movie.to_str().unwrap(), true).unwrap();
+    repo.record_play(space, movie.to_str().unwrap()).unwrap();
     complete_media(&repo);
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
     let repository = Arc::new(Mutex::new(repo));
@@ -195,6 +213,7 @@ fn a_configured_directory_that_cannot_be_read_is_counted_and_keeps_its_records()
     let errors = Cell::new(0);
     let rows = job::run(
         &media,
+        space,
         &repository,
         &control,
         false,
@@ -232,11 +251,13 @@ fn a_locked_subtree_keeps_its_records_while_the_rest_of_the_directory_is_scanned
     let gone = fixture.0.join("gone.mp4");
     fs::write(&gone, b"gone").unwrap();
     let root = fixture.0.to_string_lossy().into_owned();
-    let mut repo = Repository::open(&fixture.0.join("library.db")).unwrap();
-    repo.replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])
+    let mut repo = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let space = repo.current_space().unwrap().id;
+    repo.replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
-    repo.favorite(stranded.to_str().unwrap(), true).unwrap();
-    repo.record_play(stranded.to_str().unwrap()).unwrap();
+    repo.favorite(space, stranded.to_str().unwrap(), true)
+        .unwrap();
+    repo.record_play(space, stranded.to_str().unwrap()).unwrap();
     complete_media(&repo);
     fs::remove_file(&gone).unwrap();
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
@@ -245,7 +266,7 @@ fn a_locked_subtree_keeps_its_records_while_the_rest_of_the_directory_is_scanned
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let guard = control.begin().unwrap();
-    let rows = job::run(&media, &repository, &control, false, |_| {}, |_| {})
+    let rows = job::run(&media, space, &repository, &control, false, |_| {}, |_| {})
         .expect("A subtree that cannot be read must not fail the scan");
     drop(guard);
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
@@ -277,11 +298,13 @@ fn a_file_that_cannot_be_read_is_indexed_and_keeps_its_record() {
     fs::write(&locked, b"locked").unwrap();
     fs::write(fixture.0.join("kept.mp4"), b"kept").unwrap();
     let root = fixture.0.to_string_lossy().into_owned();
-    let mut repo = Repository::open(&fixture.0.join("library.db")).unwrap();
-    repo.replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])
+    let mut repo = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let space = repo.current_space().unwrap().id;
+    repo.replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
-    repo.favorite(locked.to_str().unwrap(), true).unwrap();
-    repo.record_play(locked.to_str().unwrap()).unwrap();
+    repo.favorite(space, locked.to_str().unwrap(), true)
+        .unwrap();
+    repo.record_play(space, locked.to_str().unwrap()).unwrap();
     complete_media(&repo);
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
     let repository = Arc::new(Mutex::new(repo));
@@ -291,6 +314,7 @@ fn a_file_that_cannot_be_read_is_indexed_and_keeps_its_record() {
     let errors = Cell::new(0);
     let rows = job::run(
         &media,
+        space,
         &repository,
         &control,
         false,
@@ -334,8 +358,9 @@ fn cancellation_aborts_the_scan_and_preserves_existing_records() {
     let fixture = Fixture::new();
     let root = fixture.0.to_string_lossy().into_owned();
     fs::write(fixture.0.join("old.mp4"), b"old").unwrap();
-    let mut repo = Repository::open(&fixture.0.join("library.db")).unwrap();
-    repo.replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])
+    let mut repo = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let space = repo.current_space().unwrap().id;
+    repo.replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
     fs::remove_file(fixture.0.join("old.mp4")).unwrap();
     let repository = Arc::new(Mutex::new(repo));
@@ -344,6 +369,7 @@ fn cancellation_aborts_the_scan_and_preserves_existing_records() {
     let guard = control.begin().unwrap();
     let result = job::run(
         &media,
+        space,
         &repository,
         &control,
         false,
@@ -354,7 +380,7 @@ fn cancellation_aborts_the_scan_and_preserves_existing_records() {
     drop(guard);
     assert_eq!(control.status().phase, "cancelled");
     assert_eq!(
-        repository.lock().unwrap().list().unwrap()[0].file_name,
+        repository.lock().unwrap().list(space).unwrap()[0].file_name,
         "old.mp4"
     );
 }
@@ -366,9 +392,10 @@ fn a_file_whose_size_changed_is_processed_again() {
     fs::write(&movie, b"first").unwrap();
     let db = fixture.0.join("library.db");
     let root = fixture.0.to_string_lossy().into_owned();
-    let mut repository = Repository::open(&db).unwrap();
+    let mut repository = Repository::open(&db, FIRST_SPACE).unwrap();
+    let space = repository.current_space().unwrap().id;
     repository
-        .replace_videos(&[(root, scanner::collect(&fixture.0).unwrap())])
+        .replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
     complete_media(&repository);
     // The file grows by one byte. Under ADR 0004 that alone is a changed
@@ -380,12 +407,12 @@ fn a_file_whose_size_changed_is_processed_again() {
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let guard = control.begin().unwrap();
-    let result = job::run(&media, &repository, &control, false, |_| {}, |_| {});
+    let result = job::run(&media, space, &repository, &control, false, |_| {}, |_| {});
     assert!(result.is_ok());
     drop(guard);
     // Both halves of the media phase were attempted for it: the bytes are not a
     // video, so the probe and the thumbnail each fail and are counted. A file
     // that had been skipped would leave the count at zero.
     assert_eq!(control.status().failures, 2);
-    assert!(!repository.lock().unwrap().list().unwrap()[0].media_complete);
+    assert!(!repository.lock().unwrap().list(space).unwrap()[0].media_complete);
 }

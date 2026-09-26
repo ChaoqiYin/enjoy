@@ -12,7 +12,7 @@ mod update;
 
 use error::AppError;
 use i18n::{language, native};
-use model::VideoFile;
+use model::{Space, VideoFile};
 use repository::Repository;
 use scan::control::{ScanControl, ScanStatus};
 use scan::job as scan_job;
@@ -39,6 +39,7 @@ fn database_path(app: &tauri::AppHandle) -> Result<PathBuf, AppError> {
 
 #[tauri::command]
 async fn rescan_directories(
+    space_id: i64,
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<VideoFile>, AppError> {
@@ -53,6 +54,7 @@ async fn rescan_directories(
         // No command starts a background scan: every scan is user-initiated.
         scan_job::run(
             &media,
+            space_id,
             &repository,
             &control,
             false,
@@ -88,69 +90,94 @@ fn scan_status(state: State<'_, AppState>) -> ScanStatus {
 }
 
 #[tauri::command]
-fn list_videos(state: State<'_, AppState>) -> Result<Vec<VideoFile>, AppError> {
+fn list_videos(space_id: i64, state: State<'_, AppState>) -> Result<Vec<VideoFile>, AppError> {
     state
         .repository
         .lock()
         .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-        .list()
+        .list(space_id)
 }
 
 #[tauri::command]
-fn list_directories(state: State<'_, AppState>) -> Result<Vec<String>, AppError> {
+fn current_space(state: State<'_, AppState>) -> Result<Space, AppError> {
     state
         .repository
         .lock()
         .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-        .directories()
+        .current_space()
 }
 
 #[tauri::command]
-fn remove_video(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
+fn list_directories(space_id: i64, state: State<'_, AppState>) -> Result<Vec<String>, AppError> {
     state
         .repository
         .lock()
         .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-        .remove(&path)
+        .directories(space_id)
 }
 
 #[tauri::command]
-fn remove_directory(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
+fn remove_video(space_id: i64, path: String, state: State<'_, AppState>) -> Result<(), AppError> {
     state
         .repository
         .lock()
         .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-        .remove_directory(&path)
+        .remove(space_id, &path)
 }
 
 #[tauri::command]
-fn add_directory(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
+fn remove_directory(
+    space_id: i64,
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
     state
         .repository
         .lock()
         .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-        .add_directory(&path)
+        .remove_directory(space_id, &path)
 }
 
 #[tauri::command]
-fn set_favorite(path: String, favorite: bool, state: State<'_, AppState>) -> Result<(), AppError> {
+fn add_directory(space_id: i64, path: String, state: State<'_, AppState>) -> Result<(), AppError> {
     state
         .repository
         .lock()
         .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-        .favorite(&path, favorite)
+        .add_directory(space_id, &path)
 }
 
 #[tauri::command]
-async fn open_video(path: String, state: State<'_, AppState>) -> Result<(), AppError> {
+fn set_favorite(
+    space_id: i64,
+    path: String,
+    favorite: bool,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    state
+        .repository
+        .lock()
+        .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
+        .favorite(space_id, &path, favorite)
+}
+
+#[tauri::command]
+async fn open_video(
+    space_id: i64,
+    path: String,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
     let repository = Arc::clone(&state.repository);
-    tauri::async_runtime::spawn_blocking(move || player::play(&repository, &path, player::launch))
-        .await
-        .map_err(|error| AppError::new("media.player.start_failed", error))?
+    tauri::async_runtime::spawn_blocking(move || {
+        player::play(space_id, &repository, &path, player::launch)
+    })
+    .await
+    .map_err(|error| AppError::new("media.player.start_failed", error))?
 }
 
 #[tauri::command]
 async fn refresh_video_info(
+    space_id: i64,
     path: String,
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -164,7 +191,7 @@ async fn refresh_video_info(
             &app,
             database_path(&app)?.with_file_name("thumbnails"),
         )?;
-        let wrote = scan::refresh::refresh_video(&path, &repository, &control, |file| {
+        let wrote = scan::refresh::refresh_video(space_id, &path, &repository, &control, |file| {
             processor.probe(file, || control.is_cancelled())
         })?;
         if wrote {
@@ -178,6 +205,7 @@ async fn refresh_video_info(
 
 #[tauri::command]
 async fn regenerate_thumbnails(
+    space_id: i64,
     path: Option<String>,
     app: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -191,7 +219,7 @@ async fn regenerate_thumbnails(
         let videos = repository
             .lock()
             .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-            .list()?;
+            .list(space_id)?;
         let cache = database_path(&app)?.with_file_name("thumbnails");
         let media = media::MediaProcessor::for_app(&app, cache)?;
         let videos: Vec<_> = videos
@@ -226,7 +254,7 @@ async fn regenerate_thumbnails(
                     .map_err(|_| {
                         AppError::new("media.database.lock_failed", "Database lock poisoned")
                     })?
-                    .save_thumbnail(video, &thumbnail.to_string_lossy())?,
+                    .save_thumbnail(space_id, video, &thumbnail.to_string_lossy())?,
                 Err(error) => {
                     if path.is_some() || error.code == "media.scan.cancelled" {
                         return Err(error);
@@ -257,9 +285,13 @@ async fn regenerate_thumbnails(
 
 #[tauri::command]
 fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError> {
-    language::get_language(app.state::<language::LanguageState>())?;
+    // The first space is named in the language the person is looking at right
+    // now: the upgrade happens once, on a machine whose interface language is a
+    // fact of that moment, and the name is theirs to change afterwards. That is
+    // also why this reads the language before it opens the database.
+    let language = language::current(&app.state::<language::LanguageState>())?;
     let path = database_path(app)?;
-    let repository = Repository::open(&path)?;
+    let repository = Repository::open(&path, native::translate(&language, "defaultSpace"))?;
     app.manage(AppState {
         repository: Arc::new(Mutex::new(repository)),
         scan: Arc::new(ScanControl::default()),
@@ -290,6 +322,7 @@ fn main() {
             scan_status,
             list_videos,
             list_directories,
+            current_space,
             remove_video,
             remove_directory,
             add_directory,

@@ -22,6 +22,15 @@ pub struct VideoFile {
     pub updated_at: i64,
 }
 
+/// One self-contained library: its own directories, records, favorites and play
+/// history. Spaces share no records at all — the same path is a different video
+/// in each of them (ADR 0011).
+#[derive(Debug, Serialize)]
+pub struct Space {
+    pub id: i64,
+    pub name: String,
+}
+
 #[derive(Clone, Debug)]
 pub struct ScannedFile {
     pub path: String,

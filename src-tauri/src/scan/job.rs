@@ -9,6 +9,7 @@ use crate::scan::scanner;
 
 pub fn run(
     media: &MediaProcessor,
+    space_id: i64,
     repository: &Arc<Mutex<Repository>>,
     control: &ScanControl,
     background: bool,
@@ -25,12 +26,14 @@ pub fn run(
     on_progress(control.status());
     // The scan universe is read from the repository, not received from the
     // caller, so no caller can scan a subset and have the cleanup of the
-    // directories it left out be decided by this run.
+    // directories it left out be decided by this run. The space, on the other
+    // hand, is received: it is what the caller is acting on, and it is the one
+    // thing this run cannot work out for itself.
     let directories = {
         repository
             .lock()
             .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-            .directories()?
+            .directories(space_id)?
     };
     let mut scans = Vec::with_capacity(directories.len());
     for path in directories {
@@ -101,8 +104,9 @@ pub fn run(
         let mut guard = repository
             .lock()
             .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?;
-        progress.changes = guard.replace_videos_controlled(&scans, || control.checkpoint())?;
-        guard.list()?
+        progress.changes =
+            guard.replace_videos_controlled(space_id, &scans, || control.checkpoint())?;
+        guard.list(space_id)?
     };
     progress.phase = "processing".into();
     progress.operation = "thumbnails".into();
@@ -128,7 +132,7 @@ pub fn run(
                     .map_err(|_| {
                         AppError::new("media.database.lock_failed", "Database lock poisoned")
                     })?
-                    .save_metadata(video, &metadata)?,
+                    .save_metadata(space_id, video, &metadata)?,
                 Err(error) => {
                     if error.code == "media.scan.cancelled" {
                         return Err(error);
@@ -161,7 +165,7 @@ pub fn run(
                     .map_err(|_| {
                         AppError::new("media.database.lock_failed", "Database lock poisoned")
                     })?
-                    .save_thumbnail(video, &path.to_string_lossy())?,
+                    .save_thumbnail(space_id, video, &path.to_string_lossy())?,
                 Err(error) => {
                     if error.code == "media.scan.cancelled" {
                         return Err(error);
@@ -179,7 +183,7 @@ pub fn run(
             repository
                 .lock()
                 .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-                .complete_media(video)?;
+                .complete_media(space_id, video)?;
         }
         progress.processed += 1;
         progress.current_path.clear();
@@ -193,6 +197,6 @@ pub fn run(
     let result = repository
         .lock()
         .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-        .list();
+        .list(space_id);
     result
 }

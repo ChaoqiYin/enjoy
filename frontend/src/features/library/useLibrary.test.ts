@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { libraryApi } from '../../shared/api';
 import type { ScanStatus, Video } from '../../shared/api';
+import { SpaceProvider } from '../space/SpaceProvider';
 import { useLibrary } from './useLibrary';
 
 vi.mock('@tauri-apps/api/event', () => ({
@@ -60,10 +61,16 @@ afterEach(() => {
   client.clear();
   vi.restoreAllMocks();
 });
+const space = { id: 1, name: 'Library' };
+
 function mount() {
   return renderHook(useLibrary, {
     wrapper: ({ children }: { children: ReactNode }) =>
-      createElement(QueryClientProvider, { client }, children),
+      createElement(
+        QueryClientProvider,
+        { client },
+        createElement(SpaceProvider, { space, children }),
+      ),
   });
 }
 it('retries the failed action and clears its error after success', async () => {
@@ -128,7 +135,7 @@ it('marks the video the launch reached the player for', async () => {
   const play = vi.spyOn(libraryApi, 'play').mockResolvedValue(undefined);
   const { result } = mount();
   await act(() => result.current.play(video));
-  expect(play).toHaveBeenCalledWith(video.path);
+  expect(play).toHaveBeenCalledWith(space.id, video.path);
   expect(result.current.lastPlayedId).toBe(video.id);
 });
 

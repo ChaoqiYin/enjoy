@@ -7,6 +7,7 @@ use crate::process;
 use crate::repository::Repository;
 
 pub fn play(
+    space_id: i64,
     repository: &Arc<Mutex<Repository>>,
     path: &str,
     launch: impl FnOnce(&Path) -> Result<(), AppError>,
@@ -15,7 +16,7 @@ pub fn play(
         let guard = repository
             .lock()
             .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?;
-        if !guard.list()?.iter().any(|video| video.path == path) {
+        if !guard.list(space_id)?.iter().any(|video| video.path == path) {
             return Err(AppError::new(
                 "media.file.not_found",
                 "Video is not indexed",
@@ -27,7 +28,7 @@ pub fn play(
     repository
         .lock()
         .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-        .record_play(path)
+        .record_play(space_id, path)
 }
 
 fn validate_file(path: &str) -> Result<PathBuf, AppError> {

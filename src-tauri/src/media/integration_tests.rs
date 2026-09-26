@@ -4,6 +4,7 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 
 use crate::media;
+use crate::repository::fixture::FIRST_SPACE;
 use crate::repository::Repository;
 use crate::scan::control::ScanControl;
 use crate::scan::job as scan_job;
@@ -53,13 +54,13 @@ fn real_tools_extract_metadata_and_create_thumbnail() {
 }
 
 fn verify_scan_failure_counts_and_cache(directory: &Path) {
-    let repository = Arc::new(Mutex::new(
-        Repository::open(&directory.join("index.db")).unwrap(),
-    ));
+    let repository = Repository::open(&directory.join("index.db"), FIRST_SPACE).unwrap();
+    let space = repository.current_space().unwrap().id;
+    let repository = Arc::new(Mutex::new(repository));
     repository
         .lock()
         .unwrap()
-        .add_directory(&directory.to_string_lossy())
+        .add_directory(space, &directory.to_string_lossy())
         .unwrap();
     let control = Arc::new(ScanControl::default());
     let cache = directory.join("scan-cache");
@@ -71,6 +72,7 @@ fn verify_scan_failure_counts_and_cache(directory: &Path) {
         let mut events = Vec::new();
         let videos = scan_job::run(
             &media,
+            space,
             &repository,
             &control,
             false,
@@ -125,17 +127,20 @@ fn verify_cancelled_metadata_resumes(parent: &Path, source: &Path) {
     fs::create_dir_all(&directory).unwrap();
     fs::copy(source, directory.join("movie.mp4")).unwrap();
     let db = directory.join("library.db");
-    let repository = Arc::new(Mutex::new(Repository::open(&db).unwrap()));
+    let repository = Repository::open(&db, FIRST_SPACE).unwrap();
+    let space = repository.current_space().unwrap().id;
+    let repository = Arc::new(Mutex::new(repository));
     let control = Arc::new(ScanControl::default());
     let media = media::MediaProcessor::on_path(directory.join("cache"));
     repository
         .lock()
         .unwrap()
-        .add_directory(&directory.to_string_lossy())
+        .add_directory(space, &directory.to_string_lossy())
         .unwrap();
     let guard = control.begin().unwrap();
     let result = scan_job::run(
         &media,
+        space,
         &repository,
         &control,
         false,
@@ -148,15 +153,18 @@ fn verify_cancelled_metadata_resumes(parent: &Path, source: &Path) {
     );
     assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
     drop(guard);
-    let partial = repository.lock().unwrap().list().unwrap().remove(0);
+    let partial = repository.lock().unwrap().list(space).unwrap().remove(0);
     assert!(partial.width.is_some());
     assert!(partial.thumbnail_path.is_none());
     assert!(!partial.media_complete);
     drop(repository);
-    let repository = Arc::new(Mutex::new(Repository::open(&db).unwrap()));
+    let repository = Repository::open(&db, FIRST_SPACE).unwrap();
+    let space = repository.current_space().unwrap().id;
+    let repository = Arc::new(Mutex::new(repository));
     let guard = control.begin().unwrap();
     let rows = scan_job::run(
         &media,
+        space,
         &repository,
         &control,
         false,

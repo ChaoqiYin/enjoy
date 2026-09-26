@@ -9,8 +9,10 @@ import { HistoryPage } from '../pages/HistoryPage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { AppNavigation } from './AppNavigation';
 import { SettingsProvider } from '../settings/SettingsProvider';
+import { SpaceProvider } from '../features/space/SpaceProvider';
+import type { Space } from '../shared/api';
 
-export function App() {
+export function App({ space }: { space: Space }) {
   // Reading the reduced-motion preference is the app-level provider's job — one
   // provider covers every page, since the library, favourites and history all
   // render the one card; the card's own transform targets are documented where
@@ -18,23 +20,27 @@ export function App() {
   return (
     <MotionConfig reducedMotion="user">
       <SettingsProvider>
-        <LibraryProvider>
-          {/* Inside the library provider: the update flow asks it whether a
-              scan is running before it interrupts one. */}
-          <UpdateProvider>
-            <div className="h-dvh overflow-hidden flex flex-col bg-base-100 text-base-content">
-              <LanguageFocusSync />
-              <AppNavigation />
-              <Routes>
-                <Route path="/" element={<LibraryPage />} />
-                <Route path="/favorites" element={<FavoritesPage />} />
-                <Route path="/history" element={<HistoryPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </div>
-          </UpdateProvider>
-        </LibraryProvider>
+        {/* Outside the library provider: the library is read and written within
+            a space, so the space has to be known before it is asked for. */}
+        <SpaceProvider space={space}>
+          <LibraryProvider>
+            {/* Inside the library provider: the update flow asks it whether a
+                scan is running before it interrupts one. */}
+            <UpdateProvider>
+              <div className="h-dvh overflow-hidden flex flex-col bg-base-100 text-base-content">
+                <LanguageFocusSync />
+                <AppNavigation />
+                <Routes>
+                  <Route path="/" element={<LibraryPage />} />
+                  <Route path="/favorites" element={<FavoritesPage />} />
+                  <Route path="/history" element={<HistoryPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </div>
+            </UpdateProvider>
+          </LibraryProvider>
+        </SpaceProvider>
       </SettingsProvider>
     </MotionConfig>
   );

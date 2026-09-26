@@ -1,3 +1,4 @@
 {
-  "startupFailed": "Enjoy could not start. Reference: {{id}}"
+  "startupFailed": "Enjoy could not start. Reference: {{id}}",
+  "defaultSpace": "Default"
 }

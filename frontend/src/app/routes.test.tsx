@@ -46,11 +46,13 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
+const space = { id: 1, name: 'Library' };
+
 function mount(path = '/') {
   render(
     <I18nextProvider i18n={i18n}>
       <MemoryRouter initialEntries={[path]}>
-        <App />
+        <App space={space} />
       </MemoryRouter>
     </I18nextProvider>,
   );

@@ -41,8 +41,8 @@ pub fn load(app: &AppHandle) -> LanguageState {
     LanguageState(Mutex::new(preference))
 }
 
-#[tauri::command]
-pub fn get_language(state: State<'_, LanguageState>) -> Result<LanguageSettings, AppError> {
+/// The preference as stored, and the language it resolves to right now.
+fn read_settings(state: &LanguageState) -> Result<LanguageSettings, AppError> {
     let preference = state
         .0
         .lock()
@@ -53,6 +53,18 @@ pub fn get_language(state: State<'_, LanguageState>) -> Result<LanguageSettings,
         preference,
         language,
     })
+}
+
+/// The language in force right now, for native code that needs a localized
+/// string without a command round trip. It resolves on every call rather than
+/// caching, so follow-system mode picks up a change like it does elsewhere.
+pub(crate) fn current(state: &LanguageState) -> Result<String, AppError> {
+    Ok(read_settings(state)?.language)
+}
+
+#[tauri::command]
+pub fn get_language(state: State<'_, LanguageState>) -> Result<LanguageSettings, AppError> {
+    read_settings(&state)
 }
 
 #[tauri::command]

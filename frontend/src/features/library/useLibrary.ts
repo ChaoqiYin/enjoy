@@ -4,10 +4,15 @@ import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { libraryApi, normalizeError } from '../../shared/api';
 import type { AppError, ScanStatus, Video } from '../../shared/api';
+import { useSpace } from '../space/SpaceProvider';
 import { shouldAnnounceScan } from './scanFeedback';
 
 export function useLibrary() {
   const client = useQueryClient();
+  // The one place the current space is read. Everything below — every cache
+  // key and every command — is addressed to it, so a stale read here would be
+  // the only way to write into the wrong space (ADR 0012).
+  const { id: spaceId } = useSpace();
   const [failure, setFailure] = useState<{
     error: AppError;
     retry?: () => Promise<unknown>;
@@ -34,17 +39,17 @@ export function useLibrary() {
     [],
   );
   const videos = useQuery({
-    queryKey: ['videos'],
-    queryFn: libraryApi.list,
+    queryKey: ['videos', spaceId],
+    queryFn: () => libraryApi.list(spaceId),
     retry: false,
   });
   const directories = useQuery({
-    queryKey: ['directories'],
-    queryFn: libraryApi.directories,
+    queryKey: ['directories', spaceId],
+    queryFn: () => libraryApi.directories(spaceId),
     retry: false,
   });
   const scan = useQuery({
-    queryKey: ['scan'],
+    queryKey: ['scan', spaceId],
     queryFn: libraryApi.scanStatus,
     refetchInterval: 700,
     retry: false,
@@ -57,8 +62,8 @@ export function useLibrary() {
       if (refreshTimer) return;
       refreshTimer = setTimeout(() => {
         refreshTimer = undefined;
-        void client.invalidateQueries({ queryKey: ['videos'] });
-        void client.invalidateQueries({ queryKey: ['directories'] });
+        void client.invalidateQueries({ queryKey: ['videos', spaceId] });
+        void client.invalidateQueries({ queryKey: ['directories', spaceId] });
       }, 200);
     };
     const subscriptions = [
@@ -67,7 +72,7 @@ export function useLibrary() {
       }),
       listen<ScanStatus>('scan-progress', ({ payload }) => {
         if (disposed) return;
-        client.setQueryData(['scan'], payload);
+        client.setQueryData(['scan', spaceId], payload);
         if (shouldAnnounceScan(payload)) setCompletion(payload);
         refresh();
       }),
@@ -90,7 +95,7 @@ export function useLibrary() {
       if (refreshTimer) clearTimeout(refreshTimer);
       for (const stop of unlisten) stop();
     };
-  }, [client]);
+  }, [client, spaceId]);
 
   async function run(action: () => Promise<unknown>) {
     setError(null);
@@ -106,9 +111,9 @@ export function useLibrary() {
       if (failure.code !== 'media.scan.cancelled') setError(failure, action);
     } finally {
       await Promise.all([
-        client.invalidateQueries({ queryKey: ['videos'] }),
-        client.invalidateQueries({ queryKey: ['directories'] }),
-        client.invalidateQueries({ queryKey: ['scan'] }),
+        client.invalidateQueries({ queryKey: ['videos', spaceId] }),
+        client.invalidateQueries({ queryKey: ['directories', spaceId] }),
+        client.invalidateQueries({ queryKey: ['scan', spaceId] }),
       ]);
       setPending((count) => count - 1);
     }
@@ -125,31 +130,32 @@ export function useLibrary() {
     // that into a notice, and the card keeps whatever marker it had — the same
     // rule the record follows, where a failed launch does not count as a play.
     run(async () => {
-      await libraryApi.play(video.path);
+      await libraryApi.play(spaceId, video.path);
       setLastPlayedId(video.id);
     });
   const toggleFavorite = (video: Video) =>
-    run(() => libraryApi.favorite(video.path, !video.favorite));
+    run(() => libraryApi.favorite(spaceId, video.path, !video.favorite));
   const reveal = (video: Video) => run(() => libraryApi.reveal(video.path));
   const refreshInfo = (video: Video) =>
-    run(() => libraryApi.refreshInfo(video.path));
+    run(() => libraryApi.refreshInfo(spaceId, video.path));
   const regenerateThumbnail = (video: Video) =>
-    run(() => libraryApi.regenerate(video.path));
-  const regenerateAllThumbnails = () => run(() => libraryApi.regenerate(null));
+    run(() => libraryApi.regenerate(spaceId, video.path));
+  const regenerateAllThumbnails = () =>
+    run(() => libraryApi.regenerate(spaceId, null));
   const removeVideo = (video: Video) =>
-    run(() => libraryApi.remove(video.path));
+    run(() => libraryApi.remove(spaceId, video.path));
   const addDirectories = (paths: string[]) =>
     run(async () => {
-      for (const path of paths) await libraryApi.addDirectory(path);
+      for (const path of paths) await libraryApi.addDirectory(spaceId, path);
     });
   const removeDirectory = (path: string) =>
-    run(() => libraryApi.removeDirectory(path));
-  const rescan = () => run(() => libraryApi.rescan());
+    run(() => libraryApi.removeDirectory(spaceId, path));
+  const rescan = () => run(() => libraryApi.rescan(spaceId));
 
   async function controlScan(action: 'pause' | 'resume' | 'cancel') {
     try {
       await libraryApi.controlScan(action);
-      await client.invalidateQueries({ queryKey: ['scan'] });
+      await client.invalidateQueries({ queryKey: ['scan', spaceId] });
     } catch (cause) {
       setError(normalizeError(cause), () => libraryApi.controlScan(action));
     }
