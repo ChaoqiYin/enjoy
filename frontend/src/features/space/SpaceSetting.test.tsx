@@ -154,6 +154,36 @@ it('says what a deletion costs, and moves the library onto a space that is there
   );
 });
 
+it('offers the space operations while no media task holds the scan slot', async () => {
+  mount();
+  await screen.findByText(shows.name);
+  expect(screen.queryByText(english.spaceBlockedScanning)).toBeNull();
+  expect(
+    screen
+      .getByRole('button', { name: english.spaceCreate })
+      .hasAttribute('disabled'),
+  ).toBe(false);
+});
+
+it('explains a running scan as the reason the space operations are unavailable', async () => {
+  vi.mocked(libraryApi.scanStatus).mockResolvedValue(
+    idleScan({ phase: 'processing' }),
+  );
+  mount();
+  await screen.findByText(shows.name);
+  expect(await screen.findByText(english.spaceBlockedScanning)).toBeTruthy();
+  for (const name of [english.spaceCreate, english.spaceRename]) {
+    expect(
+      screen.getAllByRole('button', { name })[0].hasAttribute('disabled'),
+    ).toBe(true);
+  }
+  expect(
+    screen
+      .getAllByRole('button', { name: english.spaceRemove })[0]
+      .hasAttribute('disabled'),
+  ).toBe(true);
+});
+
 it('carries a refused deletion out to the notice, where its reason can be read', async () => {
   vi.spyOn(libraryApi, 'deleteSpace').mockRejectedValue({
     code: 'space.remove_last',

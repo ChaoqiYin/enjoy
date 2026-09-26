@@ -4,13 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router';
 import { Tooltip } from '../../shared/Tooltip';
 import { useLibraryContext } from '../library/LibraryProvider';
+import { isScanRunning } from '../library/scanFeedback';
 import { useSpaces } from './SpaceProvider';
 
-// Nothing here is disabled while an action is in flight. A scan is the one
-// thing that will refuse a switch, and it is a later change: it has to be the
-// backend's answer rather than a guess made from the interface's own busy flag,
-// which is set by playing a video and by favouriting one and is not set by a
-// scan running in the background at all.
+// Nothing here is disabled while an ordinary action is in flight — playing a
+// video, favouriting one — because none of those is in the way. What is in the
+// way is a media task holding the scan slot, and the backend is what says so;
+// the disabled trigger below is the same rule, said in advance.
 
 /**
  * The space the interface is showing, and the list to move to another one.
@@ -32,6 +32,10 @@ export function SpaceSwitcher() {
   const { t } = useTranslation();
   const library = useLibraryContext();
   const { space, spaces } = useSpaces();
+  // A media task holding the scan slot — a pass, a paused pass, or one file's
+  // information being refreshed — is what the backend refuses a switch for, and
+  // this asks the same question of the same status the scan progress reads.
+  const scanning = isScanRunning(library.scan.data);
   const menu = useRef<HTMLDetailsElement>(null);
   const close = () => {
     if (menu.current) menu.current.open = false;
@@ -55,13 +59,35 @@ export function SpaceSwitcher() {
         menu.current.querySelector<HTMLElement>('summary')?.focus();
       }}
     >
-      <summary className="btn btn-outline btn-sm btn-neutral list-none [&::-webkit-details-marker]:hidden">
-        {/* The full name is always one hover away: it is the control's whole
-            label, and a name that is too long for the row is exactly the case
-            where the truncation has to be recoverable. */}
-        <Tooltip text={space.name} className="min-w-0 max-w-32">
+      <summary
+        aria-disabled={scanning || undefined}
+        aria-describedby={scanning ? 'space-switch-blocked' : undefined}
+        // A disabled `details` is not a thing the element knows about, and the
+        // menu is what would be opened, so the click that opens it is what gets
+        // stopped.
+        onClick={(event) => {
+          if (scanning) event.preventDefault();
+        }}
+        className={`btn btn-outline btn-sm btn-neutral list-none [&::-webkit-details-marker]:hidden ${scanning ? 'btn-disabled' : ''}`}
+      >
+        {/* The full name is ordinarily one hover away: it is the control's whole
+            label, and a name too long for the row is exactly the case where the
+            truncation has to be recoverable. While a scan is running the reason
+            takes that place instead — the name has not become unreadable, and a
+            control that will not open owes the user the reason. The same
+            sentence reaches a reader who never sees a tooltip, through
+            `aria-describedby` below. */}
+        <Tooltip
+          text={scanning ? t('spaceBlockedScanning') : space.name}
+          className="min-w-0 max-w-32"
+        >
           <span className="block truncate">{space.name}</span>
         </Tooltip>
+        {scanning && (
+          <span id="space-switch-blocked" className="sr-only">
+            {t('spaceBlockedScanning')}
+          </span>
+        )}
         <ChevronDown size={14} aria-hidden="true" />
       </summary>
       <ul className="dropdown-content menu z-30 w-56 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">

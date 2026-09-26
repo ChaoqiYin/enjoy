@@ -120,6 +120,33 @@ it('leaves the space it is already showing alone', async () => {
   expect(switchTo).not.toHaveBeenCalled();
 });
 
+it('opens on the trigger when nothing is in the way', async () => {
+  mount();
+  await screen.findByText(shows.name);
+  fireEvent.click(trigger());
+  expect(menu().open).toBe(true);
+});
+
+it('will not open while a media task holds the scan slot, and says why', async () => {
+  // Paused, because a paused pass is still a pass: the slot is held, so the
+  // answer has to be the same one.
+  vi.mocked(libraryApi.scanStatus).mockResolvedValue(
+    idleScan({ phase: 'paused' }),
+  );
+  mount();
+  await screen.findByText(shows.name);
+  await waitFor(() =>
+    expect(trigger().hasAttribute('aria-disabled')).toBe(true),
+  );
+  fireEvent.click(trigger());
+  expect(menu().open).toBe(false);
+  // The reason takes the place of the name: a control that will not open owes
+  // the user the reason rather than a label they can already read.
+  expect(
+    document.querySelector(`[data-tip="${english.spaceBlockedScanning}"]`),
+  ).toBeTruthy();
+});
+
 it('offers the way to the settings section it is about', async () => {
   mount();
   const link = await screen.findByRole('link', {

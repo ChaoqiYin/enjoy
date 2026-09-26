@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ConfirmTooltip } from '../../shared/ConfirmTooltip';
 import { Tooltip } from '../../shared/Tooltip';
 import { useLibraryContext } from '../library/LibraryProvider';
+import { isScanRunning } from '../library/scanFeedback';
 import { useSpaces } from './SpaceProvider';
 import { SpaceDialog } from './SpaceDialog';
 import type { Space } from '../../shared/api';
@@ -23,8 +24,19 @@ export function SpaceSetting() {
   const { space, spaces } = useSpaces();
   const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState<Space | null>(null);
+  // The same slot the switch asks about: a pass, a paused pass, or one file's
+  // information being refreshed. The backend refuses these operations for the
+  // reason above the buttons; this is that rule said in advance.
+  const scanning = isScanRunning(library.scan.data);
+  const blocked = library.busy || scanning;
   return (
     <div className="space-y-4">
+      {/* One reason for the whole region rather than one per control: the three
+          operations are refused together, so the answer to "why can't I?" is
+          the same sentence wherever it is asked. */}
+      {scanning && (
+        <p className="text-sm opacity-65">{t('spaceBlockedScanning')}</p>
+      )}
       {(spaces.data ?? []).map((item) => (
         <div
           key={item.id}
@@ -39,7 +51,7 @@ export function SpaceSetting() {
               <button
                 className="btn btn-outline btn-xs btn-square btn-secondary"
                 aria-label={t('spaceRename')}
-                disabled={library.busy}
+                disabled={blocked}
                 onClick={() => setRenaming(item)}
               >
                 <Pencil size={14} aria-hidden="true" />
@@ -49,13 +61,13 @@ export function SpaceSetting() {
               message={t('spaceRemoveQuestion', { name: item.name })}
               confirmLabel={t('confirm')}
               cancelLabel={t('cancel')}
-              disabled={library.busy}
+              disabled={blocked}
               onConfirm={() => void library.removeSpace(item.id)}
             >
               <button
                 className="btn btn-outline btn-xs btn-square btn-error"
                 aria-label={t('spaceRemove')}
-                disabled={library.busy}
+                disabled={blocked}
               >
                 <Trash2 size={14} aria-hidden="true" />
               </button>
@@ -65,7 +77,7 @@ export function SpaceSetting() {
       ))}
       <button
         className="btn btn-soft btn-md btn-primary"
-        disabled={library.busy}
+        disabled={blocked}
         onClick={() => setCreating(true)}
       >
         <Plus size={18} aria-hidden="true" />

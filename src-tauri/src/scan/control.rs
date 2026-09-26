@@ -129,6 +129,27 @@ impl ScanControl {
     }
 }
 
+/// What a change to the spaces answers while a media task holds the slot.
+///
+/// The slot is held by a scan, by a scan that is paused, and by the information
+/// refresh of a single file, which asks for it the same way. Asking the slot
+/// rather than reading a phase is what makes those three the same question --
+/// one gate describing one thing, which is what ADR 0012 asks for.
+///
+/// The refusal is not about a race: a task carries the space it was started on
+/// and writes where it meant to. It is that progress is reported for the
+/// application and names no space, so a user who moved away in the middle of a
+/// pass would be watching one that is not touching the library in front of them.
+pub fn space_change_gate(scanning: bool) -> Result<(), AppError> {
+    if scanning {
+        return Err(AppError::new(
+            "space.blocked.scanning",
+            "A media task is holding the scan slot",
+        ));
+    }
+    Ok(())
+}
+
 impl Drop for ScanGuard {
     fn drop(&mut self) {
         let mut state = self
@@ -149,8 +170,35 @@ impl Drop for ScanGuard {
 
 #[cfg(test)]
 mod tests {
-    use super::{ScanControl, ScanStatus};
+    use super::{space_change_gate, ScanControl, ScanStatus};
     use std::sync::Arc;
+
+    #[test]
+    fn the_spaces_cannot_change_while_the_slot_is_held() {
+        let control = Arc::new(ScanControl::default());
+        // Nothing is running, so nothing is in the way.
+        assert!(space_change_gate(control.is_running()).is_ok());
+        // `begin` is how a pass takes the slot, and the information refresh of
+        // a single file takes it the same way, so this covers both of them.
+        let guard = control.begin().unwrap();
+        assert_eq!(
+            space_change_gate(control.is_running())
+                .unwrap_err()
+                .code,
+            "space.blocked.scanning"
+        );
+        // A paused pass is still a pass: the slot is held and its progress is
+        // still what the interface would be showing.
+        control.action("pause").unwrap();
+        assert_eq!(control.status().phase, "paused");
+        assert!(space_change_gate(control.is_running()).is_err());
+        // Cancelling asks the pass to stop rather than stopping it, so the slot
+        // is still held here; it comes back when the pass itself ends.
+        control.action("cancel").unwrap();
+        assert!(space_change_gate(control.is_running()).is_err());
+        drop(guard);
+        assert!(space_change_gate(control.is_running()).is_ok());
+    }
 
     #[test]
     fn concurrent_scans_are_rejected_and_cancellation_releases_slot() {

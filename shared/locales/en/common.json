@@ -26,6 +26,7 @@
   "spaceRemove": "Delete space",
   "spaceCurrent": "Current",
   "spaceManage": "Manage spaces",
+  "spaceBlockedScanning": "A scan is running. Finish or cancel it first.",
   "spaceName": "Space name",
   "spaceRemoveQuestion": "Delete “{{name}}”? Its favorites and play history will be erased. The video files on disk are not touched.",
   "removeFolder": "Remove folder",

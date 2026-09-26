@@ -43,5 +43,6 @@
   "space.name.too_long": "A space name can be at most {{max}} characters.",
   "space.name.taken": "Another space is already called “{{name}}”.",
   "space.not_found": "That space no longer exists.",
-  "space.remove_last": "Enjoy always keeps at least one space, so the last one cannot be removed."
+  "space.remove_last": "Enjoy always keeps at least one space, so the last one cannot be removed.",
+  "space.blocked.scanning": "A scan is running, so spaces cannot be changed. Finish or cancel it first."
 }

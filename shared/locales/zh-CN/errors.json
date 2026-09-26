@@ -43,5 +43,6 @@
   "space.name.too_long": "空间名称最长 {{max}} 个字符。",
   "space.name.taken": "已有名为“{{name}}”的空间。",
   "space.not_found": "该空间已不存在。",
-  "space.remove_last": "至少要保留一个空间，最后一个空间不能删除。"
+  "space.remove_last": "至少要保留一个空间，最后一个空间不能删除。",
+  "space.blocked.scanning": "扫描进行中，暂时不能改动空间，请先完成或取消扫描。"
 }
