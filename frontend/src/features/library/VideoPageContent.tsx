@@ -6,6 +6,7 @@ import { displayPath } from '../../shared/format';
 import { Drawer } from '../../shared/Drawer';
 import { ScrollViewport } from '../../shared/ScrollViewport';
 import { useLibraryContext } from './LibraryProvider';
+import { useSpace } from '../space/SpaceProvider';
 import type { useVideoPageView } from './useVideoPageView';
 import { VirtualVideos } from './VirtualVideos';
 import { VideoMenu } from './VideoMenu';
@@ -30,6 +31,7 @@ export function VideoPageContent({
 }) {
   const { t, i18n } = useTranslation();
   const library = useLibraryContext();
+  const { id: spaceId } = useSpace();
   const { collectionKey, videos, search, folder, clearFilters } = view;
   // `detailVideo` is the panel's contents, not a mount gate: the drawer shell
   // is always mounted and only `detailsOpen` moves it, so the video stays put
@@ -39,6 +41,15 @@ export function VideoPageContent({
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   const [remove, setRemove] = useState<Video | null>(null);
+  // Whatever was opened here was opened onto a video of the space that was on
+  // screen. Another space has its own records, so the panel and the menu are
+  // closed rather than left describing a video that is no longer in the list.
+  // The list itself needs nothing: it is mounted against the collection key,
+  // which names the space, so the change reaches it on its own.
+  useEffect(() => {
+    setDetailsOpen(false);
+    setMenu(null);
+  }, [spaceId]);
   useEffect(() => {
     // Only a drawer that is open can report its video missing. Closing it here
     // is what stops the effect from firing again — the panel keeps its video

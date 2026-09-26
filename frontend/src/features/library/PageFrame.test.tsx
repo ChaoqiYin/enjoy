@@ -3,6 +3,7 @@ import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ScanStatus } from '../../shared/api';
+import { idleScan } from '../../test/fixtures';
 import { PageFrame } from './PageFrame';
 import english from '../../../../shared/locales/en/common.json';
 
@@ -27,19 +28,7 @@ vi.mock('./LibraryProvider', () => ({
   useLibraryContext: () => library,
 }));
 
-const completed: ScanStatus = {
-  background: false,
-  phase: 'complete',
-  failures: 0,
-  unreachableDirectories: 0,
-  changes: { added: 0, updated: 0, removed: 0 },
-  discovered: 0,
-  processed: 0,
-  indexed: 0,
-  metadataReady: 0,
-  thumbnailsReady: 0,
-  currentPath: '',
-};
+const completed = idleScan({ phase: 'complete' });
 
 beforeEach(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: english } } });

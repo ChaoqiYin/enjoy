@@ -1,20 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import type { ScanStatus } from '../../shared/api';
+import { idleScan } from '../../test/fixtures';
 import { completionAutoCloseMs, shouldAnnounceScan } from './scanFeedback';
 
-const completed: ScanStatus = {
+const completed = idleScan({
   background: true,
   phase: 'complete',
-  failures: 0,
-  unreachableDirectories: 0,
-  changes: { added: 0, updated: 0, removed: 0 },
   discovered: 1,
   processed: 1,
   indexed: 1,
   metadataReady: 1,
   thumbnailsReady: 1,
   currentPath: '/movies',
-};
+});
 
 describe('scan completion feedback', () => {
   it('keeps silent background scans from replacing useful feedback', () => {

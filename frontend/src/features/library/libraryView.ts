@@ -21,6 +21,22 @@ export const useLibraryView = create<LibraryView>((set) => ({
     set((state) => ({ sorts: { ...state.sorts, [page]: value } })),
 }));
 
+/**
+ * Puts the filters back to where a library the user has not narrowed down yet
+ * finds them.
+ *
+ * It is a function rather than two calls at each site because it answers a rule
+ * rather than doing two assignments: which of the things held here are filters,
+ * and so belong to the library on screen, as opposed to the sort order, which is
+ * how the user wants to read a list and follows them from one to the next. Two
+ * callers need it — the button that clears the filters under a search that found
+ * nothing, and moving into another space — and neither should decide the answer
+ * for itself.
+ */
+export function clearFilters() {
+  useLibraryView.setState({ search: '', folder: '' });
+}
+
 export function selectVideos(
   videos: Video[],
   page: string,

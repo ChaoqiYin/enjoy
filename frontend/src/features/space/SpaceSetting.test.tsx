@@ -11,7 +11,8 @@ import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { libraryApi } from '../../shared/api';
-import type { ScanStatus, Space } from '../../shared/api';
+import type { Space } from '../../shared/api';
+import { idleScan } from '../../test/fixtures';
 import { LibraryProvider } from '../library/LibraryProvider';
 import { PageFrame } from '../library/PageFrame';
 import { SpaceProvider } from './SpaceProvider';
@@ -25,20 +26,6 @@ vi.mock('@tauri-apps/api/event', () => ({
 
 const films: Space = { id: 1, name: 'Films' };
 const shows: Space = { id: 2, name: 'Shows' };
-const idle: ScanStatus = {
-  background: false,
-  phase: 'idle',
-  changes: { added: 0, updated: 0, removed: 0 },
-  failures: 0,
-  unreachableDirectories: 0,
-  discovered: 0,
-  processed: 0,
-  indexed: 0,
-  metadataReady: 0,
-  thumbnailsReady: 0,
-  currentPath: '',
-};
-
 const i18n = createInstance();
 let client: QueryClient;
 
@@ -53,7 +40,7 @@ beforeEach(async () => {
   vi.spyOn(libraryApi, 'listSpaces').mockResolvedValue([films, shows]);
   vi.spyOn(libraryApi, 'list').mockResolvedValue([]);
   vi.spyOn(libraryApi, 'directories').mockResolvedValue([]);
-  vi.spyOn(libraryApi, 'scanStatus').mockResolvedValue(idle);
+  vi.spyOn(libraryApi, 'scanStatus').mockResolvedValue(idleScan());
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute('open', '');
   };

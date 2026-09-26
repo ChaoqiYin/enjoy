@@ -52,6 +52,29 @@ fn not_found() -> AppError {
     AppError::new("space.not_found", "Space does not exist")
 }
 
+/// Refuses a space that is not there, before whatever the caller would do with
+/// it: a space that does not exist is reported as missing, rather than as
+/// whatever the next rule in line would otherwise have said about it.
+fn require_space(tx: &Connection, space_id: i64) -> Result<(), AppError> {
+    let exists: Option<i64> = tx
+        .query_row("SELECT id FROM spaces WHERE id=?1", [space_id], |row| {
+            row.get(0)
+        })
+        .optional()?;
+    if exists.is_none() {
+        return Err(not_found());
+    }
+    Ok(())
+}
+
+/// Points the marker at one space and at no other, inside the caller's
+/// transaction, so that nothing can see a moment with two of them or none.
+fn move_marker(tx: &Connection, space_id: i64) -> Result<(), AppError> {
+    tx.execute("UPDATE spaces SET current=0 WHERE current=1", [])?;
+    tx.execute("UPDATE spaces SET current=1 WHERE id=?1", [space_id])?;
+    Ok(())
+}
+
 impl Repository {
     /// The space the interface is showing. There is always exactly one: the
     /// schema is created with one and the last one cannot be removed.
@@ -85,8 +108,7 @@ impl Repository {
             params![name, now()],
         )?;
         let id = tx.last_insert_rowid();
-        tx.execute("UPDATE spaces SET current=0 WHERE current=1", [])?;
-        tx.execute("UPDATE spaces SET current=1 WHERE id=?1", [id])?;
+        move_marker(&tx, id)?;
         tx.commit()?;
         Ok(Space { id, name })
     }
@@ -100,14 +122,7 @@ impl Repository {
     /// was not.
     pub fn rename_space(&mut self, space_id: i64, name: &str) -> Result<Space, AppError> {
         let tx = self.connection.transaction()?;
-        let exists: Option<i64> = tx
-            .query_row("SELECT id FROM spaces WHERE id=?1", [space_id], |row| {
-                row.get(0)
-            })
-            .optional()?;
-        if exists.is_none() {
-            return Err(not_found());
-        }
+        require_space(&tx, space_id)?;
         let name = checked_name(name)?;
         if taken(&tx, &name, Some(space_id))? {
             return Err(name_taken(&name));
@@ -116,6 +131,21 @@ impl Repository {
             "UPDATE spaces SET name=?2 WHERE id=?1",
             params![space_id, name],
         )?;
+        let space = current(&tx)?;
+        tx.commit()?;
+        Ok(space)
+    }
+
+    /// Moves the marker to a space the user picked, and answers with it.
+    ///
+    /// Nothing about the set of spaces changes here — they are all still there
+    /// afterwards, and this is only about which one is being looked at. It is
+    /// written down rather than kept in the session so that opening the
+    /// application again comes back to the space that was last in use.
+    pub fn switch_space(&mut self, space_id: i64) -> Result<Space, AppError> {
+        let tx = self.connection.transaction()?;
+        require_space(&tx, space_id)?;
+        move_marker(&tx, space_id)?;
         let space = current(&tx)?;
         tx.commit()?;
         Ok(space)
@@ -132,14 +162,7 @@ impl Repository {
         let tx = self.connection.transaction()?;
         // Asked before the count, so that a space that is not there is reported
         // as missing rather than as the last one standing.
-        let exists: Option<i64> = tx
-            .query_row("SELECT id FROM spaces WHERE id=?1", [space_id], |row| {
-                row.get(0)
-            })
-            .optional()?;
-        if exists.is_none() {
-            return Err(not_found());
-        }
+        require_space(&tx, space_id)?;
         let total: i64 = tx.query_row("SELECT COUNT(*) FROM spaces", [], |row| row.get(0))?;
         if total <= 1 {
             return Err(AppError::new(
@@ -156,11 +179,12 @@ impl Repository {
             .query_row("SELECT id FROM spaces WHERE current=1", [], |row| row.get(0))
             .optional()?;
         if holder.is_none() {
-            tx.execute(
-                "UPDATE spaces SET current=1
-                 WHERE id=(SELECT id FROM spaces ORDER BY created_at,id LIMIT 1)",
+            let oldest: i64 = tx.query_row(
+                "SELECT id FROM spaces ORDER BY created_at,id LIMIT 1",
                 [],
+                |row| row.get(0),
             )?;
+            move_marker(&tx, oldest)?;
         }
         let space = current(&tx)?;
         tx.commit()?;

@@ -190,6 +190,34 @@ fn removing_the_space_shown_moves_the_interface_to_one_that_is_there() {
 }
 
 #[test]
+fn switching_moves_the_marker_and_leaves_every_space_where_it_was() {
+    let fixture = Fixture::new();
+    let database = fixture.0.join("library.db");
+    let mut repository = Repository::open(&database, FIRST_SPACE).unwrap();
+    let first = repository.current_space().unwrap().id;
+    let second = repository.create_space("Second").unwrap();
+    assert_eq!(repository.current_space().unwrap().id, second.id);
+
+    let answer = repository.switch_space(first).unwrap();
+    assert_eq!((answer.id, answer.name.as_str()), (first, FIRST_SPACE));
+    assert_eq!(repository.current_space().unwrap().id, first);
+    assert_eq!(repository.spaces().unwrap().len(), 2);
+    // Switching to the space already being shown is what the user asked for, so
+    // it is allowed and changes nothing.
+    assert_eq!(repository.switch_space(first).unwrap().id, first);
+    assert_eq!(
+        repository.switch_space(first + 1000).unwrap_err().code,
+        "space.not_found"
+    );
+    // The marker is the record of where the application was left, so reopening
+    // comes back to it -- which is the whole of what "returns to the last space"
+    // means; nothing else has to be remembered.
+    drop(repository);
+    let repository = Repository::open(&database, FIRST_SPACE).unwrap();
+    assert_eq!(repository.current_space().unwrap().id, first);
+}
+
+#[test]
 fn the_last_space_cannot_be_removed() {
     let fixture = Fixture::new();
     let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();

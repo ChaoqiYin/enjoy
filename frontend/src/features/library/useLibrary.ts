@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { libraryApi, normalizeError } from '../../shared/api';
 import type { AppError, ScanStatus, Space, Video } from '../../shared/api';
+import { clearFilters } from './libraryView';
 import { useAdoptSpace, useSpace } from '../space/SpaceProvider';
 import { shouldAnnounceScan } from './scanFeedback';
 
@@ -33,7 +34,12 @@ export function useLibrary() {
   // I play a moment ago", so it belongs to the session. Held here rather than
   // in a page because all three pages render the same card and share this
   // provider, so the marker follows the user across them.
-  const [lastPlayedId, setLastPlayedId] = useState<number | null>(null);
+  //
+  // One marker per space, because the marker is about a card in a list and the
+  // lists are different ones: leaving a space and coming back has to find the
+  // marker where it was left, not cleared by the visit to somewhere else.
+  const [lastPlayed, setLastPlayed] = useState<Record<number, number>>({});
+  const lastPlayedId = lastPlayed[spaceId] ?? null;
   const [pending, setPending] = useState(0);
   const busy = pending > 0;
   const [dismissedQueryErrors, setDismissedQueryErrors] = useState<unknown[]>(
@@ -139,7 +145,7 @@ export function useLibrary() {
     // rule the record follows, where a failed launch does not count as a play.
     run(async () => {
       await libraryApi.play(spaceId, video.path);
-      setLastPlayedId(video.id);
+      setLastPlayed((played) => ({ ...played, [spaceId]: video.id }));
     });
   const toggleFavorite = (video: Video) =>
     run(() => libraryApi.favorite(spaceId, video.path, !video.favorite));
@@ -170,21 +176,33 @@ export function useLibrary() {
   // dialog to report into, so it goes out through `run` like every other action
   // that could not be carried out.
   async function moveInto(action: Promise<Space>) {
-    const next = await adopt(action);
-    // Only a move has to be read again. The space the interface lands on may
-    // have been read earlier in this session, and its cache has no way of
-    // knowing the interface left and came back -- so without this the library
-    // page can show what that space held last time it was open. Renaming, or
-    // removing a space that is not the one being shown, leaves the interface
-    // exactly where it was, and what it is showing still stands.
-    if (next.id !== spaceId) await refreshSpace(next.id);
-    return next;
+    // The command is asked first, because its answer is what says whether the
+    // interface is moving at all: renaming, or removing a space that is not the
+    // one being shown, leaves it exactly where it was, and what it is showing
+    // still stands.
+    const next = await action;
+    if (next.id === spaceId) return;
+    // Everything below is about a move. The filters go before the space does,
+    // so that no render puts the library that is arriving under the search that
+    // was about the library being left; the caches are refreshed after it, for
+    // the space that is now the one on screen. That space may have been read
+    // earlier in this session, and its cache has no way of knowing the interface
+    // left and came back -- so without that it could show what the space held
+    // the last time it was open.
+    clearFilters();
+    await adopt(next);
+    await refreshSpace(next.id);
   }
   const createSpace = (name: string) => moveInto(libraryApi.createSpace(name));
   const renameSpace = (target: number, name: string) =>
     moveInto(libraryApi.renameSpace(target, name));
   const removeSpace = (target: number) =>
     run(() => moveInto(libraryApi.deleteSpace(target)));
+  // Switching never fails for a reason the user has to read: the space was in
+  // the list they picked from a moment ago, and a rejection means it is gone,
+  // which the notice in `run` says as well as anything could.
+  const switchSpace = (target: number) =>
+    run(() => moveInto(libraryApi.switchSpace(target)));
 
   async function controlScan(action: 'pause' | 'resume' | 'cancel') {
     try {
@@ -238,5 +256,6 @@ export function useLibrary() {
     createSpace,
     renameSpace,
     removeSpace,
+    switchSpace,
   };
 }

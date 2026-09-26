@@ -28,7 +28,9 @@ vi.mock('../i18n/LanguageSetting', () => ({
   LanguageSetting: () => null,
 }));
 const i18n = createInstance();
-const space = { id: 1, name: 'Library' };
+// Not "Library": the navigation has a tab by that name, and a page that shows
+// the space it is about is the thing being looked for here.
+const space = { id: 1, name: 'Films' };
 let client: QueryClient;
 beforeEach(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: english } } });
@@ -76,6 +78,9 @@ it('renders independent pages with shared navigation and page-specific actions',
     english.library,
   );
   expect(screen.getByRole('button', { name: english.rescan })).toBeTruthy();
+  // The space is named in the header, which every page shares, so it says what
+  // the rest of the screen is about wherever the user is.
+  expect(headerSpace()).toBe(space.name);
   navigate(english.favorites);
   expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
     english.favorites,
@@ -102,7 +107,11 @@ it('renders independent pages with shared navigation and page-specific actions',
     }),
   ).toBeTruthy();
   expect(screen.getByRole('navigation')).toBe(navigation);
+  expect(headerSpace()).toBe(space.name);
 });
+function headerSpace() {
+  return document.querySelector('summary')?.textContent;
+}
 it('retains shared search and separate route sorting after page remounts', () => {
   mount();
   fireEvent.change(screen.getByPlaceholderText(english.searchPlaceholder), {

@@ -26,20 +26,21 @@ function useSpaceState(initialSpace: Space) {
     space,
     spaces,
     /**
-     * Moves the interface into the space a command answered with, and answers
-     * with it in turn so that the caller can act on where it ended up.
+     * Moves the interface into a space that is known to exist.
      *
      * Every command that changes the set of spaces answers with the one to show
      * next — the new one when one is created, another real one when the space
      * being shown is deleted — so there is one rule rather than a different
      * guess at each call site, and no moment where the interface is showing a
      * space that is not there.
+     *
+     * It takes the space rather than the promise that will produce it, so that
+     * a caller which has to do something with the answer first — the library
+     * does — can wait for it and still decide before the interface moves.
      */
-    async adopt(action: Promise<Space>) {
-      const next = await action;
+    async adopt(next: Space) {
       setSpace(next);
       await client.invalidateQueries({ queryKey: ['spaces'] });
-      return next;
     },
   };
 }

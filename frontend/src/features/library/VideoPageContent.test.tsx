@@ -33,7 +33,7 @@ const video: Video = {
   updated_at: 0,
 };
 
-const { library } = vi.hoisted(() => {
+const { library, space } = vi.hoisted(() => {
   const library = {
     videos: { data: [] as Video[], isPending: false },
     scan: { data: undefined as ScanStatus | undefined },
@@ -50,11 +50,15 @@ const { library } = vi.hoisted(() => {
     regenerateThumbnail: vi.fn(),
     refreshInfo: vi.fn(),
   };
-  return { library };
+  return { library, space: { id: 1, name: 'Library' } };
 });
 
 vi.mock('./LibraryProvider', () => ({
   useLibraryContext: () => library,
+}));
+
+vi.mock('../space/SpaceProvider', () => ({
+  useSpace: () => space,
 }));
 
 vi.mock('./VirtualVideos', () => ({
@@ -74,6 +78,7 @@ vi.mock('./VirtualVideos', () => ({
 
 beforeEach(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: english } } });
+  space.id = 1;
   library.videos.data = [video];
   library.videos.isPending = false;
   library.scan.data = undefined;
@@ -163,6 +168,24 @@ it('asks the library to play the video the click landed on', () => {
   fireEvent.click(screen.getByRole('button', { name: video.file_name }));
   fireEvent.click(screen.getByRole('button', { name: english.play }));
   expect(library.play).toHaveBeenCalledWith(video);
+});
+
+it('closes what was opened onto the old space when the space changes', async () => {
+  const { rerender } = render(page());
+  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
+  expect(document.querySelector('[role="dialog"]')?.hasAttribute('inert')).toBe(
+    false,
+  );
+  // The panel is describing a video of the space that was on screen. Another
+  // space keeps its own records, so the same path is a different video there
+  // and the panel would be describing something that is not in this list.
+  space.id = 2;
+  rerender(page());
+  await waitFor(() =>
+    expect(
+      document.querySelector('[role="dialog"]')?.hasAttribute('inert'),
+    ).toBe(true),
+  );
 });
 
 it('closes the drawer and notifies when a rescan removes the video', async () => {

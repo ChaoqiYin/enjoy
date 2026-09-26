@@ -9,6 +9,19 @@ import type {
 } from '../src/shared/api';
 import type { SettingsState } from '../src/settings/SettingsProvider';
 
+// Every space holds the same files, because that is what spaces are: the same
+// path is a different record in each of them (ADR 0011). What a space keeps for
+// itself is which of them the user favourited, and that is what this holds --
+// keyed by the space id the command carried, not by the one the fixture thinks
+// the interface is on. Answering the wrong space is the mistake this harness
+// exists to make visible, and it cannot make it visible while it corrects for it.
+const favorites = new Map<number, Set<number>>([[1, new Set([1])]]);
+function favoritesOf(spaceId: number) {
+  const held = favorites.get(spaceId) ?? new Set<number>();
+  favorites.set(spaceId, held);
+  return held;
+}
+
 const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
   id: index + 1,
   path: `/acceptance/${index % 2 ? 'Archive' : 'Movies'}/video-${String(index + 1).padStart(2, '0')}.mp4`,
@@ -136,8 +149,17 @@ mockIPC(
         if (currentSpaceId === target) currentSpaceId = spaces[0].id;
         return { ...currentSpace() };
       }
-      case 'list_videos':
-        return videos.map((video) => ({ ...video }));
+      case 'switch_space': {
+        const target = Number(payload.spaceId);
+        if (!spaces.some((space) => space.id === target))
+          throw { code: 'space.not_found', params: {}, errorId: 'acceptance' };
+        currentSpaceId = target;
+        return { ...currentSpace() };
+      }
+      case 'list_videos': {
+        const held = favoritesOf(Number(payload.spaceId));
+        return videos.map((video) => ({ ...video, favorite: held.has(video.id) }));
+      }
       case 'list_directories':
         return ['/acceptance/Movies', '/acceptance/Archive'];
       case 'scan_status':
@@ -150,7 +172,10 @@ mockIPC(
         };
       case 'set_favorite': {
         const video = videos.find((video) => video.path === payload.path);
-        if (video) video.favorite = Boolean(payload.favorite);
+        if (!video) return;
+        const held = favoritesOf(Number(payload.spaceId));
+        if (Boolean(payload.favorite)) held.add(video.id);
+        else held.delete(video.id);
         return;
       }
       case 'check_for_update':

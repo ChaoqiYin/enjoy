@@ -87,6 +87,7 @@ export const libraryApi = {
   renameSpace: (spaceId: number, name: string) =>
     invoke<Space>('rename_space', { spaceId, name }),
   deleteSpace: (spaceId: number) => invoke<Space>('delete_space', { spaceId }),
+  switchSpace: (spaceId: number) => invoke<Space>('switch_space', { spaceId }),
   regenerate: (spaceId: number, path: string | null) =>
     invoke<void>('regenerate_thumbnails', { spaceId, path }),
   list: (spaceId: number) => invoke<Video[]>('list_videos', { spaceId }),

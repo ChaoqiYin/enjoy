@@ -155,6 +155,15 @@ fn delete_space(space_id: i64, state: State<'_, AppState>) -> Result<Space, AppE
 }
 
 #[tauri::command]
+fn switch_space(space_id: i64, state: State<'_, AppState>) -> Result<Space, AppError> {
+    state
+        .repository
+        .lock()
+        .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
+        .switch_space(space_id)
+}
+
+#[tauri::command]
 fn list_directories(space_id: i64, state: State<'_, AppState>) -> Result<Vec<String>, AppError> {
     state
         .repository
@@ -374,6 +383,7 @@ fn main() {
             create_space,
             rename_space,
             delete_space,
+            switch_space,
             remove_video,
             remove_directory,
             add_directory,
