@@ -13,9 +13,9 @@ jobs:
   publish:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: npm
@@ -85,5 +85,10 @@ jobs:
           # hand; automatic updates begin with the release after it.
           releaseDraft: true
           prerelease: false
-          uploadUpdaterJson: true
+          # The updater manifest is the only way an installed build hears about
+          # this release. The action defaults this to true, and an input it does
+          # not recognise is only a warning — `uploadUpdaterJson`, the name this
+          # line used to carry, was ignored for every release so far and looked
+          # like it worked because of that default.
+          includeUpdaterJson: true
           updaterJsonPreferNsis: true
