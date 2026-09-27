@@ -204,14 +204,27 @@ describe('video card actions', () => {
     mount(video.id);
     const card = screen.getByRole('article');
     // The marker is written over the thumbnail's corner rather than into one of
-    // the card's rows, so that the card keeps its height — every row estimate
-    // and every geometry measured for the hover feedback hang off it. jsdom
-    // lays nothing out, so this proves where the element is put, not where it
-    // lands: the corner it paints on is measured in the browser.
+    // the card's rows, so that no body row has to make room for it. jsdom lays
+    // nothing out, so this proves where the element is put, not where it lands:
+    // the corner it paints on is measured in the browser.
     const marker = screen.getByText('Last played');
     expect(card.contains(marker)).toBe(true);
     expect(marker.classList.contains('absolute')).toBe(true);
     expect(card.querySelector('.card-body')?.contains(marker)).toBe(false);
+    // And it has to be the card's last child, which is the invariant this whole
+    // block hangs on rather than a detail of where the marker was written:
+    // daisyUI hands `.card figure:first-child` the picture area's clipping and
+    // its inherited corner radius, and `:first-child` counts an absolutely
+    // positioned child. Anything placed ahead of the picture area takes the
+    // clipping away with it, and a thumbnail whose own ratio is not 16:9 then
+    // sets the figure's height — a played card measuring more than twice its
+    // neighbours, dragging its whole row with it (issue #46). Asserting on
+    // `aspect-video` rather than on a class added for this test keeps the hook
+    // the picture area already carries; what it cannot show is the geometry
+    // that goes wrong without it, which jsdom cannot lay out at all.
+    expect(card.firstElementChild?.classList.contains('aspect-video')).toBe(
+      true,
+    );
   });
   it('does not gate play on any per-record availability state', () => {
     const actions = mount();

@@ -91,32 +91,6 @@ export function VideoCard({
       // three run on one clock rather than racing on two.
       transition={{ duration: 0.2, ease: 'easeOut' }}
     >
-      {/* The marker the user last handed to the system player. It is taken out
-          of flow over the thumbnail's corner rather than added to the body's
-          rows: the card's height then does not move, so the virtualiser's row
-          estimate and every geometry the hover feedback was measured against
-          (ADR 0008) stay as they are — measured, not assumed: with the marker
-          in place every card, row and scroll height is unchanged.
-
-          `badge-neutral` rather than a bare `badge`: measured on the built
-          page, `--color-neutral` is `oklch(14% .005 285.823)` in **both**
-          themes, where `base-100` is white in one and `oklch(25% …)` in the
-          other. So this is one near-black chip with near-white text whichever
-          theme is on — the same label over the same thumbnail either way, and
-          15.68:1 within itself, which is what keeps the text readable over an
-          arbitrary picture. The limit is the chip's own edge, not its text:
-          over a very dark thumbnail a near-black box stops being visible as a
-          box while its text still reads.
-
-          The card's own outline is left alone — hover and focus already write
-          it, and a second writer on one property is the defect ADR 0007
-          records. Backgrounds would do the same to the card's surface, which
-          is why the distinction is drawn on a new element. */}
-      {video.id === lastPlayedId && (
-        <span className="badge badge-sm badge-neutral absolute top-2 start-2">
-          {t('lastPlayedMarker')}
-        </span>
-      )}
       <Thumbnail
         videoPath={video.path}
         scan={scan}
@@ -158,6 +132,45 @@ export function VideoCard({
           <VideoActions video={video} busy={busy} actions={actions} iconOnly />
         </div>
       </div>
+      {/* The marker the user last handed to the system player: a chip taken out
+          of flow over the thumbnail's corner rather than a row in the body, so
+          that no body row has to make room for it.
+
+          It has to be the card's **last** child, not its first. daisyUI gives
+          `.card figure:first-child` the picture area's `overflow: hidden` and
+          the corner radius the picture inherits from the card, and
+          `:first-child` counts an absolutely positioned child — positioning
+          moves the box, not the ordinal. Put the marker ahead of the figure and
+          the picture area stops matching that rule, which costs it two things:
+          the radius, and the clipping that was holding its height at 16:9.
+          Without the clipping the figure's `min-height: auto` is released, and
+          a thumbnail whose own ratio is not 16:9 (ffmpeg keeps the source
+          ratio) then sets the height instead — measured on the built page at a
+          249.5px column, a played card over a portrait thumbnail comes out
+          505.92 tall against 205.31 for every other card, and the grid's
+          `align-items: stretch` carries the row to 525.92, which no row
+          estimate can follow. ADR 0009 records the measurement that missed
+          this: its fixture was 1920×1080, where the two heights coincide.
+
+          `badge-neutral` rather than a bare `badge`: measured on the built
+          page, `--color-neutral` is `oklch(14% .005 285.823)` in **both**
+          themes, where `base-100` is white in one and `oklch(25% …)` in the
+          other. So this is one near-black chip with near-white text whichever
+          theme is on — the same label over the same thumbnail either way, and
+          15.68:1 within itself, which is what keeps the text readable over an
+          arbitrary picture. The limit is the chip's own edge, not its text:
+          over a very dark thumbnail a near-black box stops being visible as a
+          box while its text still reads.
+
+          The card's own outline is left alone — hover and focus already write
+          it, and a second writer on one property is the defect ADR 0007
+          records. Backgrounds would do the same to the card's surface, which
+          is why the distinction is drawn on a new element. */}
+      {video.id === lastPlayedId && (
+        <span className="badge badge-sm badge-neutral absolute top-2 start-2">
+          {t('lastPlayedMarker')}
+        </span>
+      )}
     </motion.article>
   );
 }
