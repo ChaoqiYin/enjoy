@@ -66,6 +66,22 @@ const REMOVAL_SQL: &str = "DELETE FROM videos WHERE space_id = ?1 AND NOT EXISTS
           AND (membership.directory_path NOT IN (SELECT path FROM scanned_directories)
                OR videos.path IN (SELECT path FROM scan_paths)))";
 
+/// Takes the lock on a shared index, or reports the one failure that has no
+/// other name.
+///
+/// The index is shared as `Arc<Mutex<..>>` so that long media work can hold it
+/// only while it reads or writes, and the same four lines turn a poisoned lock
+/// into an error at every one of those places. Writing them here is what keeps
+/// "the index sits behind a mutex" from leaking into every caller's error
+/// handling — and what makes a caller that forgets to handle it impossible.
+pub(crate) fn lock_shared(
+    shared: &std::sync::Mutex<Repository>,
+) -> Result<std::sync::MutexGuard<'_, Repository>, AppError> {
+    shared
+        .lock()
+        .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))
+}
+
 pub struct Repository {
     connection: Connection,
 }

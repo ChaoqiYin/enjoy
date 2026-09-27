@@ -3,8 +3,8 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_updater::{Config as UpdaterConfig, UpdaterExt};
 
+use crate::app::AppState;
 use crate::error::AppError;
-use crate::AppState;
 
 use super::control::{
     describe, download_gate, install_gate, is_supported, ProgressThrottle, UpdateCheck,
