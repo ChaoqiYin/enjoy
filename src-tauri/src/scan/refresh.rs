@@ -1,6 +1,5 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::time::UNIX_EPOCH;
 
 use crate::error::AppError;
 use crate::media::Metadata;
@@ -32,15 +31,10 @@ pub fn refresh_video(
             .ok_or_else(|| AppError::new("media.file.not_found", "Video is not indexed"))?
     };
     let file = std::fs::metadata(path).map_err(|error| AppError::io(error, path))?;
-    let updated = FileStamp {
-        file_size: i64::try_from(file.len()).unwrap_or(i64::MAX),
-        modified_at: file
-            .modified()
-            .map_err(|error| AppError::io(error, path))?
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as i64,
-    };
+    // The same reading a scan makes of a file it discovers: one rule, so the two
+    // cannot disagree about whether this file is still the one the media belong
+    // to (ADR 0004).
+    let updated = FileStamp::from_metadata(&file).map_err(|error| AppError::io(error, path))?;
     let metadata = probe(Path::new(path))?;
     control.checkpoint()?;
     repository

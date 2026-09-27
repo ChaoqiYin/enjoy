@@ -1,10 +1,10 @@
 use std::io;
 use std::path::Path;
-use std::time::UNIX_EPOCH;
+
 use walkdir::WalkDir;
 
 use crate::error::{AppError, SCAN_CANCELLED};
-use crate::model::{Found, ScannedFile};
+use crate::model::{FileStamp, Found, ScannedFile};
 
 #[cfg(test)]
 pub fn collect(root: &Path) -> Result<Vec<ScannedFile>, AppError> {
@@ -200,12 +200,7 @@ fn is_video(path: &Path) -> bool {
 fn scanned_file(file: &Path, root: &Path) -> Result<ScannedFile, Failed> {
     let path = file.to_string_lossy().into_owned();
     let metadata = file.metadata().map_err(|error| Failed::of(error, &path))?;
-    let modified = metadata
-        .modified()
-        .map_err(|error| Failed::of(error, &path))?
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
+    let stamp = FileStamp::from_metadata(&metadata).map_err(|error| Failed::of(error, &path))?;
     Ok(ScannedFile {
         path,
         file_name: file
@@ -214,8 +209,8 @@ fn scanned_file(file: &Path, root: &Path) -> Result<ScannedFile, Failed> {
             .to_string_lossy()
             .into_owned(),
         folder_path: file.parent().unwrap_or(root).to_string_lossy().into_owned(),
-        file_size: i64::try_from(metadata.len()).unwrap_or(i64::MAX),
-        modified_at: i64::try_from(modified).unwrap_or(i64::MAX),
+        file_size: stamp.file_size,
+        modified_at: stamp.modified_at,
     })
 }
 

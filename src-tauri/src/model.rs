@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::time::UNIX_EPOCH;
 
 #[derive(Debug, Serialize)]
 pub struct VideoFile {
@@ -93,4 +94,27 @@ impl Found {
 pub struct FileStamp {
     pub file_size: i64,
     pub modified_at: i64,
+}
+
+impl FileStamp {
+    /// Reads the identity off a file's metadata. The file is never opened.
+    ///
+    /// One implementation, because there were two and they had already drifted:
+    /// the modification time arrives as a `u128` of milliseconds, and one copy
+    /// clamped it to `i64::MAX` while the other cast it. A real file cannot reach
+    /// the difference — it takes a timestamp some 292 million years out — but
+    /// this pair *is* the identity, and the guard every media write is checked
+    /// against (ADR 0004), so a rule read in two places is a rule with two
+    /// meanings waiting to be meant.
+    pub fn from_metadata(metadata: &std::fs::Metadata) -> std::io::Result<Self> {
+        let modified = metadata
+            .modified()?
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        Ok(Self {
+            file_size: i64::try_from(metadata.len()).unwrap_or(i64::MAX),
+            modified_at: i64::try_from(modified).unwrap_or(i64::MAX),
+        })
+    }
 }
