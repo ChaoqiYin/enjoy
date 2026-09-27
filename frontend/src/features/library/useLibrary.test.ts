@@ -70,28 +70,34 @@ it('retries the failed action and clears its error after success', async () => {
   const rescan = vi.mocked(libraryApi.rescan);
   rescan.mockRejectedValueOnce(failure).mockResolvedValueOnce([]);
   const { result } = mount();
-  await act(() => result.current.rescan());
-  expect(result.current.error?.errorId).toBe('err_retry');
+  await act(() => result.current.directories.rescan());
+  expect(result.current.notices.error?.errorId).toBe('err_retry');
   expect(rescan).toHaveBeenCalledTimes(1);
-  await act(() => result.current.retryError!());
+  await act(() => result.current.notices.retryError!());
   expect(rescan).toHaveBeenCalledTimes(2);
-  expect(result.current.error).toBeNull();
-  expect(result.current.busy).toBe(false);
+  expect(result.current.notices.error).toBeNull();
+  expect(result.current.busy.busy).toBe(false);
 });
 it('surfaces directory query failures and retries the directory request', async () => {
   vi.mocked(libraryApi.directories).mockRejectedValueOnce(failure);
   const { result } = mount();
-  await waitFor(() => expect(result.current.error?.errorId).toBe('err_retry'));
-  await act(() => result.current.retryError!());
-  await waitFor(() => expect(result.current.directories.isSuccess).toBe(true));
-  expect(result.current.error).toBeNull();
+  await waitFor(() =>
+    expect(result.current.notices.error?.errorId).toBe('err_retry'),
+  );
+  await act(() => result.current.notices.retryError!());
+  await waitFor(() =>
+    expect(result.current.directories.directories.isSuccess).toBe(true),
+  );
+  expect(result.current.notices.error).toBeNull();
 });
 it('allows scan query errors to be dismissed', async () => {
   vi.mocked(libraryApi.scanStatus).mockRejectedValue(failure);
   const { result } = mount();
-  await waitFor(() => expect(result.current.error?.errorId).toBe('err_retry'));
-  act(() => result.current.setError(null));
-  expect(result.current.error).toBeNull();
+  await waitFor(() =>
+    expect(result.current.notices.error?.errorId).toBe('err_retry'),
+  );
+  act(() => result.current.notices.setError(null));
+  expect(result.current.notices.error).toBeNull();
 });
 const completed = idleScan({
   phase: 'complete',
@@ -116,17 +122,17 @@ it('clears the previous completion notice when a new action starts', async () =>
   const { result } = mount();
   await waitFor(() => expect(handlers.has('scan-progress')).toBe(true));
   act(() => handlers.get('scan-progress')!({ payload: completed }));
-  expect(result.current.completion?.phase).toBe('complete');
-  await act(() => result.current.rescan());
-  expect(result.current.completion).toBeNull();
+  expect(result.current.notices.completion?.phase).toBe('complete');
+  await act(() => result.current.directories.rescan());
+  expect(result.current.notices.completion).toBeNull();
 });
 
 it('marks the video the launch reached the player for', async () => {
   const play = vi.spyOn(libraryApi, 'play').mockResolvedValue(undefined);
   const { result } = mount();
-  await act(() => result.current.play(video));
+  await act(() => result.current.videoActions.play(video));
   expect(play).toHaveBeenCalledWith(space.id, video.path);
-  expect(result.current.lastPlayedId).toBe(video.id);
+  expect(result.current.videos.lastPlayedId).toBe(video.id);
 });
 
 it('clears the filters of the library it left, and keeps the sort', async () => {
@@ -137,7 +143,7 @@ it('clears the filters of the library it left, and keeps the sort', async () => 
     folder: '/movies',
     sorts: { '/': 'name' },
   });
-  await act(() => result.current.switchSpace(other.id));
+  await act(() => result.current.spaceCommands.switchSpace(other.id));
   const view = useLibraryView.getState();
   // A search was about the library on screen; kept, it would hide everything in
   // the one that replaced it.
@@ -152,8 +158,8 @@ it('addresses a scan to the space being shown, not the one it was started from',
   const rescan = vi.spyOn(libraryApi, 'rescan').mockResolvedValue([]);
   const switchTo = vi.spyOn(libraryApi, 'switchSpace').mockResolvedValue(other);
   const { result } = mount();
-  await act(() => result.current.switchSpace(other.id));
-  await act(() => result.current.rescan());
+  await act(() => result.current.spaceCommands.switchSpace(other.id));
+  await act(() => result.current.directories.rescan());
   // A scan reads the directories saved for one space and writes back into that
   // same one, and which space that is comes from here rather than from the scan.
   expect(rescan).toHaveBeenCalledWith(other.id);
@@ -164,28 +170,28 @@ it('remembers the played marker for the space it was played in', async () => {
   vi.spyOn(libraryApi, 'play').mockResolvedValue(undefined);
   const switchTo = vi.spyOn(libraryApi, 'switchSpace');
   const { result } = mount();
-  await act(() => result.current.play(video));
-  expect(result.current.lastPlayedId).toBe(video.id);
+  await act(() => result.current.videoActions.play(video));
+  expect(result.current.videos.lastPlayedId).toBe(video.id);
 
   // Nothing has been played in the other space yet, so it shows no marker --
   // the two libraries do not share which card was last handed to the player.
   switchTo.mockResolvedValue(other);
-  await act(() => result.current.switchSpace(other.id));
-  expect(result.current.lastPlayedId).toBeNull();
+  await act(() => result.current.spaceCommands.switchSpace(other.id));
+  expect(result.current.videos.lastPlayedId).toBeNull();
 
   // Coming back finds it where it was left, which is the whole point of keeping
   // one per space rather than one for the session.
   switchTo.mockResolvedValue(space);
-  await act(() => result.current.switchSpace(space.id));
-  expect(result.current.lastPlayedId).toBe(video.id);
+  await act(() => result.current.spaceCommands.switchSpace(space.id));
+  expect(result.current.videos.lastPlayedId).toBe(video.id);
 });
 
 it('leaves the played marker alone when the launch fails', async () => {
   vi.spyOn(libraryApi, 'play').mockRejectedValue(failure);
   const { result } = mount();
-  await act(() => result.current.play(video));
+  await act(() => result.current.videoActions.play(video));
   // The marker follows the record, which counts only a launch that reached the
   // player; a rejected one is a notice, not a play.
-  expect(result.current.lastPlayedId).toBeNull();
-  expect(result.current.error?.errorId).toBe('err_retry');
+  expect(result.current.videos.lastPlayedId).toBeNull();
+  expect(result.current.notices.error?.errorId).toBe('err_retry');
 });

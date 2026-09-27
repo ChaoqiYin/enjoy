@@ -58,7 +58,7 @@ it('restarts the list on a switch, so it comes back at the top', async () => {
   const switchTo = vi.spyOn(libraryApi, 'switchSpace').mockResolvedValue(other);
   const { result } = mount();
   const before = result.current.view.collectionKey;
-  await act(() => result.current.library.switchSpace(other.id));
+  await act(() => result.current.library.spaceCommands.switchSpace(other.id));
   expect(switchTo).toHaveBeenCalledWith(other.id);
   // The key is the identity of the collection the list is mounted against, and
   // mounting again is what resets the scroll position. A switch with nothing

@@ -1,3 +1,4 @@
+import type { UseQueryResult } from '@tanstack/react-query';
 import { useLibraryContext } from './LibraryProvider';
 
 /**
@@ -5,19 +6,14 @@ import { useLibraryContext } from './LibraryProvider';
  * the two library-wide maintenance passes, which are what a page offers beside
  * the folder list.
  */
-export function useDirectories() {
-  const {
-    directories,
-    addDirectories,
-    removeDirectory,
-    rescan,
-    regenerateAllThumbnails,
-  } = useLibraryContext();
-  return {
-    directories,
-    addDirectories,
-    removeDirectory,
-    rescan,
-    regenerateAllThumbnails,
-  };
+export type Directories = {
+  directories: UseQueryResult<string[]>;
+  addDirectories: (paths: string[]) => Promise<void>;
+  removeDirectory: (path: string) => Promise<void>;
+  rescan: () => Promise<void>;
+  regenerateAllThumbnails: () => Promise<void>;
+};
+
+export function useDirectories(): Directories {
+  return useLibraryContext().directories;
 }

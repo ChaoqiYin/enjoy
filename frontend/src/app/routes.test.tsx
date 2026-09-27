@@ -15,9 +15,10 @@ import english from '../../../shared/locales/en/common.json';
 // vocabulary rather than through one stand-in that has to know every key the
 // library has.
 vi.mock('../features/library/LibraryProvider', () => ({
-  // Nothing below reads the context: the six modules it would feed are doubled
-  // as well, so the provider is here only to keep the real queries and the
-  // event subscriptions out of a test that is about which page is on screen.
+  // Nothing below reads the context: the seven modules it would feed are
+  // doubled as well, so the provider is here only to keep the real queries and
+  // the event subscriptions out of a test that is about which page is on
+  // screen.
   LibraryProvider: ({ children }: { children: ReactNode }) => children,
   useLibraryContext: () => ({}),
 }));
@@ -64,6 +65,16 @@ vi.mock('../features/library/useSpaceCommands', () => ({
     renameSpace: async () => {},
     removeSpace: async () => {},
     switchSpace: async () => {},
+  }),
+}));
+vi.mock('../features/library/useVideoActions', () => ({
+  useVideoActions: () => ({
+    play: async () => {},
+    toggleFavorite: async () => {},
+    reveal: async () => {},
+    refreshInfo: async () => {},
+    regenerateThumbnail: async () => {},
+    removeVideo: async () => {},
   }),
 }));
 vi.mock('../i18n/LanguageSetting', () => ({

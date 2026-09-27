@@ -5,22 +5,39 @@ import type { AppError, ScanStatus, Space, Video } from '../../shared/api';
 import { clearFilters } from './libraryView';
 import { useAdoptSpace, useSpace } from '../space/SpaceProvider';
 import { useNoticeState } from './notices';
+import { isScanRunning } from './scanFeedback';
 import { useScanLifecycle } from './scanLifecycle';
+import type { Busy } from './useBusy';
+import type { Directories } from './useDirectories';
+import type { Notices } from './useNotices';
+import type { Scan } from './useScan';
+import type { SpaceCommands } from './useSpaceCommands';
+import type { VideoActions } from './useVideoActions';
+import type { Videos } from './useVideos';
 
 /**
  * Everything the library holds, everything it says, and every command it can be
- * asked to carry out — assembled.
+ * asked to carry out — assembled, and handed over as seven slices.
  *
- * This is the only module that knows the whole of it. What each consumer sees
- * is a narrow slice of it, handed out by the hooks beside this file
- * (`useVideos`, `useScan`, `useNotices`, `useSpaceCommands`, `useDirectories`,
- * `useVideoActions`, `useBusy`), because a page that wants one boolean should
- * not have to know about the other twenty-seven keys. Two of those slices are
- * not assembled here at all: the scan lifecycle and the notices have modules of
- * their own, and what is left is the part they share — the queries, the
- * in-flight counter, and the commands.
+ * This is the only module that knows the whole of it. Each slice is the
+ * interface of the module that hands it out — `useVideos`, `useScan`,
+ * `useNotices`, `useSpaceCommands`, `useDirectories`, `useVideoActions`,
+ * `useBusy` — and a page imports the one it needs: a page that wants one
+ * boolean should not have to know about the other twenty-seven keys, and with
+ * the value shaped this way the page it hands them to cannot name them either.
+ *
+ * The slice types are declared beside those hooks rather than here, so what a
+ * consumer may name is decided by the consumer's own module, and this assembly
+ * is checked against it. That is the direction that fails loudly: a slice
+ * assembled without a key its readers were promised is a compile error here,
+ * where a hand-copied field list would have gone on quietly handing out one
+ * thing fewer.
+ *
+ * Two of the slices are not assembled here at all: the scan lifecycle and the
+ * notices have modules of their own, and what is left is the part they share —
+ * the queries, the in-flight counter, and the commands.
  */
-export function useLibrary() {
+export function useLibrary(): Library {
   const client = useQueryClient();
   // The one place the current space is read. Everything below — every cache
   // key and every command — is addressed to it, so a stale read here would be
@@ -189,51 +206,71 @@ export function useLibrary() {
 
   return {
     // 视频集合
-    videos,
-    lastPlayedId,
+    videos: { videos, lastPlayedId },
     // 扫描生命周期
-    scan,
-    controlScan,
+    scan: {
+      status: scan.data,
+      isRunning: isScanRunning(scan.data),
+      controlScan,
+    },
     // 通知
-    completion: notices.completion,
-    dismissCompletion: notices.dismissCompletion,
-    copyHint: notices.copyHint,
-    showCopyHint: notices.showCopyHint,
-    dismissCopyHint: notices.dismissCopyHint,
-    error:
-      notices.failure?.error ??
-      (failedQuery ? normalizeError(failedQuery.error) : null),
-    retryError: busy ? undefined : retryError,
-    setError: (value: AppError | null) => {
-      notices.setError(value);
-      if (value === null)
-        notices.dismissQueryErrors([
-          videos.error,
-          directories.error,
-          scan.error,
-        ]);
+    notices: {
+      completion: notices.completion,
+      dismissCompletion: notices.dismissCompletion,
+      copyHint: notices.copyHint,
+      showCopyHint: notices.showCopyHint,
+      dismissCopyHint: notices.dismissCopyHint,
+      error:
+        notices.failure?.error ??
+        (failedQuery ? normalizeError(failedQuery.error) : null),
+      retryError: busy ? undefined : retryError,
+      setError: (value: AppError | null) => {
+        notices.setError(value);
+        if (value === null)
+          notices.dismissQueryErrors([
+            videos.error,
+            directories.error,
+            scan.error,
+          ]);
+      },
     },
     // 空间
-    createSpace,
-    renameSpace,
-    removeSpace,
-    switchSpace,
+    spaceCommands: { createSpace, renameSpace, removeSpace, switchSpace },
     // 目录
-    directories,
-    addDirectories,
-    removeDirectory,
-    rescan,
-    regenerateAllThumbnails,
+    directories: {
+      directories,
+      addDirectories,
+      removeDirectory,
+      rescan,
+      regenerateAllThumbnails,
+    },
     // 单条视频的动作
-    play,
-    toggleFavorite,
-    reveal,
-    refreshInfo,
-    regenerateThumbnail,
-    removeVideo,
+    videoActions: {
+      play,
+      toggleFavorite,
+      reveal,
+      refreshInfo,
+      regenerateThumbnail,
+      removeVideo,
+    },
     // 忙闲
-    busy,
+    busy: { busy },
   };
 }
 
-export type Library = ReturnType<typeof useLibrary>;
+/**
+ * The whole of what the provider carries: the seven slices, and nothing else.
+ *
+ * Named rather than inferred from the assembly so that every slice is checked
+ * against the type its own module declares — the types are the interfaces, and
+ * this is where they are held to the state they are built from.
+ */
+export type Library = {
+  videos: Videos;
+  scan: Scan;
+  notices: Notices;
+  spaceCommands: SpaceCommands;
+  directories: Directories;
+  videoActions: VideoActions;
+  busy: Busy;
+};
