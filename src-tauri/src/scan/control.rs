@@ -8,7 +8,6 @@ use crate::repository::IndexChanges;
 #[serde(rename_all = "camelCase")]
 pub struct ScanStatus {
     pub operation: String,
-    pub background: bool,
     pub phase: String,
     pub changes: IndexChanges,
     pub failures: usize,
@@ -112,11 +111,22 @@ impl ScanControl {
         Ok(())
     }
 
-    pub fn publish(&self, status: ScanStatus) {
-        self.state
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .status = status;
+    /// Writes the status and hands back what a reader would see from now on.
+    ///
+    /// The pause overlay is applied here rather than only at the reader, so a
+    /// caller that has just written a status can send it out without reading it
+    /// back — one lock instead of two, and one way to get it right instead of a
+    /// dozen. What must not change is which of the two is sent: a paused pass
+    /// keeps reporting `paused` while its own work moves the rest of the status
+    /// on, and a caller that sent back the value it passed in would lose that.
+    pub fn publish(&self, status: ScanStatus) -> ScanStatus {
+        let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        state.status = status;
+        let mut snapshot = state.status.clone();
+        if state.paused {
+            snapshot.phase = "paused".into();
+        }
+        snapshot
     }
 
     pub fn status(&self) -> ScanStatus {
@@ -196,6 +206,28 @@ mod tests {
         assert!(space_change_gate(control.is_running()).is_err());
         drop(guard);
         assert!(space_change_gate(control.is_running()).is_ok());
+    }
+
+    #[test]
+    fn publishing_while_paused_reports_paused_rather_than_what_was_written() {
+        let control = Arc::new(ScanControl::default());
+        let guard = control.begin().unwrap();
+        control.action("pause").unwrap();
+        // A paused pass keeps working, so it keeps writing what the work is
+        // doing. The phase is not the writer's to choose while the pause is on:
+        // without this the interface would be told "processing" and the user
+        // would watch a pause that did not take.
+        let snapshot = control.publish(ScanStatus {
+            phase: "processing".into(),
+            processed: 3,
+            ..Default::default()
+        });
+        assert_eq!(snapshot.phase, "paused");
+        assert_eq!(snapshot.processed, 3);
+        // The writer is handed what a reader would see, so the two cannot drift.
+        assert_eq!(control.status().phase, snapshot.phase);
+        assert_eq!(control.status().processed, snapshot.processed);
+        drop(guard);
     }
 
     #[test]

@@ -72,7 +72,6 @@ function refusalFor(raw: string, ignore?: number): AppError | null {
     : null;
 }
 let scan: ScanStatus = {
-  background: false,
   phase: 'complete',
   discovered: 36,
   processed: 36,

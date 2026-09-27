@@ -70,7 +70,7 @@ fn verify_scan_failure_counts_and_cache(directory: &Path) {
     for attempt in 0..2 {
         let guard = control.begin().unwrap();
         let events = Recorded::default();
-        let videos = scan_job::run(&media, space, &repository, &control, false, &events).unwrap();
+        let videos = scan_job::run(&media, space, &repository, &control, &events).unwrap();
         drop(guard);
         let errors = events.media_error_codes();
         let events = events.statuses();
@@ -137,7 +137,7 @@ fn verify_cancelled_metadata_resumes(parent: &Path, source: &Path) {
             watching.action("cancel").unwrap();
         }
     });
-    let result = scan_job::run(&media, space, &repository, &control, false, &events);
+    let result = scan_job::run(&media, space, &repository, &control, &events);
     assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
     assert!(events.media_error_codes().is_empty());
     drop(guard);
@@ -151,7 +151,7 @@ fn verify_cancelled_metadata_resumes(parent: &Path, source: &Path) {
     let repository = Arc::new(Mutex::new(repository));
     let guard = control.begin().unwrap();
     let events = Recorded::default();
-    let rows = scan_job::run(&media, space, &repository, &control, false, &events).unwrap();
+    let rows = scan_job::run(&media, space, &repository, &control, &events).unwrap();
     assert!(events.media_error_codes().is_empty());
     drop(guard);
     assert!(rows[0].media_complete);

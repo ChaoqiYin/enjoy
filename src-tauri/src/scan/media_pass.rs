@@ -183,7 +183,10 @@ pub(crate) fn run<'a>(
 
 /// Reports the status as it stands: into the slot, which is what a reader that
 /// comes late gets, and out to the interface, which is what it draws.
+///
+/// One call, not two: `publish` hands back the status a reader would now see,
+/// with the paused phase already over it, so there is nothing to read back and
+/// no way to send out a different status than the slot holds.
 fn announce(status: &ScanStatus, control: &ScanControl, events: &impl Events) {
-    control.publish(status.clone());
-    events.scan_progress(control.status());
+    events.scan_progress(control.publish(status.clone()));
 }

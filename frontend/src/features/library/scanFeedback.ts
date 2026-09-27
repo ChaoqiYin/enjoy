@@ -19,14 +19,19 @@ export function isScanRunning(status: ScanStatus | undefined): boolean {
   );
 }
 
+/**
+ * Whether a status is a pass worth announcing.
+ *
+ * Only a pass that **finished** is. A pass that was cancelled or that failed
+ * leaves the phase it stopped in — `ScanGuard::drop` decides that on the
+ * backend — and there is nothing to tell the user about a sweep they already
+ * watched stop. Every scan is user-initiated, so there is no such thing as one
+ * the user did not ask for and should not be interrupted by; the flag that used
+ * to make that distinction went with the module that started those scans, and
+ * what is left is the phase.
+ */
 export function shouldAnnounceScan(status: ScanStatus): boolean {
-  return (
-    status.phase === 'complete' &&
-    (!status.background ||
-      status.failures > 0 ||
-      status.unreachableDirectories > 0 ||
-      Object.values(status.changes).some((count) => count > 0))
-  );
+  return status.phase === 'complete';
 }
 
 /**

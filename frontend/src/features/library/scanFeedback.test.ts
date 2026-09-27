@@ -3,7 +3,6 @@ import { idleScan } from '../../test/fixtures';
 import { completionAutoCloseMs, shouldAnnounceScan } from './scanFeedback';
 
 const completed = idleScan({
-  background: true,
   phase: 'complete',
   discovered: 1,
   processed: 1,
@@ -14,28 +13,33 @@ const completed = idleScan({
 });
 
 describe('scan completion feedback', () => {
-  it('keeps silent background scans from replacing useful feedback', () => {
-    expect(shouldAnnounceScan(completed)).toBe(false);
-    expect(shouldAnnounceScan({ ...completed, background: false })).toBe(true);
-  });
-  it('announces background changes and failures only after completion', () => {
-    for (const key of ['added', 'updated', 'removed']) {
-      expect(
-        shouldAnnounceScan({
-          ...completed,
-          changes: { ...completed.changes, [key]: 1 },
-        }),
-      ).toBe(true);
-    }
-    expect(shouldAnnounceScan({ ...completed, failures: 1 })).toBe(true);
+  it('announces a pass that finished, whatever it found', () => {
+    expect(shouldAnnounceScan(completed)).toBe(true);
+    // What a pass found is what the notice *says*, not whether it is shown: a
+    // pass that changed nothing is still a pass the user asked for and watched.
     expect(
-      shouldAnnounceScan({ ...completed, phase: 'processing', failures: 1 }),
-    ).toBe(false);
-  });
-  it('announces a background scan that could not read a directory', () => {
+      shouldAnnounceScan({
+        ...completed,
+        changes: { ...completed.changes, added: 1 },
+      }),
+    ).toBe(true);
+    expect(shouldAnnounceScan({ ...completed, failures: 1 })).toBe(true);
     expect(
       shouldAnnounceScan({ ...completed, unreachableDirectories: 1 }),
     ).toBe(true);
+  });
+  it('says nothing about a pass that stopped instead of finishing', () => {
+    // Cancelled and failed passes leave the phase they stopped in, and a sweep
+    // the user watched stop needs no announcement. Only the phase is asked.
+    for (const phase of [
+      'discovering',
+      'processing',
+      'paused',
+      'cancelled',
+      'failed',
+    ]) {
+      expect(shouldAnnounceScan({ ...completed, phase })).toBe(false);
+    }
   });
   it('keeps a completion that reported failures until it is dismissed', () => {
     expect(

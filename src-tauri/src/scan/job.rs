@@ -21,17 +21,14 @@ pub fn run(
     space_id: i64,
     repository: &Arc<Mutex<Repository>>,
     control: &ScanControl,
-    background: bool,
     events: &impl Events,
 ) -> Result<Vec<VideoFile>, AppError> {
     let mut progress = ScanStatus {
         phase: "discovering".into(),
         operation: "scan".into(),
-        background,
         ..Default::default()
     };
-    control.publish(progress.clone());
-    events.scan_progress(control.status());
+    events.scan_progress(control.publish(progress.clone()));
     // The scan universe is read from the repository, not received from the
     // caller, so no caller can scan a subset and have the cleanup of the
     // directories it left out be decided by this run. The space, on the other
@@ -42,8 +39,7 @@ pub fn run(
     for path in directories {
         control.checkpoint()?;
         progress.current_path = path.clone();
-        control.publish(progress.clone());
-        events.scan_progress(control.status());
+        events.scan_progress(control.publish(progress.clone()));
         // One question decides both how the directory is read and whether it
         // belongs to this run's range: is the path still there? A directory
         // that is gone is read as one whose videos all went with it, and its

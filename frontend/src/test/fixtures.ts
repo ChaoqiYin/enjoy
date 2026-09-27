@@ -13,7 +13,6 @@ import type { ScanStatus } from '../shared/api';
  */
 export function idleScan(overrides: Partial<ScanStatus> = {}): ScanStatus {
   return {
-    background: false,
     phase: 'idle',
     changes: { added: 0, updated: 0, removed: 0 },
     failures: 0,

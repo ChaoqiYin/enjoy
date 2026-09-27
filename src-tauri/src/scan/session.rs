@@ -61,8 +61,7 @@ fn scanning(
     events: &impl Events,
 ) -> Result<Vec<VideoFile>, AppError> {
     let _slot = guard;
-    // No command starts a background scan: every scan is user-initiated.
-    scan_job::run(media, space_id, repository, control, false, events)
+    scan_job::run(media, space_id, repository, control, events)
 }
 
 /// Regenerates thumbnails for one video, or for every video in the space.
