@@ -136,21 +136,20 @@ export function VideoCard({
           of flow over the thumbnail's corner rather than a row in the body, so
           that no body row has to make room for it.
 
-          It has to be the card's **last** child, not its first. daisyUI gives
-          `.card figure:first-child` the picture area's `overflow: hidden` and
-          the corner radius the picture inherits from the card, and
+          It has to be the card's **last** child, not its first: the picture area
+          is the first, and daisyUI's `.card figure:first-child` is what gives it
+          the corner radius and the clipping that holds its height at 16:9.
           `:first-child` counts an absolutely positioned child — positioning
-          moves the box, not the ordinal. Put the marker ahead of the figure and
-          the picture area stops matching that rule, which costs it two things:
-          the radius, and the clipping that was holding its height at 16:9.
-          Without the clipping the figure's `min-height: auto` is released, and
-          a thumbnail whose own ratio is not 16:9 (ffmpeg keeps the source
-          ratio) then sets the height instead — measured on the built page at a
-          249.5px column, a played card over a portrait thumbnail comes out
-          505.92 tall against 205.31 for every other card, and the grid's
-          `align-items: stretch` carries the row to 525.92, which no row
-          estimate can follow. ADR 0009 records the measurement that missed
-          this: its fixture was 1920×1080, where the two heights coincide.
+          moves the box, not the ordinal — so a marker placed ahead of the
+          picture takes that rule away with it, and a thumbnail whose own ratio
+          is not 16:9 (ffmpeg keeps the source ratio) then sets the height
+          instead: measured on the built page at a 249.5px column, a played card
+          over a portrait thumbnail comes out 505.92 tall against 205.31 for
+          every other card, and the grid's `align-items: stretch` carries the row
+          to 525.92, which no row estimate can follow. The position itself is
+          asserted in `app/interface.test.tsx`, the ratio and the estimate in
+          `videoCardBox`, and ADR 0009 records the measurement that missed this:
+          its fixture was 1920×1080, where the two heights coincide.
 
           `badge-neutral` rather than a bare `badge`: measured on the built
           page, `--color-neutral` is `oklch(14% .005 285.823)` in **both**

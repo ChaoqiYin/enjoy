@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useState } from 'react';
 import type { ScanStatus } from '../../shared/api';
+import { pictureClass } from './videoCardBox';
 
 export function Thumbnail({
   path,
@@ -22,7 +23,7 @@ export function Thumbnail({
   if (processing) {
     return (
       <div
-        className="aspect-video bg-base-300 flex flex-col gap-2 items-center justify-center text-center p-2 text-sm"
+        className={`${pictureClass} bg-base-300 flex flex-col gap-2 items-center justify-center text-center p-2 text-sm`}
         role="status"
         aria-label={t('mediaPreparingName', { name })}
       >
@@ -43,7 +44,7 @@ export function Thumbnail({
   if (!path || failedPath === path) {
     return (
       <div
-        className="aspect-video bg-base-300 flex items-center justify-center text-base-content/60"
+        className={`${pictureClass} bg-base-300 flex items-center justify-center text-base-content/60`}
         aria-label={t('noThumbnail', { name })}
       >
         {t('thumbnailPending')}
@@ -51,7 +52,7 @@ export function Thumbnail({
     );
   }
   return (
-    <figure className="aspect-video bg-base-300">
+    <figure className={`${pictureClass} bg-base-300`}>
       <img
         className="w-full h-full object-cover"
         src={convertFileSrc(path)}

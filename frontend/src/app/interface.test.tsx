@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { Thumbnail } from '../features/library/Thumbnail';
 import { VideoCard } from '../features/library/VideoCard';
+import { pictureClass } from '../features/library/videoCardBox';
 import type { ScanStatus, Video } from '../shared/api';
 import english from '../../../shared/locales/en/common.json';
 import chinese from '../../../shared/locales/zh-CN/common.json';
@@ -218,13 +219,12 @@ describe('video card actions', () => {
     // positioned child. Anything placed ahead of the picture area takes the
     // clipping away with it, and a thumbnail whose own ratio is not 16:9 then
     // sets the figure's height — a played card measuring more than twice its
-    // neighbours, dragging its whole row with it (issue #46). Asserting on
-    // `aspect-video` rather than on a class added for this test keeps the hook
-    // the picture area already carries; what it cannot show is the geometry
-    // that goes wrong without it, which jsdom cannot lay out at all.
-    expect(card.firstElementChild?.classList.contains('aspect-video')).toBe(
-      true,
-    );
+    // neighbours, dragging its whole row with it (issue #46). The name comes
+    // from `videoCardBox`, which is where that rule and its numbers live, so
+    // renaming the picture area's hook renames it here too; what this cannot
+    // show is the geometry that goes wrong without it, which jsdom cannot lay
+    // out at all.
+    expect(card.firstElementChild?.classList.contains(pictureClass)).toBe(true);
   });
   it('does not gate play on any per-record availability state', () => {
     const actions = mount();

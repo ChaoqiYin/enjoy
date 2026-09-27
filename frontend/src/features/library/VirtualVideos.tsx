@@ -4,6 +4,7 @@ import { useVirtualCollection } from '../../shared/useVirtualCollection';
 import { VirtualGrid, virtualGridLayout } from '../../shared/VirtualGrid';
 import { ScrollViewport } from '../../shared/ScrollViewport';
 import { VideoCard } from './VideoCard';
+import { hoverRoom, rowHeight } from './videoCardBox';
 import type { Video } from '../../shared/api';
 
 export function VirtualVideos({
@@ -19,25 +20,15 @@ export function VirtualVideos({
       items: props.videos,
       getItemKey: (video) => video.id,
       getColumnCount: virtualGridLayout.getColumnCount,
-      // Rounded, because that is what the measurement it stands in for reports:
-      // `measureElement` reads `offsetHeight`, an integer. A fractional estimate
-      // leaves a fraction of a pixel per row, and those add up down the grid.
       estimateRowHeight: (width, columns) =>
-        Math.round(
-          (((width - (columns - 1) * virtualGridLayout.gap) / columns -
-            virtualGridLayout.cardBorder * 2) *
-            9) /
-            16 +
-            virtualGridLayout.rowFooter,
-        ),
+        rowHeight(width, columns, virtualGridLayout.gap),
       measurementKey: i18n.language,
     });
   // Room on the viewport's start edge for the hover feedback of the first row
   // and first column, which the padding-box clip cuts flat; taking it with a
   // negative margin of the same value is what keeps that growth out of the
   // static layout, so no card moves. The value and its derivation are in
-  // `virtualGridLayout.hoverRoom`, the measurements in ADR 0008.
-  const hoverRoom = virtualGridLayout.hoverRoom;
+  // `videoCardBox.hoverRoom`, the measurements in ADR 0008.
   return (
     <ScrollViewport
       ref={viewport}
