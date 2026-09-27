@@ -12,12 +12,8 @@
 //! that began on its own could be started while another one is running, and the
 //! whole point of the slot is that this cannot happen.
 //!
-//! **The slot is dropped before the closing events go out.** `ScanGuard::drop`
-//! is what turns a job that ended without reaching `complete` into `failed` or
-//! `cancelled`, so a status read before it lands reports the phase the job was
-//! in rather than the one it ended in. Each job below therefore does its work
-//! in a function that owns the guard, and reports only after that function has
-//! returned.
+//! Every job below runs through [`finished`], which owns the one thing the
+//! three of them have to agree on: the slot lands before anything is reported.
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -31,6 +27,31 @@ use crate::scan::control::{ScanControl, ScanGuard, ScanStatus};
 use crate::scan::job as scan_job;
 use crate::scan::media_pass::{self, MediaOperations, Outcome, Step};
 use crate::scan::refresh::refresh_video;
+
+/// Runs one media job and reports it, in that order.
+///
+/// The order is the whole of what this is for. `ScanGuard::drop` is what turns
+/// a job that ended without reaching `complete` into `failed` or `cancelled`,
+/// so anything reported while the guard is still held describes the phase the
+/// job was in rather than the one it ended in.
+///
+/// Each call site used to spell the order out for itself, as a wrapper function
+/// whose only purpose was to put the guard in a narrower scope than the events.
+/// Three jobs, three hand-written scopes — and one of them, the single-file
+/// refresh, reported from inside its scope instead. Nothing said so, and a
+/// reader had to compare the three to see it.
+///
+/// What a job reports is not shared: a scan reports its progress and that the
+/// library moved, and a refresh reports only that it moved, and only when it
+/// did. So the report is a closure over the result rather than a fixed pair.
+fn finished<T>(guard: ScanGuard, work: impl FnOnce() -> T, report: impl FnOnce(&T)) -> T {
+    let result = {
+        let _slot = guard;
+        work()
+    };
+    report(&result);
+    result
+}
 
 /// Scans the current space's saved directories and processes what is new or
 /// changed.
@@ -46,22 +67,14 @@ pub(crate) fn rescan(
     media: &MediaProcessor,
     events: &impl Events,
 ) -> Result<Vec<VideoFile>, AppError> {
-    let result = scanning(guard, space_id, repository, control, media, events);
-    events.scan_progress(control.status());
-    events.library_changed();
-    result
-}
-
-fn scanning(
-    guard: ScanGuard,
-    space_id: i64,
-    repository: &Arc<Mutex<Repository>>,
-    control: &Arc<ScanControl>,
-    media: &MediaProcessor,
-    events: &impl Events,
-) -> Result<Vec<VideoFile>, AppError> {
-    let _slot = guard;
-    scan_job::run(media, space_id, repository, control, events)
+    finished(
+        guard,
+        || scan_job::run(media, space_id, repository, control, events),
+        |_| {
+            events.scan_progress(control.status());
+            events.library_changed();
+        },
+    )
 }
 
 /// Regenerates thumbnails for one video, or for every video in the space.
@@ -81,22 +94,26 @@ pub(crate) fn regenerate_thumbnails(
     media: &MediaProcessor,
     events: &impl Events,
 ) -> Result<(), AppError> {
-    let result = regenerating(
+    finished(
         guard,
-        space_id,
-        path.as_deref(),
-        repository,
-        control,
-        media,
-        events,
-    );
-    events.scan_progress(control.status());
-    events.library_changed();
-    result
+        || {
+            regenerating(
+                space_id,
+                path.as_deref(),
+                repository,
+                control,
+                media,
+                events,
+            )
+        },
+        |_| {
+            events.scan_progress(control.status());
+            events.library_changed();
+        },
+    )
 }
 
 fn regenerating(
-    guard: ScanGuard,
     space_id: i64,
     path: Option<&str>,
     repository: &Arc<Mutex<Repository>>,
@@ -104,7 +121,6 @@ fn regenerating(
     media: &MediaProcessor,
     events: &impl Events,
 ) -> Result<(), AppError> {
-    let _slot = guard;
     let videos: Vec<VideoFile> = lock_shared(repository)?
         .list(space_id)?
         .into_iter()
@@ -187,12 +203,60 @@ pub(crate) fn refresh_info(
     media: &MediaProcessor,
     events: &impl Events,
 ) -> Result<(), AppError> {
-    let _slot = guard;
-    let wrote = refresh_video(space_id, path, repository, control, |file| {
-        media.probe(file, || control.is_cancelled())
-    })?;
-    if wrote {
-        events.library_changed();
+    finished(
+        guard,
+        || {
+            let wrote = refresh_video(space_id, path, repository, control, |file| {
+                media.probe(file, || control.is_cancelled())
+            })?;
+            Ok::<bool, AppError>(wrote)
+        },
+        |wrote| {
+            // Only when it wrote: a refresh that found a newer identity already
+            // stored has nothing to tell the interface. And only this much — a
+            // single file has no progress to report, which is why this job does
+            // not send a status the way the other two do.
+            if matches!(wrote, Ok(true)) {
+                events.library_changed();
+            }
+        },
+    )
+    .map(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+    use std::sync::Arc;
+
+    use super::finished;
+    use crate::scan::control::ScanControl;
+
+    /// The rule the three jobs above share, tested where it lives rather than
+    /// once per job.
+    ///
+    /// It is here rather than in `session_tests` because `finished` is private
+    /// to this module: the sibling file reaches the jobs through their own
+    /// interfaces, and this reaches the one thing they all go through.
+    #[test]
+    fn a_job_reports_after_the_slot_is_free() {
+        let control = Arc::new(ScanControl::default());
+        let guard = control.begin().unwrap();
+        let holding_while_working = Cell::new(false);
+        let holding_while_reporting = Cell::new(true);
+
+        finished(
+            guard,
+            || holding_while_working.set(control.is_running()),
+            |_| holding_while_reporting.set(control.is_running()),
+        );
+
+        // The job runs with the slot taken and reports without it. `ScanGuard`
+        // decides the phase a job ended in when it lands, so a report made while
+        // it is still held describes a phase the job has already left — which is
+        // what the single-file refresh did by reporting from inside its own
+        // scope, and what no test of the loops below could have caught.
+        assert!(holding_while_working.get());
+        assert!(!holding_while_reporting.get());
     }
-    Ok(())
 }
