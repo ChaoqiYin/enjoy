@@ -107,6 +107,44 @@ let transfer: {
   total: number;
   settle: (ended: UpdateProgress) => void;
 } | null = null;
+
+/**
+ * A command this fixture has no answer for is not the same thing as a command
+ * that failed, and a walkthrough has to be able to tell them apart.
+ *
+ * The application reports a failure with a notice and a code, so the fixture's
+ * gaps used to arrive looking exactly like the backend refusing to work: press
+ * a button in a section this entry does not cover and the screen says the
+ * operation failed. That is how a walkthrough ends up recording a defect that
+ * only exists in the fixture. Raising the distinction where the person clicking
+ * is already looking is the whole of this function — the throw still happens,
+ * because letting an unanswered command quietly resolve would be worse.
+ *
+ * Both languages on purpose: this page renders the real application under a
+ * fixture-owned language, and a banner about the fixture is not worth a
+ * translation round trip.
+ */
+function unimplemented(command: string): never {
+  const id = 'enjoy-acceptance-unimplemented';
+  const existing = document.getElementById(id);
+  const banner =
+    existing ??
+    Object.assign(document.createElement('div'), {
+      id,
+      style:
+        'position:fixed;inset-inline:0;bottom:0;z-index:2147483647;' +
+        'padding:10px 16px;background:#7f1d1d;color:#fff;' +
+        'font:13px/1.6 system-ui,sans-serif;white-space:pre-wrap',
+      textContent:
+        '验收夹具没有实现这些命令，这不是应用失败 / ' +
+        'the acceptance fixture has no answer for these commands, ' +
+        'which is not an application failure:\n',
+    });
+  if (!existing) document.body.appendChild(banner);
+  banner.append(`${command} `);
+  throw new Error(`Unexpected acceptance command: ${command}`);
+}
+
 mockConvertFileSrc('macos');
 Object.defineProperty(window, 'isTauri', { value: true });
 mockIPC(
@@ -185,6 +223,31 @@ mockIPC(
         return ['/acceptance/Movies', '/acceptance/Archive'];
       case 'scan_status':
         return scan;
+      case 'scan_action': {
+        // Only the phase. Pausing, resuming and cancelling a scan have rules
+        // behind them — the single slot, the gates, the refusals, the rule that
+        // a paused phase is not overwritten by the next file's progress — and
+        // the tests holding those are Rust's. What a walkthrough needs from
+        // this command is that the three buttons move the panel to the phase
+        // they name; anything past that would be a third copy of the backend.
+        const phase =
+          payload.action === 'pause'
+            ? 'paused'
+            : payload.action === 'resume'
+              ? 'processing'
+              : 'cancelled';
+        scan = {
+          ...scan,
+          phase,
+          currentPath: phase === 'processing' ? videos[35].path : '',
+        };
+        // Not awaited: this handler is not an async function (the commands that
+        // answer with a promise return one rather than awaiting inside), and a
+        // command that has published its progress answers without waiting for
+        // the event to be delivered.
+        void emit('scan-progress', scan);
+        return;
+      }
       case 'open_video':
         throw {
           code: 'media.player.start_failed',
@@ -240,8 +303,7 @@ mockIPC(
       case 'restart_app':
         return;
       default:
-        console.warn(`Unexpected acceptance command: ${command}`);
-        throw new Error(`Unexpected acceptance command: ${command}`);
+        unimplemented(command);
     }
   },
   { shouldMockEvents: true },
