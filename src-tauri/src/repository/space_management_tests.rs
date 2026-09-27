@@ -1,6 +1,6 @@
 use std::fs;
 
-use crate::repository::fixture::{Fixture, FIRST_SPACE};
+use crate::repository::fixture::{Fixture, Library, FIRST_SPACE};
 use crate::repository::spaces::NAME_MAX;
 use crate::repository::Repository;
 use crate::scan::scanner;
@@ -10,8 +10,10 @@ use crate::scan::scanner;
 fn library_with_one_record() -> (Fixture, Repository, String) {
     let fixture = Fixture::new();
     fs::write(fixture.0.join("movie.mp4"), b"video").unwrap();
-    let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     repository
         .replace_videos(
             space,
@@ -30,7 +32,7 @@ fn library_with_one_record() -> (Fixture, Repository, String) {
 #[test]
 fn a_new_space_is_listed_after_the_first_and_becomes_the_one_shown() {
     let fixture = Fixture::new();
-    let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let Library { mut repository, .. } = fixture.library();
     let first = repository.current_space().unwrap();
     let second = repository.create_space("Second").unwrap();
     assert_ne!(first.id, second.id);
@@ -47,7 +49,7 @@ fn a_new_space_is_listed_after_the_first_and_becomes_the_one_shown() {
 #[test]
 fn a_name_keeps_the_spelling_it_was_typed_with_and_is_compared_without_case() {
     let fixture = Fixture::new();
-    let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let Library { mut repository, .. } = fixture.library();
     // The blank space around a name is not part of the name -- that is the
     // "去掉首尾空白" the rules start from, and storing it would be storing
     // something nobody can see or correct. What is left is kept exactly as
@@ -80,7 +82,7 @@ fn a_name_keeps_the_spelling_it_was_typed_with_and_is_compared_without_case() {
 #[test]
 fn creating_and_renaming_hold_a_name_to_the_same_rules() {
     let fixture = Fixture::new();
-    let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let Library { mut repository, .. } = fixture.library();
     repository.create_space("Taken").unwrap();
     let other = repository.create_space("Other").unwrap();
     // Both paths answer the same code for the same input, so neither can drift
@@ -172,7 +174,7 @@ fn removing_a_space_clears_its_records_and_leaves_the_files_alone() {
 #[test]
 fn removing_the_space_shown_moves_the_interface_to_one_that_is_there() {
     let fixture = Fixture::new();
-    let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let Library { mut repository, .. } = fixture.library();
     let first = repository.current_space().unwrap().id;
     let second = repository.create_space("Second").unwrap();
     let third = repository.create_space("Third").unwrap();
@@ -220,7 +222,7 @@ fn switching_moves_the_marker_and_leaves_every_space_where_it_was() {
 #[test]
 fn the_last_space_cannot_be_removed() {
     let fixture = Fixture::new();
-    let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let Library { mut repository, .. } = fixture.library();
     let only = repository.current_space().unwrap().id;
     assert_eq!(
         repository.delete_space(only).unwrap_err().code,
@@ -242,7 +244,7 @@ fn the_last_space_cannot_be_removed() {
 #[test]
 fn a_space_that_is_not_there_cannot_be_renamed_or_removed() {
     let fixture = Fixture::new();
-    let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let Library { mut repository, .. } = fixture.library();
     let missing = repository.current_space().unwrap().id + 1000;
     assert_eq!(
         repository.rename_space(missing, "Any").unwrap_err().code,

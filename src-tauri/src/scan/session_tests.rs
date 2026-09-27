@@ -1,6 +1,6 @@
 use crate::events::Recorded;
 use crate::media::MediaProcessor;
-use crate::repository::fixture::{Fixture, FIRST_SPACE};
+use crate::repository::fixture::{Fixture, Library};
 use crate::repository::Repository;
 use crate::scan::control::ScanControl;
 use crate::scan::scanner;
@@ -11,8 +11,10 @@ use std::sync::{Arc, Mutex};
 /// fails for a reason the test does not have to arrange beyond the bytes.
 fn space_with_an_unreadable_file(fixture: &Fixture) -> (Arc<Mutex<Repository>>, i64, String) {
     std::fs::write(fixture.0.join("broken.mp4"), b"not a video").unwrap();
-    let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     let root = fixture.0.to_string_lossy().into_owned();
     repository
         .replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
@@ -24,7 +26,7 @@ fn space_with_an_unreadable_file(fixture: &Fixture) -> (Arc<Mutex<Repository>>, 
 #[test]
 fn a_pass_over_an_empty_space_reports_the_phases_and_the_library_change() {
     let fixture = Fixture::new();
-    let repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let Library { repository, .. } = fixture.library();
     let space = repository.current_space().unwrap().id;
     let repository = Arc::new(Mutex::new(repository));
     let control = Arc::new(ScanControl::default());

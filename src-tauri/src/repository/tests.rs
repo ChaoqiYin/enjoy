@@ -1,7 +1,7 @@
 use std::fs;
 
 use crate::model::Found;
-use crate::repository::fixture::{Fixture, FIRST_SPACE};
+use crate::repository::fixture::{Fixture, Library, FIRST_SPACE};
 use crate::repository::Repository;
 use crate::scan::scanner;
 
@@ -47,8 +47,10 @@ fn a_scanned_directory_clears_the_stale_records_of_files_it_no_longer_holds() {
     fs::write(&movie, b"sample").unwrap();
     let root = fixture.0.to_str().unwrap();
     let path = movie.to_str().unwrap();
-    let mut repository = Repository::open(&fixture.0.join("index.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     repository
         .index(space, root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
@@ -91,8 +93,10 @@ fn a_scan_target_that_is_not_a_directory_is_a_verdict_and_not_an_error() {
         Found::Gone
     ));
     // A directory that is one still indexes what it holds.
-    let mut repository = Repository::open(&fixture.0.join("index.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     repository
         .index(
             space,
@@ -109,8 +113,10 @@ fn failed_playback_does_not_change_history() {
     let movie = fixture.0.join("clip.mp4");
     fs::write(&movie, b"sample").unwrap();
     let path = movie.to_str().unwrap();
-    let mut repository = Repository::open(&fixture.0.join("index.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     repository
         .index(
             space,
@@ -155,8 +161,10 @@ fn scan_changes_count_new_and_updated_files() {
     let fixture = Fixture::new();
     let movie = fixture.0.join("sample.mp4");
     fs::write(&movie, b"one").unwrap();
-    let mut repository = Repository::open(&fixture.0.join("index.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     let root = fixture.0.to_str().unwrap();
     let first = repository
         .index(space, root, &scanner::collect(&fixture.0).unwrap())
@@ -237,8 +245,10 @@ fn overlapping_directories_share_identity_and_keep_tracking_after_removal() {
     fs::create_dir(&nested).unwrap();
     let movie = nested.join("sample.mp4");
     fs::write(&movie, b"sample").unwrap();
-    let mut repository = Repository::open(&fixture.0.join("index.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     let parent = fixture.0.to_str().unwrap();
     let child = nested.to_str().unwrap();
     repository
@@ -276,8 +286,10 @@ fn replacing_all_videos_merges_roots_and_preserves_user_state() {
     let movie = first.join("first.mp4");
     fs::write(&movie, b"video").unwrap();
     fs::write(second.join("second.mp4"), b"video").unwrap();
-    let mut repository = Repository::open(&fixture.0.join("index.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     repository
         .index(
             space,
@@ -333,8 +345,10 @@ fn replacement_write_failure_rolls_back_deletion_and_user_state() {
     let fixture = Fixture::new();
     let movie = fixture.0.join("sample.mp4");
     fs::write(&movie, b"video").unwrap();
-    let mut repository = Repository::open(&fixture.0.join("index.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     let root = fixture.0.to_str().unwrap();
     repository
         .index(space, root, &scanner::collect(&fixture.0).unwrap())

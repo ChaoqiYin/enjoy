@@ -62,11 +62,31 @@ pub fn read_directory(
     // that is a symlink keeps matching its own records. A path that cannot be
     // resolved is walked as it was written instead.
     let root = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    match collect_controlled(&root, checkpoint, on_file_error) {
+    walked(collect_controlled(&root, checkpoint, on_file_error))
+}
+
+/// What the walk of one configured directory came to.
+///
+/// The rule the third arm carries is the one the whole verdict rests on: **any**
+/// failure to walk a directory means this run knows nothing about what it holds,
+/// which is not the same as knowing it holds nothing. Whatever the failure was —
+/// a permission, a share that stopped answering, a device that went away — the
+/// directory keeps its records.
+///
+/// It is written as a function of the failure rather than as a match over the
+/// file system's answer because that is what makes it testable where the
+/// application ships: a directory that cannot be read is not something a test
+/// can arrange on Windows, and the rule does not need one. The tests that do
+/// arrange a real one are `cfg(unix)` and stand behind this.
+fn walked(found: Result<Collected, AppError>) -> Result<Found, AppError> {
+    match found {
         Ok(collected) => Ok(Found::Read {
             files: collected.files,
             unreadable: collected.unreadable,
         }),
+        // A pass that was cancelled is not a verdict about the directory at all:
+        // it stopped because it was told to, and the run ends rather than
+        // reading the whole directory as one nothing is known about.
         Err(error) if error.code == SCAN_CANCELLED => Err(error),
         // Counted rather than reported as a failure: one directory that cannot
         // be read must not stop the other directories from being cleaned up,
@@ -218,7 +238,7 @@ fn scanned_file(file: &Path, root: &Path) -> Result<ScannedFile, Failed> {
 mod tests {
     use std::cell::Cell;
 
-    use super::{read_directory, still_there};
+    use super::{read_directory, still_there, walked};
     use crate::error::AppError;
     use crate::model::Found;
     use crate::repository::fixture::Fixture;
@@ -341,6 +361,55 @@ mod tests {
         // step left (ADR 0004) -- so the count also says the walk did not go on.
         assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
         assert_eq!(checkpoints.get(), 2);
+    }
+
+    #[test]
+    fn a_walk_that_failed_says_nothing_about_what_the_directory_holds() {
+        // The rule a directory that cannot be read rests on, over the failure
+        // rather than over a directory: whatever went wrong, this run does not
+        // know what is inside, and not knowing is what keeps the records. The
+        // three tests below that arrange a real unreadable directory are
+        // `cfg(unix)`; this one holds where the application ships.
+        for code in [
+            "media.scan.permission_denied",
+            "media.filesystem.failed",
+            "media.scan.failed",
+        ] {
+            let verdict = walked(Err(AppError::new(code, "the walk failed")));
+            assert!(
+                matches!(verdict, Ok(Found::Unreachable)),
+                "{code} was read as {verdict:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_cancelled_walk_is_not_a_verdict_about_the_directory() {
+        // The one failure that is not about the directory: the pass was told to
+        // stop, so there is no answer to give and the run ends here. Read as
+        // `Unreachable` it would be a scan that reported being cancelled and
+        // then went on walking.
+        let verdict = walked(Err(AppError::new(
+            crate::error::SCAN_CANCELLED,
+            "Cancelled while walking",
+        )));
+        assert_eq!(verdict.unwrap_err().code, crate::error::SCAN_CANCELLED);
+    }
+
+    #[test]
+    fn a_walk_that_succeeded_reports_what_it_holds() {
+        // The other half, over the same function: a walk that got through is
+        // what the directory holds, with the paths it could not read carried
+        // alongside so the records under them survive.
+        let verdict = walked(Ok(super::Collected {
+            files: Vec::new(),
+            unreadable: vec!["/movies/private".to_string()],
+        }));
+        let Ok(Found::Read { files, unreadable }) = verdict else {
+            panic!("a walk that succeeded is a directory read");
+        };
+        assert!(files.is_empty());
+        assert_eq!(unreadable, vec!["/movies/private".to_string()]);
     }
 
     #[test]

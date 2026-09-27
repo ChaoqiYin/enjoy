@@ -2,8 +2,7 @@ use std::fs;
 
 use crate::media::Metadata;
 use crate::model::FileStamp;
-use crate::repository::fixture::{Fixture, FIRST_SPACE};
-use crate::repository::Repository;
+use crate::repository::fixture::{Fixture, Library};
 use crate::scan::scanner;
 
 #[test]
@@ -13,8 +12,10 @@ fn refresh_metadata_does_not_overwrite_a_concurrent_scan() {
     fs::write(&movie, b"first").unwrap();
     let root = fixture.0.to_string_lossy().into_owned();
     let path = movie.to_string_lossy().into_owned();
-    let mut repository = Repository::open(&fixture.0.join("index.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     repository
         .replace_videos(
             space,
@@ -71,8 +72,10 @@ fn refresh_metadata_marks_media_complete_after_success() {
     fs::write(&movie, b"video").unwrap();
     let root = fixture.0.to_string_lossy().into_owned();
     let path = movie.to_string_lossy().into_owned();
-    let mut repository = Repository::open(&fixture.0.join("index.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     repository
         .replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
@@ -123,8 +126,10 @@ fn refresh_metadata_only_updates_the_target_file_without_thumbnail() {
     fs::write(&other, b"video").unwrap();
     let root = fixture.0.to_string_lossy().into_owned();
     let path = movie.to_string_lossy().into_owned();
-    let mut repository = Repository::open(&fixture.0.join("index.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     repository
         .replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();

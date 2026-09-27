@@ -6,7 +6,7 @@ use std::os::unix::fs::PermissionsExt;
 
 use crate::events::Recorded;
 use crate::media::{MediaProcessor, Metadata};
-use crate::repository::fixture::{Fixture, FIRST_SPACE};
+use crate::repository::fixture::{Fixture, Library, FIRST_SPACE};
 use crate::repository::Repository;
 use crate::scan::control::ScanControl;
 use crate::scan::{job, scanner};
@@ -148,7 +148,10 @@ fn a_configured_directory_that_vanished_clears_its_records_without_being_counted
     fs::write(&stranded, b"stranded").unwrap();
     let readable_root = readable.to_string_lossy().into_owned();
     let vanished_root = vanished.to_string_lossy().into_owned();
-    let mut repo = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let Library {
+        repository: mut repo,
+        ..
+    } = fixture.library();
     let space = repo.current_space().unwrap().id;
     repo.replace_videos(
         space,
@@ -194,7 +197,10 @@ fn a_configured_path_that_is_not_a_directory_keeps_its_records_and_is_not_counte
     let movie = videos.join("movie.mp4");
     fs::write(&movie, b"video").unwrap();
     let root = videos.to_string_lossy().into_owned();
-    let mut repo = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let Library {
+        repository: mut repo,
+        ..
+    } = fixture.library();
     let space = repo.current_space().unwrap().id;
     repo.replace_videos(space, &[(root, scanner::collect(&videos).unwrap())])
         .unwrap();
@@ -232,7 +238,10 @@ fn a_configured_directory_that_cannot_be_read_is_counted_and_keeps_its_records()
     let movie = locked.join("movie.mp4");
     fs::write(&movie, b"video").unwrap();
     let locked_root = locked.to_string_lossy().into_owned();
-    let mut repo = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let Library {
+        repository: mut repo,
+        ..
+    } = fixture.library();
     let space = repo.current_space().unwrap().id;
     repo.replace_videos(space, &[(locked_root, scanner::collect(&locked).unwrap())])
         .unwrap();
@@ -277,7 +286,10 @@ fn a_locked_subtree_keeps_its_records_while_the_rest_of_the_directory_is_scanned
     let gone = fixture.0.join("gone.mp4");
     fs::write(&gone, b"gone").unwrap();
     let root = fixture.0.to_string_lossy().into_owned();
-    let mut repo = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let Library {
+        repository: mut repo,
+        ..
+    } = fixture.library();
     let space = repo.current_space().unwrap().id;
     repo.replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
@@ -325,7 +337,10 @@ fn a_file_that_cannot_be_read_is_indexed_and_keeps_its_record() {
     fs::write(&locked, b"locked").unwrap();
     fs::write(fixture.0.join("kept.mp4"), b"kept").unwrap();
     let root = fixture.0.to_string_lossy().into_owned();
-    let mut repo = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let Library {
+        repository: mut repo,
+        ..
+    } = fixture.library();
     let space = repo.current_space().unwrap().id;
     repo.replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
@@ -377,7 +392,10 @@ fn cancellation_aborts_the_scan_and_preserves_existing_records() {
     let fixture = Fixture::new();
     let root = fixture.0.to_string_lossy().into_owned();
     fs::write(fixture.0.join("old.mp4"), b"old").unwrap();
-    let mut repo = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let Library {
+        repository: mut repo,
+        ..
+    } = fixture.library();
     let space = repo.current_space().unwrap().id;
     repo.replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();

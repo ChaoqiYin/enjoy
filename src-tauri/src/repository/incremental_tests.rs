@@ -6,7 +6,7 @@ use std::time::{Duration, UNIX_EPOCH};
 use crate::error::AppError;
 use crate::media::Metadata;
 use crate::model::{Found, VideoFile};
-use crate::repository::fixture::{Fixture, FIRST_SPACE};
+use crate::repository::fixture::{Fixture, Library, FIRST_SPACE};
 use crate::repository::{DirectoryScan, Repository};
 use crate::scan::scanner;
 
@@ -96,8 +96,10 @@ fn a_rewrite_that_keeps_the_size_and_the_modification_time_is_not_noticed() {
     let movie = fixture.0.join("movie.mp4");
     fs::write(&movie, b"first").unwrap();
     let root = fixture.0.to_string_lossy().into_owned();
-    let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     repository
         .replace_videos(
             space,
@@ -188,8 +190,10 @@ fn cancellation_before_commit_rolls_back_insertions_and_deletions() {
     let root = fixture.0.to_string_lossy().into_owned();
     let old = fixture.0.join("old.mp4");
     fs::write(&old, b"old").unwrap();
-    let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     repository
         .replace_videos(
             space,
@@ -237,8 +241,10 @@ fn full_sync_reports_records_it_removes() {
     let gone = fixture.0.join("gone.mp4");
     fs::write(&gone, b"gone").unwrap();
     fs::write(fixture.0.join("kept.mp4"), b"kept").unwrap();
-    let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     repository
         .replace_videos(
             space,
@@ -273,8 +279,10 @@ fn a_removed_configured_directory_keeps_its_records_until_the_next_scan() {
     fs::write(dropped.join("dropped.mp4"), b"video").unwrap();
     let kept_root = kept.to_string_lossy().into_owned();
     let dropped_root = dropped.to_string_lossy().into_owned();
-    let mut repository = Repository::open(&fixture.0.join("index.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     repository
         .replace_videos(
             space,
@@ -311,8 +319,10 @@ fn unreadable_directories_keep_their_records_while_scanned_ones_are_cleaned() {
     fs::write(skipped.join("stranded.mp4"), b"video").unwrap();
     let cleared_root = cleared.to_string_lossy().into_owned();
     let skipped_root = skipped.to_string_lossy().into_owned();
-    let mut repository = Repository::open(&fixture.0.join("index.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     repository
         .replace_videos(
             space,
@@ -361,8 +371,10 @@ fn a_path_that_is_still_there_but_could_not_be_read_keeps_its_record() {
     fs::write(locked.join("stranded.mp4"), b"video").unwrap();
     fs::write(private.join("secret.mp4"), b"video").unwrap();
     let root = fixture.0.to_string_lossy().into_owned();
-    let mut repository = Repository::open(&fixture.0.join("index.db"), FIRST_SPACE).unwrap();
-    let space = repository.current_space().unwrap().id;
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
     repository
         .replace_videos(
             space,

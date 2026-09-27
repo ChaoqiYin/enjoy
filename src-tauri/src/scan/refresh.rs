@@ -45,7 +45,7 @@ mod tests {
 
     use crate::error::AppError;
     use crate::media::Metadata;
-    use crate::repository::fixture::{Fixture, FIRST_SPACE};
+    use crate::repository::fixture::{Fixture, Library};
     use crate::repository::Repository;
     use crate::scan::control::ScanControl;
     use crate::scan::refresh;
@@ -65,8 +65,10 @@ mod tests {
             paths.push(file.to_string_lossy().into_owned());
         }
         let root = fixture.0.to_string_lossy().into_owned();
-        let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
-        let space = repository.current_space().unwrap().id;
+        let Library {
+            mut repository,
+            space,
+        } = fixture.library();
         repository
             .replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
             .unwrap();

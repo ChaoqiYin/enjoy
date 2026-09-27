@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use crate::error::AppError;
 use crate::events::Recorded;
 use crate::model::VideoFile;
-use crate::repository::fixture::{Fixture, FIRST_SPACE};
+use crate::repository::fixture::{Fixture, Library};
 use crate::repository::Repository;
 use crate::scan::control::{ScanControl, ScanStatus};
 use crate::scan::media_pass::{self, MediaOperations, Outcome, Step};
@@ -39,7 +39,7 @@ fn video(name: &str) -> VideoFile {
 }
 
 fn library(fixture: &Fixture) -> Arc<Mutex<Repository>> {
-    let repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let Library { repository, .. } = fixture.library();
     Arc::new(Mutex::new(repository))
 }
 

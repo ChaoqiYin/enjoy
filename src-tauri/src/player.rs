@@ -81,7 +81,7 @@ mod tests {
     use std::cell::Cell;
     use std::sync::{Arc, Mutex};
 
-    use crate::repository::fixture::{Fixture, FIRST_SPACE};
+    use crate::repository::fixture::{Fixture, Library};
     use crate::repository::Repository;
     use crate::scan::scanner;
 
@@ -92,8 +92,10 @@ mod tests {
         let file = fixture.0.join("movie.mp4");
         std::fs::write(&file, b"video").unwrap();
         let root = fixture.0.to_string_lossy().into_owned();
-        let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
-        let space = repository.current_space().unwrap().id;
+        let Library {
+            mut repository,
+            space,
+        } = fixture.library();
         repository
             .index(space, &root, &scanner::collect(&fixture.0).unwrap())
             .unwrap();

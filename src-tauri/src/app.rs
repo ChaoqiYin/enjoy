@@ -30,8 +30,8 @@ pub(crate) struct AppState {
 /// reached through one can only be verified in a window.
 #[cfg(test)]
 pub(crate) fn test_state(fixture: &crate::repository::fixture::Fixture) -> AppState {
-    use crate::repository::fixture::FIRST_SPACE;
-    let repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    use crate::repository::fixture::Library;
+    let Library { repository, .. } = fixture.library();
     AppState {
         scan: Arc::new(ScanControl::default()),
         repository: Arc::new(Mutex::new(repository)),
