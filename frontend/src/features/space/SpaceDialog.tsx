@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { normalizeError } from '../../shared/api';
 import { errorMessage } from '../../shared/errorMessage';
-import type { AppError } from '../../shared/api';
+import { useCommand } from '../../shared/useCommand';
 
 /**
  * Names a space, for both creating one and renaming one, so that the two paths
@@ -30,21 +29,17 @@ export function SpaceDialog({
   const { t } = translator;
   const dialog = useRef<HTMLDialogElement>(null);
   const [name, setName] = useState(initialName);
-  const [failure, setFailure] = useState<AppError | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { busy, failure, run } = useCommand();
   useEffect(() => dialog.current?.showModal(), []);
-  async function submit(event: React.FormEvent) {
+  function submit(event: React.FormEvent) {
     event.preventDefault();
-    setBusy(true);
-    setFailure(null);
-    try {
+    // Closing is inside the action, and the failure is left here rather than
+    // sent to the corner of the screen: it is about the name that was typed,
+    // and the field it belongs beside is still open.
+    return run(undefined, async () => {
       await onSubmit(name);
       onClose();
-    } catch (cause) {
-      setFailure(normalizeError(cause));
-    } finally {
-      setBusy(false);
-    }
+    });
   }
   return (
     <dialog
@@ -70,7 +65,7 @@ export function SpaceDialog({
         </label>
         {failure && (
           <p className="text-error" role="alert">
-            {errorMessage(translator, failure)}
+            {errorMessage(translator, failure.error)}
           </p>
         )}
         <div className="modal-action items-center gap-3">

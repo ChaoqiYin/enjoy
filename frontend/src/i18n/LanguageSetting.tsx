@@ -1,42 +1,29 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { readLanguage, synchronizeLanguage } from './language';
 import type { LanguageSettings } from './language';
-import { normalizeError } from '../shared/api';
-import type { AppError } from '../shared/api';
 import { ErrorNotice } from '../shared/ErrorNotice';
+import { useCommand } from '../shared/useCommand';
 import { useSettings } from '../settings/SettingsProvider';
 
 export function LanguageSetting() {
   const { t } = useTranslation();
   const { state, update } = useSettings();
   const preference = state.language;
-  const [saving, setSaving] = useState(false);
-  const [failure, setFailure] = useState<{
-    error: AppError;
-    value?: LanguageSettings['preference'];
-  } | null>(null);
-  async function load() {
-    setSaving(true);
-    setFailure(null);
-    try {
-      await readLanguage();
-    } catch (cause) {
-      setFailure({ error: normalizeError(cause) });
-    } finally {
-      setSaving(false);
-    }
+  // `undefined` is a value here and not a missing one: reading the stored
+  // language has nothing to repeat, so its failure carries nothing, and the
+  // retry below tells the two apart by that.
+  const {
+    busy: saving,
+    failure,
+    dismissFailure,
+    run,
+  } = useCommand<LanguageSettings['preference'] | undefined>();
+  function load() {
+    return run(undefined, readLanguage);
   }
-  async function change(value: LanguageSettings['preference']) {
-    setSaving(true);
-    setFailure(null);
-    try {
-      await update({ language: value });
-    } catch (cause) {
-      setFailure({ error: normalizeError(cause), value });
-    } finally {
-      setSaving(false);
-    }
+  function change(value: LanguageSettings['preference']) {
+    return run(value, () => update({ language: value }));
   }
   return (
     <section className="border-b border-base-300 pb-5 space-y-3">
@@ -66,7 +53,7 @@ export function LanguageSetting() {
               ? undefined
               : () => (failure.value ? change(failure.value) : load())
           }
-          onClose={() => setFailure(null)}
+          onClose={dismissFailure}
         />
       )}
     </section>

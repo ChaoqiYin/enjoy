@@ -3,7 +3,7 @@ import { Tooltip } from '../../shared/Tooltip';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { normalizeError } from '../../shared/api';
+import { useCommand } from '../../shared/useCommand';
 import type { AppError } from '../../shared/api';
 
 interface Props {
@@ -16,21 +16,19 @@ export function AddDirectories({ onClose, onConfirm, onError }: Props) {
   const { t } = useTranslation();
   const dialog = useRef<HTMLDialogElement>(null);
   const [paths, setPaths] = useState<string[]>([]);
-  const [choosing, setChoosing] = useState(false);
+  // A picker that would not open is not about the folders already chosen, so
+  // the failure goes to the notice the caller keeps rather than beside this
+  // list.
+  const { busy: choosing, run } = useCommand(onError);
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
-  async function choose() {
-    setChoosing(true);
-    try {
+  function choose() {
+    return run(undefined, async () => {
       const selected = await open({ directory: true, multiple: true });
       if (selected)
         setPaths((current) => [...new Set([...current, ...selected])]);
-    } catch (error) {
-      onError(normalizeError(error));
-    } finally {
-      setChoosing(false);
-    }
+    });
   }
   return (
     <dialog

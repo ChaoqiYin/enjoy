@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { normalizeError } from '../shared/api';
-import type { AppError } from '../shared/api';
 import { ErrorNotice } from '../shared/ErrorNotice';
+import { useCommand } from '../shared/useCommand';
 import { useSettings } from '../settings/SettingsProvider';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
@@ -24,31 +23,29 @@ export function ThemeSetting() {
   const { t } = useTranslation();
   const { state, update } = useSettings();
   const preference = state.theme;
-  const [saving, setSaving] = useState(false);
-  const [failure, setFailure] = useState<{
-    error: AppError;
-    value: ThemePreference;
-  } | null>(null);
+  const {
+    busy: saving,
+    failure,
+    dismissFailure,
+    run,
+  } = useCommand<ThemePreference>();
   useEffect(() => {
     const media = matchMedia('(prefers-color-scheme: dark)');
     const update = () => preference === 'system' && applyTheme(preference);
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
   }, [preference]);
-  // The theme is applied only once it has been stored. Applying it first and
-  // saving afterwards would leave the document themed one way and the stored
-  // preference another when the save fails, with nothing on screen saying so.
-  async function change(value: ThemePreference) {
-    setSaving(true);
-    setFailure(null);
-    try {
+  // The theme is applied only once it has been stored, and that order is
+  // inside the action: applying it first and saving afterwards would leave the
+  // document themed one way and the stored preference another when the save
+  // fails, with nothing on screen saying so. It stays in here rather than after
+  // the call because a failed command is the caller's business only through
+  // `failure` — what `run` promises is that this did not happen.
+  function change(value: ThemePreference) {
+    return run(value, async () => {
       await update({ theme: value });
       applyTheme(value);
-    } catch (cause) {
-      setFailure({ error: normalizeError(cause), value });
-    } finally {
-      setSaving(false);
-    }
+    });
   }
   return (
     <section className="border-b border-base-300 pb-5 space-y-3">
@@ -73,7 +70,7 @@ export function ThemeSetting() {
         <ErrorNotice
           error={failure.error}
           onRetry={saving ? undefined : () => void change(failure.value)}
-          onClose={() => setFailure(null)}
+          onClose={dismissFailure}
         />
       )}
     </section>
