@@ -5,6 +5,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+/// The one failure that is not a failure of the work it happened to: someone
+/// asked the pass to stop. The scan slot's checkpoint and every media tool
+/// raise it, and everything that walks files has to recognise it — so it is
+/// written down once, rather than spelled out at each of those places and
+/// compared against at each of the others.
+pub(crate) const SCAN_CANCELLED: &str = "media.scan.cancelled";
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppError {

@@ -1,11 +1,10 @@
-#[cfg(unix)]
-use std::cell::Cell;
 use std::fs;
 use std::sync::{Arc, Mutex};
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
+use crate::events::Recorded;
 use crate::media::{MediaProcessor, Metadata};
 use crate::repository::fixture::{Fixture, FIRST_SPACE};
 use crate::repository::Repository;
@@ -48,20 +47,19 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let guard = control.begin().unwrap();
-    let result = job::run(
-        &media,
-        space,
-        &repository,
-        &control,
-        false,
-        |status| {
-            if status.metadata_ready == 1 {
-                control.action("cancel").unwrap();
-            }
-        },
-        |_| panic!("Cached work must not invoke media tools"),
-    );
+    let watching = Arc::clone(&control);
+    let events = Recorded::default().watching(move |status| {
+        // Cancelled from inside the pass, which is the only place a cancellation
+        // can come from: no status read afterwards could ask for one.
+        if status.metadata_ready == 1 {
+            watching.action("cancel").unwrap();
+        }
+    });
+    let result = job::run(&media, space, &repository, &control, false, &events);
     assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
+    // Everything this file needs was already cached, so no media tool had any
+    // reason to run.
+    assert!(events.media_error_codes().is_empty());
     drop(guard);
     assert_eq!(control.status().phase, "cancelled");
     assert!(!repository.lock().unwrap().list(space).unwrap()[0].media_complete);
@@ -77,16 +75,10 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
         )
         .unwrap();
     let guard = control.begin().unwrap();
-    let result = job::run(
-        &media,
-        space,
-        &repository,
-        &control,
-        false,
-        |_| {},
-        |_| panic!("Cached work must not invoke media tools"),
-    );
+    let events = Recorded::default();
+    let result = job::run(&media, space, &repository, &control, false, &events);
     assert!(result.is_err());
+    assert!(events.media_error_codes().is_empty());
     drop(guard);
     assert_eq!(control.status().phase, "failed");
     assert!(!repository.lock().unwrap().list(space).unwrap()[0].media_complete);
@@ -96,19 +88,19 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
     drop(connection);
     for expected_visits in [true, false] {
         let guard = control.begin().unwrap();
-        let mut visited = false;
-        let rows = job::run(
-            &media,
-            space,
-            &repository,
-            &control,
-            false,
-            |status| visited |= status.current_path == video.path,
-            |_| panic!("Cached work must not invoke media tools"),
-        )
-        .unwrap();
+        let events = Recorded::default();
+        let rows = job::run(&media, space, &repository, &control, false, &events).unwrap();
         drop(guard);
-        assert_eq!(visited, expected_visits);
+        // The second time round the file is done, so the pass never reaches it:
+        // being named in a status at all is what says a file was worked on.
+        assert_eq!(
+            events
+                .statuses()
+                .iter()
+                .any(|status| status.current_path == video.path),
+            expected_visits
+        );
+        assert!(events.media_error_codes().is_empty());
         assert!(rows[0].media_complete);
         assert_eq!(rows[0].thumbnail_path.as_deref(), thumbnail.to_str());
         let status = control.status();
@@ -175,7 +167,8 @@ fn a_configured_directory_that_vanished_clears_its_records_without_being_counted
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let guard = control.begin().unwrap();
-    let rows = job::run(&media, space, &repository, &control, false, |_| {}, |_| {})
+    let events = Recorded::default();
+    let rows = job::run(&media, space, &repository, &control, false, &events)
         .expect("A directory that vanished must not fail the scan");
     drop(guard);
     let status = control.status();
@@ -210,17 +203,9 @@ fn a_configured_directory_that_cannot_be_read_is_counted_and_keeps_its_records()
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let guard = control.begin().unwrap();
-    let errors = Cell::new(0);
-    let rows = job::run(
-        &media,
-        space,
-        &repository,
-        &control,
-        false,
-        |_| {},
-        |_| errors.set(errors.get() + 1),
-    )
-    .expect("A directory that cannot be read must not fail the scan");
+    let events = Recorded::default();
+    let rows = job::run(&media, space, &repository, &control, false, &events)
+        .expect("A directory that cannot be read must not fail the scan");
     drop(guard);
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
     let status = control.status();
@@ -229,7 +214,7 @@ fn a_configured_directory_that_cannot_be_read_is_counted_and_keeps_its_records()
     // It is a fact about the scan's range, not a media failure: neither count
     // nor notice belongs to the other.
     assert_eq!(status.failures, 0);
-    assert_eq!(errors.get(), 0);
+    assert!(events.media_error_codes().is_empty());
     assert_eq!(status.changes.removed, 0);
     let video = rows
         .iter()
@@ -266,7 +251,8 @@ fn a_locked_subtree_keeps_its_records_while_the_rest_of_the_directory_is_scanned
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let guard = control.begin().unwrap();
-    let rows = job::run(&media, space, &repository, &control, false, |_| {}, |_| {})
+    let events = Recorded::default();
+    let rows = job::run(&media, space, &repository, &control, false, &events)
         .expect("A subtree that cannot be read must not fail the scan");
     drop(guard);
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
@@ -311,17 +297,9 @@ fn a_file_that_cannot_be_read_is_indexed_and_keeps_its_record() {
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let guard = control.begin().unwrap();
-    let errors = Cell::new(0);
-    let rows = job::run(
-        &media,
-        space,
-        &repository,
-        &control,
-        false,
-        |_| {},
-        |_| errors.set(errors.get() + 1),
-    )
-    .expect("A file that cannot be read must not fail the scan");
+    let events = Recorded::default();
+    let rows = job::run(&media, space, &repository, &control, false, &events)
+        .expect("A file that cannot be read must not fail the scan");
     drop(guard);
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
     let status = control.status();
@@ -333,7 +311,7 @@ fn a_file_that_cannot_be_read_is_indexed_and_keeps_its_record() {
     // ADR 0004 accepts -- failing to read its content is a media-phase failure
     // now, counted and notified there rather than here.
     assert_eq!(status.failures, 0);
-    assert_eq!(errors.get(), 0);
+    assert!(events.media_error_codes().is_empty());
     assert_eq!(
         (
             status.changes.added,
@@ -367,15 +345,9 @@ fn cancellation_aborts_the_scan_and_preserves_existing_records() {
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let guard = control.begin().unwrap();
-    let result = job::run(
-        &media,
-        space,
-        &repository,
-        &control,
-        false,
-        |_| control.action("cancel").unwrap(),
-        |_| {},
-    );
+    let watching = Arc::clone(&control);
+    let events = Recorded::default().watching(move |_| watching.action("cancel").unwrap());
+    let result = job::run(&media, space, &repository, &control, false, &events);
     assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
     drop(guard);
     assert_eq!(control.status().phase, "cancelled");
@@ -407,7 +379,8 @@ fn a_file_whose_size_changed_is_processed_again() {
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let guard = control.begin().unwrap();
-    let result = job::run(&media, space, &repository, &control, false, |_| {}, |_| {});
+    let events = Recorded::default();
+    let result = job::run(&media, space, &repository, &control, false, &events);
     assert!(result.is_ok());
     drop(guard);
     // Both halves of the media phase were attempted for it: the bytes are not a

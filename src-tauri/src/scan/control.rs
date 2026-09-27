@@ -1,7 +1,7 @@
 use serde::Serialize;
 use std::sync::{Arc, Condvar, Mutex};
 
-use crate::error::AppError;
+use crate::error::{AppError, SCAN_CANCELLED};
 use crate::repository::IndexChanges;
 
 #[derive(Clone, Default, Serialize)]
@@ -83,7 +83,7 @@ impl ScanControl {
                 .unwrap_or_else(|error| error.into_inner());
         }
         if state.cancelled {
-            return Err(AppError::new("media.scan.cancelled", "Scan cancelled"));
+            return Err(AppError::new(SCAN_CANCELLED, "Scan cancelled"));
         }
         Ok(())
     }

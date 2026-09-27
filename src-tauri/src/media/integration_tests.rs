@@ -3,6 +3,7 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 
+use crate::events::Recorded;
 use crate::media;
 use crate::repository::fixture::FIRST_SPACE;
 use crate::repository::Repository;
@@ -68,19 +69,11 @@ fn verify_scan_failure_counts_and_cache(directory: &Path) {
     let mut previous_thumbnail = None;
     for attempt in 0..2 {
         let guard = control.begin().unwrap();
-        let mut errors = Vec::new();
-        let mut events = Vec::new();
-        let videos = scan_job::run(
-            &media,
-            space,
-            &repository,
-            &control,
-            false,
-            |status| events.push(status),
-            |error| errors.push(error.code),
-        )
-        .unwrap();
+        let events = Recorded::default();
+        let videos = scan_job::run(&media, space, &repository, &control, false, &events).unwrap();
         drop(guard);
+        let errors = events.media_error_codes();
+        let events = events.statuses();
         let status = control.status();
         assert_eq!(status.phase, "complete");
         assert_eq!(
@@ -138,20 +131,15 @@ fn verify_cancelled_metadata_resumes(parent: &Path, source: &Path) {
         .add_directory(space, &directory.to_string_lossy())
         .unwrap();
     let guard = control.begin().unwrap();
-    let result = scan_job::run(
-        &media,
-        space,
-        &repository,
-        &control,
-        false,
-        |status| {
-            if status.metadata_ready == 1 {
-                control.action("cancel").unwrap();
-            }
-        },
-        |error| panic!("Unexpected media error: {}", error.code),
-    );
+    let watching = Arc::clone(&control);
+    let events = Recorded::default().watching(move |status| {
+        if status.metadata_ready == 1 {
+            watching.action("cancel").unwrap();
+        }
+    });
+    let result = scan_job::run(&media, space, &repository, &control, false, &events);
     assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
+    assert!(events.media_error_codes().is_empty());
     drop(guard);
     let partial = repository.lock().unwrap().list(space).unwrap().remove(0);
     assert!(partial.width.is_some());
@@ -162,16 +150,9 @@ fn verify_cancelled_metadata_resumes(parent: &Path, source: &Path) {
     let space = repository.current_space().unwrap().id;
     let repository = Arc::new(Mutex::new(repository));
     let guard = control.begin().unwrap();
-    let rows = scan_job::run(
-        &media,
-        space,
-        &repository,
-        &control,
-        false,
-        |_| {},
-        |error| panic!("Unexpected media error: {}", error.code),
-    )
-    .unwrap();
+    let events = Recorded::default();
+    let rows = scan_job::run(&media, space, &repository, &control, false, &events).unwrap();
+    assert!(events.media_error_codes().is_empty());
     drop(guard);
     assert!(rows[0].media_complete);
     assert!(Path::new(rows[0].thumbnail_path.as_ref().unwrap()).exists());

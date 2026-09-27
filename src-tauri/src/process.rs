@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
-use crate::error::AppError;
+use crate::error::{AppError, SCAN_CANCELLED};
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -51,10 +51,7 @@ pub fn run(
     let started = Instant::now();
     let result = loop {
         if cancelled() {
-            break Err(AppError::new(
-                "media.scan.cancelled",
-                "Media processing cancelled",
-            ));
+            break Err(AppError::new(SCAN_CANCELLED, "Media processing cancelled"));
         }
         if started.elapsed() >= timeout {
             break Err(AppError::new(

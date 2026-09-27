@@ -19,6 +19,7 @@
 //! in a function that owns the guard, and reports only after that function has
 //! returned.
 
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use crate::error::AppError;
@@ -28,6 +29,7 @@ use crate::model::VideoFile;
 use crate::repository::{lock_shared, Repository};
 use crate::scan::control::{ScanControl, ScanGuard, ScanStatus};
 use crate::scan::job as scan_job;
+use crate::scan::media_pass::{self, MediaOperations, Outcome, Step};
 use crate::scan::refresh::refresh_video;
 
 /// Scans the current space's saved directories and processes what is new or
@@ -60,15 +62,7 @@ fn scanning(
 ) -> Result<Vec<VideoFile>, AppError> {
     let _slot = guard;
     // No command starts a background scan: every scan is user-initiated.
-    scan_job::run(
-        media,
-        space_id,
-        repository,
-        control,
-        false,
-        |status| events.scan_progress(status),
-        |error| events.media_error(&error),
-    )
+    scan_job::run(media, space_id, repository, control, false, events)
 }
 
 /// Regenerates thumbnails for one video, or for every video in the space.
@@ -77,7 +71,8 @@ fn scanning(
 /// media failure is the answer to it; a whole pass is a background sweep, where
 /// one unreadable file must not take the rest of the work down with it and is
 /// counted as a failure instead. That difference in what a failure means is all
-/// the two shapes do not share.
+/// the two shapes do not share, and it is the whole of what this job says about
+/// them — the walk itself is [`media_pass::run`], the same one a scan makes.
 pub(crate) fn regenerate_thumbnails(
     guard: ScanGuard,
     space_id: i64,
@@ -111,60 +106,76 @@ fn regenerating(
     events: &impl Events,
 ) -> Result<(), AppError> {
     let _slot = guard;
-    let videos = lock_shared(repository)?.list(space_id)?;
-    let videos: Vec<_> = videos
-        .iter()
+    let videos: Vec<VideoFile> = lock_shared(repository)?
+        .list(space_id)?
+        .into_iter()
         .filter(|video| path.is_none_or(|path| video.path == path))
         .collect();
-    let mut progress = ScanStatus {
-        phase: "processing".into(),
-        operation: "thumbnails".into(),
+    let status = ScanStatus {
         discovered: videos.len(),
         indexed: videos.len(),
+        // Every record already carries what the last pass read about it, so the
+        // reading starts from what the library holds rather than from zero. Only
+        // the frame is being made again.
         metadata_ready: videos.iter().filter(|video| video.width.is_some()).count(),
         ..Default::default()
     };
-    control.publish(progress.clone());
-    events.scan_progress(control.status());
-    for video in videos {
-        progress.current_path = video.path.clone();
-        control.publish(progress.clone());
-        events.scan_progress(control.status());
-        control.checkpoint()?;
-        let failures_before_thumbnail = progress.failures;
-        match media.thumbnail(
-            std::path::Path::new(&video.path),
-            video.id,
-            video.modified_at,
-            || control.is_cancelled(),
-        ) {
-            Ok(thumbnail) => lock_shared(repository)?.save_thumbnail(
-                space_id,
-                video,
-                &thumbnail.to_string_lossy(),
-            )?,
-            Err(error) => {
-                // A single file was asked for by name, so its failure is the
-                // answer to that request rather than a number in a sweep.
-                if path.is_some() || error.code == "media.scan.cancelled" {
-                    return Err(error);
-                }
-                progress.failures += 1;
-                events.media_error(&error);
-            }
-        }
-        if progress.failures == failures_before_thumbnail {
-            progress.thumbnails_ready += 1;
-        }
-        progress.processed += 1;
-        progress.current_path.clear();
-        control.publish(progress.clone());
-        events.scan_progress(control.status());
+    media_pass::run(
+        videos.iter(),
+        status,
+        "thumbnails",
+        repository,
+        control,
+        events,
+        &ThumbnailRegeneration {
+            space_id,
+            path,
+            media,
+        },
+    )
+}
+
+/// What a regeneration does to a file: make the frame again, whether or not one
+/// is already there — that is the point of asking for it.
+struct ThumbnailRegeneration<'a> {
+    space_id: i64,
+    /// The one file that was asked for, if this is a request about a single file
+    /// rather than a sweep over the space.
+    path: Option<&'a str>,
+    media: &'a MediaProcessor,
+}
+
+impl MediaOperations for ThumbnailRegeneration<'_> {
+    fn steps(&self) -> &'static [Step] {
+        &[Step::Thumbnail]
     }
-    control.checkpoint()?;
-    progress.phase = "complete".into();
-    control.publish(progress);
-    Ok(())
+
+    fn run(
+        &self,
+        _step: Step,
+        video: &VideoFile,
+        repository: &Arc<Mutex<Repository>>,
+        control: &ScanControl,
+    ) -> Result<Outcome, AppError> {
+        let outcome = media_pass::produce(
+            repository,
+            || {
+                self.media
+                    .thumbnail(Path::new(&video.path), video.id, video.modified_at, || {
+                        control.is_cancelled()
+                    })
+            },
+            |index, produced| {
+                index.save_thumbnail(self.space_id, video, &produced.to_string_lossy())
+            },
+        )?;
+        match outcome {
+            // A single file was asked for by name, so failing on it is the answer
+            // to that request rather than a number in a sweep.
+            Outcome::Failed(error) if self.path.is_some() => Err(error),
+            outcome => Ok(outcome),
+        }
+    }
 }
 
 /// Re-reads one file's metadata, writing it only if the record still stands.

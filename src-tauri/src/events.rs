@@ -46,15 +46,34 @@ impl Events for AppEvents {
 /// generated id and is not cloneable — a test asserting on the code is
 /// asserting on the part that is a rule.
 #[cfg(test)]
+type StatusHook = Box<dyn FnMut(&ScanStatus) + Send>;
+
+#[cfg(test)]
 #[derive(Default)]
 pub struct Recorded {
     pub scan: std::sync::Mutex<Vec<ScanStatus>>,
     pub library_changes: std::sync::atomic::AtomicUsize,
     pub media_errors: std::sync::Mutex<Vec<String>>,
+    /// Runs as each status goes out, before it is written down.
+    ///
+    /// Some rules can only be exercised from inside the pass that has them:
+    /// cancelling one halfway, or noticing whether a file was reached at all.
+    /// No value read after the pass could do either.
+    on_status: std::sync::Mutex<Option<StatusHook>>,
 }
 
 #[cfg(test)]
 impl Recorded {
+    /// Watches statuses as they go out.
+    pub fn watching(self, hook: impl FnMut(&ScanStatus) + Send + 'static) -> Self {
+        *self.on_status.lock().unwrap() = Some(Box::new(hook));
+        self
+    }
+
+    pub fn statuses(&self) -> Vec<ScanStatus> {
+        self.scan.lock().unwrap().clone()
+    }
+
     pub fn scan_phases(&self) -> Vec<String> {
         self.scan
             .lock()
@@ -77,6 +96,9 @@ impl Recorded {
 #[cfg(test)]
 impl Events for Recorded {
     fn scan_progress(&self, status: ScanStatus) {
+        if let Some(hook) = self.on_status.lock().unwrap().as_mut() {
+            hook(&status);
+        }
         self.scan.lock().unwrap().push(status);
     }
 
