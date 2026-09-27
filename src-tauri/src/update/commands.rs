@@ -6,9 +6,7 @@ use tauri_plugin_updater::{Config as UpdaterConfig, UpdaterExt};
 use crate::app::AppState;
 use crate::error::AppError;
 
-use super::control::{
-    describe, install_gate, is_supported, ProgressThrottle, UpdateCheck, UpdateProgress, World,
-};
+use super::control::{describe, is_supported, ProgressThrottle, UpdateCheck, UpdateProgress};
 use super::download::{Asked, Transfer};
 use super::{download, verify};
 
@@ -198,11 +196,13 @@ fn updater_pubkey(app: &AppHandle) -> Result<String, AppError> {
 ///
 /// On Windows this starts the NSIS installer with `/P /R` and then terminates
 /// the process, so the call does not return and the installer is what brings
-/// Enjoy back. Kept synchronous because both of those expect the main thread.
+/// Enjoy back. Kept synchronous because both of those expect the main thread —
+/// and because the gate and the handover have to be one step: see
+/// [`UpdateControl::install`], which is also where the scan slot is closed so
+/// that nothing can start one in the moment before the exit.
 #[tauri::command]
 pub fn restart_app(state: State<'_, AppState>) -> Result<(), AppError> {
-    install_gate(&World::now(&state))?;
-    let (update, bytes) = state.update.take_installer()?;
+    let (update, bytes) = state.update.install(&state.scan, is_supported())?;
     update
         .install(&bytes)
         .map_err(|error| AppError::new("update.install_failed", error))

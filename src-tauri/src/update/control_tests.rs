@@ -1,25 +1,7 @@
-use super::control::{
-    install_gate, is_same_offer, is_supported, published_at, ProgressThrottle, Stop, UpdateControl,
-    World,
-};
-use crate::app::test_state;
-use crate::error::AppError;
-use crate::repository::fixture::Fixture;
+use super::control::{is_same_offer, published_at, ProgressThrottle, Stop, UpdateControl};
+use crate::scan::control::ScanControl;
+use std::sync::Arc;
 use time::{Duration, OffsetDateTime};
-
-fn code(result: Result<(), AppError>) -> String {
-    result.unwrap_err().code
-}
-
-/// The world with nothing in the way: a platform that publishes updates, no
-/// pass running, an installer waiting.
-fn world() -> World {
-    World {
-        supported: true,
-        scanning: false,
-        ready: true,
-    }
-}
 
 #[test]
 fn a_published_date_is_written_as_rfc3339() {
@@ -58,67 +40,65 @@ fn a_release_without_a_date_sends_none() {
 fn install_reports_the_platform_before_anything_else() {
     // Unsupported wins even when a scan is running and nothing was downloaded:
     // the platform is what decides whether this feature exists at all.
+    let scan = Arc::new(ScanControl::default());
+    let running = scan.begin().unwrap();
     assert_eq!(
-        code(install_gate(&World {
-            supported: false,
-            ..world()
-        })),
+        UpdateControl::default()
+            .install(&scan, false)
+            .err()
+            .unwrap()
+            .code,
         "update.unsupported"
     );
+    // A refusal spends nothing — least of all the one irreversible step. The
+    // slot is still takable once the scan it was refused for has ended.
+    drop(running);
+    assert!(scan.begin().is_ok());
 }
 
 #[test]
 fn install_refuses_while_a_scan_is_running() {
-    // Installing exits the process, which would lose the running pass.
+    // Installing exits the process, which would lose the running pass. The
+    // running scan is also reported above the missing download, which is the
+    // order the interface has always shown: this control has nothing downloaded
+    // either, and `update.blocked.scanning` is the answer.
+    let scan = Arc::new(ScanControl::default());
+    let running = scan.begin().unwrap();
     assert_eq!(
-        code(install_gate(&World {
-            scanning: true,
-            ..world()
-        })),
+        UpdateControl::default()
+            .install(&scan, true)
+            .err()
+            .unwrap()
+            .code,
         "update.blocked.scanning"
     );
+    // The refusal did not close the slot. Closing is for good, so a refusal that
+    // spent it would leave the application unable to scan at all.
+    drop(running);
+    assert!(scan.begin().is_ok());
 }
 
 #[test]
 fn install_refuses_before_a_download() {
+    let scan = Arc::new(ScanControl::default());
     assert_eq!(
-        code(install_gate(&World {
-            ready: false,
-            ..world()
-        })),
+        UpdateControl::default()
+            .install(&scan, true)
+            .err()
+            .unwrap()
+            .code,
         "update.not_downloaded"
     );
+    // Same as the refusal above: nothing was spent.
+    assert!(scan.begin().is_ok());
 }
 
-#[test]
-fn install_allows_a_ready_download() {
-    assert!(install_gate(&world()).is_ok());
-}
-
-#[test]
-fn the_world_is_read_from_the_state() {
-    // The gate's rules above are tested on a `World` built by hand, because one
-    // of the three — the platform — is not something a test can set either way.
-    // So the reading is tested on its own, which is the other half of putting
-    // the rule and its inputs together: a gate is only as good as the facts it
-    // is handed, and this is the only place they are gathered.
-    let fixture = Fixture::new();
-    let state = test_state(&fixture);
-
-    let idle = World::now(&state);
-    assert_eq!(idle.supported, is_supported());
-    assert!(!idle.scanning);
-    // A download alone does not make one ready — the bytes are only installable
-    // together with the release they belong to — and an offered release is not
-    // something a test can build: the plugin hands over the `Update` from a
-    // check. So the ready direction only ever goes as far as this.
-    assert!(!idle.ready);
-
-    let running = state.scan.begin().unwrap();
-    assert!(World::now(&state).scanning);
-    drop(running);
-    assert!(!World::now(&state).scanning);
-}
+// What no test here reaches: `install` succeeding, and the slot being closed
+// behind it. A successful install needs a `ready` control — bytes *and* the
+// release they belong to — and the release is a `tauri_plugin_updater::Update`,
+// whose fields are private and which nothing outside the plugin can build. So
+// the closing call itself is the one step of this rule no test holds; the slot's
+// own half of it is tested where the slot lives, and the refusals are above.
 
 #[test]
 fn taking_the_slot_refuses_on_an_unsupported_platform() {
@@ -200,7 +180,11 @@ fn control_reports_nothing_downloaded_before_a_download() {
         "update.not_downloaded"
     );
     assert_eq!(
-        control.take_installer().err().unwrap().code,
+        control
+            .install(&ScanControl::default(), true)
+            .err()
+            .unwrap()
+            .code,
         "update.not_downloaded"
     );
     assert_eq!(control.ready_version(), None);
@@ -315,10 +299,11 @@ fn control_has_nothing_ready_while_a_download_is_only_running() {
     // Taking the slot must not make the installer available: the bytes are
     // unverified until the transfer ends and the signature is checked.
     let control = UpdateControl::default();
+    let scan = ScanControl::default();
     let slot = control.take_slot(true).unwrap();
     assert_eq!(control.ready_version(), None);
     assert_eq!(
-        control.take_installer().err().unwrap().code,
+        control.install(&scan, true).err().unwrap().code,
         "update.not_downloaded"
     );
     slot.discard();
@@ -329,10 +314,11 @@ fn control_reports_no_ready_version_without_an_offered_release() {
     // Downloaded bytes are only installable together with the release they
     // belong to, so a finished download alone does not make one ready.
     let control = UpdateControl::default();
+    let scan = ScanControl::default();
     control.take_slot(true).unwrap().install(vec![1, 2, 3]);
     assert_eq!(control.ready_version(), None);
     assert_eq!(
-        control.take_installer().err().unwrap().code,
+        control.install(&scan, true).err().unwrap().code,
         "update.not_downloaded"
     );
 }

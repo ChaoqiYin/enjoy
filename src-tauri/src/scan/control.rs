@@ -28,6 +28,10 @@ struct State {
     running: bool,
     paused: bool,
     cancelled: bool,
+    /// Closed for the rest of the run by [`ScanControl::close`], which only the
+    /// install path calls. It is not the same fact as `running`: this one is
+    /// never given back.
+    closed: bool,
     status: ScanStatus,
 }
 
@@ -55,12 +59,26 @@ impl ScanControl {
 
     pub fn begin(self: &Arc<Self>) -> Result<ScanGuard, AppError> {
         let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        if state.closed {
+            // Only the install path closes the slot, and installing exits the
+            // process. A scan asked for in the moment before that is not
+            // queued: there is no later to run it in. Same code as a scan that
+            // is already running — the interface has one thing to say about a
+            // slot it cannot have.
+            return Err(AppError::new(
+                "media.scan.busy",
+                "The scan slot is closed for the rest of this run",
+            ));
+        }
         if state.running {
             return Err(AppError::new(
                 "media.scan.busy",
                 "A scan is already running",
             ));
         }
+        // Replaced wholesale, which is also what clears `cancelled` from the
+        // pass before. `closed` cannot be lost here: the check above returns
+        // before this is reached.
         *state = State {
             running: true,
             status: ScanStatus {
@@ -71,6 +89,25 @@ impl ScanControl {
             ..Default::default()
         };
         Ok(ScanGuard(Arc::clone(self)))
+    }
+
+    /// Closes the slot for the rest of the run, or says that a task holds it.
+    ///
+    /// Installing an update exits the process, so what that path needs is not
+    /// the slot held for a while but the slot closed for good. A guard that
+    /// could be released would offer a way back that does not exist, and would
+    /// leave the caller trusted not to take it.
+    ///
+    /// `false` rather than an error, because the refusal has one reason and the
+    /// words for it belong to the caller: the install path reports it as
+    /// `update.blocked.scanning`, not as a scan failure.
+    pub fn close(&self) -> bool {
+        let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        if state.running {
+            return false;
+        }
+        state.closed = true;
+        true
     }
 
     pub fn checkpoint(&self) -> Result<(), AppError> {
@@ -206,6 +243,28 @@ mod tests {
         assert!(space_change_gate(control.is_running()).is_err());
         drop(guard);
         assert!(space_change_gate(control.is_running()).is_ok());
+    }
+
+    #[test]
+    fn a_closed_slot_refuses_every_later_scan() {
+        let control = Arc::new(ScanControl::default());
+        assert!(control.close());
+        // Not queued for later: the only caller of `close` is on its way out of
+        // the process, so there is no later to run a scan in.
+        assert_eq!(control.begin().err().unwrap().code, "media.scan.busy");
+        assert!(control.close());
+    }
+
+    #[test]
+    fn closing_a_slot_a_task_holds_is_refused_and_not_spent() {
+        let control = Arc::new(ScanControl::default());
+        let guard = control.begin().unwrap();
+        // Refused, not spent: closing is for good, so a task in the way must
+        // leave it open rather than close it behind itself.
+        assert!(!control.close());
+        drop(guard);
+        assert!(control.close());
+        assert!(control.begin().is_err());
     }
 
     #[test]

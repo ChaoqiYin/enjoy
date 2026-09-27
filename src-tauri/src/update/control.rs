@@ -7,8 +7,8 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use tokio::sync::Notify;
 
-use crate::app::AppState;
 use crate::error::AppError;
+use crate::scan::control::ScanControl;
 
 /// What a running download has been asked to do.
 ///
@@ -183,66 +183,16 @@ impl ProgressThrottle {
     }
 }
 
-/// What the restart gate decides from.
+/// The bytes and the release they belong to, when both are here.
 ///
-/// It used to be a pure function over flags with the command gathering the flags
-/// for itself. That put the rule in one place and its inputs in another: a
-/// condition added to the gate could be left unsampled at the call site and
-/// every test would stay green, because the tests asserted on combinations of
-/// flags rather than on where the flags came from. They are gathered here
-/// instead, which is also what makes the gathering testable — a test builds the
-/// state rather than the flags.
-///
-/// A condition added to the gate therefore needs a field here, and a field here
-/// has to be filled in by `now`; neither can be left undone without the compiler
-/// saying so.
-///
-/// The download gate is not here: the fact it turns on — whether a download is
-/// already running — is a fact about the slot, so it is asked under the slot's
-/// own lock in [`UpdateControl::take_slot`] rather than sampled outside it.
-pub struct World {
-    pub supported: bool,
-    pub scanning: bool,
-    pub ready: bool,
-}
-
-impl World {
-    /// The world as it is, for a command to gate on. The only place these are
-    /// read.
-    pub fn now(state: &AppState) -> Self {
-        Self {
-            supported: is_supported(),
-            scanning: state.scan.is_running(),
-            ready: state.update.ready_version().is_some(),
-        }
+/// One statement of what "ready" means, shared by the question the interface
+/// asks (`ready_version`) and the one the install path asks. Bytes alone are not
+/// ready: an installer whose release is gone no longer answers anything.
+fn installable(state: &State) -> Option<(&Update, &Vec<u8>)> {
+    match (state.pending.as_ref(), state.installer.as_ref()) {
+        (Some(update), Some(bytes)) => Some((update, bytes)),
+        _ => None,
     }
-}
-
-/// Whether the downloaded update may be installed.
-///
-/// The order is the priority: platform first, then the running scan, then
-/// whether anything was downloaded. Installing is an abrupt exit, so a scan in
-/// flight would lose that pass.
-pub fn install_gate(world: &World) -> Result<(), AppError> {
-    if !world.supported {
-        return Err(AppError::new(
-            "update.unsupported",
-            "Updates are published for Windows only",
-        ));
-    }
-    if world.scanning {
-        return Err(AppError::new(
-            "update.blocked.scanning",
-            "A scan is running",
-        ));
-    }
-    if !world.ready {
-        return Err(AppError::new(
-            "update.not_downloaded",
-            "No downloaded update",
-        ));
-    }
-    Ok(())
 }
 
 #[derive(Default)]
@@ -441,21 +391,66 @@ impl UpdateControl {
     }
 
     pub fn ready_version(&self) -> Option<String> {
-        let state = self.lock();
-        match (state.installer.as_ref(), state.pending.as_ref()) {
-            (Some(_), Some(pending)) => Some(pending.version.clone()),
-            _ => None,
-        }
+        installable(&self.lock()).map(|(update, _)| update.version.clone())
     }
 
-    pub fn take_installer(&self) -> Result<(Update, Vec<u8>), AppError> {
+    /// Whether the update may be installed, with the installer when it may.
+    ///
+    /// The three questions are asked in the order the interface reports them —
+    /// platform, then the running scan, then whether anything was downloaded —
+    /// and all of them are asked here rather than by a caller that gathers the
+    /// facts first. Gathering them outside put the rule in one place and its
+    /// inputs in another, and left the gap between the two: the scan was read,
+    /// the read released, and the installer taken afterwards, so a scan starting
+    /// in between was installed over. That is exactly what this gate is for —
+    /// installing hands the update to the platform installer and exits, so a
+    /// pass in flight loses that work.
+    ///
+    /// The slot is therefore read twice. The first read only fixes which refusal
+    /// is reported, because the download is asked in between and a refusal must
+    /// not spend the closing; the second one closes the slot, and from there no
+    /// scan can begin. Closing is asked last, once every other question has
+    /// passed, so a refusal leaves the application able to scan.
+    ///
+    /// Locks: the update lock is held, and the scan lock is taken inside it. No
+    /// path may take them the other way round.
+    pub fn install(
+        &self,
+        scan: &ScanControl,
+        supported: bool,
+    ) -> Result<(Update, Vec<u8>), AppError> {
         let mut state = self.lock();
-        match (state.pending.clone(), state.installer.take()) {
-            (Some(update), Some(bytes)) => Ok((update, bytes)),
-            _ => Err(AppError::new(
+        if !supported {
+            return Err(AppError::new(
+                "update.unsupported",
+                "Updates are published for Windows only",
+            ));
+        }
+        if scan.is_running() {
+            return Err(AppError::new(
+                "update.blocked.scanning",
+                "A scan is running",
+            ));
+        }
+        if installable(&state).is_none() {
+            return Err(AppError::new(
                 "update.not_downloaded",
                 "No downloaded update",
-            )),
+            ));
         }
+        if !scan.close() {
+            return Err(AppError::new(
+                "update.blocked.scanning",
+                "A scan started while this was being asked",
+            ));
+        }
+        // Present under this lock, and the slot closing cannot change that: the
+        // two questions above are the only way this can fail.
+        let update = state.pending.take().expect("installable, under this lock");
+        let bytes = state
+            .installer
+            .take()
+            .expect("installable, under this lock");
+        Ok((update, bytes))
     }
 }
