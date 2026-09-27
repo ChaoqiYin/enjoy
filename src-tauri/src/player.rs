@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::error::AppError;
 use crate::process;
-use crate::repository::Repository;
+use crate::repository::{lock_shared, Repository};
 
 pub fn play(
     space_id: i64,
@@ -12,23 +12,15 @@ pub fn play(
     path: &str,
     launch: impl FnOnce(&Path) -> Result<(), AppError>,
 ) -> Result<(), AppError> {
-    {
-        let guard = repository
-            .lock()
-            .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?;
-        if !guard.list(space_id)?.iter().any(|video| video.path == path) {
-            return Err(AppError::new(
-                "media.file.not_found",
-                "Video is not indexed",
-            ));
-        }
-    }
+    // Asked before the player is opened, so that a path the library does not
+    // know is reported rather than opened and then failed to record — and asked
+    // of the record the path names rather than of every record in the space.
+    // The lock is let go again at once: the player runs for as long as the file
+    // plays, and the interface goes on reading the library while it does.
+    lock_shared(repository)?.require_indexed(space_id, path)?;
     let file = validate_file(path)?;
     launch(&file)?;
-    repository
-        .lock()
-        .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-        .record_play(space_id, path)
+    lock_shared(repository)?.record_play(space_id, path)
 }
 
 fn validate_file(path: &str) -> Result<PathBuf, AppError> {
@@ -84,8 +76,81 @@ fn command_for(path: &Path) -> Command {
     command
 }
 
-#[cfg(all(test, target_os = "macos"))]
+#[cfg(test)]
 mod tests {
+    use std::cell::Cell;
+    use std::sync::{Arc, Mutex};
+
+    use crate::repository::fixture::{Fixture, FIRST_SPACE};
+    use crate::repository::Repository;
+    use crate::scan::scanner;
+
+    use super::play;
+
+    /// A space holding one record, and the path that record names.
+    fn library_with_one_file(fixture: &Fixture) -> (Arc<Mutex<Repository>>, i64, String) {
+        let file = fixture.0.join("movie.mp4");
+        std::fs::write(&file, b"video").unwrap();
+        let root = fixture.0.to_string_lossy().into_owned();
+        let mut repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+        let space = repository.current_space().unwrap().id;
+        repository
+            .index(space, &root, &scanner::collect(&fixture.0).unwrap())
+            .unwrap();
+        (
+            Arc::new(Mutex::new(repository)),
+            space,
+            file.to_string_lossy().into_owned(),
+        )
+    }
+
+    #[test]
+    fn the_play_of_a_file_the_library_holds_is_opened_then_recorded() {
+        let fixture = Fixture::new();
+        let (repository, space, path) = library_with_one_file(&fixture);
+        let opened = Cell::new(false);
+
+        play(space, &repository, &path, |file| {
+            // The launcher is handed the resolved file rather than the string
+            // the record carries, which is what the system's own opener needs.
+            opened.set(file.is_file());
+            Ok(())
+        })
+        .unwrap();
+
+        // Opened first, recorded after: the order the two facts are established
+        // in is what makes a play that never started leave no history behind.
+        assert!(opened.get());
+        let row = repository.lock().unwrap().list(space).unwrap().remove(0);
+        assert_eq!(row.play_count, 1);
+        assert!(row.last_played_at.is_some());
+    }
+
+    #[test]
+    fn a_path_the_library_does_not_hold_is_refused_before_the_player_is_opened() {
+        let fixture = Fixture::new();
+        let (repository, space, _) = library_with_one_file(&fixture);
+        let stranger = fixture.0.join("not-indexed.mp4");
+        std::fs::write(&stranger, b"video").unwrap();
+        let opened = Cell::new(false);
+
+        let error = play(space, &repository, &stranger.to_string_lossy(), |_| {
+            opened.set(true);
+            Ok(())
+        })
+        .unwrap_err();
+
+        // A file on disk that can be read is not a file the space holds: the
+        // question is asked of the record the path names, before anything is
+        // started, so that a window is not opened on a play that could not then
+        // be recorded.
+        assert_eq!(error.code, "media.file.not_found");
+        assert!(!opened.get());
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod launch_tests {
     use super::launch;
 
     #[test]

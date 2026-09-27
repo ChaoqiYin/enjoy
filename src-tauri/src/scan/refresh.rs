@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use crate::error::AppError;
 use crate::media::Metadata;
 use crate::model::FileStamp;
-use crate::repository::Repository;
+use crate::repository::{lock_shared, not_indexed, Repository};
 use crate::scan::control::ScanControl;
 
 /// Refreshes a single file's media metadata. Returns `true` when the record
@@ -23,12 +23,10 @@ pub fn refresh_video(
 ) -> Result<bool, AppError> {
     control.checkpoint()?;
     let expected = {
-        let guard = repository
-            .lock()
-            .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?;
+        let guard = lock_shared(repository)?;
         guard
             .find_file_stamp(space_id, path)?
-            .ok_or_else(|| AppError::new("media.file.not_found", "Video is not indexed"))?
+            .ok_or_else(not_indexed)?
     };
     let file = std::fs::metadata(path).map_err(|error| AppError::io(error, path))?;
     // The same reading a scan makes of a file it discovers: one rule, so the two
@@ -37,10 +35,7 @@ pub fn refresh_video(
     let updated = FileStamp::from_metadata(&file).map_err(|error| AppError::io(error, path))?;
     let metadata = probe(Path::new(path))?;
     control.checkpoint()?;
-    repository
-        .lock()
-        .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))?
-        .refresh_metadata(space_id, path, expected, updated, &metadata)
+    lock_shared(repository)?.refresh_metadata(space_id, path, expected, updated, &metadata)
 }
 
 #[cfg(test)]

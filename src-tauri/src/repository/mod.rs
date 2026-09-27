@@ -1,3 +1,14 @@
+//! The stored library: the connection, how it is opened, and how it is shared
+//! between the threads that use it.
+//!
+//! The methods that read and write the library are not here. They sit in the
+//! files beside this one, grouped by what they are for — [`scans`] writes back
+//! what a scan found, [`videos`] answers for one record, [`spaces`] manages the
+//! spaces — so a reader looking for how something is stored starts from the file
+//! that names it rather than from the widest surface in the module. This file
+//! holds only what all of them share: the type, the connection, and the two
+//! things no caller may pass around for itself.
+
 #[cfg(test)]
 pub(crate) mod fixture;
 #[cfg(test)]
@@ -6,8 +17,10 @@ mod incremental_tests;
 mod metadata_tests;
 #[cfg(test)]
 mod migration_tests;
+mod scans;
 pub(crate) mod schema;
 mod spaces;
+mod videos;
 // Two modules about spaces, told apart by what they hold: the isolation one is
 // the rule that spaces share no records (ADR 0011), the management one is
 // adding, renaming and removing them.
@@ -18,14 +31,14 @@ mod space_management_tests;
 #[cfg(test)]
 pub(crate) mod tests;
 
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::Connection;
 use serde::Serialize;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::AppError;
-use crate::media::Metadata;
-use crate::model::{FileStamp, Found, ScannedFile, VideoFile};
+
+pub use scans::DirectoryScan;
 
 #[derive(Clone, Default, Debug, Serialize)]
 pub struct IndexChanges {
@@ -34,45 +47,20 @@ pub struct IndexChanges {
     pub removed: usize,
 }
 
-/// What one configured directory contributed to a scan.
-///
-/// The verdict is carried rather than worked out here. Deciding it needs to
-/// know why a read failed, which is a fact about this run and about the file
-/// system; executing it needs the index. `Found` says what the directory turned
-/// out to be, and this is the pair of it with the path it was read from.
-pub struct DirectoryScan {
-    pub path: String,
-    pub found: Found,
-}
-
-/// Removes the records of one space that no longer belong to its scan universe.
-///
-/// A record survives when one of its directories either was not scanned this
-/// run — an unreadable directory keeps its records — or was scanned and still
-/// accounts for the file: the file was found there, or its path was there but
-/// could not be read. A record with no membership at all is removed: removing a
-/// saved directory cascades its membership rows away, so this is also what
-/// clears the records of a directory the user removed, without a cascade
-/// delete of its own.
-///
-/// The space is named here even though the two temporary tables only ever hold
-/// what the current run put in them, which came from one space: the statement
-/// deletes, and a delete that cannot say which space it means is one edit away
-/// from clearing another space's records.
-const REMOVAL_SQL: &str = "DELETE FROM videos WHERE space_id = ?1 AND NOT EXISTS (
-        SELECT 1 FROM directory_videos AS membership
-        WHERE membership.video_id = videos.id
-          AND (membership.directory_path NOT IN (SELECT path FROM scanned_directories)
-               OR videos.path IN (SELECT path FROM scan_paths)))";
-
 /// Takes the lock on a shared index, or reports the one failure that has no
 /// other name.
 ///
 /// The index is shared as `Arc<Mutex<..>>` so that long media work can hold it
-/// only while it reads or writes, and the same four lines turn a poisoned lock
-/// into an error at every one of those places. Writing them here is what keeps
-/// "the index sits behind a mutex" from leaking into every caller's error
-/// handling — and what makes a caller that forgets to handle it impossible.
+/// only while it reads or writes, and turning a poisoned lock into an error is
+/// the same four lines every time. They live here so that no caller has to know
+/// which error a poisoned mutex becomes, and so that the four lines are written
+/// once.
+///
+/// Every reader and writer of the index goes through this, including the two
+/// outside this module — `player` and `scan::refresh`, which had each written
+/// the four lines out for themselves. Until they were removed, the sentence
+/// above was a claim rather than a fact: nothing but a reader's attention kept
+/// a fifth copy from appearing.
 pub(crate) fn lock_shared(
     shared: &std::sync::Mutex<Repository>,
 ) -> Result<std::sync::MutexGuard<'_, Repository>, AppError> {
@@ -81,6 +69,26 @@ pub(crate) fn lock_shared(
         .map_err(|_| AppError::new("media.database.lock_failed", "Database lock poisoned"))
 }
 
+/// The verdict a path this space holds no record for gets.
+///
+/// Two questions reach it and two writes report it — a lookup that found no row,
+/// an update that matched none, a refresh that found nothing to compare against,
+/// and the play gate that asks before a window is opened — and it is one
+/// verdict, so it is written once. What it must not become is a second way of
+/// saying a file is missing from the disk: that one is `media.file.not_found`
+/// only when the path is not in the library, and `error::AppError::io` when the
+/// file system says so.
+pub(crate) fn not_indexed() -> AppError {
+    AppError::new("media.file.not_found", "Video is not indexed")
+}
+
+/// One application's library: the records, the configured directories they came
+/// from, and the spaces those belong to.
+///
+/// The connection is private, so nothing outside this module reaches the schema
+/// without a method that says what it is doing. The methods themselves are
+/// spread over the files beside this one; see the module documentation above for
+/// which holds what.
 pub struct Repository {
     connection: Connection,
 }
@@ -104,371 +112,6 @@ impl Repository {
         tx.commit()?;
         connection.pragma_update(None, "foreign_keys", true)?;
         Ok(Self { connection })
-    }
-
-    #[cfg(test)]
-    pub fn index(
-        &mut self,
-        space_id: i64,
-        directory: &str,
-        files: &[ScannedFile],
-    ) -> Result<IndexChanges, AppError> {
-        self.replace_videos(space_id, &[(directory.into(), files.to_vec())])
-    }
-
-    fn index_files(
-        tx: &Connection,
-        space_id: i64,
-        directory: &str,
-        files: &[ScannedFile],
-        checkpoint: &impl Fn() -> Result<(), AppError>,
-    ) -> Result<IndexChanges, AppError> {
-        let mut changes = IndexChanges::default();
-        tx.execute(
-            "INSERT OR IGNORE INTO directories(space_id,path) VALUES (?1,?2)",
-            params![space_id, directory],
-        )?;
-        tx.execute_batch("CREATE TEMP TABLE IF NOT EXISTS scan_paths(path TEXT PRIMARY KEY);")?;
-        for file in files {
-            checkpoint()?;
-            let previous = tx
-                .query_row(
-                    "SELECT file_size,modified_at FROM videos WHERE space_id=?1 AND path=?2",
-                    params![space_id, &file.path],
-                    |row| {
-                        Ok(FileStamp {
-                            file_size: row.get(0)?,
-                            modified_at: row.get(1)?,
-                        })
-                    },
-                )
-                .optional()?;
-            // Whether a file counts as changed is decided here, once, from the
-            // row just read: the write below consumes that verdict as a bound
-            // parameter instead of comparing the columns a second time in SQL,
-            // so the rule has a single home. Deciding it in Rust and deciding it
-            // inside the statement say the same thing, because the read and the
-            // write run on one connection inside one transaction and nothing
-            // touches this path in between: the row the statement sees is the
-            // row read here. A path with no stored row is an addition rather
-            // than a change -- it holds nothing of its own to invalidate -- and
-            // the counters below follow the same verdict, so new and updated
-            // records are counted exactly as they are written.
-            //
-            // The comparison is the one `FileStamp` already carries: the stored
-            // stamp is the identity the media were derived from, and the same
-            // pair guards the writes back to the row, so the rule and the guard
-            // cannot drift apart (ADR 0004). A rewrite that leaves both halves
-            // untouched is not noticed, which is the blind spot ADR 0004
-            // accepts.
-            let stamp = FileStamp {
-                file_size: file.file_size,
-                modified_at: file.modified_at,
-            };
-            let changed = previous.is_some_and(|stored| stored != stamp);
-            if previous.is_none() {
-                changes.added += 1;
-            } else if changed {
-                changes.updated += 1;
-            }
-            tx.execute(
-                "INSERT OR IGNORE INTO scan_paths(path) VALUES (?1)",
-                [&file.path],
-            )?;
-            tx.execute(
-                "INSERT INTO videos(space_id,path,file_name,folder_path,file_size,modified_at,created_at,updated_at)
-                 VALUES (?1,?2,?3,?4,?5,?6,?7,?7)
-                 ON CONFLICT(space_id,path) DO UPDATE SET
-                    file_name=excluded.file_name, folder_path=excluded.folder_path,
-                    media_complete=CASE WHEN ?8 THEN 0 ELSE videos.media_complete END,
-                    duration_ms=CASE WHEN ?8 THEN NULL ELSE videos.duration_ms END,
-                    width=CASE WHEN ?8 THEN NULL ELSE videos.width END,
-                    height=CASE WHEN ?8 THEN NULL ELSE videos.height END,
-                    codec=CASE WHEN ?8 THEN NULL ELSE videos.codec END,
-                    thumbnail_path=CASE WHEN ?8 THEN NULL ELSE videos.thumbnail_path END,
-                    updated_at=CASE WHEN ?8 THEN excluded.updated_at ELSE videos.updated_at END,
-                    file_size=excluded.file_size, modified_at=excluded.modified_at",
-                params![space_id, file.path, file.file_name, file.folder_path, file.file_size, file.modified_at, now(), changed],
-            )?;
-            tx.execute(
-                "INSERT OR IGNORE INTO directory_videos(space_id,directory_path,video_id)
-                 SELECT ?1,?2,id FROM videos WHERE space_id=?1 AND path=?3",
-                params![space_id, directory, file.path],
-            )?;
-        }
-        Ok(changes)
-    }
-
-    #[cfg(test)]
-    pub fn replace_videos(
-        &mut self,
-        space_id: i64,
-        directories: &[(String, Vec<ScannedFile>)],
-    ) -> Result<IndexChanges, AppError> {
-        let scans: Vec<_> = directories
-            .iter()
-            .map(|(path, files)| DirectoryScan {
-                path: path.clone(),
-                found: Found::Read {
-                    files: files.clone(),
-                    unreadable: Vec::new(),
-                },
-            })
-            .collect();
-        self.replace_videos_controlled(space_id, &scans, || Ok(()))
-    }
-
-    /// Syncs one space's index with what a scan of its saved directories found.
-    ///
-    /// `scans` reports one entry per configured directory, and the removal
-    /// step is decided against those directories rather than against the
-    /// entries the caller happened to pass: a directory that is missing from
-    /// `scans` keeps its records just like an unreadable one. Only the space
-    /// named here is touched, however the scans were gathered.
-    pub fn replace_videos_controlled(
-        &mut self,
-        space_id: i64,
-        scans: &[DirectoryScan],
-        checkpoint: impl Fn() -> Result<(), AppError>,
-    ) -> Result<IndexChanges, AppError> {
-        let tx = self.connection.transaction()?;
-        checkpoint()?;
-        tx.execute_batch(
-            "CREATE TEMP TABLE IF NOT EXISTS scan_paths(path TEXT PRIMARY KEY);
-             CREATE TEMP TABLE IF NOT EXISTS scanned_directories(path TEXT PRIMARY KEY);
-             DELETE FROM scan_paths;
-             DELETE FROM scanned_directories;",
-        )?;
-        let mut changes = IndexChanges::default();
-        for scan in scans {
-            checkpoint()?;
-            let (files, unreadable): (&[ScannedFile], &[String]) = match &scan.found {
-                Found::Read { files, unreadable } => (files, unreadable),
-                // Nothing it held survived it: registered with no files of its
-                // own, so the removal below takes every record it accounted for.
-                Found::Gone => (&[], &[]),
-                // A directory that could not be read says nothing about what is
-                // inside it, and neither does a path that is not a directory.
-                // Both are left unregistered, which is what keeps their records
-                // out of the removal below.
-                Found::Unreachable | Found::NotADirectory => continue,
-            };
-            let indexed = Self::index_files(&tx, space_id, &scan.path, files, &checkpoint)?;
-            changes.added += indexed.added;
-            changes.updated += indexed.updated;
-            tx.execute(
-                "INSERT OR IGNORE INTO scanned_directories(path) VALUES (?1)",
-                [&scan.path],
-            )?;
-            // A path that failed while still being there must not read as a
-            // video that disappeared: the records under it are kept out of the
-            // removal step below. Only existing records are selected, so a
-            // failed path can never bring a record into being. The prefix is
-            // matched with `substr` rather than `LIKE`, because a path may
-            // contain the wildcards `%` and `_`. It is built with the platform's
-            // own separator, because the stored paths were rendered from native
-            // ones: a subtree is a prefix of its records only when it is spelled
-            // the same way they are, and on Windows a `/` would match nothing.
-            for path in unreadable {
-                tx.execute(
-                    "INSERT OR IGNORE INTO scan_paths(path)
-                     SELECT path FROM videos
-                     WHERE space_id = ?3 AND (path = ?1 OR substr(path, 1, length(?2)) = ?2)",
-                    params![
-                        path,
-                        format!("{path}{}", std::path::MAIN_SEPARATOR),
-                        space_id
-                    ],
-                )?;
-            }
-        }
-        checkpoint()?;
-        changes.removed = tx.execute(REMOVAL_SQL, [space_id])?;
-        checkpoint()?;
-        tx.commit()?;
-        Ok(changes)
-    }
-
-    pub fn list(&self, space_id: i64) -> Result<Vec<VideoFile>, AppError> {
-        let mut query = self.connection.prepare("SELECT id,path,file_name,folder_path,file_size,modified_at,duration_ms,width,height,codec,thumbnail_path,favorite,play_count,last_played_at,created_at,updated_at,media_complete FROM videos WHERE space_id=?1 ORDER BY created_at DESC,id DESC")?;
-        let rows = query.query_map([space_id], |row| {
-            Ok(VideoFile {
-                id: row.get(0)?,
-                path: row.get(1)?,
-                file_name: row.get(2)?,
-                folder_path: row.get(3)?,
-                file_size: row.get(4)?,
-                modified_at: row.get(5)?,
-                duration_ms: row.get(6)?,
-                width: row.get(7)?,
-                height: row.get(8)?,
-                codec: row.get(9)?,
-                thumbnail_path: row.get(10)?,
-                favorite: row.get(11)?,
-                play_count: row.get(12)?,
-                last_played_at: row.get(13)?,
-                created_at: row.get(14)?,
-                updated_at: row.get(15)?,
-                media_complete: row.get(16)?,
-            })
-        })?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
-    }
-
-    pub fn save_metadata(
-        &self,
-        space_id: i64,
-        video: &VideoFile,
-        metadata: &Metadata,
-    ) -> Result<(), AppError> {
-        self.connection.execute(
-            "UPDATE videos SET duration_ms=?5,width=?6,height=?7,codec=?8
-             WHERE id=?1 AND space_id=?2 AND file_size=?3 AND modified_at=?4",
-            params![
-                video.id,
-                space_id,
-                video.file_size,
-                video.modified_at,
-                metadata.duration_ms,
-                metadata.width,
-                metadata.height,
-                metadata.codec
-            ],
-        )?;
-        Ok(())
-    }
-
-    pub fn find_file_stamp(
-        &self,
-        space_id: i64,
-        path: &str,
-    ) -> Result<Option<FileStamp>, AppError> {
-        self.connection
-            .query_row(
-                "SELECT file_size, modified_at FROM videos WHERE space_id=?1 AND path=?2",
-                params![space_id, path],
-                |row| {
-                    Ok(FileStamp {
-                        file_size: row.get(0)?,
-                        modified_at: row.get(1)?,
-                    })
-                },
-            )
-            .optional()
-            .map_err(Into::into)
-    }
-
-    pub fn refresh_metadata(
-        &self,
-        space_id: i64,
-        path: &str,
-        expected: FileStamp,
-        updated: FileStamp,
-        metadata: &Metadata,
-    ) -> Result<bool, AppError> {
-        let count = self.connection.execute(
-            "UPDATE videos SET file_size=?5, modified_at=?6, duration_ms=?7, width=?8, height=?9, codec=?10,
-                media_complete=CASE WHEN ?8 IS NOT NULL AND thumbnail_path IS NOT NULL THEN 1 ELSE 0 END,
-                updated_at=?11
-             WHERE space_id=?1 AND path=?2 AND file_size=?3 AND modified_at=?4",
-            params![
-                space_id,
-                path,
-                expected.file_size,
-                expected.modified_at,
-                updated.file_size,
-                updated.modified_at,
-                metadata.duration_ms,
-                metadata.width,
-                metadata.height,
-                metadata.codec,
-                now(),
-            ],
-        )?;
-        Ok(count > 0)
-    }
-
-    pub fn save_thumbnail(
-        &self,
-        space_id: i64,
-        video: &VideoFile,
-        path: &str,
-    ) -> Result<(), AppError> {
-        self.connection.execute(
-            "UPDATE videos SET thumbnail_path=?5 WHERE id=?1 AND space_id=?2 AND file_size=?3 AND modified_at=?4",
-            params![video.id, space_id, video.file_size, video.modified_at, path],
-        )?;
-        Ok(())
-    }
-
-    pub fn complete_media(&self, space_id: i64, video: &VideoFile) -> Result<(), AppError> {
-        self.connection.execute(
-            "UPDATE videos SET media_complete=1 WHERE id=?1 AND space_id=?2 AND path=?3 AND file_size=?4 AND modified_at=?5
-             AND width IS NOT NULL AND thumbnail_path IS NOT NULL",
-            params![
-                video.id,
-                space_id,
-                video.path,
-                video.file_size,
-                video.modified_at
-            ],
-        )?;
-        Ok(())
-    }
-
-    pub fn directories(&self, space_id: i64) -> Result<Vec<String>, AppError> {
-        let mut query = self
-            .connection
-            .prepare("SELECT path FROM directories WHERE space_id=?1 ORDER BY path")?;
-        let rows = query.query_map([space_id], |row| row.get(0))?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
-    }
-
-    pub fn add_directory(&self, space_id: i64, path: &str) -> Result<(), AppError> {
-        self.connection.execute(
-            "INSERT OR IGNORE INTO directories(space_id,path) VALUES (?1,?2)",
-            params![space_id, path],
-        )?;
-        Ok(())
-    }
-
-    pub fn remove_directory(&self, space_id: i64, path: &str) -> Result<(), AppError> {
-        self.connection.execute(
-            "DELETE FROM directories WHERE space_id=?1 AND path=?2",
-            params![space_id, path],
-        )?;
-        Ok(())
-    }
-
-    pub fn remove(&self, space_id: i64, path: &str) -> Result<(), AppError> {
-        self.connection.execute(
-            "DELETE FROM videos WHERE space_id=?1 AND path=?2",
-            params![space_id, path],
-        )?;
-        Ok(())
-    }
-
-    pub fn favorite(&self, space_id: i64, path: &str, favorite: bool) -> Result<(), AppError> {
-        let count = self.connection.execute(
-            "UPDATE videos SET favorite=?3,updated_at=?4 WHERE space_id=?1 AND path=?2",
-            params![space_id, path, favorite, now()],
-        )?;
-        self.require_row(count)
-    }
-
-    pub fn record_play(&self, space_id: i64, path: &str) -> Result<(), AppError> {
-        let count = self.connection.execute("UPDATE videos SET play_count=play_count+1,last_played_at=?3,updated_at=?3 WHERE space_id=?1 AND path=?2", params![space_id, path, now()])?;
-        self.require_row(count)
-    }
-
-    fn require_row(&self, count: usize) -> Result<(), AppError> {
-        if count == 0 {
-            return Err(AppError::new(
-                "media.file.not_found",
-                "Video is not indexed",
-            ));
-        }
-        Ok(())
     }
 }
 
