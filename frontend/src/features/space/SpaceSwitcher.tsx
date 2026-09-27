@@ -1,8 +1,8 @@
 import { Check, ChevronDown } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLibraryContext } from '../library/LibraryProvider';
-import { isScanRunning } from '../library/scanFeedback';
+import { useScan } from '../library/useScan';
+import { useSpaceCommands } from '../library/useSpaceCommands';
 import { useSpaces } from './SpaceProvider';
 
 /// One width for the trigger and for the list under it, so the control does not
@@ -32,12 +32,9 @@ const WIDTH = 'w-40';
  */
 export function SpaceSwitcher() {
   const { t } = useTranslation();
-  const library = useLibraryContext();
+  const { isRunning: scanning } = useScan();
+  const commands = useSpaceCommands();
   const { space, spaces } = useSpaces();
-  // A media task holding the scan slot — a pass, a paused pass, or one file's
-  // information being refreshed — is what the backend refuses a switch for, and
-  // this asks the same question of the same status the scan progress reads.
-  const scanning = isScanRunning(library.scan.data);
   const menu = useRef<HTMLDetailsElement>(null);
   const close = () => {
     if (menu.current) menu.current.open = false;
@@ -95,7 +92,7 @@ export function SpaceSwitcher() {
               aria-current={item.id === space.id || undefined}
               onClick={() => {
                 close();
-                if (item.id !== space.id) void library.switchSpace(item.id);
+                if (item.id !== space.id) void commands.switchSpace(item.id);
               }}
             >
               <Check

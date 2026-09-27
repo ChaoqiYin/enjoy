@@ -5,7 +5,11 @@ import type { AppError, Video } from '../../shared/api';
 import { displayPath } from '../../shared/format';
 import { Drawer } from '../../shared/Drawer';
 import { ScrollViewport } from '../../shared/ScrollViewport';
-import { useLibraryContext } from './LibraryProvider';
+import { useBusy } from './useBusy';
+import { useNotices } from './useNotices';
+import { useScan } from './useScan';
+import { useVideoActions } from './useVideoActions';
+import { useVideos } from './useVideos';
 import { useSpace } from '../space/SpaceProvider';
 import type { useVideoPageView } from './useVideoPageView';
 import { VirtualVideos } from './VirtualVideos';
@@ -30,7 +34,11 @@ export function VideoPageContent({
   onAdd?: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const library = useLibraryContext();
+  const { videos: collection, lastPlayedId } = useVideos();
+  const { status } = useScan();
+  const { busy } = useBusy();
+  const notices = useNotices();
+  const videoActions = useVideoActions();
   const { id: spaceId } = useSpace();
   const { collectionKey, videos, search, folder, clearFilters } = view;
   // `detailVideo` is the panel's contents, not a mount gate: the drawer shell
@@ -56,22 +64,21 @@ export function VideoPageContent({
     // now, so without this every later rescan would repeat the same notice. It
     // also keeps a deliberate removal, which closes the drawer before removing,
     // from announcing itself a second time.
-    if (!detailsOpen || !detailVideo || library.videos.isPending) return;
-    if (!library.videos.data) return;
-    if (library.videos.data.some((video) => video.id === detailVideo.id))
-      return;
+    if (!detailsOpen || !detailVideo || collection.isPending) return;
+    if (!collection.data) return;
+    if (collection.data.some((video) => video.id === detailVideo.id)) return;
     setDetailsOpen(false);
-    library.setError(clientError('media.file.removed'));
+    notices.setError(clientError('media.file.removed'));
   }, [
     detailsOpen,
     detailVideo,
-    library.videos.isPending,
-    library.videos.data,
-    library.setError,
+    collection.isPending,
+    collection.data,
+    notices.setError,
   ]);
   const copyPath = async (video: Video) => {
     if (!navigator.clipboard) {
-      library.setError(clientError('app.clipboard.failed'));
+      notices.setError(clientError('app.clipboard.failed'));
       return;
     }
     try {
@@ -79,15 +86,15 @@ export function VideoPageContent({
       // index stores: they are two spellings of the same file, and the user
       // asked for the one in front of them.
       await navigator.clipboard.writeText(displayPath(video.path));
-      library.showCopyHint();
+      notices.showCopyHint();
     } catch {
-      library.setError(clientError('app.clipboard.failed'));
+      notices.setError(clientError('app.clipboard.failed'));
     }
   };
   const actions = {
-    play: library.play,
-    favorite: library.toggleFavorite,
-    reveal: library.reveal,
+    play: videoActions.play,
+    favorite: videoActions.toggleFavorite,
+    reveal: videoActions.reveal,
     remove: (video: Video) => {
       setDetailsOpen(false);
       setRemove(video);
@@ -97,8 +104,8 @@ export function VideoPageContent({
       setDetailsOpen(true);
     },
     copyPath,
-    regenerate: library.regenerateThumbnail,
-    refreshInfo: library.refreshInfo,
+    regenerate: videoActions.regenerateThumbnail,
+    refreshInfo: videoActions.refreshInfo,
   };
   return (
     <>
@@ -109,7 +116,7 @@ export function VideoPageContent({
         })}
       </p>
       <div className="min-h-0 flex-1 flex flex-col">
-        {library.videos.isPending ? (
+        {collection.isPending ? (
           <p>{t('loading')}</p>
         ) : videos.length === 0 ? (
           <ScrollViewport className="text-center py-24 space-y-4">
@@ -138,12 +145,12 @@ export function VideoPageContent({
         ) : (
           <VirtualVideos
             key={collectionKey}
-            scan={library.scan.data}
+            scan={status}
             videos={videos}
             onMenu={setMenu}
-            busy={library.busy}
+            busy={busy}
             actions={actions}
-            lastPlayedId={library.lastPlayedId}
+            lastPlayedId={lastPlayedId}
             onScroll={closeMenu}
           />
         )}
@@ -156,9 +163,9 @@ export function VideoPageContent({
       >
         {detailVideo && (
           <VideoDetails
-            scan={library.scan.data}
+            scan={status}
             video={detailVideo}
-            busy={library.busy}
+            busy={busy}
             actions={actions}
           />
         )}
@@ -168,7 +175,7 @@ export function VideoPageContent({
           video={remove}
           onCancel={() => setRemove(null)}
           onConfirm={() => {
-            void library.removeVideo(remove);
+            void videoActions.removeVideo(remove);
             setRemove(null);
           }}
         />
@@ -176,7 +183,7 @@ export function VideoPageContent({
       {menu && (
         <VideoMenu
           target={menu}
-          busy={library.busy}
+          busy={busy}
           actions={actions}
           onClose={closeMenu}
         />

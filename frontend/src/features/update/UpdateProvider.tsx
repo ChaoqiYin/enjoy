@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 import { Toast } from '../../shared/Toast';
-import { useLibraryContext } from '../library/LibraryProvider';
+import { useScan } from '../library/useScan';
 import { isScanRunning } from '../library/scanFeedback';
 import { useUpdate } from './useUpdate';
 import type { UpdateState } from './useUpdate';
@@ -36,12 +36,11 @@ export function useUpdateContext() {
  */
 export function UpdateProvider({ children }: { children: ReactNode }) {
   const update = useUpdate();
-  const library = useLibraryContext();
+  const { isRunning: scanning } = useScan();
   const { t } = useTranslation();
   const { check, downloading, restarting, error, notice } = update;
   const [dismissedReady, setDismissedReady] = useState<string | null>(null);
 
-  const scanning = isScanRunning(library.scan.data);
   const available = check?.available ?? null;
   const readyVersion = check?.readyToRestart
     ? (available?.version ?? '')

@@ -1,14 +1,16 @@
 import { AddDirectories } from './AddDirectories';
-import { useLibraryContext } from './LibraryProvider';
+import { useDirectories } from './useDirectories';
+import { useNotices } from './useNotices';
 export function DirectoryDialog({ onClose }: { onClose: () => void }) {
-  const library = useLibraryContext();
+  const { setError } = useNotices();
+  const { addDirectories } = useDirectories();
   return (
     <AddDirectories
       onClose={onClose}
-      onError={library.setError}
+      onError={setError}
       onConfirm={(paths) => {
         onClose();
-        void library.addDirectories(paths);
+        void addDirectories(paths);
       }}
     />
   );

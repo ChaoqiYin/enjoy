@@ -9,32 +9,40 @@ import english from '../../../../shared/locales/en/common.json';
 
 const i18n = createInstance();
 
-const { library } = vi.hoisted(() => {
-  const library = {
+// Two doubles, one per module the frame reads, rather than one stand-in for the
+// whole library: what the frame depends on is the notices and the scan, and a
+// test that had to name the other twenty-six keys would be describing a
+// relationship the component does not have.
+const { notices, scan } = vi.hoisted(() => ({
+  notices: {
     completion: null as ScanStatus | null,
-    scan: { data: undefined as ScanStatus | undefined },
-    error: null,
+    error: null as { code: string } | null,
     dismissCompletion: vi.fn(),
     copyHint: false,
     dismissCopyHint: vi.fn(),
     retryError: undefined as (() => Promise<unknown>) | undefined,
     setError: vi.fn(),
+    showCopyHint: vi.fn(),
+  },
+  scan: {
+    status: undefined as ScanStatus | undefined,
+    isRunning: false,
     controlScan: vi.fn(async () => {}),
-  };
-  return { library };
-});
-
-vi.mock('./LibraryProvider', () => ({
-  useLibraryContext: () => library,
+  },
 }));
+
+vi.mock('./useNotices', () => ({ useNotices: () => notices }));
+vi.mock('./useScan', () => ({ useScan: () => scan }));
 
 const completed = idleScan({ phase: 'complete' });
 
 beforeEach(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: english } } });
-  library.completion = null;
-  library.copyHint = false;
-  library.scan.data = undefined;
+  notices.completion = null;
+  notices.copyHint = false;
+  notices.error = null;
+  scan.status = undefined;
+  scan.isRunning = false;
 });
 
 afterEach(cleanup);
@@ -50,27 +58,27 @@ function page() {
 }
 
 it('reports how many folders the scan could not reach', () => {
-  library.completion = { ...completed, unreachableDirectories: 2 };
+  notices.completion = { ...completed, unreachableDirectories: 2 };
   render(page());
   expect(screen.getByText(/2 folders are currently unreachable/)).toBeTruthy();
 });
 
 it('leaves unreachable folders out of a completion that reached them all', () => {
-  library.completion = { ...completed };
+  notices.completion = { ...completed };
   render(page());
   expect(screen.queryByText(/folders are currently unreachable/)).toBeNull();
 });
 
 it('leaves a completion notice alone, because a hint is not a notice', () => {
-  library.dismissCompletion.mockClear();
-  library.completion = { ...completed };
+  notices.dismissCompletion.mockClear();
+  notices.completion = { ...completed };
   const { rerender } = render(page());
   expect(screen.getByText(english.scanComplete)).toBeTruthy();
-  library.copyHint = true;
+  notices.copyHint = true;
   rerender(page());
   // A hint does not register for the single non-error slot, so the completion
   // it appears beside keeps its place instead of being closed.
-  expect(library.dismissCompletion).not.toHaveBeenCalled();
+  expect(notices.dismissCompletion).not.toHaveBeenCalled();
   expect(screen.getByText(english.copied)).toBeTruthy();
   expect(screen.getByText(english.scanComplete)).toBeTruthy();
 });
@@ -78,7 +86,7 @@ it('leaves a completion notice alone, because a hint is not a notice', () => {
 it('announces a copied path once it was copied, and not before', () => {
   const { rerender } = render(page());
   expect(screen.queryByText(english.copied)).toBeNull();
-  library.copyHint = true;
+  notices.copyHint = true;
   rerender(page());
   expect(screen.getByText(english.copied)).toBeTruthy();
 });

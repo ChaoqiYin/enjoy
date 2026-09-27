@@ -3,8 +3,9 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ConfirmTooltip } from '../../shared/ConfirmTooltip';
 import { Tooltip } from '../../shared/Tooltip';
-import { useLibraryContext } from '../library/LibraryProvider';
-import { isScanRunning } from '../library/scanFeedback';
+import { useBusy } from '../library/useBusy';
+import { useScan } from '../library/useScan';
+import { useSpaceCommands } from '../library/useSpaceCommands';
 import { useSpaces } from './SpaceProvider';
 import { SpaceDialog } from './SpaceDialog';
 import type { Space } from '../../shared/api';
@@ -25,15 +26,18 @@ import type { Space } from '../../shared/api';
  */
 export function SpaceSetting() {
   const { t } = useTranslation();
-  const library = useLibraryContext();
+  const { busy } = useBusy();
+  const { isRunning: scanning } = useScan();
+  const commands = useSpaceCommands();
   const { space, spaces } = useSpaces();
   const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState<Space | null>(null);
   // The same slot the switch asks about: a pass, a paused pass, or one file's
   // information being refreshed. The backend refuses these operations for the
-  // reason above the buttons; this is that rule said in advance.
-  const scanning = isScanRunning(library.scan.data);
-  const blocked = library.busy || scanning;
+  // reason above the buttons; this is that rule said in advance. Two different
+  // questions, from the two modules that own them: is a media task holding the
+  // slot, and is a command of the interface still in flight.
+  const blocked = busy || scanning;
   return (
     <>
       <div className="space-y-3">
@@ -71,7 +75,7 @@ export function SpaceSetting() {
                   confirmLabel={t('confirm')}
                   cancelLabel={t('cancel')}
                   disabled={blocked}
-                  onConfirm={() => void library.removeSpace(item.id)}
+                  onConfirm={() => void commands.removeSpace(item.id)}
                 >
                   <button
                     className="btn btn-ghost btn-xs btn-square text-error"
@@ -107,7 +111,7 @@ export function SpaceSetting() {
         <SpaceDialog
           title={t('spaceCreate')}
           initialName=""
-          onSubmit={library.createSpace}
+          onSubmit={commands.createSpace}
           onClose={() => setCreating(false)}
         />
       )}
@@ -115,7 +119,7 @@ export function SpaceSetting() {
         <SpaceDialog
           title={t('spaceRename')}
           initialName={renaming.name}
-          onSubmit={(name) => library.renameSpace(renaming.id, name)}
+          onSubmit={(name) => commands.renameSpace(renaming.id, name)}
           onClose={() => setRenaming(null)}
         />
       )}

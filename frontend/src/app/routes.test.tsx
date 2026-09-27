@@ -3,24 +3,67 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { App } from './App';
 import { libraryApi } from '../shared/api';
 import { useLibraryView } from '../features/library/libraryView';
 import english from '../../../shared/locales/en/common.json';
 
-vi.mock('../features/library/useLibrary', () => ({
-  useLibrary: () => ({
+// What the pages read of the library, one double per module. Routing is what is
+// under test here, so each says "nothing interesting is happening" in its own
+// vocabulary rather than through one stand-in that has to know every key the
+// library has.
+vi.mock('../features/library/LibraryProvider', () => ({
+  // Nothing below reads the context: the six modules it would feed are doubled
+  // as well, so the provider is here only to keep the real queries and the
+  // event subscriptions out of a test that is about which page is on screen.
+  LibraryProvider: ({ children }: { children: ReactNode }) => children,
+  useLibraryContext: () => ({}),
+}));
+vi.mock('../features/library/useVideos', () => ({
+  useVideos: () => ({
     videos: { data: [], isPending: false },
-    directories: { data: [] },
-    scan: { data: undefined },
-    busy: false,
+    lastPlayedId: null,
+  }),
+}));
+vi.mock('../features/library/useScan', () => ({
+  useScan: () => ({
+    status: undefined,
+    isRunning: false,
+    controlScan: async () => {},
+  }),
+}));
+vi.mock('../features/library/useNotices', () => ({
+  useNotices: () => ({
     error: null,
+    retryError: undefined,
+    setError: () => {},
     completion: null,
+    dismissCompletion: () => {},
+    copyHint: false,
+    showCopyHint: () => {},
+    dismissCopyHint: () => {},
+  }),
+}));
+vi.mock('../features/library/useBusy', () => ({
+  useBusy: () => ({ busy: false }),
+}));
+vi.mock('../features/library/useDirectories', () => ({
+  useDirectories: () => ({
+    directories: { data: [] },
     addDirectories: async () => {},
     removeDirectory: async () => {},
-    regenerateAllThumbnails: async () => {},
     rescan: async () => {},
+    regenerateAllThumbnails: async () => {},
+  }),
+}));
+vi.mock('../features/library/useSpaceCommands', () => ({
+  useSpaceCommands: () => ({
+    createSpace: async () => {},
+    renameSpace: async () => {},
+    removeSpace: async () => {},
+    switchSpace: async () => {},
   }),
 }));
 vi.mock('../i18n/LanguageSetting', () => ({

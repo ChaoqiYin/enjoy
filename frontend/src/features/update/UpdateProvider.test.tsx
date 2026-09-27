@@ -16,8 +16,8 @@ import errors from '../../../../shared/locales/en/errors.json';
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
-vi.mock('../library/LibraryProvider', () => ({
-  useLibraryContext: () => ({ scan: { data: undefined } }),
+vi.mock('../library/useScan', () => ({
+  useScan: () => ({ isRunning: false }),
 }));
 
 const i18n = createInstance();

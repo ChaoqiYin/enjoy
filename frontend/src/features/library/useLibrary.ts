@@ -1,13 +1,25 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { listen } from '@tauri-apps/api/event';
-import type { UnlistenFn } from '@tauri-apps/api/event';
+import { useState } from 'react';
 import { libraryApi, normalizeError } from '../../shared/api';
 import type { AppError, ScanStatus, Space, Video } from '../../shared/api';
 import { clearFilters } from './libraryView';
 import { useAdoptSpace, useSpace } from '../space/SpaceProvider';
-import { shouldAnnounceScan } from './scanFeedback';
+import { useNoticeState } from './notices';
+import { useScanLifecycle } from './scanLifecycle';
 
+/**
+ * Everything the library holds, everything it says, and every command it can be
+ * asked to carry out — assembled.
+ *
+ * This is the only module that knows the whole of it. What each consumer sees
+ * is a narrow slice of it, handed out by the hooks beside this file
+ * (`useVideos`, `useScan`, `useNotices`, `useSpaceCommands`, `useDirectories`,
+ * `useVideoActions`, `useBusy`), because a page that wants one boolean should
+ * not have to know about the other twenty-seven keys. Two of those slices are
+ * not assembled here at all: the scan lifecycle and the notices have modules of
+ * their own, and what is left is the part they share — the queries, the
+ * in-flight counter, and the commands.
+ */
 export function useLibrary() {
   const client = useQueryClient();
   // The one place the current space is read. Everything below — every cache
@@ -15,18 +27,9 @@ export function useLibrary() {
   // the only way to write into the wrong space (ADR 0012).
   const { id: spaceId } = useSpace();
   const adopt = useAdoptSpace();
-  const [failure, setFailure] = useState<{
-    error: AppError;
-    retry?: () => Promise<unknown>;
-  } | null>(null);
-  function setError(error: AppError | null, retry?: () => Promise<unknown>) {
-    setFailure(error ? { error, retry } : null);
-  }
-  const [completion, setCompletion] = useState<ScanStatus | null>(null);
-  // A short hint is not a notice and does not take the notice slot: it is a
-  // different kind of thing, telling the user an action landed rather than
-  // something to read and act on. See the development guide.
-  const [copyHint, setCopyHint] = useState(false);
+  const notices = useNoticeState();
+  const [pending, setPending] = useState(0);
+  const busy = pending > 0;
   // Which card carries the "last played" marker. It is the video the user just
   // handed to the system player, held for as long as the app runs and no
   // longer: the index already keeps the history across runs (`last_played_at`,
@@ -40,11 +43,7 @@ export function useLibrary() {
   // marker where it was left, not cleared by the visit to somewhere else.
   const [lastPlayed, setLastPlayed] = useState<Record<number, number>>({});
   const lastPlayedId = lastPlayed[spaceId] ?? null;
-  const [pending, setPending] = useState(0);
-  const busy = pending > 0;
-  const [dismissedQueryErrors, setDismissedQueryErrors] = useState<unknown[]>(
-    [],
-  );
+
   const videos = useQuery({
     queryKey: ['videos', spaceId],
     queryFn: () => libraryApi.list(spaceId),
@@ -55,54 +54,10 @@ export function useLibrary() {
     queryFn: () => libraryApi.directories(spaceId),
     retry: false,
   });
-  const scan = useQuery({
-    queryKey: ['scan', spaceId],
-    queryFn: libraryApi.scanStatus,
-    refetchInterval: 700,
-    retry: false,
+  const { scan, controlScan } = useScanLifecycle(spaceId, {
+    onCompletion: notices.setCompletion,
+    onError: notices.setError,
   });
-  useEffect(() => {
-    let disposed = false;
-    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
-    const unlisten: UnlistenFn[] = [];
-    const refresh = () => {
-      if (refreshTimer) return;
-      refreshTimer = setTimeout(() => {
-        refreshTimer = undefined;
-        void client.invalidateQueries({ queryKey: ['videos', spaceId] });
-        void client.invalidateQueries({ queryKey: ['directories', spaceId] });
-      }, 200);
-    };
-    const subscriptions = [
-      listen('library-changed', () => {
-        if (!disposed) refresh();
-      }),
-      listen<ScanStatus>('scan-progress', ({ payload }) => {
-        if (disposed) return;
-        client.setQueryData(['scan', spaceId], payload);
-        if (shouldAnnounceScan(payload)) setCompletion(payload);
-        refresh();
-      }),
-      listen<AppError>('media-error', ({ payload }) => {
-        if (!disposed) setError(normalizeError(payload));
-      }),
-    ];
-    for (const subscription of subscriptions) {
-      void subscription
-        .then((stop) => {
-          if (disposed) stop();
-          else unlisten.push(stop);
-        })
-        .catch((cause) => {
-          if (!disposed) setError(normalizeError(cause));
-        });
-    }
-    return () => {
-      disposed = true;
-      if (refreshTimer) clearTimeout(refreshTimer);
-      for (const stop of unlisten) stop();
-    };
-  }, [client, spaceId]);
 
   // Everything cached for one space, marked for reading again. Named once
   // because two things need it -- an action that may have changed what a space
@@ -116,17 +71,18 @@ export function useLibrary() {
     ]);
 
   async function run(action: () => Promise<unknown>) {
-    setError(null);
+    notices.setError(null);
     // A new action makes the previous completion notice stale: without this it
     // stays on screen showing counts from the scan that already finished, and
     // is only replaced once the new scan completes with something to announce.
-    setCompletion(null);
+    notices.setCompletion(null);
     setPending((count) => count + 1);
     try {
       await action();
     } catch (cause) {
       const failure = normalizeError(cause);
-      if (failure.code !== 'media.scan.cancelled') setError(failure, action);
+      if (failure.code !== 'media.scan.cancelled')
+        notices.setError(failure, action);
     } finally {
       await refreshSpace(spaceId);
       setPending((count) => count - 1);
@@ -217,58 +173,67 @@ export function useLibrary() {
   const switchSpace = (target: number) =>
     run(() => moveInto(libraryApi.switchSpace(target)));
 
-  async function controlScan(action: 'pause' | 'resume' | 'cancel') {
-    try {
-      await libraryApi.controlScan(action);
-      await client.invalidateQueries({ queryKey: ['scan', spaceId] });
-    } catch (cause) {
-      setError(normalizeError(cause), () => libraryApi.controlScan(action));
-    }
-  }
+  // A failure the user has already read about, or one an action of theirs is
+  // still being carried out for, is not worth reporting a second time.
   const failedQuery = [videos, directories, scan].find(
-    (query) => query.error && !dismissedQueryErrors.includes(query.error),
+    (query) =>
+      query.error && !notices.dismissedQueryErrors.includes(query.error),
   );
-  const retryError = failure
-    ? failure.retry
-      ? () => run(failure.retry!)
+  const retryError = notices.failure
+    ? notices.failure.retry
+      ? () => run(notices.failure!.retry!)
       : undefined
     : failedQuery
       ? () => run(() => failedQuery.refetch({ throwOnError: true }))
       : undefined;
+
   return {
+    // 视频集合
     videos,
-    completion,
-    dismissCompletion: () => setCompletion(null),
-    copyHint,
-    showCopyHint: () => setCopyHint(true),
-    dismissCopyHint: () => setCopyHint(false),
     lastPlayedId,
-    directories,
+    // 扫描生命周期
     scan,
-    busy,
+    controlScan,
+    // 通知
+    completion: notices.completion,
+    dismissCompletion: notices.dismissCompletion,
+    copyHint: notices.copyHint,
+    showCopyHint: notices.showCopyHint,
+    dismissCopyHint: notices.dismissCopyHint,
     error:
-      failure?.error ??
+      notices.failure?.error ??
       (failedQuery ? normalizeError(failedQuery.error) : null),
     retryError: busy ? undefined : retryError,
     setError: (value: AppError | null) => {
-      setError(value);
+      notices.setError(value);
       if (value === null)
-        setDismissedQueryErrors([videos.error, directories.error, scan.error]);
+        notices.dismissQueryErrors([
+          videos.error,
+          directories.error,
+          scan.error,
+        ]);
     },
+    // 空间
+    createSpace,
+    renameSpace,
+    removeSpace,
+    switchSpace,
+    // 目录
+    directories,
+    addDirectories,
+    removeDirectory,
+    rescan,
+    regenerateAllThumbnails,
+    // 单条视频的动作
     play,
     toggleFavorite,
     reveal,
     refreshInfo,
     regenerateThumbnail,
-    regenerateAllThumbnails,
     removeVideo,
-    addDirectories,
-    removeDirectory,
-    rescan,
-    controlScan,
-    createSpace,
-    renameSpace,
-    removeSpace,
-    switchSpace,
+    // 忙闲
+    busy,
   };
 }
+
+export type Library = ReturnType<typeof useLibrary>;

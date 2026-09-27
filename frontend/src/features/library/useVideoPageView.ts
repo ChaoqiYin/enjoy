@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLibraryContext } from './LibraryProvider';
+import { useVideos } from './useVideos';
 import { clearFilters, selectVideos, useLibraryView } from './libraryView';
 import type { SortOrder } from './libraryView';
 import { useSpace } from '../space/SpaceProvider';
 export function useVideoPageView(page: '/' | '/favorites' | '/history') {
-  const library = useLibraryContext();
+  const { videos: collection } = useVideos();
   const { i18n } = useTranslation();
   const { id: spaceId } = useSpace();
   const { search, setSearch, folder, setFolder, sorts, setSort } =
@@ -14,20 +14,20 @@ export function useVideoPageView(page: '/' | '/favorites' | '/history') {
   const videos = useMemo(
     () =>
       selectVideos(
-        library.videos.data ?? [],
+        collection.data ?? [],
         page,
         search,
         folder,
         sort,
         i18n.language,
       ),
-    [library.videos.data, page, search, folder, sort, i18n.language],
+    [collection.data, page, search, folder, sort, i18n.language],
   );
   const folders = useMemo(
     () => [
-      ...new Set((library.videos.data ?? []).map((video) => video.folder_path)),
+      ...new Set((collection.data ?? []).map((video) => video.folder_path)),
     ],
-    [library.videos.data],
+    [collection.data],
   );
   return {
     page,

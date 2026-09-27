@@ -6,7 +6,8 @@ import { ThemeSetting } from '../theme/ThemeSetting';
 import { ConfirmTooltip } from '../shared/ConfirmTooltip';
 import { ScrollViewport } from '../shared/ScrollViewport';
 import { displayPath } from '../shared/format';
-import { useLibraryContext } from '../features/library/LibraryProvider';
+import { useBusy } from '../features/library/useBusy';
+import { useDirectories } from '../features/library/useDirectories';
 import { DirectoryActions } from '../features/library/DirectoryActions';
 import { DirectoryDialog } from '../features/library/DirectoryDialog';
 import { EmptyRescanConfirmation } from '../features/library/EmptyRescanConfirmation';
@@ -16,16 +17,17 @@ import { useSpace } from '../features/space/SpaceProvider';
 import { UpdateSetting } from '../features/update/UpdateSetting';
 export function SettingsPage() {
   const { t } = useTranslation();
-  const library = useLibraryContext();
+  const { busy } = useBusy();
+  const directories = useDirectories();
   const space = useSpace();
   const [showAdd, setShowAdd] = useState(false);
   const [showEmptyRescan, setShowEmptyRescan] = useState(false);
   const rescan = () => {
-    if ((library.directories.data ?? []).length === 0) {
+    if ((directories.directories.data ?? []).length === 0) {
       setShowEmptyRescan(true);
       return;
     }
-    void library.rescan();
+    void directories.rescan();
   };
   return (
     <PageFrame>
@@ -39,7 +41,7 @@ export function SettingsPage() {
             the application: each space has its own directories, and this is the
             list of one of them. */}
         <h2 className="text-xl">{t('foldersInSpace', { name: space.name })}</h2>
-        {(library.directories.data ?? []).map((path) => (
+        {(directories.directories.data ?? []).map((path) => (
           <div
             key={path}
             className="flex items-center gap-4 bg-base-200 p-4 rounded-box"
@@ -49,13 +51,13 @@ export function SettingsPage() {
               message={t('removeQuestion', { name: displayPath(path) })}
               confirmLabel={t('confirm')}
               cancelLabel={t('cancel')}
-              disabled={library.busy}
-              onConfirm={() => library.removeDirectory(path)}
+              disabled={busy}
+              onConfirm={() => directories.removeDirectory(path)}
             >
               <button
                 className="btn btn-outline btn-xs btn-square btn-error"
                 aria-label={t('removeFolder')}
-                disabled={library.busy}
+                disabled={busy}
               >
                 <FolderMinus size={14} aria-hidden="true" />
               </button>
@@ -63,10 +65,10 @@ export function SettingsPage() {
           </div>
         ))}
         <DirectoryActions
-          busy={library.busy}
+          busy={busy}
           onAdd={() => setShowAdd(true)}
           onRescan={rescan}
-          onRegenerate={() => void library.regenerateAllThumbnails()}
+          onRegenerate={() => void directories.regenerateAllThumbnails()}
         />
         <h2 className="text-xl">{t('about')}</h2>
         <UpdateSetting />
@@ -81,7 +83,7 @@ export function SettingsPage() {
           onCancel={() => setShowEmptyRescan(false)}
           onConfirm={() => {
             setShowEmptyRescan(false);
-            void library.rescan();
+            void directories.rescan();
           }}
         />
       )}

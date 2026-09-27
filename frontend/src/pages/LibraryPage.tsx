@@ -6,12 +6,14 @@ import { VideoPageContent } from '../features/library/VideoPageContent';
 import { useVideoPageView } from '../features/library/useVideoPageView';
 import { DirectoryActions } from '../features/library/DirectoryActions';
 import { DirectoryDialog } from '../features/library/DirectoryDialog';
-import { useLibraryContext } from '../features/library/LibraryProvider';
+import { useBusy } from '../features/library/useBusy';
+import { useDirectories } from '../features/library/useDirectories';
 import { EmptyRescanConfirmation } from '../features/library/EmptyRescanConfirmation';
 export function LibraryPage() {
   const { t } = useTranslation();
   const view = useVideoPageView('/');
-  const library = useLibraryContext();
+  const { busy } = useBusy();
+  const directories = useDirectories();
   const [showAdd, setShowAdd] = useState(false);
   const [showEmptyRescan, setShowEmptyRescan] = useState(false);
   const onAdd = () => setShowAdd(true);
@@ -22,14 +24,14 @@ export function LibraryPage() {
         title={t('library')}
         actions={
           <DirectoryActions
-            busy={library.busy}
+            busy={busy}
             onAdd={onAdd}
             onRescan={() => {
-              if ((library.directories.data ?? []).length === 0) {
+              if ((directories.directories.data ?? []).length === 0) {
                 setShowEmptyRescan(true);
                 return;
               }
-              void library.rescan();
+              void directories.rescan();
             }}
           />
         }
@@ -50,7 +52,7 @@ export function LibraryPage() {
           onCancel={() => setShowEmptyRescan(false)}
           onConfirm={() => {
             setShowEmptyRescan(false);
-            void library.rescan();
+            void directories.rescan();
           }}
         />
       )}

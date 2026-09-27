@@ -8,19 +8,18 @@ import errors from '../../../../shared/locales/en/errors.json';
 import type { ScanStatus } from '../../shared/api';
 import type { UpdateState } from './useUpdate';
 
-const { update, library } = vi.hoisted(() => ({
+const { update, scan } = vi.hoisted(() => ({
   update: {} as UpdateState,
-  library: { scan: { data: undefined } } as {
-    scan: { data: ScanStatus | undefined };
-  },
+  // The one thing this section asks of the library, in the library's own words:
+  // whether a media task is holding the slot. It used to be said as a scan
+  // status whose phase the reader had to recognise.
+  scan: { isRunning: false },
 }));
 
 vi.mock('./UpdateProvider', () => ({
   useUpdateContext: () => update,
 }));
-vi.mock('../library/LibraryProvider', () => ({
-  useLibraryContext: () => library,
-}));
+vi.mock('../library/useScan', () => ({ useScan: () => scan }));
 
 const release = {
   version: '0.2.0',
@@ -37,7 +36,7 @@ beforeEach(async () => {
     keySeparator: false,
     resources: { en: { translation: english, errors } },
   });
-  library.scan = { data: undefined };
+  scan.isRunning = false;
   Object.assign(update, {
     check: {
       supported: true,
@@ -204,7 +203,7 @@ it('does not offer a restart that a running scan would break', () => {
   // Installing exits the process, so the pass in flight would be lost. The
   // backend refuses this too; the button says why rather than looking broken.
   update.check = { ...update.check!, available: release, readyToRestart: true };
-  library.scan = { data: { phase: 'processing' } as ScanStatus };
+  scan.isRunning = true;
   render(view());
   const restart = screen.getByRole('button', { name: english.updateRestart });
   expect(restart.hasAttribute('disabled')).toBe(true);

@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { Download, RefreshCw, RotateCw } from 'lucide-react';
 import packageInfo from '../../../../package.json';
 import type { AvailableUpdate, UpdateProgress } from '../../shared/api';
-import { useLibraryContext } from '../library/LibraryProvider';
+import { useScan } from '../library/useScan';
 import { isScanRunning } from '../library/scanFeedback';
 import { useUpdateContext } from './UpdateProvider';
 import { formatBytes, formatReleaseDate, progressRatio } from './updateFormat';
@@ -10,7 +10,7 @@ import { formatBytes, formatReleaseDate, progressRatio } from './updateFormat';
 export function UpdateSetting() {
   const { t } = useTranslation();
   const update = useUpdateContext();
-  const library = useLibraryContext();
+  const { isRunning: scanning } = useScan();
   const check = update.check;
   const available = check?.available ?? null;
   const ready = check?.readyToRestart ?? false;
@@ -18,7 +18,6 @@ export function UpdateSetting() {
   // Installing exits the process, so a pass in flight would be lost. The
   // backend refuses this outright; disabling here is only so the user is not
   // invited to press a button that cannot work.
-  const scanning = isScanRunning(library.scan.data);
   // The same vocabulary the scan's progress block uses, so pausing, continuing
   // and cancelling mean the same thing wherever they appear. Continuing is not
   // a control sent to the backend: it is the download started again from what

@@ -33,29 +33,41 @@ const video: Video = {
   updated_at: 0,
 };
 
-const { library, space } = vi.hoisted(() => {
-  const library = {
-    videos: { data: [] as Video[], isPending: false },
-    scan: { data: undefined as ScanStatus | undefined },
-    busy: false,
-    setError: vi.fn(),
-    copyHint: false,
-    showCopyHint: vi.fn(),
-    dismissCopyHint: vi.fn(),
-    lastPlayedId: null as number | null,
-    play: vi.fn(),
-    toggleFavorite: vi.fn(),
-    reveal: vi.fn(),
-    removeVideo: vi.fn(),
-    regenerateThumbnail: vi.fn(),
-    refreshInfo: vi.fn(),
-  };
-  return { library, space: { id: 1, name: 'Library' } };
-});
+// One double per module the page reads. It reads five of them — the collection,
+// the scan, the in-flight counter, the notices, and what can be asked of a video
+// — and each is written out in its own vocabulary rather than through one
+// stand-in that has to know everything the library offers.
+const { collection, scan, notices, videoActions, busy, space } = vi.hoisted(
+  () => ({
+    collection: {
+      videos: { data: [] as Video[], isPending: false },
+      lastPlayedId: null as number | null,
+    },
+    scan: { status: undefined as ScanStatus | undefined },
+    notices: {
+      setError: vi.fn(),
+      copyHint: false,
+      showCopyHint: vi.fn(),
+      dismissCopyHint: vi.fn(),
+    },
+    videoActions: {
+      play: vi.fn(),
+      toggleFavorite: vi.fn(),
+      reveal: vi.fn(),
+      removeVideo: vi.fn(),
+      regenerateThumbnail: vi.fn(),
+      refreshInfo: vi.fn(),
+    },
+    busy: { busy: false },
+    space: { id: 1, name: 'Library' },
+  }),
+);
 
-vi.mock('./LibraryProvider', () => ({
-  useLibraryContext: () => library,
-}));
+vi.mock('./useVideos', () => ({ useVideos: () => collection }));
+vi.mock('./useScan', () => ({ useScan: () => scan }));
+vi.mock('./useNotices', () => ({ useNotices: () => notices }));
+vi.mock('./useVideoActions', () => ({ useVideoActions: () => videoActions }));
+vi.mock('./useBusy', () => ({ useBusy: () => busy }));
 
 vi.mock('../space/SpaceProvider', () => ({
   useSpace: () => space,
@@ -79,21 +91,21 @@ vi.mock('./VirtualVideos', () => ({
 beforeEach(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: english } } });
   space.id = 1;
-  library.videos.data = [video];
-  library.videos.isPending = false;
-  library.scan.data = undefined;
-  library.busy = false;
-  library.setError.mockReset();
-  library.showCopyHint.mockReset();
+  collection.videos.data = [video];
+  collection.videos.isPending = false;
+  scan.status = undefined;
+  busy.busy = false;
+  notices.setError.mockReset();
+  notices.showCopyHint.mockReset();
   // What each action does with its argument is the library's business and is
   // covered where the library is; here they only have to be observable.
   for (const action of [
-    library.play,
-    library.toggleFavorite,
-    library.reveal,
-    library.removeVideo,
-    library.regenerateThumbnail,
-    library.refreshInfo,
+    videoActions.play,
+    videoActions.toggleFavorite,
+    videoActions.reveal,
+    videoActions.removeVideo,
+    videoActions.regenerateThumbnail,
+    videoActions.refreshInfo,
   ])
     action.mockReset();
   vi.stubGlobal(
@@ -115,7 +127,7 @@ afterEach(() => {
 function page() {
   const view = {
     collectionKey: 'all',
-    videos: library.videos.data ?? [],
+    videos: collection.videos.data ?? [],
     search: '',
     folder: '',
     clearFilters: () => {},
@@ -137,14 +149,16 @@ function setClipboard(writeText?: (text: string) => Promise<void>) {
 it('copies the path the panel shows, and announces it', async () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
   setClipboard(writeText);
-  library.videos.data = [{ ...video, path: '\\\\?\\E:\\movies\\example.mp4' }];
+  collection.videos.data = [
+    { ...video, path: '\\\\?\\E:\\movies\\example.mp4' },
+  ];
   render(page());
   fireEvent.click(screen.getByRole('button', { name: video.file_name }));
   expect(screen.getByText('E:\\movies\\example.mp4')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: english.copyPath }));
-  await waitFor(() => expect(library.showCopyHint).toHaveBeenCalledOnce());
+  await waitFor(() => expect(notices.showCopyHint).toHaveBeenCalledOnce());
   expect(writeText).toHaveBeenCalledWith('E:\\movies\\example.mp4');
-  expect(library.setError).not.toHaveBeenCalled();
+  expect(notices.setError).not.toHaveBeenCalled();
 });
 
 it('surfaces a notification when copying the path fails', async () => {
@@ -153,11 +167,11 @@ it('surfaces a notification when copying the path fails', async () => {
   fireEvent.click(screen.getByRole('button', { name: video.file_name }));
   fireEvent.click(screen.getByRole('button', { name: english.copyPath }));
   await waitFor(() =>
-    expect(library.setError).toHaveBeenCalledWith(
+    expect(notices.setError).toHaveBeenCalledWith(
       expect.objectContaining({ code: 'app.clipboard.failed' }),
     ),
   );
-  expect(library.showCopyHint).not.toHaveBeenCalled();
+  expect(notices.showCopyHint).not.toHaveBeenCalled();
 });
 
 // What a launch does to the record and the marker is the library's rule and is
@@ -167,7 +181,7 @@ it('asks the library to play the video the click landed on', () => {
   render(page());
   fireEvent.click(screen.getByRole('button', { name: video.file_name }));
   fireEvent.click(screen.getByRole('button', { name: english.play }));
-  expect(library.play).toHaveBeenCalledWith(video);
+  expect(videoActions.play).toHaveBeenCalledWith(video);
 });
 
 it('closes what was opened onto the old space when the space changes', async () => {
@@ -192,10 +206,10 @@ it('closes the drawer and notifies when a rescan removes the video', async () =>
   const { rerender } = render(page());
   fireEvent.click(screen.getByRole('button', { name: video.file_name }));
   expect(screen.getByRole('dialog')).toBeTruthy();
-  library.videos.data = [];
+  collection.videos.data = [];
   rerender(page());
   await waitFor(() =>
-    expect(library.setError).toHaveBeenCalledWith(
+    expect(notices.setError).toHaveBeenCalledWith(
       expect.objectContaining({ code: 'media.file.removed' }),
     ),
   );
