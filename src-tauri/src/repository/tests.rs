@@ -1,5 +1,6 @@
 use std::fs;
 
+use crate::model::Found;
 use crate::repository::fixture::{Fixture, FIRST_SPACE};
 use crate::repository::Repository;
 use crate::scan::scanner;
@@ -74,20 +75,22 @@ fn a_scanned_directory_clears_the_stale_records_of_files_it_no_longer_holds() {
 }
 
 #[test]
-fn invalid_scan_is_an_error_and_does_not_replace_index() {
+fn a_scan_target_that_is_not_a_directory_is_a_verdict_and_not_an_error() {
     let fixture = Fixture::new();
     let movie = fixture.0.join("clip.webm");
     fs::write(&movie, b"sample").unwrap();
-    assert_eq!(
-        scanner::collect(&movie).unwrap_err().code,
-        "media.directory.invalid"
-    );
-    assert_eq!(
-        scanner::collect(&fixture.0.join("missing"))
-            .unwrap_err()
-            .code,
-        "media.file.not_found"
-    );
+    // Each of these is an answer about the scan universe rather than a failure,
+    // and the two answers go opposite ways: a path that is not there clears the
+    // records it held, and a path that is not a directory leaves them alone.
+    assert!(matches!(
+        scanner::read_directory(&movie, || Ok(()), |_| {}).unwrap(),
+        Found::NotADirectory
+    ));
+    assert!(matches!(
+        scanner::read_directory(&fixture.0.join("missing"), || Ok(()), |_| {}).unwrap(),
+        Found::Gone
+    ));
+    // A directory that is one still indexes what it holds.
     let mut repository = Repository::open(&fixture.0.join("index.db"), FIRST_SPACE).unwrap();
     let space = repository.current_space().unwrap().id;
     repository

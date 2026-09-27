@@ -182,6 +182,47 @@ fn a_configured_directory_that_vanished_clears_its_records_without_being_counted
     assert_eq!(names, vec!["kept.mp4"]);
 }
 
+#[test]
+fn a_configured_path_that_is_not_a_directory_keeps_its_records_and_is_not_counted() {
+    // The same shape as the vanished directory above, and the opposite verdict:
+    // the path is still there, so this run knows nothing about what it holds and
+    // its records stand. It is not an 不可访问目录 either — that is a video
+    // directory that could not be listed, and this is not a video directory.
+    let fixture = Fixture::new();
+    let videos = fixture.0.join("videos");
+    fs::create_dir(&videos).unwrap();
+    let movie = videos.join("movie.mp4");
+    fs::write(&movie, b"video").unwrap();
+    let root = videos.to_string_lossy().into_owned();
+    let mut repo = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    let space = repo.current_space().unwrap().id;
+    repo.replace_videos(space, &[(root, scanner::collect(&videos).unwrap())])
+        .unwrap();
+    repo.favorite(space, movie.to_str().unwrap(), true).unwrap();
+    repo.record_play(space, movie.to_str().unwrap()).unwrap();
+    complete_media(&repo);
+    fs::remove_dir_all(&videos).unwrap();
+    fs::write(&videos, b"no longer a directory").unwrap();
+    let repository = Arc::new(Mutex::new(repo));
+    let control = Arc::new(ScanControl::default());
+    let media = MediaProcessor::on_path(fixture.0.join("cache"));
+    let guard = control.begin().unwrap();
+    let events = Recorded::default();
+    let rows = job::run(&media, space, &repository, &control, &events)
+        .expect("A path that is not a directory must not fail the scan");
+    drop(guard);
+    let status = control.status();
+    assert_eq!(status.phase, "complete");
+    assert_eq!(status.unreachable_directories, 0);
+    assert_eq!(status.changes.removed, 0);
+    let video = rows
+        .iter()
+        .find(|video| video.path == movie.to_str().unwrap())
+        .expect("The record of a path that is not a directory stays");
+    assert!(video.favorite);
+    assert_eq!(video.play_count, 1);
+}
+
 #[cfg(unix)]
 #[test]
 fn a_configured_directory_that_cannot_be_read_is_counted_and_keeps_its_records() {

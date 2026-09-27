@@ -5,7 +5,7 @@ use std::time::{Duration, UNIX_EPOCH};
 
 use crate::error::AppError;
 use crate::media::Metadata;
-use crate::model::VideoFile;
+use crate::model::{Found, VideoFile};
 use crate::repository::fixture::{Fixture, FIRST_SPACE};
 use crate::repository::{DirectoryScan, Repository};
 use crate::scan::scanner;
@@ -203,8 +203,10 @@ fn cancellation_before_commit_rolls_back_insertions_and_deletions() {
         space,
         &[DirectoryScan {
             path: root.clone(),
-            files: Some(scanner::collect(&fixture.0).unwrap()),
-            unreadable: Vec::new(),
+            found: Found::Read {
+                files: scanner::collect(&fixture.0).unwrap(),
+                unreadable: Vec::new(),
+            },
         }],
         || {
             calls.set(calls.get() + 1);
@@ -328,14 +330,15 @@ fn unreadable_directories_keep_their_records_while_scanned_ones_are_cleaned() {
                 // Read successfully, and now empty: its records are all stale.
                 DirectoryScan {
                     path: cleared_root,
-                    files: Some(scanner::collect(&cleared).unwrap()),
-                    unreadable: Vec::new(),
+                    found: Found::Read {
+                        files: scanner::collect(&cleared).unwrap(),
+                        unreadable: Vec::new(),
+                    },
                 },
                 // Could not be read: this scan says nothing about its records.
                 DirectoryScan {
                     path: skipped_root,
-                    files: None,
-                    unreadable: Vec::new(),
+                    found: Found::Unreachable,
                 },
             ],
             || Ok(()),
@@ -380,11 +383,13 @@ fn a_path_that_is_still_there_but_could_not_be_read_keeps_its_record() {
             space,
             &[DirectoryScan {
                 path: root.clone(),
-                files: Some(readable.clone()),
-                unreadable: vec![
-                    locked.to_string_lossy().into_owned(),
-                    private.join("secret.mp4").to_string_lossy().into_owned(),
-                ],
+                found: Found::Read {
+                    files: readable.clone(),
+                    unreadable: vec![
+                        locked.to_string_lossy().into_owned(),
+                        private.join("secret.mp4").to_string_lossy().into_owned(),
+                    ],
+                },
             }],
             || Ok(()),
         )
@@ -407,8 +412,10 @@ fn a_path_that_is_still_there_but_could_not_be_read_keeps_its_record() {
             space,
             &[DirectoryScan {
                 path: root,
-                files: Some(readable),
-                unreadable: Vec::new(),
+                found: Found::Read {
+                    files: readable,
+                    unreadable: Vec::new(),
+                },
             }],
             || Ok(()),
         )

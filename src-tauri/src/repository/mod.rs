@@ -25,7 +25,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::AppError;
 use crate::media::Metadata;
-use crate::model::{FileStamp, ScannedFile, VideoFile};
+use crate::model::{FileStamp, Found, ScannedFile, VideoFile};
 
 #[derive(Clone, Default, Debug, Serialize)]
 pub struct IndexChanges {
@@ -35,15 +35,14 @@ pub struct IndexChanges {
 }
 
 /// What one configured directory contributed to a scan.
+///
+/// The verdict is carried rather than worked out here. Deciding it needs to
+/// know why a read failed, which is a fact about this run and about the file
+/// system; executing it needs the index. `Found` says what the directory turned
+/// out to be, and this is the pair of it with the path it was read from.
 pub struct DirectoryScan {
     pub path: String,
-    /// `None` when the directory could not be read at all. Its records are then
-    /// left alone: this scan says nothing about what is inside it.
-    pub files: Option<Vec<ScannedFile>>,
-    /// Paths under this directory that failed this run although they are still
-    /// there. They are absent from `files`, so their records are kept exactly
-    /// as they were rather than read as videos that disappeared.
-    pub unreadable: Vec<String>,
+    pub found: Found,
 }
 
 /// Removes the records of one space that no longer belong to its scan universe.
@@ -210,8 +209,10 @@ impl Repository {
             .iter()
             .map(|(path, files)| DirectoryScan {
                 path: path.clone(),
-                files: Some(files.clone()),
-                unreadable: Vec::new(),
+                found: Found::Read {
+                    files: files.clone(),
+                    unreadable: Vec::new(),
+                },
             })
             .collect();
         self.replace_videos_controlled(space_id, &scans, || Ok(()))
@@ -241,8 +242,16 @@ impl Repository {
         let mut changes = IndexChanges::default();
         for scan in scans {
             checkpoint()?;
-            let Some(files) = &scan.files else {
-                continue;
+            let (files, unreadable): (&[ScannedFile], &[String]) = match &scan.found {
+                Found::Read { files, unreadable } => (files, unreadable),
+                // Nothing it held survived it: registered with no files of its
+                // own, so the removal below takes every record it accounted for.
+                Found::Gone => (&[], &[]),
+                // A directory that could not be read says nothing about what is
+                // inside it, and neither does a path that is not a directory.
+                // Both are left unregistered, which is what keeps their records
+                // out of the removal below.
+                Found::Unreachable | Found::NotADirectory => continue,
             };
             let indexed = Self::index_files(&tx, space_id, &scan.path, files, &checkpoint)?;
             changes.added += indexed.added;
@@ -260,7 +269,7 @@ impl Repository {
             // own separator, because the stored paths were rendered from native
             // ones: a subtree is a prefix of its records only when it is spelled
             // the same way they are, and on Windows a `/` would match nothing.
-            for path in &scan.unreadable {
+            for path in unreadable {
                 tx.execute(
                     "INSERT OR IGNORE INTO scan_paths(path)
                      SELECT path FROM videos

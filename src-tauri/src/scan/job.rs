@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
-use crate::error::{AppError, SCAN_CANCELLED};
+use crate::error::AppError;
 use crate::events::Events;
 use crate::media::MediaProcessor;
 use crate::model::VideoFile;
@@ -40,63 +40,23 @@ pub fn run(
         control.checkpoint()?;
         progress.current_path = path.clone();
         events.scan_progress(control.publish(progress.clone()));
-        // One question decides both how the directory is read and whether it
-        // belongs to this run's range: is the path still there? A directory
-        // that is gone is read as one whose videos all went with it, and its
-        // records are cleared. One that is there but cannot be read says
-        // nothing about its contents, so it is skipped whole and keeps them.
-        // Only the second is a fact about the scan's range rather than about
-        // the directory's contents, so only it is counted as unreachable.
-        match std::fs::metadata(&path) {
-            Err(_) => scans.push(DirectoryScan {
-                path,
-                files: Some(Vec::new()),
-                unreadable: Vec::new(),
-            }),
-            Ok(metadata) if !metadata.is_dir() => {
-                progress.unreachable_directories += 1;
-                scans.push(DirectoryScan {
-                    path,
-                    files: None,
-                    unreadable: Vec::new(),
-                });
-            }
-            Ok(_) => {
-                // The resolved path is what earlier scans indexed, so a
-                // configured directory that is a symlink keeps matching its
-                // own records. A path that cannot be resolved is walked as it
-                // was written instead.
-                let root = std::fs::canonicalize(&path)
-                    .unwrap_or_else(|_| std::path::PathBuf::from(&path));
-                match scanner::collect_controlled(
-                    &root,
-                    || control.checkpoint(),
-                    |error| {
-                        progress.failures += 1;
-                        events.media_error(&error);
-                    },
-                ) {
-                    Ok(collected) => scans.push(DirectoryScan {
-                        path,
-                        files: Some(collected.files),
-                        unreadable: collected.unreadable,
-                    }),
-                    Err(error) if error.code == SCAN_CANCELLED => return Err(error),
-                    // Reported through the dedicated count instead of an error
-                    // notice: one unreadable directory must not stop the other
-                    // directories from being cleaned up, and the notice is the
-                    // place for that count.
-                    Err(_) => {
-                        progress.unreachable_directories += 1;
-                        scans.push(DirectoryScan {
-                            path,
-                            files: None,
-                            unreadable: Vec::new(),
-                        });
-                    }
-                }
-            }
+        // What the directory turned out to be is read in one place —
+        // `scanner::read_directory` — because the answer decides whether its
+        // records belong to the scan universe, and deciding it needs the reason a
+        // read failed, which is only available next to the file system. What is
+        // left here is what the answer does to this run's reporting.
+        let found = scanner::read_directory(
+            Path::new(&path),
+            || control.checkpoint(),
+            |error| {
+                progress.failures += 1;
+                events.media_error(&error);
+            },
+        )?;
+        if found.is_unreachable() {
+            progress.unreachable_directories += 1;
         }
+        scans.push(DirectoryScan { path, found });
     }
     control.checkpoint()?;
     let videos = {
