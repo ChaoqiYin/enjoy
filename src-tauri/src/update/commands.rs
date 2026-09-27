@@ -7,8 +7,7 @@ use crate::app::AppState;
 use crate::error::AppError;
 
 use super::control::{
-    describe, download_gate, install_gate, is_supported, ProgressThrottle, UpdateCheck,
-    UpdateProgress,
+    describe, install_gate, is_supported, ProgressThrottle, UpdateCheck, UpdateProgress, World,
 };
 use super::download::{Asked, Transfer};
 use super::{download, verify};
@@ -69,24 +68,21 @@ pub async fn install_update(
     state: State<'_, AppState>,
 ) -> Result<UpdateProgress, AppError> {
     let control = Arc::clone(&state.update);
-    download_gate(is_supported(), control.is_downloading())?;
     let update = control.pending()?;
     // Read before the download starts: a configuration that cannot name the key
     // is not a reason to spend half an hour transferring bytes nobody can
     // accept.
     let pubkey = updater_pubkey(&app)?;
     let user_agent = format!("Enjoy/{}", app.package_info().version);
-    // Still before anything is taken from the paused download: a client that
-    // cannot be built would otherwise consume those bytes on its way out.
+    // Built before the slot is taken, because taking it consumes the bytes a
+    // paused download kept: a machine that cannot build a client would otherwise
+    // eat them on its way out.
     let client = download::client(&user_agent)
         .map_err(|error| AppError::new("update.download_failed", error))?;
-    control.begin_download()?;
-    // A stop asked for before this download started — or while the last one was
-    // unwinding — is not this one's business.
-    control.clear_stop();
-    // What a paused download arrived at. Empty when there is nothing to
-    // continue, which is the same thing as starting from the beginning.
-    let from = control.take_partial();
+    // Everything the transfer needs to begin, taken in one call: the gate, the
+    // slot, the last stop forgetting itself, and the bytes to continue from.
+    // Whichever way the transfer ends, `slot` is what ends it.
+    let slot = control.take_slot(is_supported())?;
 
     let version = update.version.clone();
     let events = app.clone();
@@ -94,7 +90,7 @@ pub async fn install_update(
     let transfer = download::fetch(
         &client,
         &update.download_url,
-        from,
+        slot.resume(),
         control.flag(),
         |downloaded, total| {
             if throttle.should_emit(downloaded, total) {
@@ -115,47 +111,41 @@ pub async fn install_update(
     match transfer {
         Transfer::Complete(bytes) => {
             if let Err(reason) = verify::verify(&bytes, &update.signature, &pubkey) {
-                control.end_download();
+                slot.discard();
                 // Its own code, not the download's: the bytes arrived and are
                 // not the ones that were signed, which is a different answer to
-                // give the user than a connection that never finished.
+                // give the user than a connection that never finished. They are
+                // discarded rather than kept: half a release that failed its
+                // signature is not a head start on the next attempt.
                 return Err(AppError::new("update.verify_failed", reason));
             }
-            control.finish_download(bytes);
+            slot.install(bytes);
             Ok(ended("ready", 0, None, version))
         }
         Transfer::Stopped {
             asked,
             bytes,
             total,
-        } => {
-            control.end_download();
-            match asked {
-                Asked::Pause => {
-                    // Kept, so pressing download again asks for the rest rather
-                    // than fetching the whole release over — which on the link
-                    // this exists for is the difference between finishing and
-                    // never finishing.
-                    let downloaded = bytes.len() as u64;
-                    control.park_partial(bytes);
-                    Ok(ended("paused", downloaded, total, version))
-                }
-                Asked::Cancel => {
-                    // Dropped, and dropped here rather than left for the next
-                    // download: bytes are only worth resuming if nobody said to
-                    // throw them away, and the user just did.
-                    control.park_partial(Vec::new());
-                    Ok(ended("cancelled", 0, None, version))
-                }
+        } => match asked {
+            // Kept, so pressing download again asks for the rest rather than
+            // fetching the whole release over — which on the link this exists
+            // for is the difference between finishing and never finishing.
+            Asked::Pause => {
+                let downloaded = bytes.len() as u64;
+                slot.keep(bytes);
+                Ok(ended("paused", downloaded, total, version))
             }
-        }
+            Asked::Cancel => {
+                slot.discard();
+                Ok(ended("cancelled", 0, None, version))
+            }
+        },
         Transfer::Failed { error, bytes } => {
-            control.end_download();
             // Kept rather than dropped, so pressing download again carries on
             // from here. A failure on this link is expected rather than
             // exceptional, and starting from nothing each time is what would
             // make a release of this size unreachable.
-            control.park_partial(bytes);
+            slot.keep(bytes);
             Err(AppError::new("update.download_failed", error))
         }
     }
@@ -211,12 +201,7 @@ fn updater_pubkey(app: &AppHandle) -> Result<String, AppError> {
 /// Enjoy back. Kept synchronous because both of those expect the main thread.
 #[tauri::command]
 pub fn restart_app(state: State<'_, AppState>) -> Result<(), AppError> {
-    let scanning = state.scan.is_running();
-    install_gate(
-        is_supported(),
-        scanning,
-        state.update.ready_version().is_some(),
-    )?;
+    install_gate(&World::now(&state))?;
     let (update, bytes) = state.update.take_installer()?;
     update
         .install(&bytes)

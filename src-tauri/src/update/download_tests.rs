@@ -92,7 +92,7 @@ fn body(length: usize) -> Vec<u8> {
 }
 
 fn fetch_from(address: &str) -> Result<Vec<u8>, super::download::FetchError> {
-    match fetch_whole(address, Vec::new(), &StopFlag::default()) {
+    match fetch_whole(address, &[], &StopFlag::default()) {
         Transfer::Complete(bytes) => Ok(bytes),
         Transfer::Failed { error, .. } => Err(error),
         Transfer::Stopped { .. } => panic!("nothing asked this transfer to stop"),
@@ -100,7 +100,7 @@ fn fetch_from(address: &str) -> Result<Vec<u8>, super::download::FetchError> {
 }
 
 /// A transfer nobody interrupts, from whatever bytes are handed to it.
-fn fetch_whole(address: &str, from: Vec<u8>, stop: &StopFlag) -> Transfer {
+fn fetch_whole(address: &str, from: &[u8], stop: &StopFlag) -> Transfer {
     tauri::async_runtime::block_on(async {
         let client = super::download::client("Enjoy test").expect("a client can be built");
         let url = address.parse().expect("the test server address is a URL");
@@ -123,7 +123,7 @@ fn stop_after(address: &str, wanted: u64, ask: Stop) -> Transfer {
         let url = address.parse().expect("the test server address is a URL");
         let stop = StopFlag::default();
         let flag = &stop;
-        fetch(&client, &url, Vec::new(), flag, |downloaded, _| {
+        fetch(&client, &url, &[], flag, |downloaded, _| {
             if downloaded >= wanted {
                 flag.request(ask);
             }
@@ -301,7 +301,7 @@ fn a_paused_transfer_continues_from_what_it_kept() {
         _ => panic!("a pause was asked for and not obeyed"),
     };
 
-    let resumed = match fetch_whole(&address, kept.clone(), &StopFlag::default()) {
+    let resumed = match fetch_whole(&address, &kept, &StopFlag::default()) {
         Transfer::Complete(bytes) => bytes,
         _ => panic!("nothing stopped the second transfer"),
     };
@@ -322,7 +322,7 @@ fn a_stop_asked_for_before_the_first_connection_opens_none() {
     let (address, asked) = spawn_cutting_server(body(200_000), 60_000);
     let stop = StopFlag::default();
     stop.request(Stop::Pause);
-    match fetch_whole(&address, Vec::new(), &stop) {
+    match fetch_whole(&address, &[], &stop) {
         Transfer::Stopped {
             asked,
             bytes,
@@ -375,7 +375,7 @@ fn the_published_release_downloads_and_verifies() {
             .as_str()
             .expect("the asset has a signature");
         let url = url.parse().expect("the asset url is a url");
-        let bytes = match fetch(&client, &url, Vec::new(), &StopFlag::default(), |_, _| {}).await {
+        let bytes = match fetch(&client, &url, &[], &StopFlag::default(), |_, _| {}).await {
             Transfer::Complete(bytes) => bytes,
             Transfer::Failed { error, .. } => panic!("the asset arrives: {error}"),
             Transfer::Stopped { .. } => panic!("nothing asked this transfer to stop"),

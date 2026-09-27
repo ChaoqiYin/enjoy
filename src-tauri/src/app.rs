@@ -20,6 +20,25 @@ pub(crate) struct AppState {
     pub(crate) update: Arc<UpdateControl>,
 }
 
+/// A state a test can hold. It lives here rather than beside any one test
+/// because more than one module needs it, and because the recipe for building
+/// one is a fact about this struct: a field added here is filled in in one
+/// place, and a test written against the state keeps working.
+///
+/// That is the whole point of the state being a plain struct. `State<'_, AppState>`
+/// is made by Tauri from a running application, so a rule that can only be
+/// reached through one can only be verified in a window.
+#[cfg(test)]
+pub(crate) fn test_state(fixture: &crate::repository::fixture::Fixture) -> AppState {
+    use crate::repository::fixture::FIRST_SPACE;
+    let repository = Repository::open(&fixture.0.join("library.db"), FIRST_SPACE).unwrap();
+    AppState {
+        scan: Arc::new(ScanControl::default()),
+        repository: Arc::new(Mutex::new(repository)),
+        update: Arc::new(UpdateControl::default()),
+    }
+}
+
 /// Where the index lives, and the cache beside it.
 ///
 /// Asked of the application rather than taken from a constant because the data

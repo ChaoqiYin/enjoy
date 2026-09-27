@@ -7,6 +7,7 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use tokio::sync::Notify;
 
+use crate::app::AppState;
 use crate::error::AppError;
 
 /// What a running download has been asked to do.
@@ -182,24 +183,39 @@ impl ProgressThrottle {
     }
 }
 
-/// Whether a download may start.
+/// What the restart gate decides from.
 ///
-/// Pure: no app handle and no lock, so every refusal path is asserted by a test
-/// instead of read out of the code.
-pub fn download_gate(supported: bool, downloading: bool) -> Result<(), AppError> {
-    if !supported {
-        return Err(AppError::new(
-            "update.unsupported",
-            "Updates are published for Windows only",
-        ));
+/// It used to be a pure function over flags with the command gathering the flags
+/// for itself. That put the rule in one place and its inputs in another: a
+/// condition added to the gate could be left unsampled at the call site and
+/// every test would stay green, because the tests asserted on combinations of
+/// flags rather than on where the flags came from. They are gathered here
+/// instead, which is also what makes the gathering testable — a test builds the
+/// state rather than the flags.
+///
+/// A condition added to the gate therefore needs a field here, and a field here
+/// has to be filled in by `now`; neither can be left undone without the compiler
+/// saying so.
+///
+/// The download gate is not here: the fact it turns on — whether a download is
+/// already running — is a fact about the slot, so it is asked under the slot's
+/// own lock in [`UpdateControl::take_slot`] rather than sampled outside it.
+pub struct World {
+    pub supported: bool,
+    pub scanning: bool,
+    pub ready: bool,
+}
+
+impl World {
+    /// The world as it is, for a command to gate on. The only place these are
+    /// read.
+    pub fn now(state: &AppState) -> Self {
+        Self {
+            supported: is_supported(),
+            scanning: state.scan.is_running(),
+            ready: state.update.ready_version().is_some(),
+        }
     }
-    if downloading {
-        return Err(AppError::new(
-            "update.busy",
-            "An update download is already running",
-        ));
-    }
-    Ok(())
 }
 
 /// Whether the downloaded update may be installed.
@@ -207,20 +223,20 @@ pub fn download_gate(supported: bool, downloading: bool) -> Result<(), AppError>
 /// The order is the priority: platform first, then the running scan, then
 /// whether anything was downloaded. Installing is an abrupt exit, so a scan in
 /// flight would lose that pass.
-pub fn install_gate(supported: bool, scanning: bool, ready: bool) -> Result<(), AppError> {
-    if !supported {
+pub fn install_gate(world: &World) -> Result<(), AppError> {
+    if !world.supported {
         return Err(AppError::new(
             "update.unsupported",
             "Updates are published for Windows only",
         ));
     }
-    if scanning {
+    if world.scanning {
         return Err(AppError::new(
             "update.blocked.scanning",
             "A scan is running",
         ));
     }
-    if !ready {
+    if !world.ready {
         return Err(AppError::new(
             "update.not_downloaded",
             "No downloaded update",
@@ -249,6 +265,66 @@ struct State {
 /// version means a downloaded installer no longer answers the question.
 pub(super) fn is_same_offer(pending: Option<&str>, offered: &str) -> bool {
     pending == Some(offered)
+}
+
+/// The one download the application may have in flight, held for the duration of
+/// a transfer and consumed by its ending.
+///
+/// The transfer used to be a sequence of methods on the control — mark it
+/// started, forget the last stop, take the bytes it will continue from, and then
+/// at the end free the slot *and* park what arrived, in that order, with the
+/// order written down only in comments. Reversing the last two drops the bytes
+/// of a paused download, and nothing said so. Here the slot is taken in one call
+/// and handed back in one call, so the two cannot come apart: every way a
+/// transfer can end frees the slot and decides the bytes in the same lock.
+///
+/// What a transfer cannot do is end without saying how. There is no method that
+/// frees the slot on its own, and `Slot` has no `Drop` that would quietly decide
+/// for it — a transfer that returned early without one of the three endings
+/// would leave the slot taken, which is visible immediately rather than a lost
+/// download discovered later.
+pub struct Slot<'a> {
+    control: &'a UpdateControl,
+    /// What a paused download had arrived at, taken from the slot when this was
+    /// taken. It is this transfer's from here on.
+    from: Vec<u8>,
+}
+
+impl Slot<'_> {
+    /// The bytes to continue from. Empty when the last download brought nothing,
+    /// which is the same thing as starting from the beginning.
+    pub fn resume(&self) -> &[u8] {
+        &self.from
+    }
+
+    /// The release arrived and its signature checked out: it is held for the
+    /// restart, and the slot is free.
+    pub fn install(self, bytes: Vec<u8>) {
+        let mut state = self.control.lock();
+        state.downloading = false;
+        state.installer = Some(bytes);
+    }
+
+    /// The transfer stopped, and what it brought is worth continuing from: a
+    /// pause the user asked for, or a connection that dropped. Kept rather than
+    /// dropped, because a failure on the link this exists for is expected rather
+    /// than exceptional, and starting from nothing each time is what would make
+    /// a release of this size unreachable.
+    pub fn keep(self, bytes: Vec<u8>) {
+        let mut state = self.control.lock();
+        state.downloading = false;
+        // An empty payload is nothing to keep.
+        state.partial = if bytes.is_empty() { None } else { Some(bytes) };
+    }
+
+    /// Nothing is kept. The bytes go here rather than being left for the next
+    /// download, because they are only worth resuming if nobody said to throw
+    /// them away.
+    pub fn discard(self) {
+        let mut state = self.control.lock();
+        state.downloading = false;
+        state.partial = None;
+    }
 }
 
 #[derive(Default)]
@@ -283,22 +359,41 @@ impl UpdateControl {
         &self.stop
     }
 
-    /// Forgets an earlier request, so the next download starts running rather
-    /// than stopping the moment it opens a connection.
-    pub fn clear_stop(&self) {
+    /// Takes the one download slot for a transfer, or says why it cannot be
+    /// had. What comes back is that transfer's until it ends.
+    ///
+    /// Four things happen in one lock, because their order is the whole of what
+    /// the caller used to have to remember: the gate is asked, the slot is
+    /// marked taken, the stop flag is cleared — a stop asked for *before* this
+    /// download started is not this one's business — and the bytes a paused
+    /// download left are taken. Those bytes are this transfer's from here on,
+    /// which is why the client has to be built before this is called: a machine
+    /// that cannot build one would otherwise eat what the last transfer kept.
+    pub fn take_slot(&self, supported: bool) -> Result<Slot<'_>, AppError> {
+        let mut state = self.lock();
+        // The download gate's two questions, asked under the lock rather than
+        // by a predicate the caller consults first: whether a download is
+        // already running is a fact about this slot, and a check outside the
+        // lock is a check another download can pass between.
+        if !supported {
+            return Err(AppError::new(
+                "update.unsupported",
+                "Updates are published for Windows only",
+            ));
+        }
+        if state.downloading {
+            return Err(AppError::new(
+                "update.busy",
+                "An update download is already running",
+            ));
+        }
+        state.downloading = true;
+        let from = state.partial.take().unwrap_or_default();
         self.stop.clear();
-    }
-
-    /// Keeps what a stopped transfer had, so continuing does not fetch it
-    /// again. An empty payload is nothing to keep.
-    pub fn park_partial(&self, bytes: Vec<u8>) {
-        self.lock().partial = if bytes.is_empty() { None } else { Some(bytes) };
-    }
-
-    /// Takes the held bytes for a transfer to continue from, leaving none:
-    /// they are that transfer's until it hands them back.
-    pub fn take_partial(&self) -> Vec<u8> {
-        self.lock().partial.take().unwrap_or_default()
+        Ok(Slot {
+            control: self,
+            from,
+        })
     }
 
     /// Asks a running download to pause or to stop, by the name the interface
@@ -343,36 +438,6 @@ impl UpdateControl {
             .pending
             .clone()
             .ok_or_else(|| AppError::new("update.not_downloaded", "No update is pending"))
-    }
-
-    pub fn is_downloading(&self) -> bool {
-        self.lock().downloading
-    }
-
-    pub fn begin_download(&self) -> Result<(), AppError> {
-        let mut state = self.lock();
-        if state.downloading {
-            return Err(AppError::new(
-                "update.busy",
-                "An update download is already running",
-            ));
-        }
-        state.downloading = true;
-        Ok(())
-    }
-
-    pub fn finish_download(&self, bytes: Vec<u8>) {
-        let mut state = self.lock();
-        state.downloading = false;
-        state.installer = Some(bytes);
-    }
-
-    /// The transfer is over and produced no installer: it failed, the user
-    /// paused it, or the user cancelled it. The slot is freed either way, so
-    /// what separates those outcomes is what the caller does with the bytes it
-    /// got back, not the state left here.
-    pub fn end_download(&self) {
-        self.lock().downloading = false;
     }
 
     pub fn ready_version(&self) -> Option<String> {

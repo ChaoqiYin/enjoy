@@ -138,11 +138,14 @@ pub(super) fn client(user_agent: &str) -> reqwest::Result<Client> {
 pub(super) async fn fetch(
     client: &Client,
     url: &Url,
-    from: Vec<u8>,
+    from: &[u8],
     stop: &StopFlag,
     mut on_progress: impl FnMut(u64, Option<u64>),
 ) -> Transfer {
-    let mut buffer = from;
+    // Borrowed rather than taken, because the bytes belong to the slot: it hands
+    // them over, this walks them, and the slot decides what becomes of them when
+    // the transfer ends.
+    let mut buffer = from.to_vec();
     let mut total: Option<u64> = None;
     let mut attempts = 0u32;
     let mut barren = 0u32;
