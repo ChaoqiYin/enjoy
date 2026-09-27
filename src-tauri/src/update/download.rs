@@ -96,9 +96,19 @@ pub(super) enum Transfer {
 /// release is tens of megabytes over whatever link the user has, so a deadline
 /// that fits a fast connection is a deadline that fails a slow one, while a
 /// connection that stops producing is what the retry loop is for. And the proxy
-/// is left at the default, which on Windows reads the system settings — the
-/// same answer the check gets, so a user behind a proxy does not find one half
-/// of this feature proxied and the other half not.
+/// is left unset, so the client takes the setting the operating system already
+/// holds: `hyper-util` reads `HKCU\...\Internet Settings` on Windows (skipping
+/// it when `ProxyEnable` is 0) and SystemConfiguration on macOS, honouring
+/// `HTTP(S)_PROXY`/`ALL_PROXY`/`NO_PROXY` first when those are set. That is the
+/// same route the check takes, so a user behind a proxy tool does not find one
+/// half of this feature proxied and the other half not — and no half of it
+/// silently takes a path the user did not choose, which is what makes the two
+/// speeds differ by an order of magnitude on the same machine.
+///
+/// It is left unset rather than disabled for that reason: an *empty* proxy
+/// variable does not turn the system setting off (it reads as absent and the
+/// registry fills it in again). The only ways out are a non-empty `NO_PROXY`
+/// for the endpoint, or the proxy tool itself.
 pub(super) fn client(user_agent: &str) -> reqwest::Result<Client> {
     // Installed here rather than borrowed from whatever else may have done it:
     // this client needs a TLS backend of its own, and an implicit install
