@@ -1,27 +1,18 @@
 import { vi } from 'vitest';
-import { render } from '@testing-library/react';
 import type { invoke } from '@tauri-apps/api/core';
-import { I18nextProvider } from 'react-i18next';
-import { MemoryRouter } from 'react-router';
-import type { i18n as I18n } from 'i18next';
-import { ShareProvider } from '../features/share/ShareProvider';
-import { SharePage } from '../pages/SharePage';
 import * as doubles from './doubles';
 import type { Address, Device, ShareStatus, Video } from '../shared/api';
 
 /**
- * The 共享页, mounted the way its tests need it.
+ * The 共享页's stand-ins: what the library and the window say to it, what the
+ * backend answers, and the state a test starts from.
  *
  * The mocks themselves stay in each test file — `vi.mock` reaches no further
- * than the file it is written in — and this is what those mocks are pointed at,
- * together with the answers the backend would give and the state a test starts
- * from. Written once rather than once per file for the same reason the Rust
- * side keeps its raw-HTTP helpers in one place: the second copy of a harness is
- * the one that drifts.
- *
- * Nothing the application itself imports reaches this module. It renders test
- * trees and it holds test state; the pages are imported here as the things
- * being mounted, not as anything it belongs to.
+ * than the file it is written in — and this is what those mocks are pointed at.
+ * The provider tree stays in each test file too, deliberately: a shared render
+ * helper buys one line and costs the reader the ability to see what is mounted
+ * (see 开发指南「测试与检查」). What is shared here is the data, which is the
+ * same for both files and is what a second copy would let drift.
  *
  * The chrome the page sits in asks the library three things — whether a pass is
  * running, what the library has to say, and what videos there are. None is what
@@ -179,21 +170,4 @@ export function resetSharePage(backend: Backend) {
   HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute('open', '');
   };
-}
-
-/**
- * The page as a user meets it: the provider above it, which is where the
- * service's state lives, and a router, because the page links back to the
- * library when there is nothing on the list.
- */
-export function sharePage(i18n: I18n) {
-  return render(
-    <I18nextProvider i18n={i18n}>
-      <MemoryRouter>
-        <ShareProvider>
-          <SharePage />
-        </ShareProvider>
-      </MemoryRouter>
-    </I18nextProvider>,
-  );
 }

@@ -8,14 +8,23 @@ import {
   notices,
   resetSharePage,
   scan,
-  sharePage,
   status,
   windowMock,
 } from '../../test/sharePage';
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
+import { ShareProvider } from './ShareProvider';
+import { SharePage } from '../../pages/SharePage';
 import english from '../../../../shared/locales/en/common.json';
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -51,6 +60,23 @@ afterEach(() => {
 });
 
 /**
+ * The page as a user meets it, with the provider above it: the service outlives
+ * a visit to the page that started it, and the window can be closed from any
+ * page, which is why the question is the provider's.
+ */
+function page() {
+  return render(
+    <I18nextProvider i18n={i18n}>
+      <MemoryRouter>
+        <ShareProvider>
+          <SharePage />
+        </ShareProvider>
+      </MemoryRouter>
+    </I18nextProvider>,
+  );
+}
+
+/**
  * The window being closed, as the window asks: the handler the provider
  * subscribed is called, and what it did with the event is the answer.
  */
@@ -79,7 +105,7 @@ it('holds the window open while the service is running, and asks first', async (
     share_status: status({ port: 4918 }),
     close_share: status(),
   });
-  sharePage(i18n);
+  page();
   await screen.findByRole('button', { name: english.stopSharing });
   await waitFor(() => expect(windowMock.handler).toBeDefined());
 
@@ -102,7 +128,7 @@ it('holds the window open while the service is running, and asks first', async (
 
 it('lets the window close without a word when nothing is being shared', async () => {
   backend(invoke, { share_status: status() });
-  sharePage(i18n);
+  page();
   await screen.findByText(english.connectionIdle);
   await waitFor(() => expect(windowMock.handler).toBeDefined());
 
@@ -117,7 +143,7 @@ it('lets the window close without a word when nothing is being shared', async ()
     share_status: status({ port: 4918 }),
     close_share: status(),
   });
-  sharePage(i18n);
+  page();
   await screen.findByRole('button', { name: english.stopSharing });
   await waitFor(() => expect(windowMock.handler).toBeDefined());
   closeTheWindow();

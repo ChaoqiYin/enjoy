@@ -11,7 +11,6 @@ import {
   resetSharePage,
   scan,
   setClipboard,
-  sharePage,
   status,
   video,
   windowMock,
@@ -20,12 +19,17 @@ import {
   act,
   cleanup,
   fireEvent,
+  render,
   screen,
   waitFor,
 } from '@testing-library/react';
 import { createInstance } from 'i18next';
+import { I18nextProvider } from 'react-i18next';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
+import { ShareProvider } from './ShareProvider';
+import { SharePage } from '../../pages/SharePage';
 import english from '../../../../shared/locales/en/common.json';
 import errors from '../../../../shared/locales/en/errors.json';
 
@@ -69,12 +73,26 @@ afterEach(() => {
   delete (window.navigator as { clipboard?: unknown }).clipboard;
 });
 
+/** The page, with the provider above it and a router: the page links back to
+ *  the library when there is nothing on the list. */
+function page() {
+  return render(
+    <I18nextProvider i18n={i18n}>
+      <MemoryRouter>
+        <ShareProvider>
+          <SharePage />
+        </ShareProvider>
+      </MemoryRouter>
+    </I18nextProvider>,
+  );
+}
+
 it('offers to start the service, and shows the port it ended up on', async () => {
   backend(invoke, {
     share_status: status(),
     open_share: status({ port: 4918 }),
   });
-  sharePage(i18n);
+  page();
   const start = await screen.findByRole('button', {
     name: english.startSharing,
   });
@@ -103,7 +121,7 @@ it('ends a service that is running', async () => {
     share_status: status({ port: 4918 }),
     close_share: status(),
   });
-  sharePage(i18n);
+  page();
   const stop = await screen.findByRole('button', { name: english.stopSharing });
   fireEvent.click(stop);
 
@@ -122,7 +140,7 @@ it('says so, beside the reference, when the service cannot start', async () => {
       errorId: 'err_test',
     };
   }) as never);
-  sharePage(i18n);
+  page();
   fireEvent.click(
     await screen.findByRole('button', { name: english.startSharing }),
   );
@@ -144,7 +162,7 @@ it('says so, beside the reference, when the service cannot start', async () => {
 
 it('shows what to connect with before anything has been started', async () => {
   backend(invoke, { share_status: status({ password: 'clipper12345' }) });
-  sharePage(i18n);
+  page();
   // The user name a device signs in with, and the password it is drawn, both
   // readable before the port is open: a password that only appeared once the
   // service was running would be one nobody could write down first.
@@ -166,7 +184,7 @@ it('copies the password, and says so', async () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
   setClipboard(writeText);
   backend(invoke, { share_status: status({ password: 'clipper12345' }) });
-  sharePage(i18n);
+  page();
   fireEvent.click(
     await screen.findByRole('button', { name: english.copyPassword }),
   );
@@ -188,7 +206,7 @@ it('says a running service is behind a password that has been replaced', async (
       needsRestart: true,
     }),
   });
-  sharePage(i18n);
+  page();
   fireEvent.click(
     await screen.findByRole('button', { name: english.regeneratePassword }),
   );
@@ -206,7 +224,7 @@ it('says a running service is behind a password that has been replaced', async (
 it('will not start over an empty share list, and says what to do', async () => {
   library.videos.data = [video(false)];
   backend(invoke, { share_status: status() });
-  sharePage(i18n);
+  page();
   const start = await screen.findByRole('button', {
     name: english.startSharing,
   });
@@ -222,7 +240,7 @@ it('will not start over an empty share list, and says what to do', async () => {
   // And offered as soon as there is something to offer.
   cleanup();
   library.videos.data = [video(true)];
-  sharePage(i18n);
+  page();
   expect(
     (
       await screen.findByRole('button', { name: english.startSharing })
@@ -233,7 +251,7 @@ it('will not start over an empty share list, and says what to do', async () => {
 
 it('says how many videos on the list a client will not be offered', async () => {
   backend(invoke, { share_status: status({ port: 4918, missingFiles: 2 }) });
-  sharePage(i18n);
+  page();
   // The count and not the names: what the user needs to know is that the
   // television will show fewer than they picked. Said only while something is
   // serving, because it is about what a client is being offered.
@@ -253,7 +271,7 @@ it('shows the address the service is really on, and copies it', async () => {
     // works, and 4918 is what was wanted rather than what was taken.
     share_status: status({ port: 4919, addresses: [address()] }),
   });
-  sharePage(i18n);
+  page();
   // The address and the port together, in the spelling a client is given: the
   // trailing slash is how the protocol says this is a collection to browse.
   const url = 'http://192.168.1.5:4919/';
@@ -286,7 +304,7 @@ it('marks the address that cannot reach a television', async () => {
       ],
     }),
   });
-  sharePage(i18n);
+  page();
   const rows = await screen.findAllByRole('listitem');
   // The order is the backend's, and the mark is on the last row: the machine
   // talking to itself, which a user copying down the list would be most likely
@@ -299,7 +317,7 @@ it('marks the address that cannot reach a television', async () => {
 
 it('says what to do instead of showing addresses while nothing is running', async () => {
   backend(invoke, { share_status: status({ addresses: [address()] }) });
-  sharePage(i18n);
+  page();
   // Nothing is running, so there is no port to put on an address: the block
   // explains itself rather than listing addresses that lead nowhere.
   expect(await screen.findByText(english.connectionIdle)).toBeTruthy();
@@ -311,7 +329,7 @@ it('says what to do instead of showing addresses while nothing is running', asyn
 
 it('says so when the machine has no address to offer', async () => {
   backend(invoke, { share_status: status({ port: 4918, addresses: [] }) });
-  sharePage(i18n);
+  page();
   // Every adapter down: a heading with nothing under it is the one thing this
   // block must not be.
   expect(await screen.findByText(english.connectionNoAddress)).toBeTruthy();
@@ -330,7 +348,7 @@ it('lists the devices that have asked for something, and how long ago', async ()
       ],
     }),
   });
-  sharePage(i18n);
+  page();
   // The name the client gave, the address it came from, and the moment it was
   // last heard from. The list is most-recent-first, so the client that has just
   // been here is the row above the one that has been quiet for twelve seconds.
@@ -354,7 +372,7 @@ it('lists the devices that have asked for something, and how long ago', async ()
 
 it('says the list is empty when no device has asked', async () => {
   backend(invoke, { share_status: status({ port: 4918 }) });
-  sharePage(i18n);
+  page();
   // The wording and not just the absence: the list is drawn only while the
   // service is running, so an empty one is a fact about the last minute rather
   // than a section that has not loaded.
@@ -373,7 +391,7 @@ it('reads the list again on its own, so a device appears and drops off', async (
     if (command === 'share_status') return answer;
     throw { code: 'app.unexpected', errorId: 'test' };
   }) as never);
-  sharePage(i18n);
+  page();
   await act(async () => {
     await vi.advanceTimersByTimeAsync(0);
   });
