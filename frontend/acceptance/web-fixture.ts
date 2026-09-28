@@ -4,6 +4,7 @@ import type {
   AppError,
   ScanStatus,
   SettingsState,
+  ShareStatus,
   Space,
   UpdateCheck,
   UpdateProgress,
@@ -37,12 +38,9 @@ function markOn(kind: Marker, payload: Record<string, unknown>) {
   const held = markedOf(kind, Number(payload.spaceId));
   if (Boolean(payload[kind])) held.add(video.id);
   else held.delete(video.id);
-  // A service keeps the list it was started over, so a share mark moved while
-  // one is running puts the two out of step -- which is the warning the sharing
-  // page then shows, and the only way a walkthrough can reach it: the real
-  // backend notices by comparing its snapshot against the list, and the
-  // snapshot here is the list as of the last start.
-  if (kind === 'shared' && sharePort !== null) listChanged = true;
+  // Nothing is recorded here about the service being out of step: a share mark
+  // moved while one is running is noticed by the status comparing the list
+  // against the snapshot it read, which is how the backend notices it too.
 }
 
 const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
@@ -74,14 +72,64 @@ let sharePassword = '7315';
 /// with and not the one stored now.
 let served = sharePassword;
 let drawnPasswords = 0;
-/// Whether the 共享清单 has moved since the running service read it — set by a
-/// share mark being toggled while one is running, cleared by starting one.
-let listChanged = false;
+/**
+ * The 共享清单 as the running service read it: the ids of the space it was
+ * started over, sorted the way the backend's own list is ordered, or `null`
+ * when nothing is running.
+ *
+ * This is the snapshot the real service takes at start, and holding it is what
+ * lets this copy answer the two questions the status carries about the list —
+ * whether it has moved since, and how many of its files are gone — by comparing
+ * rather than by being told. A flag set when a mark is toggled would answer the
+ * same for the one change a walkthrough can make and nothing else; the backend's
+ * rule is a comparison, so this is one too.
+ */
+let servedList: { spaceId: number; ids: number[] } | null = null;
+/**
+ * The videos whose file this copy declares to be gone.
+ *
+ * The real service finds these by looking at the disk when it starts, which is
+ * the one thing a fixture cannot do. Declaring one is what makes the page's
+ * "some files are gone" line reachable at all: it appears when one of these is
+ * on the 共享清单, and a line no walkthrough can reach is a line nobody has
+ * read on screen. Video 1 is the one the space starts with marked as a favorite,
+ * so it is the one nearest to hand.
+ */
+const missingFromDisk = new Set([1]);
+
+/** One space's 共享清单, in the order the backend would serve it. */
+function sharedIds(spaceId: number): number[] {
+  return [...markedOf('shared', spaceId)].sort((left, right) => left - right);
+}
+
 /**
  * The status, composed the way the backend composes it: the port and the
- * password on one side, and on the other whether the service that is running is
- * still behind that password.
+ * password on one side, and on the other the two facts about the service that
+ * is running — whether it is still behind that password, and whether it is
+ * still offering the list it read.
+ *
+ * `spaceId` is the space the interface is asking about, because that is what the
+ * backend compares its snapshot against (ADR 0012): a service started over one
+ * space's list is out of step with the list of the space now on screen.
  */
+function share(spaceId?: number): ShareStatus {
+  return {
+    port: sharePort,
+    missingFiles:
+      servedList === null
+        ? 0
+        : servedList.ids.filter((id) => missingFromDisk.has(id)).length,
+    username: 'enjoy',
+    password: sharePassword,
+    needsRestart: sharePort !== null && served !== sharePassword,
+    listChanged:
+      servedList !== null &&
+      spaceId !== undefined &&
+      servedList.ids.join(',') !== sharedIds(spaceId).join(','),
+    devices: sharePort === null ? [] : listedDevices,
+    addresses: sharePort === null ? [] : machineAddresses,
+  };
+}
 /**
  * The clients a walkthrough is shown while the service is running.
  *
@@ -115,18 +163,6 @@ const machineAddresses = [
   },
 ];
 
-function share() {
-  return {
-    port: sharePort,
-    missingFiles: 0,
-    username: 'enjoy',
-    password: sharePassword,
-    needsRestart: sharePort !== null && served !== sharePassword,
-    listChanged: sharePort !== null && listChanged,
-    devices: sharePort === null ? [] : listedDevices,
-    addresses: sharePort === null ? [] : machineAddresses,
-  };
-}
 // The acceptance fixture stands in for the backend, so the space rules are
 // repeated here rather than shared with it: they are the backend's, and the
 // tests that hold them are Rust's. What they are for here is letting someone
@@ -350,21 +386,28 @@ mockIPC(
       // them — and what this copy is for is letting someone see the password
       // change under their hands, and the warning that follows it.
       case 'share_status':
-        return share();
+        return share(Number(payload.spaceId));
       case 'open_share':
         sharePort = 4918;
         // Started under whatever is stored now, so the warning goes away: the
         // service is behind the password on screen again. The same for the list:
-        // a service started now is offering the list as it stands now.
+        // a service started now is offering the list as it stands now, which is
+        // the snapshot it takes here.
         served = sharePassword;
-        listChanged = false;
-        return share();
+        servedList = {
+          spaceId: Number(payload.spaceId),
+          ids: sharedIds(Number(payload.spaceId)),
+        };
+        return share(Number(payload.spaceId));
       case 'close_share':
         sharePort = null;
+        servedList = null;
+        // No space: nothing is running, and the answer says so in every field
+        // the space was only ever needed for.
         return share();
       case 'regenerate_share_password':
         sharePassword = `drawn-${String(++drawnPasswords)}`;
-        return share();
+        return share(Number(payload.spaceId));
       case 'check_for_update':
         return { ...updateCheck };
       case 'install_update': {

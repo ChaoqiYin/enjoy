@@ -43,9 +43,21 @@ export interface AppError {
   errorId: string;
 }
 
+/**
+ * What one pass changed, counted by kind. Named here rather than written out
+ * inline in `ScanStatus`, so that the shape the backend sends and the shape the
+ * interface reads can be held to each other by name (see
+ * `scripts/check-seam.mjs`).
+ */
+export interface IndexChanges {
+  added: number;
+  updated: number;
+  removed: number;
+}
+
 export interface ScanStatus {
   operation?: 'scan' | 'thumbnails';
-  changes: { added: number; updated: number; removed: number };
+  changes: IndexChanges;
   failures: number;
   unreachableDirectories: number;
   phase: string;
