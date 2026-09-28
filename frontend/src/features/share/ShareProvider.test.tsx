@@ -4,11 +4,13 @@
 // in for.
 import {
   backend,
+  busy,
   library,
   notices,
   resetSharePage,
   scan,
   status,
+  videoActions,
   windowMock,
 } from '../../test/sharePage';
 import {
@@ -41,6 +43,10 @@ vi.mock('@tauri-apps/api/window', () => ({
   }),
 }));
 vi.mock('../library/useVideos', () => ({ useVideos: () => library }));
+vi.mock('../library/useVideoActions', () => ({
+  useVideoActions: () => videoActions,
+}));
+vi.mock('../library/useBusy', () => ({ useBusy: () => busy }));
 vi.mock('../library/useScan', () => ({ useScan: () => scan }));
 vi.mock('../library/useNotices', () => ({ useNotices: () => notices }));
 vi.mock('../space/SpaceProvider', () => ({
@@ -112,8 +118,11 @@ it('holds the window open while the service is running, and asks first', async (
   // The window is closing, and it is held: nothing has been stopped and nothing
   // has been closed, because the user has not answered yet.
   expect(closeTheWindow()).toBe(true);
-  const question = await screen.findByRole('dialog');
-  expect(question.textContent).toContain(english.shareCloseQuestion);
+  // Asked for by its own words: the page keeps a closed details drawer mounted
+  // (the drawer's shell never unmounts), and that one is a dialog too.
+  const question = await screen.findByRole('dialog', {
+    name: english.shareCloseQuestion,
+  });
   expect(invoke).not.toHaveBeenCalledWith('close_share');
   expect(windowMock.close).not.toHaveBeenCalled();
 
@@ -135,7 +144,9 @@ it('lets the window close without a word when nothing is being shared', async ()
   // A prompt on every close is one the user learns to dismiss without reading,
   // and there is nothing here to interrupt.
   expect(closeTheWindow()).toBe(false);
-  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(
+    screen.queryByRole('dialog', { name: english.shareCloseQuestion }),
+  ).toBeNull();
 
   // Said no to, the window stays open and the service keeps running.
   cleanup();
@@ -148,6 +159,8 @@ it('lets the window close without a word when nothing is being shared', async ()
   await waitFor(() => expect(windowMock.handler).toBeDefined());
   closeTheWindow();
   fireEvent.click(await screen.findByRole('button', { name: english.cancel }));
-  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(
+    screen.queryByRole('dialog', { name: english.shareCloseQuestion }),
+  ).toBeNull();
   expect(windowMock.close).not.toHaveBeenCalled();
 });

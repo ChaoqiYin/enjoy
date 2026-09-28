@@ -5,6 +5,7 @@
 import {
   address,
   backend,
+  busy,
   device,
   library,
   notices,
@@ -12,9 +13,10 @@ import {
   scan,
   setClipboard,
   status,
-  video,
+  videoActions,
   windowMock,
 } from '../../test/sharePage';
+import { video } from '../../test/fixtures';
 import {
   act,
   cleanup,
@@ -47,6 +49,12 @@ vi.mock('@tauri-apps/api/window', () => ({
   }),
 }));
 vi.mock('../library/useVideos', () => ({ useVideos: () => library }));
+// The cards in the 共享清单 act through the library's own actions, which is a
+// slice with its own tests; what this file is about is which cards are drawn.
+vi.mock('../library/useVideoActions', () => ({
+  useVideoActions: () => videoActions,
+}));
+vi.mock('../library/useBusy', () => ({ useBusy: () => busy }));
 vi.mock('../library/useScan', () => ({ useScan: () => scan }));
 vi.mock('../library/useNotices', () => ({ useNotices: () => notices }));
 // The page reads the current space to name it when starting the service. What
@@ -210,8 +218,13 @@ it('says a running service is behind a password that has been replaced', async (
   fireEvent.click(
     await screen.findByRole('button', { name: english.regeneratePassword }),
   );
+  // The space travels with it like every other space-scoped call: the answer is
+  // the whole status, and part of that status is whether the running service is
+  // still offering the list that space holds now.
   await waitFor(() =>
-    expect(invoke).toHaveBeenCalledWith('regenerate_share_password'),
+    expect(invoke).toHaveBeenCalledWith('regenerate_share_password', {
+      spaceId: 7,
+    }),
   );
   // The new password is shown at once — it is the one the user needs after they
   // do what the warning says — and the warning is what tells them the running
@@ -222,7 +235,7 @@ it('says a running service is behind a password that has been replaced', async (
 });
 
 it('will not start over an empty share list, and says what to do', async () => {
-  library.videos.data = [video(false)];
+  library.videos.data = [video()];
   backend(invoke, { share_status: status() });
   page();
   const start = await screen.findByRole('button', {
@@ -239,7 +252,7 @@ it('will not start over an empty share list, and says what to do', async () => {
 
   // And offered as soon as there is something to offer.
   cleanup();
-  library.videos.data = [video(true)];
+  library.videos.data = [video({ shared: true })];
   page();
   expect(
     (
@@ -247,6 +260,73 @@ it('will not start over an empty share list, and says what to do', async () => {
     ).hasAttribute('disabled'),
   ).toBe(false);
   expect(screen.queryByText(english.shareListEmpty)).toBeNull();
+});
+
+it('shows the videos that are on the list, and how many there are', async () => {
+  library.videos.data = [
+    video({ shared: true, id: 1, file_name: 'first.mp4' }),
+    video({ shared: true, id: 2, file_name: 'second.mp4' }),
+    // Not on the list, and not drawn: what this block is for is seeing what is
+    // being offered, and a card the service would not serve would answer the
+    // wrong question.
+    video({ id: 3, file_name: 'third.mp4' }),
+  ];
+  backend(invoke, { share_status: status() });
+  page();
+  // The heading, then the count, then the cards themselves: the list is a view
+  // of the records rather than a command of its own (the backend has none), so
+  // what is drawn here is what the library already knows.
+  expect(
+    await screen.findByRole('heading', { name: english.shareListTitle }),
+  ).toBeTruthy();
+  expect(
+    screen.getByText(english.videoCount_other.replace('{{countText}}', '2')),
+  ).toBeTruthy();
+  expect(screen.getByText('first.mp4')).toBeTruthy();
+  expect(screen.getByText('second.mp4')).toBeTruthy();
+  expect(screen.queryByText('third.mp4')).toBeNull();
+});
+
+it('offers 移出共享清单 from the cards it draws', async () => {
+  backend(invoke, { share_status: status() });
+  page();
+  // The same menu the library opens, on the same event: a page that draws the
+  // library's cards owes them the library's menu, and this is the one entry
+  // that matters here — the list is picked at, and this is where it is unpicked.
+  const card = (await screen.findByText('example.mp4')).closest('article')!;
+  fireEvent.contextMenu(card, { clientX: 10, clientY: 20 });
+  fireEvent.click(
+    await screen.findByRole('menuitem', { name: english.unshare }),
+  );
+  expect(videoActions.toggleShared).toHaveBeenCalledWith(
+    expect.objectContaining({ id: 1 }),
+  );
+});
+
+it('says a running service is offering the list it was started with, after a change', async () => {
+  backend(invoke, { share_status: status({ port: 4918, listChanged: true }) });
+  page();
+  // The service keeps what it started with, so a list that has been added to
+  // since is not what a client is being offered — and a user who just added a
+  // video would otherwise conclude the change did not work.
+  expect(await screen.findByText(english.shareListChanged)).toBeTruthy();
+});
+
+it('says nothing about the list while it is the one being offered, or nothing is serving', async () => {
+  backend(invoke, { share_status: status({ port: 4918 }) });
+  page();
+  await screen.findByRole('button', { name: english.stopSharing });
+  // Same list as the one the service read: nothing has changed, so there is
+  // nothing to warn about.
+  expect(screen.queryByText(english.shareListChanged)).toBeNull();
+
+  // And nothing is running at all: there is no list being offered, so a list
+  // that differs from it is not a fact about anything.
+  cleanup();
+  backend(invoke, { share_status: status({ listChanged: true }) });
+  page();
+  await screen.findByRole('button', { name: english.startSharing });
+  expect(screen.queryByText(english.shareListChanged)).toBeNull();
 });
 
 it('says how many videos on the list a client will not be offered', async () => {

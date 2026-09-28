@@ -124,13 +124,13 @@ fn the_list_carries_the_address_and_the_moment_it_was_heard_from() {
 fn a_client_that_gets_in_is_listed_under_the_name_it_gives_itself() {
     let (control, port) = started("en");
     assert!(control
-        .status(&credentials(), Vec::new())
+        .status(&credentials(), Vec::new(), &[])
         .devices
         .is_empty());
     request(port, "GET", "/", "User-Agent: VLC/3.0.20 LibVLC/3.0.20\r\n");
     request(port, "PROPFIND", "/", "Depth: 1\r\nContent-Length: 0\r\n");
 
-    let devices = control.status(&credentials(), Vec::new()).devices;
+    let devices = control.status(&credentials(), Vec::new(), &[]).devices;
     // One row for two requests: a client is a client, not a request.
     assert_eq!(devices.len(), 1);
     assert_eq!(devices[0].address, IpAddr::V4(Ipv4Addr::LOCALHOST));
@@ -151,7 +151,7 @@ fn a_client_that_gets_in_is_listed_under_the_name_it_gives_itself() {
     // Ending the service ends the list with it: nobody is connected to a
     // service that is not there.
     assert!(control
-        .status(&credentials(), Vec::new())
+        .status(&credentials(), Vec::new(), &[])
         .devices
         .is_empty());
 }
@@ -162,7 +162,7 @@ fn a_client_that_says_nothing_about_itself_is_still_listed() {
     request(port, "GET", "/", "");
     // Named or not, the address and the moment are what the row is made of, and
     // a client that sends no User-Agent still has both.
-    let devices = control.status(&credentials(), Vec::new()).devices;
+    let devices = control.status(&credentials(), Vec::new(), &[]).devices;
     assert_eq!(devices.len(), 1);
     assert_eq!(devices[0].address, IpAddr::V4(Ipv4Addr::LOCALHOST));
     assert_eq!(devices[0].name, None);
@@ -184,7 +184,7 @@ fn a_device_that_never_got_past_the_password_is_not_a_client() {
     assert_eq!(status(&response), 401);
     assert!(
         control
-            .status(&credentials(), Vec::new())
+            .status(&credentials(), Vec::new(), &[])
             .devices
             .is_empty(),
         "a refused request was listed as a client"
@@ -192,6 +192,12 @@ fn a_device_that_never_got_past_the_password_is_not_a_client() {
     // And the same address, with the password, is listed: what was left out is
     // the request that was refused, not the device.
     assert_eq!(status(&get(port, "/")), 200);
-    assert_eq!(control.status(&credentials(), Vec::new()).devices.len(), 1);
+    assert_eq!(
+        control
+            .status(&credentials(), Vec::new(), &[])
+            .devices
+            .len(),
+        1
+    );
     control.close(&credentials(), Vec::new());
 }

@@ -138,6 +138,7 @@ export function share(overrides: Partial<Share> = {}): Share {
     username: 'enjoy',
     password: 'sample-passw0rd',
     needsRestart: false,
+    listChanged: false,
     missingFiles: 0,
     devices: [],
     addresses: [],

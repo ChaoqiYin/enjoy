@@ -26,6 +26,8 @@ pub(crate) mod activity;
 mod activity_tests;
 pub(crate) mod addresses;
 pub(crate) mod control;
+#[cfg(test)]
+mod control_tests;
 pub(crate) mod credentials;
 #[cfg(test)]
 mod fixture;

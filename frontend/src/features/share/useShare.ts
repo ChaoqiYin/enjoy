@@ -40,6 +40,9 @@ export type Share = {
   password: string;
   /** Whether a service is running that would refuse `password` above it. */
   needsRestart: boolean;
+  /** Whether a service is running over a 共享清单 other than the one the space
+   * holds now: what a client is offered is not what the user has picked. */
+  listChanged: boolean;
   /** Videos on the list whose file is not on disk any more, so a client will
    * not be offered them. Zero when nothing is running. */
   missingFiles: number;
@@ -68,7 +71,9 @@ export type Share = {
 export function useShare(): Share {
   const [status, setStatus] = useState<ShareStatus | null>(null);
   // Which space the service would offer, read the way every other space-scoped
-  // call in the interface reads it (ADR 0012).
+  // call in the interface reads it (ADR 0012). Every read names it, because part
+  // of what reading answers is whether a running service is still offering that
+  // space's list.
   const { id: spaceId } = useSpace();
   const command = useCommand();
   // Read once, when the interface comes up. There is nothing to find — the
@@ -83,7 +88,7 @@ export function useShare(): Share {
   useEffect(() => {
     let live = true;
     shareApi
-      .status()
+      .status(spaceId)
       .then((answer) => {
         if (live) setStatus(answer);
       })
@@ -91,7 +96,7 @@ export function useShare(): Share {
     return () => {
       live = false;
     };
-  }, []);
+  }, [spaceId]);
   const running = status?.port != null;
   const busy = command.busy;
   useEffect(() => {
@@ -102,7 +107,7 @@ export function useShare(): Share {
     let live = true;
     const timer = setInterval(() => {
       shareApi
-        .status()
+        .status(spaceId)
         .then((answer) => {
           if (live) setStatus(answer);
         })
@@ -112,7 +117,7 @@ export function useShare(): Share {
       live = false;
       clearInterval(timer);
     };
-  }, [running, busy]);
+  }, [running, busy, spaceId]);
   const act = async (action: () => Promise<ShareStatus>) => {
     let worked = false;
     await command.run(undefined, async () => {
@@ -126,6 +131,7 @@ export function useShare(): Share {
     username: status?.username ?? '',
     password: status?.password ?? '',
     needsRestart: status?.needsRestart ?? false,
+    listChanged: status?.listChanged ?? false,
     missingFiles: status?.missingFiles ?? 0,
     devices: status?.devices ?? [],
     addresses: status?.addresses ?? [],
@@ -134,6 +140,6 @@ export function useShare(): Share {
     dismissError: command.dismissFailure,
     start: () => act(() => shareApi.open(spaceId)),
     stop: () => act(shareApi.close),
-    regeneratePassword: () => act(shareApi.regeneratePassword),
+    regeneratePassword: () => act(() => shareApi.regeneratePassword(spaceId)),
   };
 }

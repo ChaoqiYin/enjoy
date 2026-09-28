@@ -52,6 +52,13 @@ pub(crate) const PORT_ATTEMPTS: u16 = 10;
 pub(crate) struct Service {
     port: u16,
     missing: usize,
+    /// The 共享清单 this service was started over, kept so that it can be told
+    /// apart from the list as it stands now. It is the whole of what "the list
+    /// has changed under a running service" can be decided from: the interface
+    /// is shown a service that would offer something other than what the user
+    /// has picked, and the only other way to know that is to ask the user what
+    /// they did, which misses every change they did not make by hand.
+    paths: Vec<String>,
     /// The credentials this service answers to, held here and not read again:
     /// the password can be regenerated while the service is running, and a
     /// service that read the preferences per request would start accepting a
@@ -98,6 +105,7 @@ impl Service {
             .map_err(|error| AppError::new("share.start.failed", error))?;
         let files = ShareFs::build(paths);
         let missing = files.missing();
+        let paths = paths.to_vec();
         let activity = Arc::new(Activity::default());
         let endpoints = Endpoints {
             webdav: dav_handler(files),
@@ -110,6 +118,7 @@ impl Service {
         Ok(Self {
             port,
             missing,
+            paths,
             credentials,
             activity,
             ending,
@@ -127,6 +136,11 @@ impl Service {
     /// is not on disk.
     pub(crate) fn missing(&self) -> usize {
         self.missing
+    }
+
+    /// The 共享清单 this service is offering, as it was when it started.
+    pub(crate) fn paths(&self) -> &[String] {
+        &self.paths
     }
 
     /// The credentials this service is answering to, which are the ones stored

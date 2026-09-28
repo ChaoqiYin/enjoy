@@ -4,6 +4,8 @@ import { Link } from 'react-router';
 import { PageFrame } from '../features/library/PageFrame';
 import { useNotices } from '../features/library/useNotices';
 import { useVideos } from '../features/library/useVideos';
+import { useVideoBoard } from '../features/library/useVideoBoard';
+import { VideoGrid } from '../features/library/VideoGrid';
 import { useShareContext } from '../features/share/ShareProvider';
 import { ScrollViewport } from '../shared/ScrollViewport';
 import type { AppError } from '../shared/api';
@@ -32,12 +34,12 @@ export function SharePage() {
   const notices = useNotices();
   // What is on the 共享清单, read the way every page reads the videos: the mark
   // travels on the record, so the list is the collection with a filter over it
-  // and no command of its own (the backend has none).
-  const { videos } = useVideos();
-  const sharedCount = (videos.data ?? []).filter(
-    (video) => video.shared,
-  ).length;
-  const offline = sharedCount === 0;
+  // and no command of its own (the backend has none). The same records are drawn
+  // as cards below, so the list is read once here and handed to both.
+  const { videos: collection } = useVideos();
+  const board = useVideoBoard();
+  const videos = (collection.data ?? []).filter((video) => video.shared);
+  const offline = videos.length === 0;
   // Hidden until asked for, which is what makes it safe to photograph the screen
   // or leave the page open in a room. Nothing is gained by it being hidden from
   // the person who started the service and is looking at it, so one press shows
@@ -104,25 +106,61 @@ export function SharePage() {
         >
           {running ? t('stopSharing') : t('startSharing')}
         </button>
-        {!running && offline && (
-          <p className="text-sm opacity-70">
-            {t('shareListEmpty')}{' '}
-            <Link className="link" to="/">
-              {t('shareListEmptyAction')}
-            </Link>
-          </p>
-        )}
-        {/* Said only while it is true, and only while something is serving: it
-            is about what a client would be offered, which is a question only a
-            running service has an answer to. */}
-        {running && share.missingFiles > 0 && (
-          <p className="text-sm text-warning">
-            {t('shareMissingFiles', {
-              count: share.missingFiles,
-              countText: share.missingFiles.toLocaleString(i18n.language),
-            })}
-          </p>
-        )}
+        {/* The list itself, drawn as cards so that what is being offered can be
+            seen rather than remembered: the same cards and the same right-click
+            menu as every other page (the baseline allows no list view anywhere),
+            so 移出共享清单 is one click from here too. It comes before the
+            connection details because it answers the question the button above
+            raises — what am I about to share. */}
+        <div className="space-y-3">
+          <h2 className="text-xl font-semibold">{t('shareListTitle')}</h2>
+          {/* Both of these are facts about a list some running service is
+              offering, so both are said only while something is serving. The
+              first is about files that went away, the second about the list
+              having changed since the service read it — the service keeps
+              offering what it started with, so a change is only a change after
+              a restart, and saying so is the whole point of noticing. */}
+          {running && share.missingFiles > 0 && (
+            <p className="text-sm text-warning">
+              {t('shareMissingFiles', {
+                count: share.missingFiles,
+                countText: share.missingFiles.toLocaleString(i18n.language),
+              })}
+            </p>
+          )}
+          {running && share.listChanged && (
+            <p className="text-sm text-warning">{t('shareListChanged')}</p>
+          )}
+          {offline ? (
+            // A port a device can connect to and find nothing on reads as a
+            // service that is broken, so the button above will not start over an
+            // empty list. The reason is said rather than left to the greyed-out
+            // button to explain, and it comes with the way out.
+            <p className="text-sm opacity-70">
+              {t('shareListEmpty')}{' '}
+              <Link className="link" to="/">
+                {t('shareListEmptyAction')}
+              </Link>
+            </p>
+          ) : (
+            <>
+              <p className="opacity-60">
+                {t('videoCount', {
+                  count: videos.length,
+                  countText: videos.length.toLocaleString(i18n.language),
+                })}
+              </p>
+              <VideoGrid
+                videos={videos}
+                scan={board.scan}
+                onMenu={board.onMenu}
+                busy={board.busy}
+                actions={board.actions}
+                lastPlayedId={board.lastPlayedId}
+              />
+            </>
+          )}
+        </div>
         {/* Everything a user has to type into the television, in one place:
             the address to enter, the user name, and the password. It is shown
             whether or not the service is running, and that is the point of it —
@@ -268,6 +306,9 @@ export function SharePage() {
           </div>
         )}
       </ScrollViewport>
+      {/* The menu a right-click on a card opens, and the drawer a click opens:
+          the two things the cards in the list above need a page for. */}
+      {board.overlays}
     </PageFrame>
   );
 }

@@ -37,6 +37,12 @@ function markOn(kind: Marker, payload: Record<string, unknown>) {
   const held = markedOf(kind, Number(payload.spaceId));
   if (Boolean(payload[kind])) held.add(video.id);
   else held.delete(video.id);
+  // A service keeps the list it was started over, so a share mark moved while
+  // one is running puts the two out of step -- which is the warning the sharing
+  // page then shows, and the only way a walkthrough can reach it: the real
+  // backend notices by comparing its snapshot against the list, and the
+  // snapshot here is the list as of the last start.
+  if (kind === 'shared' && sharePort !== null) listChanged = true;
 }
 
 const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
@@ -66,6 +72,9 @@ let sharePassword = 'sample-passw0rd';
 /// with and not the one stored now.
 let served = sharePassword;
 let drawnPasswords = 0;
+/// Whether the 共享清单 has moved since the running service read it — set by a
+/// share mark being toggled while one is running, cleared by starting one.
+let listChanged = false;
 /**
  * The status, composed the way the backend composes it: the port and the
  * password on one side, and on the other whether the service that is running is
@@ -111,6 +120,7 @@ function share() {
     username: 'enjoy',
     password: sharePassword,
     needsRestart: sharePort !== null && served !== sharePassword,
+    listChanged: sharePort !== null && listChanged,
     devices: sharePort === null ? [] : listedDevices,
     addresses: sharePort === null ? [] : machineAddresses,
   };
@@ -342,8 +352,10 @@ mockIPC(
       case 'open_share':
         sharePort = 4918;
         // Started under whatever is stored now, so the warning goes away: the
-        // service is behind the password on screen again.
+        // service is behind the password on screen again. The same for the list:
+        // a service started now is offering the list as it stands now.
         served = sharePassword;
+        listChanged = false;
         return share();
       case 'close_share':
         sharePort = null;

@@ -119,6 +119,11 @@ export interface LanguageSettings {
  * the service that is running is still behind the password shown above it, which
  * it stops being the moment the user regenerates one.
  *
+ * `listChanged` is the same shape of fact about the list: a service offers the
+ * 共享清单 it was started over, and the 共享清单 can be picked at while it runs.
+ * The backend compares the two lists rather than being told that something was
+ * toggled, so a record that a rescan deleted counts as a change too.
+ *
  * `devices` is the one part of this that changes without the user doing
  * anything, which is why the page reads the whole status again on a timer while
  * the service is running.
@@ -134,6 +139,7 @@ export interface ShareStatus {
   username: string;
   password: string;
   needsRestart: boolean;
+  listChanged: boolean;
   devices: Device[];
   addresses: Address[];
 }
@@ -279,17 +285,20 @@ export const libraryApi = {
  * answered would turn looking at the interface into starting a service.
  */
 export const shareApi = {
-  status: () => invoke<ShareStatus>('share_status'),
-  // The space is named because what the service offers is that space's 共享清单:
-  // "the one on screen" is not an answer the backend can give, since it is the
-  // interface that decides which space is being shown.
+  // The space is named by every one of these that reads a list, because what the
+  // service offers is that space's 共享清单: "the one on screen" is not an answer
+  // the backend can give, since it is the interface that decides which space is
+  // being shown. Reading names it too: part of what reading answers is whether a
+  // running service is still offering the list that space holds now.
+  status: (spaceId: number) => invoke<ShareStatus>('share_status', { spaceId }),
   open: (spaceId: number) => invoke<ShareStatus>('open_share', { spaceId }),
   close: () => invoke<ShareStatus>('close_share'),
   // Answers with the whole status rather than the password alone: regenerating
   // it also decides whether a service that is running is still behind it, and a
   // caller that had to ask again for the second fact could draw the two
   // contradicting each other.
-  regeneratePassword: () => invoke<ShareStatus>('regenerate_share_password'),
+  regeneratePassword: (spaceId: number) =>
+    invoke<ShareStatus>('regenerate_share_password', { spaceId }),
 };
 
 /**

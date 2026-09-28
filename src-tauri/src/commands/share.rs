@@ -73,15 +73,24 @@ pub(crate) async fn close_share(
 
 /// What the interface is told about the service, asked from every page and from
 /// the sharing page again on a timer.
+///
+/// The space is named by the caller like every other command's (ADR 0012), and
+/// it is the one thing this command needs from the library: whether a running
+/// service is still offering the list that space holds now. A service is ended
+/// by switching spaces, so while one is running this is the space it belongs to
+/// — and if that ever came apart, the answer would be a warning to restart,
+/// which is true of a service offering the wrong list either way.
 #[tauri::command]
 pub(crate) fn share_status(
+    space_id: i64,
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<ShareStatus, AppError> {
     let credentials = Credentials::load(&app)?;
+    let paths = lock_shared(&state.repository)?.shared_paths(space_id)?;
     Ok(state
         .share
-        .status(&credentials, addresses::of_this_machine()))
+        .status(&credentials, addresses::of_this_machine(), &paths))
 }
 
 /// Replaces the password, and answers with the sharing state that follows it.
@@ -91,13 +100,19 @@ pub(crate) fn share_status(
 /// that is running is still behind the one the interface would show. A caller
 /// that had to ask again for the second would be able to draw the two
 /// contradicting each other.
+///
+/// The space is read for the same reason `share_status` reads it: the answer is
+/// the whole status, and a copy of it that dropped the list would be a page
+/// losing a warning the moment the password is changed.
 #[tauri::command]
 pub(crate) fn regenerate_share_password(
+    space_id: i64,
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<ShareStatus, AppError> {
     let credentials = Credentials::regenerate(&app)?;
+    let paths = lock_shared(&state.repository)?.shared_paths(space_id)?;
     Ok(state
         .share
-        .status(&credentials, addresses::of_this_machine()))
+        .status(&credentials, addresses::of_this_machine(), &paths))
 }

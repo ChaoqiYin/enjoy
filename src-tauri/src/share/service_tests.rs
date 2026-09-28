@@ -244,7 +244,12 @@ fn a_video_that_is_no_longer_on_disk_is_counted_and_not_offered() {
     assert!(!body.contains(&encoded("花絮.mkv")), "{body}");
 
     control.close(&credentials(), Vec::new());
-    assert_eq!(control.status(&credentials(), Vec::new()).missing_files, 0);
+    assert_eq!(
+        control
+            .status(&credentials(), Vec::new(), &[])
+            .missing_files,
+        0
+    );
 }
 
 #[test]

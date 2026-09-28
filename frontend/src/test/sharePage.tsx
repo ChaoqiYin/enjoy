@@ -1,7 +1,8 @@
 import { vi } from 'vitest';
 import type { invoke } from '@tauri-apps/api/core';
 import * as doubles from './doubles';
-import type { Address, Device, ShareStatus, Video } from '../shared/api';
+import { video } from './fixtures';
+import type { Address, Device, ShareStatus } from '../shared/api';
 
 /**
  * The 共享页's stand-ins: what the library and the window say to it, what the
@@ -22,6 +23,12 @@ import type { Address, Device, ShareStatus, Video } from '../shared/api';
 export const scan = doubles.scan();
 export const notices = doubles.notices();
 export const library = doubles.videos();
+/** Whether the library is carrying out a command right now. */
+export const busy = doubles.busy();
+// The 共享清单 is drawn with the library's own cards, so the menu behind them is
+// the library's own actions: a page that draws a card owes it the seven things a
+// card can ask for.
+export const videoActions = doubles.videoActions();
 
 /**
  * The window, as the provider asks it to hold a close while the question is
@@ -83,6 +90,7 @@ export function status(overrides: Partial<ShareStatus> = {}): ShareStatus {
     username: 'enjoy',
     password: 'sample-passw0rd',
     needsRestart: false,
+    listChanged: false,
     devices: [],
     addresses: [],
     ...overrides,
@@ -118,35 +126,6 @@ export function setClipboard(writeText?: (text: string) => Promise<void>) {
 }
 
 /**
- * A video as the library hands one over, marked or not for the 共享清单.
- *
- * The page reads the mark off the records rather than asking the backend for a
- * list of its own — there is no such command — so what is on the list is
- * whatever the collection it reads carries.
- */
-export function video(shared: boolean): Video {
-  return {
-    id: 1,
-    path: '/movies/example.mp4',
-    file_name: 'example.mp4',
-    folder_path: '/movies',
-    file_size: 1024,
-    modified_at: 0,
-    duration_ms: 65000,
-    width: 1920,
-    height: 1080,
-    codec: 'h264',
-    thumbnail_path: null,
-    favorite: false,
-    shared,
-    play_count: 0,
-    last_played_at: null,
-    created_at: 0,
-    updated_at: 0,
-  };
-}
-
-/**
  * The state every test starts from: the backend has not been asked anything,
  * the window has not been asked to close, and the 共享清单 has something on it —
  * so that the tests that are not about an empty one are not all also testing
@@ -154,7 +133,7 @@ export function video(shared: boolean): Video {
  */
 export function resetSharePage(backend: Backend) {
   vi.mocked(backend).mockReset();
-  library.videos.data = [video(true)];
+  library.videos.data = [video({ shared: true })];
   windowMock.handler = undefined;
   windowMock.close.mockClear();
   vi.stubGlobal(
