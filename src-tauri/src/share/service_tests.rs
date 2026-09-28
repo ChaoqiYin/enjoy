@@ -343,3 +343,93 @@ fn a_request_for_something_outside_the_list_is_not_found() {
     assert_eq!(status(&get(port, &format!("/{shared}"))), 200);
     control.close(&credentials(), Vec::new());
 }
+
+#[test]
+fn a_player_can_jump_to_anywhere_in_a_video() {
+    // Seeking, from this side of the wire, is one request: a player dragged to a
+    // new position asks for the bytes from there, and the answer is only those
+    // bytes. All the shapes such a player sends are here, because the answer to
+    // "can it seek" is the answer to each of them and not to one of them.
+    let (fixture, control, port) = serving(&["Movies/开场.mp4"]);
+    let content = std::fs::read(path_of(&fixture, "Movies/开场.mp4")).unwrap();
+    let size = content.len();
+    let file = format!("/{}", encoded("开场.mp4"));
+    let ask = |range: &str| {
+        let response = request(port, "GET", &file, &format!("Range: {range}\r\n"));
+        (
+            status(&response),
+            head_of(&response).to_ascii_lowercase(),
+            body_of(&response),
+        )
+    };
+
+    // Somewhere in the middle, to the end: the ordinary seek.
+    let (code, head, body) = ask(&format!("bytes={}-", size - 7));
+    assert_eq!(code, 206, "{head}");
+    assert!(head.contains(&format!(
+        "content-range: bytes {}-{}/{size}",
+        size - 7,
+        size - 1
+    )));
+    assert_eq!(body, content[size - 7..]);
+    // Every one of them says it ranges, which is what a player reads once and
+    // then stops asking whether it may.
+    assert!(head.contains("accept-ranges: bytes"), "{head}");
+
+    // The last bytes, which is how a player reads an MP4 whose index sits at the
+    // end of the file rather than at the front: it has to fetch the tail before
+    // it can seek anywhere at all. A service that could not answer this one is a
+    // service whose videos cannot be scrubbed.
+    let (code, head, body) = ask("bytes=-5");
+    assert_eq!(code, 206, "{head}");
+    assert!(head.contains(&format!(
+        "content-range: bytes {}-{}/{size}",
+        size - 5,
+        size - 1
+    )));
+    assert_eq!(body, content[size - 5..]);
+
+    // The two ends, one byte each: how a player decides what it has hold of.
+    let (code, head, body) = ask("bytes=0-0");
+    assert_eq!(code, 206, "{head}");
+    assert!(head.contains(&format!("content-range: bytes 0-0/{size}")));
+    assert_eq!(body, &content[..1]);
+    let last = size - 1;
+    let (code, head, body) = ask(&format!("bytes={last}-{last}"));
+    assert_eq!(code, 206, "{head}");
+    assert!(head.contains(&format!("content-range: bytes {last}-{last}/{size}")));
+    assert_eq!(body, &content[last..]);
+
+    // Several ranges in one request, which some players send to pull a header and
+    // its table together. Answered as the protocol's multipart, one part per
+    // range.
+    let (code, head, body) = ask("bytes=0-3,8-9");
+    assert_eq!(code, 206, "{head}");
+    assert!(head.contains("multipart/byteranges"), "{head}");
+    let body = String::from_utf8_lossy(&body).into_owned();
+    assert!(
+        body.contains(&format!("Content-Range: bytes 0-3/{size}")),
+        "{body}"
+    );
+    assert!(
+        body.contains(&format!("Content-Range: bytes 8-9/{size}")),
+        "{body}"
+    );
+
+    // And a range with nothing in it — past the end, or backwards — is refused
+    // with the protocol's own answer, which tells the player how long the file
+    // really is so its next request can be a good one.
+    for range in [
+        format!("bytes={size}-{}", size + 100),
+        "bytes=5-2".to_string(),
+    ] {
+        let (code, head, body) = ask(&range);
+        assert_eq!(code, 416, "{range}: {head}");
+        assert!(
+            head.contains(&format!("content-range: bytes */{size}")),
+            "{head}"
+        );
+        assert!(body.is_empty(), "{range}");
+    }
+    control.close(&credentials(), Vec::new());
+}
