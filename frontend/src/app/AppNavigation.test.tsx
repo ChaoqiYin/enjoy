@@ -86,6 +86,32 @@ it('carries the words on the lamp itself, for a pointer rather than a reader', (
   expect(lamp.getAttribute('title')).toBe(english.sharingIndicator);
 });
 
+it('hangs the lamp on the label rather than in the row beside it', () => {
+  share.port = 4918;
+  navigation();
+  const lamp = sharingTab().querySelector('.bg-success')!;
+  // jsdom computes no styles, so this says where the lamp is put: a box of the
+  // label's own, with the lamp out of the flow at its top-right corner. A lamp
+  // in the row instead would be a sibling the tab has to make room for, and it
+  // would land at the middle of the text — the place a full stop goes.
+  expect(lamp.classList.contains('absolute')).toBe(true);
+  expect(lamp.classList.contains('size-2')).toBe(true);
+  // The outline is what the lamp is visible by on a light header, where the
+  // mint fill alone reads 1.96:1 against it — and it has to be a `border`: this
+  // project's stylesheet generates no `ring-*` rule at all, so the ring this
+  // started as was a declaration that painted nothing (measured against the
+  // served stylesheet). What is asserted here is the utility that exists; the
+  // contrast it buys is measured in the browser.
+  expect(lamp.classList.contains('border-success-content')).toBe(true);
+  expect(lamp.parentElement?.textContent).toBe(english.sharing);
+  // And the words are still part of the entry's own name, which is a child of
+  // the link rather than of the label's box.
+  expect(lamp.parentElement?.textContent).not.toContain(
+    english.sharingIndicator,
+  );
+  expect(sharingTab().textContent).toContain(english.sharingIndicator);
+});
+
 it('leaves the other entries alone while the service is running', () => {
   share.port = 4918;
   navigation();

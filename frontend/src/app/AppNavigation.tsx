@@ -32,16 +32,31 @@ export function AppNavigation() {
               `tab font-semibold ${isActive ? 'tab-active text-primary' : ''}`
             }
           >
-            {label}
-            {path === '/share' && sharing && (
-              <>
+            {/* The lamp hangs on the label's own box rather than sitting beside
+                it in the row: a dot in the row is one the tab has to make room
+                for, and it lands at the vertical middle of the text, which is
+                where a full stop goes rather than where a lamp hangs. The label
+                is given a box of its own to hang it from, and the lamp is taken
+                out of the flow at that box's top-right corner. */}
+            <span className="relative inline-block">
+              {label}
+              {path === '/share' && sharing && (
                 <span
-                  className="inline-block size-2.5 shrink-0 rounded-full bg-success"
+                  // 描边是量出来的，不是画着好看：`--color-success` 在两个主题
+                  // 下是同一个薄荷绿，白底上只有 1.96:1，而灯的全部作用就是被一眼
+                  // 看到。描边取同一对颜色里的深绿——亮色下由它撑起对比度
+                  // （10.4:1），暗色下由填充撑（8.08:1），两件颜色都出自
+                  // daisyUI 自己的那一对，没有另造一个绿。
+                  // `border` 而不是 `ring-1`：这个项目生成的样式表里没有
+                  // `ring-*` 的规则（量过），写了等于没写，灯还是看不出来。
+                  className="absolute top-0 -right-1 block size-2 rounded-full bg-success border border-success-content"
                   title={indicator}
                   aria-hidden="true"
                 />
-                <span className="sr-only">{indicator}</span>
-              </>
+              )}
+            </span>
+            {path === '/share' && sharing && (
+              <span className="sr-only">{indicator}</span>
             )}
           </NavLink>
         ))}
