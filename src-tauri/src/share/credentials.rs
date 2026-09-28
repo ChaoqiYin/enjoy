@@ -38,13 +38,11 @@
 //! side channel is a way of learning a password that was never sent, and every
 //! password that reaches here has been sent.
 
+use crate::error::AppError;
+use crate::preferences::{Backing, Preference, Preferences};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use http::HeaderValue;
-use tauri::AppHandle;
-
-use crate::error::AppError;
-use crate::preferences::{store, Preference};
 
 /// The user name every client signs in with.
 ///
@@ -83,13 +81,13 @@ impl Credentials {
     /// Asked for before the service is ever started, because the page that
     /// starts it shows the password: one that came into being when the port
     /// opened would be one the user could not write down first.
-    pub(crate) fn load(app: &AppHandle) -> Result<Self, AppError> {
-        let stored = store::open(app)?.read(Preference::SharePassword);
+    pub(crate) fn load(preferences: &Preferences<impl Backing>) -> Result<Self, AppError> {
+        let stored = preferences.read(Preference::SharePassword);
         // Nothing stored is not an empty password: it is the first run, and the
         // answer is a password of this application's making rather than one of
         // nobody's.
         if stored.is_empty() {
-            return Self::regenerate(app);
+            return Self::regenerate(preferences);
         }
         Ok(Self {
             username: USERNAME.to_string(),
@@ -101,9 +99,9 @@ impl Credentials {
     ///
     /// Kept through the preferences, so a write that cannot be made leaves the
     /// file holding a password that has served rather than one that never did.
-    pub(crate) fn regenerate(app: &AppHandle) -> Result<Self, AppError> {
+    pub(crate) fn regenerate(preferences: &Preferences<impl Backing>) -> Result<Self, AppError> {
         let credentials = Self::draw();
-        store::open(app)?.write(&[(Preference::SharePassword, &credentials.password)])?;
+        preferences.write(&[(Preference::SharePassword, &credentials.password)])?;
         Ok(credentials)
     }
 
@@ -186,6 +184,46 @@ mod tests {
             BASE64.encode(format!("{user}:{password}"))
         ))
         .unwrap()
+    }
+
+    /// The store a test keeps a password in.
+    fn store() -> crate::preferences::Preferences<crate::preferences::fixture::Memory> {
+        crate::preferences::Preferences::new(crate::preferences::fixture::Memory::new())
+    }
+
+    #[test]
+    fn the_first_run_draws_a_password_and_keeps_it() {
+        // Nothing stored is not an empty password: it is the first run, and what
+        // it leaves behind is a password a client can be told.
+        let preferences = store();
+        let drawn = Credentials::load(&preferences).unwrap();
+        assert_eq!(drawn.username, USERNAME);
+        assert_eq!(drawn.password.len(), LENGTH);
+        // Kept, so the next read is the same password rather than a new one —
+        // which is the whole reason this is stored at all.
+        assert_eq!(Credentials::load(&preferences).unwrap(), drawn);
+    }
+
+    #[test]
+    fn a_stored_password_is_the_one_in_force() {
+        let preferences = store();
+        let stored = Credentials::regenerate(&preferences).unwrap();
+        assert_eq!(Credentials::load(&preferences).unwrap(), stored);
+    }
+
+    #[test]
+    fn a_password_that_could_not_be_kept_is_not_the_one_in_force() {
+        // The write fails, so nothing was kept: the caller is told, and the
+        // preferences still hold nothing rather than a password that never
+        // reached a file.
+        let preferences =
+            crate::preferences::Preferences::new(crate::preferences::fixture::Memory::failing());
+        let refused = Credentials::regenerate(&preferences).unwrap_err();
+        assert_eq!(refused.code, "settings.save_failed");
+        assert_eq!(
+            preferences.read(crate::preferences::Preference::SharePassword),
+            ""
+        );
     }
 
     #[test]

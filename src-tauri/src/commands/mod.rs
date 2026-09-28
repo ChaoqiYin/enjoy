@@ -17,4 +17,6 @@ pub(crate) mod share;
 pub(crate) mod space;
 
 #[cfg(test)]
+mod share_tests;
+#[cfg(test)]
 mod space_tests;

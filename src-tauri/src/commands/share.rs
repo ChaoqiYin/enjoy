@@ -5,10 +5,25 @@ use tauri::{AppHandle, State};
 use crate::app::AppState;
 use crate::error::AppError;
 use crate::i18n::language;
+use crate::preferences::store;
 use crate::repository::lock_shared;
 use crate::share::addresses;
 use crate::share::credentials::Credentials;
 use crate::share::{ShareStatus, DEFAULT_PORT};
+
+/// The 共享清单 of the space a command names, read now.
+///
+/// One function for the three commands that read it, and the reason it is a
+/// function rather than the same two lines three times over is that this is
+/// where ADR 0012's rule lives: the list is the *named* space's, read at the
+/// moment of the call. A command that read it from somewhere else — the space
+/// the interface happens to be on, or the one a running service belongs to —
+/// would be serving something the user did not pick. Takes the state rather
+/// than a `State<'_, AppState>` so that a test can hold it to that
+/// (`share_tests.rs`).
+pub(crate) fn list_of(state: &AppState, space_id: i64) -> Result<Vec<String>, AppError> {
+    lock_shared(&state.repository)?.shared_paths(space_id)
+}
 
 /// Starts the 共享服务 on the port it is registered on, over the 共享清单 of the
 /// space the interface is showing.
@@ -38,8 +53,8 @@ pub(crate) fn open_share(
     state: State<'_, AppState>,
 ) -> Result<ShareStatus, AppError> {
     let language = language::current(&app)?;
-    let credentials = Credentials::load(&app)?;
-    let paths = lock_shared(&state.repository)?.shared_paths(space_id)?;
+    let credentials = Credentials::load(&store::open(&app)?)?;
+    let paths = list_of(&state, space_id)?;
     state.share.open(
         Some(DEFAULT_PORT),
         &language,
@@ -63,7 +78,7 @@ pub(crate) async fn close_share(
 ) -> Result<ShareStatus, AppError> {
     let share = Arc::clone(&state.share);
     tauri::async_runtime::spawn_blocking(move || {
-        let credentials = Credentials::load(&app)?;
+        let credentials = Credentials::load(&store::open(&app)?)?;
         Ok(share.close(&credentials, addresses::of_this_machine()))
     })
     .await
@@ -85,8 +100,8 @@ pub(crate) fn share_status(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<ShareStatus, AppError> {
-    let credentials = Credentials::load(&app)?;
-    let paths = lock_shared(&state.repository)?.shared_paths(space_id)?;
+    let credentials = Credentials::load(&store::open(&app)?)?;
+    let paths = list_of(&state, space_id)?;
     Ok(state
         .share
         .status(&credentials, addresses::of_this_machine(), &paths))
@@ -109,8 +124,8 @@ pub(crate) fn regenerate_share_password(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<ShareStatus, AppError> {
-    let credentials = Credentials::regenerate(&app)?;
-    let paths = lock_shared(&state.repository)?.shared_paths(space_id)?;
+    let credentials = Credentials::regenerate(&store::open(&app)?)?;
+    let paths = list_of(&state, space_id)?;
     Ok(state
         .share
         .status(&credentials, addresses::of_this_machine(), &paths))
