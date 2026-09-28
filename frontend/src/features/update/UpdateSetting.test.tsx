@@ -1,3 +1,8 @@
+// First, deliberately: the mocks below are registered above these imports, so
+// the doubles have to be in hand by the time a mocked module is first asked
+// for. Everything after this line is imported through the modules they stand
+// in for.
+import * as doubles from '../../test/doubles';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
@@ -5,16 +10,17 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { UpdateSetting } from './UpdateSetting';
 import english from '../../../../shared/locales/en/common.json';
 import errors from '../../../../shared/locales/en/errors.json';
-import type { ScanStatus } from '../../shared/api';
 import type { UpdateState } from './useUpdate';
 
-const { update, scan } = vi.hoisted(() => ({
+const { update } = vi.hoisted(() => ({
   update: {} as UpdateState,
-  // The one thing this section asks of the library, in the library's own words:
-  // whether a media task is holding the slot. It used to be said as a scan
-  // status whose phase the reader had to recognise.
-  scan: { isRunning: false },
 }));
+
+// The one thing this section asks of the library, in the library's own words:
+// whether a media task is holding the slot. It used to be said as a scan status
+// whose phase the reader had to recognise, and it is built from the scan
+// slice's own type rather than written out as the single key read here.
+const scan = doubles.scan();
 
 vi.mock('./UpdateProvider', () => ({
   useUpdateContext: () => update,

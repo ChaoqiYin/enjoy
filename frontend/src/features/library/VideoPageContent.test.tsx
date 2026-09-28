@@ -1,3 +1,8 @@
+// First, deliberately: the mocks below are registered above these imports, so
+// the doubles have to be in hand by the time a mocked module is first asked
+// for. Everything after this line is imported through the modules they stand
+// in for.
+import * as doubles from '../../test/doubles';
 import {
   cleanup,
   fireEvent,
@@ -8,7 +13,7 @@ import {
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { ScanStatus, Video } from '../../shared/api';
+import type { Video } from '../../shared/api';
 import { VideoPageContent } from './VideoPageContent';
 import type { useVideoPageView } from './useVideoPageView';
 import english from '../../../../shared/locales/en/common.json';
@@ -33,35 +38,32 @@ const video: Video = {
   updated_at: 0,
 };
 
-// One double per module the page reads. It reads five of them — the collection,
-// the scan, the in-flight counter, the notices, and what can be asked of a video
-// — and each is written out in its own vocabulary rather than through one
-// stand-in that has to know everything the library offers.
-const { collection, scan, notices, videoActions, busy, space } = vi.hoisted(
-  () => ({
-    collection: {
-      videos: { data: [] as Video[], isPending: false },
-      lastPlayedId: null as number | null,
-    },
-    scan: { status: undefined as ScanStatus | undefined },
-    notices: {
-      setError: vi.fn(),
-      copyHint: false,
-      showCopyHint: vi.fn(),
-      dismissCopyHint: vi.fn(),
-    },
-    videoActions: {
-      play: vi.fn(),
-      toggleFavorite: vi.fn(),
-      reveal: vi.fn(),
-      removeVideo: vi.fn(),
-      regenerateThumbnail: vi.fn(),
-      refreshInfo: vi.fn(),
-    },
-    busy: { busy: false },
-    space: { id: 1, name: 'Library' },
-  }),
-);
+// One double per module the page reads, built from that module's own declared
+// type rather than written out here: the page reads five of them — the
+// collection, the scan, the in-flight counter, the notices, and what can be
+// asked of a video — and a key one of those slices grows is a compile error in
+// `doubles`, not a test that quietly goes on passing.
+//
+// The functions under test are handed in as the test's own mocks, so what the
+// page did with them is observable without reaching through the interface for
+// it: a slice's type says a function is a function, which is all a caller needs
+// to know and not enough for an assertion.
+const setError = vi.fn();
+const showCopyHint = vi.fn();
+const actionMocks = {
+  play: vi.fn(),
+  toggleFavorite: vi.fn(),
+  reveal: vi.fn(),
+  removeVideo: vi.fn(),
+  regenerateThumbnail: vi.fn(),
+  refreshInfo: vi.fn(),
+};
+const collection = doubles.videos();
+const scan = doubles.scan();
+const notices = doubles.notices({ setError, showCopyHint });
+const videoActions = doubles.videoActions(actionMocks);
+const busy = doubles.busy();
+const space = doubles.space({ name: 'Library' });
 
 vi.mock('./useVideos', () => ({ useVideos: () => collection }));
 vi.mock('./useScan', () => ({ useScan: () => scan }));
@@ -95,19 +97,11 @@ beforeEach(async () => {
   collection.videos.isPending = false;
   scan.status = undefined;
   busy.busy = false;
-  notices.setError.mockReset();
-  notices.showCopyHint.mockReset();
+  setError.mockReset();
+  showCopyHint.mockReset();
   // What each action does with its argument is the library's business and is
   // covered where the library is; here they only have to be observable.
-  for (const action of [
-    videoActions.play,
-    videoActions.toggleFavorite,
-    videoActions.reveal,
-    videoActions.removeVideo,
-    videoActions.regenerateThumbnail,
-    videoActions.refreshInfo,
-  ])
-    action.mockReset();
+  for (const action of Object.values(actionMocks)) action.mockReset();
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -128,8 +122,7 @@ function page() {
   const view = {
     collectionKey: 'all',
     videos: collection.videos.data ?? [],
-    search: '',
-    folder: '',
+    filtered: false,
     clearFilters: () => {},
   } as unknown as ReturnType<typeof useVideoPageView>;
   return (

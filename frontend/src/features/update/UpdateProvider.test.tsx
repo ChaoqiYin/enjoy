@@ -1,3 +1,8 @@
+// First, deliberately: the mocks below are registered above these imports, so
+// the doubles have to be in hand by the time a mocked module is first asked
+// for. Everything after this line is imported through the modules they stand
+// in for.
+import * as doubles from '../../test/doubles';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import {
@@ -14,11 +19,20 @@ import { UpdateProvider, useUpdateContext } from './UpdateProvider';
 import english from '../../../../shared/locales/en/common.json';
 import errors from '../../../../shared/locales/en/errors.json';
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
-vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
-vi.mock('../library/useScan', () => ({
-  useScan: () => ({ isRunning: false }),
+// What this provider asks of the library: whether a media task is holding the
+// slot. Built from the scan slice's own type rather than written out as the one
+// key this test happens to read — the provider reads `isRunning`, and a slice
+// whose other two keys moved out from under it is not something this test
+// should have to notice on its own.
+const scan = doubles.scan();
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn(),
+  isTauri: () => true,
+  convertFileSrc: (path: string) => path,
 }));
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
+vi.mock('../library/useScan', () => ({ useScan: () => scan }));
 
 const i18n = createInstance();
 

@@ -1,3 +1,8 @@
+// First, deliberately: the mocks below are registered above these imports, so
+// the doubles have to be in hand by the time a mocked module is first asked
+// for. Everything after this line is imported through the modules they stand
+// in for.
+import * as doubles from '../test/doubles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createInstance } from 'i18next';
@@ -10,10 +15,11 @@ import { libraryApi } from '../shared/api';
 import { useLibraryView } from '../features/library/libraryView';
 import english from '../../../shared/locales/en/common.json';
 
-// What the pages read of the library, one double per module. Routing is what is
-// under test here, so each says "nothing interesting is happening" in its own
-// vocabulary rather than through one stand-in that has to know every key the
-// library has.
+// What the pages read of the library, one double per module — all seven of
+// them, because which page is on screen decides which are read. Each is built
+// from the slice's own type, so a key one of them grows is a compile error in
+// `doubles` rather than a route test that goes on passing without ever naming
+// the thing the new key describes.
 vi.mock('../features/library/LibraryProvider', () => ({
   // Nothing below reads the context: the seven modules it would feed are
   // doubled as well, so the provider is here only to keep the real queries and
@@ -23,59 +29,25 @@ vi.mock('../features/library/LibraryProvider', () => ({
   useLibraryContext: () => ({}),
 }));
 vi.mock('../features/library/useVideos', () => ({
-  useVideos: () => ({
-    videos: { data: [], isPending: false },
-    lastPlayedId: null,
-  }),
+  useVideos: () => doubles.videos(),
 }));
 vi.mock('../features/library/useScan', () => ({
-  useScan: () => ({
-    status: undefined,
-    isRunning: false,
-    controlScan: async () => {},
-  }),
+  useScan: () => doubles.scan(),
 }));
 vi.mock('../features/library/useNotices', () => ({
-  useNotices: () => ({
-    error: null,
-    retryError: undefined,
-    setError: () => {},
-    completion: null,
-    dismissCompletion: () => {},
-    copyHint: false,
-    showCopyHint: () => {},
-    dismissCopyHint: () => {},
-  }),
+  useNotices: () => doubles.notices(),
 }));
 vi.mock('../features/library/useBusy', () => ({
-  useBusy: () => ({ busy: false }),
+  useBusy: () => doubles.busy(),
 }));
 vi.mock('../features/library/useDirectories', () => ({
-  useDirectories: () => ({
-    directories: { data: [] },
-    addDirectories: async () => {},
-    removeDirectory: async () => {},
-    rescan: async () => {},
-    regenerateAllThumbnails: async () => {},
-  }),
+  useDirectories: () => doubles.directories(),
 }));
 vi.mock('../features/library/useSpaceCommands', () => ({
-  useSpaceCommands: () => ({
-    createSpace: async () => {},
-    renameSpace: async () => {},
-    removeSpace: async () => {},
-    switchSpace: async () => {},
-  }),
+  useSpaceCommands: () => doubles.spaceCommands(),
 }));
 vi.mock('../features/library/useVideoActions', () => ({
-  useVideoActions: () => ({
-    play: async () => {},
-    toggleFavorite: async () => {},
-    reveal: async () => {},
-    refreshInfo: async () => {},
-    regenerateThumbnail: async () => {},
-    removeVideo: async () => {},
-  }),
+  useVideoActions: () => doubles.videoActions(),
 }));
 vi.mock('../i18n/LanguageSetting', () => ({
   LanguageFocusSync: () => null,
