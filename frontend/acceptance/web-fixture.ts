@@ -12,15 +12,29 @@ import type {
 
 // Every space holds the same files, because that is what spaces are: the same
 // path is a different record in each of them (ADR 0011). What a space keeps for
-// itself is which of them the user favourited, and that is what this holds --
-// keyed by the space id the command carried, not by the one the fixture thinks
-// the interface is on. Answering the wrong space is the mistake this harness
-// exists to make visible, and it cannot make it visible while it corrects for it.
-const favorites = new Map<number, Set<number>>([[1, new Set([1])]]);
-function favoritesOf(spaceId: number) {
-  const held = favorites.get(spaceId) ?? new Set<number>();
-  favorites.set(spaceId, held);
+// itself is which of them the user marked, and it keeps two marks: a favorite,
+// and an entry on the 共享清单. Both are held the same way -- keyed by the space
+// id the command carried, not by the one the fixture thinks the interface is on.
+// Answering the wrong space is the mistake this harness exists to make visible,
+// and it cannot make it visible while it corrects for it.
+const marks = new Map<string, Set<number>>([['favorite:1', new Set([1])]]);
+function markedOf(kind: Marker, spaceId: number) {
+  const key = `${kind}:${spaceId}`;
+  const held = marks.get(key) ?? new Set<number>();
+  marks.set(key, held);
   return held;
+}
+
+/// The two marks a space can put on a record, named by the field the command
+/// carries them in, so one handler can serve both.
+type Marker = 'favorite' | 'shared';
+
+function markOn(kind: Marker, payload: Record<string, unknown>) {
+  const video = videos.find((video) => video.path === payload.path);
+  if (!video) return;
+  const held = markedOf(kind, Number(payload.spaceId));
+  if (Boolean(payload[kind])) held.add(video.id);
+  else held.delete(video.id);
 }
 
 const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
@@ -36,6 +50,7 @@ const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
   codec: 'h264',
   thumbnail_path: null,
   favorite: index === 0,
+  shared: false,
   play_count: 0,
   last_played_at: null,
   created_at: 1720000000000 + index,
@@ -212,10 +227,12 @@ mockIPC(
         return { ...currentSpace() };
       }
       case 'list_videos': {
-        const held = favoritesOf(Number(payload.spaceId));
+        const favorites = markedOf('favorite', Number(payload.spaceId));
+        const shared = markedOf('shared', Number(payload.spaceId));
         return videos.map((video) => ({
           ...video,
-          favorite: held.has(video.id),
+          favorite: favorites.has(video.id),
+          shared: shared.has(video.id),
         }));
       }
       case 'list_directories':
@@ -253,14 +270,10 @@ mockIPC(
           params: {},
           errorId: 'acceptance-open-failure',
         };
-      case 'set_favorite': {
-        const video = videos.find((video) => video.path === payload.path);
-        if (!video) return;
-        const held = favoritesOf(Number(payload.spaceId));
-        if (Boolean(payload.favorite)) held.add(video.id);
-        else held.delete(video.id);
-        return;
-      }
+      case 'set_favorite':
+        return markOn('favorite', payload);
+      case 'set_shared':
+        return markOn('shared', payload);
       case 'check_for_update':
         return { ...updateCheck };
       case 'install_update': {

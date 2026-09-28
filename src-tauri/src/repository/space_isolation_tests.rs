@@ -46,6 +46,24 @@ fn the_same_path_in_two_spaces_is_two_records_with_their_own_favorite() {
 }
 
 #[test]
+fn the_same_path_in_two_spaces_has_its_own_place_on_the_share_list() {
+    let (_fixture, repository, first, second) = two_spaces_holding_the_same_file();
+    let path = repository.list(first).unwrap()[0].path.clone();
+
+    // 共享清单 is a mark a space puts on a record it holds, so the two spaces
+    // hold two lists: the one path is on the first space's list and not on the
+    // second's, and the second can put it on its own without joining the first.
+    repository.share(first, &path, true).unwrap();
+    assert!(repository.list(first).unwrap()[0].shared);
+    assert!(!repository.list(second).unwrap()[0].shared);
+
+    repository.share(second, &path, true).unwrap();
+    repository.share(first, &path, false).unwrap();
+    assert!(!repository.list(first).unwrap()[0].shared);
+    assert!(repository.list(second).unwrap()[0].shared);
+}
+
+#[test]
 fn a_scan_of_one_space_leaves_the_other_alone() {
     let (fixture, mut repository, first, second) = two_spaces_holding_the_same_file();
     // The directory is still configured, but nothing was found under it this

@@ -40,6 +40,7 @@ fn main() {
             commands::library::remove_directory,
             commands::library::add_directory,
             commands::library::set_favorite,
+            commands::library::set_shared,
             commands::library::open_video,
             commands::space::current_space,
             commands::space::list_spaces,

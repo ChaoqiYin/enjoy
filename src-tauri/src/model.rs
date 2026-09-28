@@ -17,6 +17,10 @@ pub struct VideoFile {
     pub codec: Option<String>,
     pub thumbnail_path: Option<String>,
     pub favorite: bool,
+    /// 共享清单: whether this record is one of the videos the space offers over
+    /// the share service. Beside `favorite` because it is the same kind of
+    /// thing — a mark the user puts on a record the space already holds.
+    pub shared: bool,
     pub play_count: i64,
     pub last_played_at: Option<i64>,
     pub created_at: i64,

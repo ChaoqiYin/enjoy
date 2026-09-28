@@ -97,6 +97,7 @@ export function videoActions(
   return {
     play: vi.fn(async () => {}),
     toggleFavorite: vi.fn(async () => {}),
+    toggleShared: vi.fn(async () => {}),
     reveal: vi.fn(async () => {}),
     refreshInfo: vi.fn(async () => {}),
     regenerateThumbnail: vi.fn(async () => {}),

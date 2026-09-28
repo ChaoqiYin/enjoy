@@ -94,6 +94,7 @@ export function VideoPageContent({
   const actions = {
     play: videoActions.play,
     favorite: videoActions.toggleFavorite,
+    share: videoActions.toggleShared,
     reveal: videoActions.reveal,
     remove: (video: Video) => {
       setDetailsOpen(false);

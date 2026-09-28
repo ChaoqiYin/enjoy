@@ -122,6 +122,8 @@ export function useLibrary(): Library {
     });
   const toggleFavorite = (video: Video) =>
     run(() => libraryApi.favorite(spaceId, video.path, !video.favorite));
+  const toggleShared = (video: Video) =>
+    run(() => libraryApi.shared(spaceId, video.path, !video.shared));
   const reveal = (video: Video) => run(() => libraryApi.reveal(video.path));
   const refreshInfo = (video: Video) =>
     run(() => libraryApi.refreshInfo(spaceId, video.path));
@@ -248,6 +250,7 @@ export function useLibrary(): Library {
     videoActions: {
       play,
       toggleFavorite,
+      toggleShared,
       reveal,
       refreshInfo,
       regenerateThumbnail,

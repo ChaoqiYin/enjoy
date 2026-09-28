@@ -56,6 +56,15 @@ export function VideoMenu({
       action: actions.favorite,
       disabled: busy,
     },
+    // Beside the favorite, because it is the same gesture on the same kind of
+    // mark: one item whose words follow the state rather than two that stand
+    // side by side, and the state it follows is the record's, so the item reads
+    // the list the video is already on.
+    {
+      key: target.video.shared ? 'unshare' : 'share',
+      action: actions.share,
+      disabled: busy,
+    },
     { key: 'reveal', action: actions.reveal, disabled: busy },
     { key: 'regenerate', action: actions.regenerate, disabled: busy },
     { key: 'removeIndex', action: actions.remove, disabled: busy },

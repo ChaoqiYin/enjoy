@@ -20,6 +20,7 @@ fn rescan_preserves_identity_and_playback_after_reopen() {
         .index(space, root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
     repository.favorite(space, path, true).unwrap();
+    repository.share(space, path, true).unwrap();
     repository.record_play(space, path).unwrap();
     let before = repository.list(space).unwrap().remove(0);
     drop(repository);
@@ -35,6 +36,10 @@ fn rescan_preserves_identity_and_playback_after_reopen() {
     assert_eq!(before.created_at, after.created_at);
     assert_eq!(before.updated_at, after.updated_at);
     assert!(after.favorite);
+    // 共享清单 rides on the record the same way a favorite does, so it is
+    // carried the same way: the rescan between the two reads rewrites every
+    // media column and must leave both marks where they were.
+    assert!(after.shared);
     assert_eq!(after.play_count, 1);
     assert_eq!(after.last_played_at, before.last_played_at);
     assert_eq!(repository.directories(space).unwrap(), vec![root]);

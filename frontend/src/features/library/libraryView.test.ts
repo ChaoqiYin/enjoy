@@ -15,6 +15,7 @@ const base: Video = {
   codec: null,
   thumbnail_path: null,
   favorite: true,
+  shared: false,
   play_count: 1,
   last_played_at: 10,
   created_at: 30,

@@ -32,6 +32,7 @@ const video: Video = {
   codec: 'h264',
   thumbnail_path: null,
   favorite: false,
+  shared: false,
   play_count: 0,
   last_played_at: null,
   created_at: 0,

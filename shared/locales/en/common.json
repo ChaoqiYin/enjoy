@@ -48,6 +48,8 @@
   "play": "Play",
   "lastPlayedMarker": "Last played",
   "unfavorite": "Remove favorite",
+  "share": "Add to share list",
+  "unshare": "Remove from share list",
   "reveal": "Open containing folder",
   "removeIndex": "Remove from index",
   "closeDetails": "Close details",

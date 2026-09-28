@@ -17,6 +17,8 @@ export interface Video {
   codec: string | null;
   thumbnail_path: string | null;
   favorite: boolean;
+  /** 共享清单: one of the videos this space offers over the share service. */
+  shared: boolean;
   play_count: number;
   last_played_at: number | null;
   created_at: number;
@@ -155,6 +157,11 @@ export const libraryApi = {
     invoke<void>('scan_action', { action }),
   favorite: (spaceId: number, path: string, favorite: boolean) =>
     invoke<void>('set_favorite', { spaceId, path, favorite }),
+  // A mark on a record, as a favorite is, so it is addressed and answered the
+  // same way. Which videos it marks is the space's business; what it means is
+  // the share service's.
+  shared: (spaceId: number, path: string, shared: boolean) =>
+    invoke<void>('set_shared', { spaceId, path, shared }),
   remove: (spaceId: number, path: string) =>
     invoke<void>('remove_video', { spaceId, path }),
   removeDirectory: (spaceId: number, path: string) =>

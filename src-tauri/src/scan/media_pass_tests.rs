@@ -31,6 +31,7 @@ fn video(name: &str) -> VideoFile {
         codec: None,
         thumbnail_path: None,
         favorite: false,
+        shared: false,
         play_count: 0,
         last_played_at: None,
         created_at: 0,

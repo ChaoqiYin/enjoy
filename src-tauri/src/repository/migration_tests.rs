@@ -39,6 +39,59 @@ fn write_legacy_library(database: &Path, legacy: &[&str], version: i64) {
         .unwrap();
 }
 
+/// Writes the shape version 5 shipped: the same tables, with the `spaces` table
+/// the version before it gained, and no `shared` column anywhere.
+///
+/// Two spaces hold the same path as two records, which is what the upgrade has
+/// to get right. A copy that reached for a space of its own — the way the older
+/// upgrade's does, because the shape it reads has none — would land every row
+/// in the first space and look, to a test that only counted records, exactly
+/// like a copy that carried them across.
+fn write_version_5_library(database: &Path) {
+    let connection = rusqlite::Connection::open(database).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE spaces (
+                id INTEGER PRIMARY KEY, name TEXT NOT NULL,
+                created_at INTEGER NOT NULL, current INTEGER NOT NULL DEFAULT 0);
+             CREATE UNIQUE INDEX spaces_name ON spaces(name COLLATE NOCASE);
+             CREATE TABLE videos (
+                id INTEGER PRIMARY KEY,
+                space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+                path TEXT NOT NULL, file_name TEXT NOT NULL, folder_path TEXT NOT NULL,
+                file_size INTEGER NOT NULL, modified_at INTEGER NOT NULL,
+                media_complete INTEGER NOT NULL DEFAULT 0,
+                duration_ms INTEGER, width INTEGER, height INTEGER, codec TEXT,
+                thumbnail_path TEXT, favorite INTEGER NOT NULL DEFAULT 0,
+                play_count INTEGER NOT NULL DEFAULT 0, last_played_at INTEGER,
+                created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+                UNIQUE(space_id, path));
+             CREATE TABLE directories (
+                space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+                path TEXT NOT NULL, PRIMARY KEY(space_id, path));
+             CREATE TABLE directory_videos (
+                space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+                directory_path TEXT NOT NULL,
+                video_id INTEGER REFERENCES videos(id) ON DELETE CASCADE,
+                PRIMARY KEY(space_id, directory_path, video_id),
+                FOREIGN KEY(space_id, directory_path)
+                    REFERENCES directories(space_id, path) ON DELETE CASCADE);
+             INSERT INTO spaces (id,name,created_at,current)
+                VALUES (1,'Movies',10,0),(2,'Archive',11,1);
+             INSERT INTO videos (id,space_id,path,file_name,folder_path,file_size,modified_at,
+                media_complete,duration_ms,width,height,codec,thumbnail_path,
+                favorite,play_count,last_played_at,created_at,updated_at)
+             VALUES (1,1,'/movies/kept.mp4','kept.mp4','/movies',10,20,
+                1,500,160,90,'h264','cached.jpg',1,3,7,30,40),
+                (2,2,'/movies/kept.mp4','kept.mp4','/movies',10,20,
+                1,500,160,90,'h264','cached.jpg',0,1,5,31,41);
+             INSERT INTO directories VALUES (1,'/movies'),(2,'/movies');
+             INSERT INTO directory_videos VALUES (1,'/movies',1),(2,'/movies',2);
+             PRAGMA user_version=5;",
+        )
+        .unwrap();
+}
+
 fn version_of(database: &Path) -> i64 {
     let connection = rusqlite::Connection::open(database).unwrap();
     connection
@@ -115,7 +168,7 @@ fn a_version_4_database_becomes_the_first_space_and_keeps_everything_it_held() {
     assert_eq!(space.name, "默认空间");
     assert_eq!(space.id, 1);
     assert_library_survived(&repository, space.id);
-    assert_eq!(version_of(&database), 5);
+    assert_eq!(version_of(&database), 6);
     drop(repository);
     // Opening it again finds the current version and touches nothing.
     let repository = Repository::open(&database, "Ignored").unwrap();
@@ -132,7 +185,7 @@ fn a_version_3_database_is_carried_forward_and_loses_the_hash_column() {
     let repository = Repository::open(&database, "First").unwrap();
     let space = repository.current_space().unwrap();
     assert_library_survived(&repository, space.id);
-    assert_eq!(version_of(&database), 5);
+    assert_eq!(version_of(&database), 6);
     assert!(!column_present(&database, "videos", "file_md5"));
 }
 
@@ -144,7 +197,7 @@ fn a_version_2_database_is_carried_forward_and_loses_both_legacy_columns() {
     let repository = Repository::open(&database, "First").unwrap();
     let space = repository.current_space().unwrap();
     assert_library_survived(&repository, space.id);
-    assert_eq!(version_of(&database), 5);
+    assert_eq!(version_of(&database), 6);
     assert!(!column_present(&database, "videos", "file_md5"));
     assert!(!column_present(&database, "videos", "available"));
 }
@@ -160,7 +213,7 @@ fn a_database_whose_version_lags_behind_its_columns_still_opens() {
     let repository = Repository::open(&database, "First").unwrap();
     let space = repository.current_space().unwrap();
     assert_library_survived(&repository, space.id);
-    assert_eq!(version_of(&database), 5);
+    assert_eq!(version_of(&database), 6);
 }
 
 #[test]
@@ -182,4 +235,73 @@ fn a_rebuilt_database_keeps_writes_made_after_the_upgrade() {
     assert_eq!(rows.len(), 1);
     assert!(!rows[0].favorite);
     assert_eq!(rows[0].play_count, 3);
+}
+
+#[test]
+fn a_version_5_database_keeps_its_spaces_and_arrives_unshared() {
+    let fixture = Fixture::new();
+    let database = fixture.0.join("library.db");
+    write_version_5_library(&database);
+    // The name is not read: this library already has its spaces, so none is
+    // created and there is nothing to name.
+    let repository = Repository::open(&database, "Ignored").unwrap();
+    assert_eq!(version_of(&database), 6);
+
+    let spaces = repository.spaces().unwrap();
+    let space_named = |name: &str| {
+        spaces
+            .iter()
+            .find(|space| space.name == name)
+            .unwrap_or_else(|| panic!("no space named {name}"))
+            .id
+    };
+    let movies = space_named("Movies");
+    let archive = space_named("Archive");
+    assert_eq!(repository.current_space().unwrap().id, archive);
+    assert_eq!(repository.directories(movies).unwrap(), vec!["/movies"]);
+
+    // Each record is still in the space it was in, so the two records of one
+    // path differ exactly as they did. This is the assertion a copy that put
+    // every row under the first space could not survive: it would leave the
+    // archive empty and hand its play count to the other record.
+    let one = repository.list(movies).unwrap();
+    let other = repository.list(archive).unwrap();
+    assert_eq!((one.len(), other.len()), (1, 1));
+    assert_eq!(one[0].path, other[0].path);
+    assert_ne!(one[0].id, other[0].id);
+    assert!(one[0].favorite);
+    assert_eq!(one[0].play_count, 3);
+    assert_eq!(one[0].thumbnail_path.as_deref(), Some("cached.jpg"));
+    assert!(!other[0].favorite);
+    assert_eq!(other[0].play_count, 1);
+
+    // The column arrived, and every record in the library arrived off the list:
+    // the upgrade has no way to know which videos the user would have picked,
+    // and a record that guessed would be a share nobody asked for.
+    assert!(column_present(&database, "videos", "shared"));
+    assert!(!one[0].shared && !other[0].shared);
+}
+
+#[test]
+fn a_version_5_database_can_be_written_to_after_the_upgrade() {
+    let fixture = Fixture::new();
+    let database = fixture.0.join("library.db");
+    write_version_5_library(&database);
+    let repository = Repository::open(&database, "Ignored").unwrap();
+    let space = repository.current_space().unwrap().id;
+    repository.share(space, "/movies/kept.mp4", true).unwrap();
+    drop(repository);
+
+    let repository = Repository::open(&database, "Ignored").unwrap();
+    let rows = repository.list(space).unwrap();
+    assert_eq!(rows.len(), 1);
+    assert!(rows[0].shared);
+    assert_eq!(rows[0].play_count, 1);
+    // The membership rows reference `videos`, and the migration drops the tables
+    // it renamed aside. Removing the record is a write that reaches those rows
+    // through the reference, so a rebuild that left one of them pointing at a
+    // table that is no longer there fails on this line rather than passing
+    // unnoticed — which is the failure the read above cannot see.
+    repository.remove(space, "/movies/kept.mp4").unwrap();
+    assert!(repository.list(space).unwrap().is_empty());
 }
