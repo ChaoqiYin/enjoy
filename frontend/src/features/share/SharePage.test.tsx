@@ -19,7 +19,7 @@ import { ShareProvider } from './ShareProvider';
 import { SharePage } from '../../pages/SharePage';
 import english from '../../../../shared/locales/en/common.json';
 import errors from '../../../../shared/locales/en/errors.json';
-import type { Device, ShareStatus } from '../../shared/api';
+import type { Address, Device, ShareStatus } from '../../shared/api';
 
 // The chrome the page sits in asks the library two things — whether a pass is
 // running, and what the library has to say. Neither is what this file is about,
@@ -73,6 +73,17 @@ function status(overrides: Partial<ShareStatus> = {}): ShareStatus {
     password: 'sample-passw0rd',
     needsRestart: false,
     devices: [],
+    addresses: [],
+    ...overrides,
+  };
+}
+
+/** An address this machine would be reached at. */
+function address(overrides: Partial<Address> = {}): Address {
+  return {
+    interface: 'Wi-Fi',
+    address: '192.168.1.5',
+    loopback: false,
     ...overrides,
   };
 }
@@ -149,7 +160,12 @@ it('offers to start the service, and shows the port it ended up on', async () =>
   expect(
     await screen.findByRole('button', { name: english.stopSharing }),
   ).toBeTruthy();
-  expect(screen.getByText(english.sharingOn)).toBeTruthy();
+  // The port the backend ended up on, and not the one it was asked for: this
+  // test answers with 4918 through a fixture and a different one through the
+  // status, and what is on screen is the one the service is really on.
+  expect(
+    screen.getByText(english.sharingOn.replace('{{port}}', '4918')),
+  ).toBeTruthy();
 });
 
 it('ends a service that is running', async () => {
@@ -172,7 +188,7 @@ it('says so, beside the reference, when the service cannot start', async () => {
     if (command === 'share_status') return status();
     throw {
       code: 'share.port.in_use',
-      params: { port: '4918' },
+      params: { port: '4918', count: '10' },
       errorId: 'err_test',
     };
   }) as never);
@@ -184,7 +200,11 @@ it('says so, beside the reference, when the service cannot start', async () => {
   // and it names the reference the log is searched by.
   expect(await screen.findByText(english.operationFailed)).toBeTruthy();
   expect(
-    screen.getByText(errors['share.port.in_use'].replace('{{port}}', '4918')),
+    screen.getByText(
+      errors['share.port.in_use']
+        .replace('{{port}}', '4918')
+        .replace('{{count}}', '10'),
+    ),
   ).toBeTruthy();
   // Nothing started, so the interface is still offering to start.
   expect(
@@ -251,6 +271,79 @@ it('says a running service is behind a password that has been replaced', async (
   expect(await screen.findByText(english.passwordRestartNeeded)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: english.showPassword }));
   expect(screen.getByText('doubloons6789')).toBeTruthy();
+});
+
+it('shows the address the service is really on, and copies it', async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  setClipboard(writeText);
+  backend({
+    // A port other than the one the service asks for, which is what the
+    // interface has to be able to show: the address it offers is the one that
+    // works, and 4918 is what was wanted rather than what was taken.
+    share_status: status({ port: 4919, addresses: [address()] }),
+  });
+  page();
+  // The address and the port together, in the spelling a client is given: the
+  // trailing slash is how the protocol says this is a collection to browse.
+  const url = 'http://192.168.1.5:4919/';
+  expect(await screen.findByText(url)).toBeTruthy();
+  expect(
+    screen.getByText(english.sharingOn.replace('{{port}}', '4919')),
+  ).toBeTruthy();
+  // The interface name is what tells two plausible-looking addresses apart on a
+  // machine with a virtual adapter.
+  expect(screen.getByText('Wi-Fi')).toBeTruthy();
+
+  fireEvent.click(
+    screen.getByRole('button', { name: `${english.copyAddress}: ${url}` }),
+  );
+  await waitFor(() => expect(writeText).toHaveBeenCalledWith(url));
+  expect(notices.setError).not.toHaveBeenCalled();
+});
+
+it('marks the address that cannot reach a television', async () => {
+  backend({
+    share_status: status({
+      port: 4918,
+      addresses: [
+        address(),
+        address({
+          interface: 'Loopback',
+          address: '127.0.0.1',
+          loopback: true,
+        }),
+      ],
+    }),
+  });
+  page();
+  const rows = await screen.findAllByRole('listitem');
+  // The order is the backend's, and the mark is on the last row: the machine
+  // talking to itself, which a user copying down the list would be most likely
+  // to take by mistake.
+  expect(rows[0].textContent).toContain('192.168.1.5');
+  expect(rows[0].textContent).not.toContain(english.addressLoopback);
+  expect(rows[1].textContent).toContain('http://127.0.0.1:4918/');
+  expect(rows[1].textContent).toContain(english.addressLoopback);
+});
+
+it('says what to do instead of showing addresses while nothing is running', async () => {
+  backend({ share_status: status({ addresses: [address()] }) });
+  page();
+  // Nothing is running, so there is no port to put on an address: the block
+  // explains itself rather than listing addresses that lead nowhere.
+  expect(await screen.findByText(english.connectionIdle)).toBeTruthy();
+  expect(screen.queryByText('http://192.168.1.5:4918/')).toBeNull();
+  // And the credentials are there anyway, which is the reason the block is
+  // drawn at all in this state: a user can set the television up first.
+  expect(screen.getByText('enjoy')).toBeTruthy();
+});
+
+it('says so when the machine has no address to offer', async () => {
+  backend({ share_status: status({ port: 4918, addresses: [] }) });
+  page();
+  // Every adapter down: a heading with nothing under it is the one thing this
+  // block must not be.
+  expect(await screen.findByText(english.connectionNoAddress)).toBeTruthy();
 });
 
 it('lists the devices that have asked for something, and how long ago', async () => {

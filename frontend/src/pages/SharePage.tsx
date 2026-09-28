@@ -45,23 +45,34 @@ export function SharePage() {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [running]);
-  const copyPassword = async () => {
+  const copy = async (text: string) => {
     if (!navigator.clipboard) {
       notices.setError(clientError('app.clipboard.failed'));
       return;
     }
     try {
-      await navigator.clipboard.writeText(share.password);
+      await navigator.clipboard.writeText(text);
       notices.showCopyHint();
     } catch {
       notices.setError(clientError('app.clipboard.failed'));
     }
   };
+  // What goes on the clipboard, and what the row shows: the address the machine
+  // is on with the port the service actually took, which is not always the one
+  // it asked for. The trailing slash is the protocol's own way of saying this
+  // is a collection to browse rather than a file to fetch, and a client that is
+  // given the address without it may try to treat the root as one.
+  const url = (address: string) => `http://${address}:${share.port}/`;
   return (
     <PageFrame>
       <ScrollViewport className="min-h-0 space-y-4">
         <h1 className="text-3xl font-bold">{t('sharing')}</h1>
-        <p>{running ? t('sharingOn') : t('sharingOff')}</p>
+        {/* The port is named here and not only in the addresses below, because
+            the port is the fact that can be surprising: 4918 is what the
+            service asks for, and what it ends up on is whatever was free. */}
+        <p>
+          {running ? t('sharingOn', { port: share.port }) : t('sharingOff')}
+        </p>
         {/* One button rather than two, as the favorite is one menu entry: the
             service is either running or it is not, and the label says which
             way this one moves it. Starting is the application's own primary
@@ -78,12 +89,61 @@ export function SharePage() {
         >
           {running ? t('stopSharing') : t('startSharing')}
         </button>
-        {/* Shown whether or not the service is running, and that is the point of
-            it: the password is drawn the first time the interface asks for it,
-            so a user can write it down, or type it into a television, before
-            anything is answering. */}
+        {/* Everything a user has to type into the television, in one place:
+            the address to enter, the user name, and the password. It is shown
+            whether or not the service is running, and that is the point of it —
+            the password is drawn the first time the interface asks for it, so
+            it can be written down, or typed into a television, before anything
+            is answering, and the block is never an empty heading. */}
         <div className="space-y-3">
-          <p className="text-sm opacity-70">{t('credentialsHelp')}</p>
+          <h2 className="text-xl font-semibold">{t('connectionTitle')}</h2>
+          {running ? (
+            <>
+              <p className="text-sm opacity-70">{t('connectionRunning')}</p>
+              {/* An address is the machine's, so this is the one case where the
+                  block has nothing to show: every network adapter is down, and
+                  there is nothing to type. Said in as many words rather than
+                  left as an empty list. */}
+              {share.addresses.length === 0 ? (
+                <p className="text-sm opacity-70">{t('connectionNoAddress')}</p>
+              ) : (
+                <ul className="space-y-1">
+                  {share.addresses.map((address) => (
+                    <li
+                      key={`${address.interface}:${address.address}`}
+                      className="flex items-center gap-3"
+                    >
+                      <code className="select-all">{url(address.address)}</code>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        // The label of the button is the same on every row; its
+                        // accessible name is not, so that a screen reader — and
+                        // a test — can tell one row's copy from another's.
+                        aria-label={`${t('copyAddress')}: ${url(address.address)}`}
+                        onClick={() => void copy(url(address.address))}
+                      >
+                        {t('copyAddress')}
+                      </button>
+                      <span className="text-sm opacity-70">
+                        {address.interface}
+                      </span>
+                      {/* The one address on the list that works here and
+                          nowhere else. Marked for the same reason it is sorted
+                          last: it is the one most likely to be tried by
+                          mistake. */}
+                      {address.loopback && (
+                        <span className="text-sm text-warning">
+                          {t('addressLoopback')}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
+            <p className="text-sm opacity-70">{t('connectionIdle')}</p>
+          )}
           <div className="flex items-center gap-3">
             <span className="w-24 text-sm opacity-70">{t('username')}</span>
             <code className="select-all">{share.username}</code>
@@ -106,7 +166,7 @@ export function SharePage() {
             </button>
             <button
               className="btn btn-ghost btn-sm"
-              onClick={() => void copyPassword()}
+              onClick={() => void copy(share.password)}
             >
               {t('copyPassword')}
             </button>

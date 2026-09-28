@@ -87,6 +87,23 @@ const listedDevices = [
   { address: '192.168.1.31', name: null, lastSeen: startedAt - 42_000 },
 ];
 
+/**
+ * The addresses this machine would be reached at, in the order the backend puts
+ * them in: the one a router handed out first, the machine talking to itself
+ * last and marked. Three of them, so that a walkthrough sees a list rather than
+ * a line — including one that looks like a local network and is a virtual
+ * adapter, which is the case the interface name is there for.
+ */
+const machineAddresses = [
+  { interface: '以太网', address: '192.168.50.91', loopback: false },
+  { interface: 'vEthernet (WSL)', address: '172.20.0.1', loopback: false },
+  {
+    interface: 'Loopback Pseudo-Interface 1',
+    address: '127.0.0.1',
+    loopback: true,
+  },
+];
+
 function share() {
   return {
     port: sharePort,
@@ -95,6 +112,7 @@ function share() {
     password: sharePassword,
     needsRestart: sharePort !== null && served !== sharePassword,
     devices: sharePort === null ? [] : listedDevices,
+    addresses: sharePort === null ? [] : machineAddresses,
   };
 }
 // The acceptance fixture stands in for the backend, so the space rules are

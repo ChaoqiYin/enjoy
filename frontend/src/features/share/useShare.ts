@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { shareApi } from '../../shared/api';
-import type { AppError, Device, ShareStatus } from '../../shared/api';
+import type { Address, AppError, Device, ShareStatus } from '../../shared/api';
 import { useCommand } from '../../shared/useCommand';
 import { useSpace } from '../space/SpaceProvider';
 
@@ -42,6 +42,8 @@ export type Share = {
   needsRestart: boolean;
   /** The clients heard from in the last minute, most recent first. */
   devices: Device[];
+  /** Where this machine can be reached, most likely to be the one to use first. */
+  addresses: Address[];
   busy: boolean;
   /** The last failure, or null. Where it is shown is the provider's business. */
   error: AppError | null;
@@ -107,6 +109,7 @@ export function useShare(): Share {
     password: status?.password ?? '',
     needsRestart: status?.needsRestart ?? false,
     devices: status?.devices ?? [],
+    addresses: status?.addresses ?? [],
     busy,
     error: command.failure?.error ?? null,
     dismissError: command.dismissFailure,

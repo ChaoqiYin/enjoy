@@ -62,6 +62,13 @@ bytes="1"
 # out -- and this is the one string where that matters. It arrives through
 # `tauri`, so declaring it adds no new version line either.
 getrandom="0.3"
+# The machine's own addresses, for the page that tells the user what to type
+# into the television. New here rather than already in the tree, and there is
+# nothing to derive them from: the operating system is the only thing that knows
+# which interfaces exist, and asking it means `GetAdaptersAddresses` on Windows
+# and `getifaddrs` elsewhere -- the two platform branches this crate is, in a
+# hundred lines, with the unsafe in its own code rather than ours.
+if-addrs="0.15"
 
 [dev-dependencies]
 # Only for the signature tests, which have to bring a key of their own: a valid

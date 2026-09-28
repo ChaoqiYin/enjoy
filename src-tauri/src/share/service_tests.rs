@@ -1,181 +1,22 @@
-//! The service as a device on the network meets it: a socket, a request written
-//! out by hand, and the bytes that come back.
+//! What the service answers, over a real connection.
 //!
-//! Nothing here goes through the application. What it is checking is exactly
-//! what cannot be checked from inside — that the port is really open, that a
-//! browser and a WebDAV client are really given different answers on the same
-//! path, that a client without the password is really refused and a client with
-//! it really served, that a range request really comes back as a slice, that the
-//! write methods really do nothing to the disk, and that ending the service
-//! really gives the port back.
-//!
-//! This is also the only place a claim about the WebDAV library itself can be
-//! made: it is somebody else's understanding of the protocol, and the only way
-//! to observe it is to speak the protocol to it.
+//! Every test here writes a request out by hand and reads the bytes back, using
+//! the harness in [`super::harness`] for the socket and for a service to talk
+//! to. Nothing goes through the application: what is being checked is the
+//! protocol as a device on the network meets it.
 
-use std::io::{Read, Write};
-use std::net::{IpAddr, Ipv4Addr, TcpStream};
+use std::net::TcpStream;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 
-use crate::repository::fixture::Fixture;
-
 use super::control::ShareControl;
-use super::credentials::{Credentials, USERNAME};
+use super::credentials::USERNAME;
 use super::fixture::{encoded, listing, path_of};
-
-/// The password every service here is started under, and every client connects
-/// with.
-///
-/// A value the test names rather than one the backend draws, because the point
-/// of the tests below is a client that has been told the password and one that
-/// has not: a drawn password would have to be read back out of the service to be
-/// offered to it, and the request that offered it would then be the only thing
-/// saying what it was.
-fn password() -> String {
-    "treasure".to_string()
-}
-
-fn credentials() -> Credentials {
-    Credentials {
-        username: USERNAME.to_string(),
-        password: password(),
-    }
-}
-
-/// The credential header a client that knows the password sends.
-fn authorization() -> String {
-    format!(
-        "Authorization: Basic {}",
-        BASE64.encode(format!("{}:{}", USERNAME, password()))
-    )
-}
-
-/// One request over a real connection, read back to the last byte.
-///
-/// `Connection: close` is what makes reading to the end the right way to read
-/// the answer: the server closes the connection when it is done, and until then
-/// there is nothing to say it is finished.
-fn ask(port: u16, request: &str) -> Vec<u8> {
-    let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
-    stream.write_all(request.as_bytes()).unwrap();
-    let mut response = Vec::new();
-    stream.read_to_end(&mut response).unwrap();
-    response
-}
-
-/// A request from a client that has been told the password, which is what every
-/// test that is not about the password is asking as. The ones that are call
-/// `ask` directly, so that what they send is visibly a request with nothing
-/// added to it.
-fn request(port: u16, method: &str, path: &str, headers: &str) -> Vec<u8> {
-    ask(
-        port,
-        &format!(
-            "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\
-             {}\r\n{headers}\r\n",
-            authorization()
-        ),
-    )
-}
-
-fn get(port: u16, path: &str) -> Vec<u8> {
-    request(port, "GET", path, "")
-}
-
-/// A request carrying exactly the headers it is given, with nothing added and
-/// no credential of its own: how a client that got the password wrong offers it,
-/// and how a test sends a request no helper has had a hand in.
-fn raw_request(port: u16, method: &str, path: &str, headers: &str) -> Vec<u8> {
-    ask(
-        port,
-        &format!(
-            "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\
-             {headers}\r\n"
-        ),
-    )
-}
-
-/// Everything above the blank line, as text.
-fn head_of(response: &[u8]) -> String {
-    let end = split_at(response).0;
-    String::from_utf8_lossy(&response[..end]).into_owned()
-}
-
-/// The status line's number.
-fn status(response: &[u8]) -> u16 {
-    head_of(response)
-        .split_whitespace()
-        .nth(1)
-        .and_then(|code| code.parse().ok())
-        .expect("a response begins with a status line")
-}
-
-/// The body, with the chunk framing taken off if the server chose to use it.
-///
-/// A file has no length the handler can promise in advance, so hyper sends it
-/// chunked; a page it can, so it does not. Both arrive here, and putting the
-/// bytes back together is a dozen lines against one fewer assumption about what
-/// the server decided to do.
-fn body_of(response: &[u8]) -> Vec<u8> {
-    let (end, body) = split_at(response);
-    if !head_of(response)
-        .to_ascii_lowercase()
-        .contains("transfer-encoding: chunked")
-    {
-        return response[end..].to_vec();
-    }
-    let mut rest = body;
-    let mut out = Vec::new();
-    loop {
-        let line = rest
-            .windows(2)
-            .position(|window| window == b"\r\n")
-            .expect("a chunk begins with its length");
-        let size = usize::from_str_radix(String::from_utf8_lossy(&rest[..line]).trim(), 16)
-            .expect("a chunk length is hexadecimal");
-        rest = &rest[line + 2..];
-        if size == 0 {
-            return out;
-        }
-        out.extend_from_slice(&rest[..size]);
-        rest = &rest[size + 2..];
-    }
-}
-
-/// Where the headers end, and the body starts.
-fn split_at(response: &[u8]) -> (usize, &[u8]) {
-    let end = response
-        .windows(4)
-        .position(|window| window == b"\r\n\r\n")
-        .expect("a response has a blank line between its headers and its body")
-        + 4;
-    (end, &response[end..])
-}
-
-/// A service over nothing, for the answers that are not about the list.
-fn started(language: &str) -> (ShareControl, u16) {
-    serving_from(Vec::new(), language)
-}
-
-/// A service over a real list, and the directory the files are in.
-fn serving(names: &[&str]) -> (Fixture, ShareControl, u16) {
-    let (fixture, paths) = listing(names);
-    let (control, port) = serving_from(paths, "en");
-    (fixture, control, port)
-}
-
-fn serving_from(paths: Vec<String>, language: &str) -> (ShareControl, u16) {
-    let control = ShareControl::default();
-    let port = control
-        .open(None, language, &paths, credentials())
-        .unwrap()
-        .port
-        .expect("a started service has a port");
-    (control, port)
-}
-
+use super::harness::{
+    ask, body_of, credentials, get, head_of, password, raw_request, request, serving, started,
+    status,
+};
 #[test]
 fn a_request_that_offers_no_credentials_is_refused_and_told_which_scheme_to_use() {
     let (control, port) = started("en");
@@ -202,7 +43,7 @@ fn a_request_that_offers_no_credentials_is_refused_and_told_which_scheme_to_use(
         assert!(!body.contains("Enjoy share service"), "{body}");
         assert!(!body.contains("<?xml"), "{body}");
     }
-    control.close(&credentials());
+    control.close(&credentials(), Vec::new());
 }
 
 #[test]
@@ -232,7 +73,7 @@ fn credentials_that_are_not_right_are_refused_the_same_way() {
     // And the credential that is right is not refused, so the four above are
     // about what was offered rather than about how this call was made.
     assert_eq!(status(&get(port, "/")), 200);
-    control.close(&credentials());
+    control.close(&credentials(), Vec::new());
 }
 
 #[test]
@@ -248,76 +89,8 @@ fn the_password_that_is_right_is_served_both_of_the_answers_the_others_are_not()
         String::from_utf8_lossy(&body_of(&listing)).contains(&encoded("开场.mp4")),
         "the listing came back without the video on it"
     );
-    control.close(&credentials());
+    control.close(&credentials(), Vec::new());
 }
-
-#[test]
-fn a_client_that_gets_in_is_listed_under_the_name_it_gives_itself() {
-    let (control, port) = started("en");
-    assert!(control.status(&credentials()).devices.is_empty());
-    request(port, "GET", "/", "User-Agent: VLC/3.0.20 LibVLC/3.0.20\r\n");
-    request(port, "PROPFIND", "/", "Depth: 1\r\nContent-Length: 0\r\n");
-
-    let devices = control.status(&credentials()).devices;
-    // One row for two requests: a client is a client, not a request.
-    assert_eq!(devices.len(), 1);
-    assert_eq!(devices[0].address, IpAddr::V4(Ipv4Addr::LOCALHOST));
-    assert_eq!(devices[0].name.as_deref(), Some("VLC/3.0.20"));
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as i64;
-    // Dated, so that the page can say how long ago it was, and never in the
-    // future by more than the clock this test was read against.
-    assert!(
-        devices[0].last_seen <= now,
-        "{} > {now}",
-        devices[0].last_seen
-    );
-    assert!(devices[0].last_seen > now - 60_000);
-    control.close(&credentials());
-    // Ending the service ends the list with it: nobody is connected to a
-    // service that is not there.
-    assert!(control.status(&credentials()).devices.is_empty());
-}
-
-#[test]
-fn a_client_that_says_nothing_about_itself_is_still_listed() {
-    let (control, port) = started("en");
-    request(port, "GET", "/", "");
-    // Named or not, the address and the moment are what the row is made of, and
-    // a client that sends no User-Agent still has both.
-    let devices = control.status(&credentials()).devices;
-    assert_eq!(devices.len(), 1);
-    assert_eq!(devices[0].address, IpAddr::V4(Ipv4Addr::LOCALHOST));
-    assert_eq!(devices[0].name, None);
-    control.close(&credentials());
-}
-
-#[test]
-fn a_device_that_never_got_past_the_password_is_not_a_client() {
-    let (control, port) = started("en");
-    let response = raw_request(
-        port,
-        "GET",
-        "/",
-        &format!(
-            "Authorization: Basic {}\r\n",
-            BASE64.encode("enjoy:doubloons")
-        ),
-    );
-    assert_eq!(status(&response), 401);
-    assert!(
-        control.status(&credentials()).devices.is_empty(),
-        "a refused request was listed as a client"
-    );
-    // And the same address, with the password, is listed: what was left out is
-    // the request that was refused, not the device.
-    assert_eq!(status(&get(port, "/")), 200);
-    assert_eq!(control.status(&credentials()).devices.len(), 1);
-    control.close(&credentials());
-}
-
 #[test]
 fn a_browser_opening_the_address_is_shown_a_page_rather_than_a_listing() {
     let (control, port) = started("en");
@@ -334,7 +107,7 @@ fn a_browser_opening_the_address_is_shown_a_page_rather_than_a_listing() {
     let body = String::from_utf8_lossy(&body_of(&response)).into_owned();
     assert!(body.contains("Enjoy share service"), "{body}");
     assert!(!body.contains("<?xml"), "{body}");
-    control.close(&credentials());
+    control.close(&credentials(), Vec::new());
 }
 
 #[test]
@@ -346,7 +119,7 @@ fn a_webdav_client_on_the_same_path_is_answered_by_the_library() {
     assert_eq!(status(&response), 207);
     let body = String::from_utf8_lossy(&body_of(&response)).into_owned();
     assert!(!body.contains("Enjoy share service"), "{body}");
-    control.close(&credentials());
+    control.close(&credentials(), Vec::new());
 }
 
 #[test]
@@ -355,7 +128,7 @@ fn the_service_keeps_answering_until_it_is_ended() {
     assert_eq!(status(&get(port, "/")), 200);
     assert_eq!(status(&get(port, "/")), 200);
 
-    control.close(&credentials());
+    control.close(&credentials(), Vec::new());
     // Nothing is listening any more, so the connection is not merely unanswered
     // -- there is nothing to answer it.
     assert!(TcpStream::connect(("127.0.0.1", port)).is_err());
@@ -366,7 +139,7 @@ fn the_page_is_written_in_the_language_the_application_is_being_read_in() {
     let (control, port) = started("zh-CN");
     let body = String::from_utf8_lossy(&body_of(&get(port, "/"))).into_owned();
     assert!(body.contains("Enjoy 共享服务"), "{body}");
-    control.close(&credentials());
+    control.close(&credentials(), Vec::new());
 }
 
 #[test]
@@ -389,7 +162,7 @@ fn a_client_listing_the_root_sees_one_flat_row_of_videos() {
     for folder in ["Movies", "Archive"] {
         assert!(!body.contains(folder), "{folder} leaked into {body}");
     }
-    control.close(&credentials());
+    control.close(&credentials(), Vec::new());
 }
 
 #[test]
@@ -413,7 +186,7 @@ fn a_range_request_gets_the_slice_that_was_asked_for() {
         "{head}"
     );
     assert_eq!(body_of(&response), content[2..6]);
-    control.close(&credentials());
+    control.close(&credentials(), Vec::new());
 }
 
 #[test]
@@ -443,7 +216,7 @@ fn the_service_refuses_to_be_written_to_and_leaves_the_disk_alone() {
     assert!(!fixture.0.join("Movies").join("moved.mp4").exists());
     assert!(!fixture.0.join("new.mp4").exists());
     assert!(!fixture.0.join("new-folder").exists());
-    control.close(&credentials());
+    control.close(&credentials(), Vec::new());
 }
 
 #[test]
@@ -455,7 +228,9 @@ fn a_video_that_is_no_longer_on_disk_is_counted_and_not_offered() {
 
     // The count is the answer to "why does the television show fewer videos than
     // I picked", so it is part of what starting the service reports.
-    let status_of_start = control.open(None, "en", &paths, credentials()).unwrap();
+    let status_of_start = control
+        .open(None, "en", &paths, credentials(), Vec::new())
+        .unwrap();
     assert_eq!(status_of_start.missing_files, 1);
     let port = status_of_start.port.unwrap();
 
@@ -468,8 +243,8 @@ fn a_video_that_is_no_longer_on_disk_is_counted_and_not_offered() {
     .into_owned();
     assert!(!body.contains(&encoded("花絮.mkv")), "{body}");
 
-    control.close(&credentials());
-    assert_eq!(control.status(&credentials()).missing_files, 0);
+    control.close(&credentials(), Vec::new());
+    assert_eq!(control.status(&credentials(), Vec::new()).missing_files, 0);
 }
 
 #[test]
@@ -492,5 +267,5 @@ fn a_request_for_something_outside_the_list_is_not_found() {
     }
     // And the one that is on the list is served.
     assert_eq!(status(&get(port, &format!("/{shared}"))), 200);
-    control.close(&credentials());
+    control.close(&credentials(), Vec::new());
 }

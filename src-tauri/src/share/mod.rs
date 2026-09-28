@@ -22,6 +22,9 @@
 //!   one entry of the 共享清单.
 
 pub(crate) mod activity;
+#[cfg(test)]
+mod activity_tests;
+pub(crate) mod addresses;
 pub(crate) mod control;
 pub(crate) mod credentials;
 #[cfg(test)]
@@ -29,6 +32,8 @@ mod fixture;
 mod fs;
 #[cfg(test)]
 mod fs_tests;
+#[cfg(test)]
+mod harness;
 mod landing;
 mod service;
 #[cfg(test)]

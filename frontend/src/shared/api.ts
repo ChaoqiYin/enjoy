@@ -120,6 +120,11 @@ export interface LanguageSettings {
  * `devices` is the one part of this that changes without the user doing
  * anything, which is why the page reads the whole status again on a timer while
  * the service is running.
+ *
+ * `addresses` is where this machine can be reached, which the backend reads
+ * from the operating system: an address and a port are two halves of the one
+ * thing a user types into a television, and they are read together so that they
+ * cannot be shown as a pair that does not go together.
  */
 export interface ShareStatus {
   port: number | null;
@@ -128,6 +133,21 @@ export interface ShareStatus {
   password: string;
   needsRestart: boolean;
   devices: Device[];
+  addresses: Address[];
+}
+
+/**
+ * One address this machine can be reached at, in the order to try them: the
+ * ones a router handed out first, the machine talking to itself last.
+ */
+export interface Address {
+  /** The interface, as the operating system names it: `Wi-Fi`, `以太网`. */
+  interface: string;
+  /** The IPv4 address, on its own: the port is the service's, not the machine's. */
+  address: string;
+  /** Whether this is the machine talking to itself — the one that cannot reach
+   * a television. */
+  loopback: boolean;
 }
 
 /**

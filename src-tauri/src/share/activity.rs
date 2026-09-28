@@ -136,7 +136,7 @@ fn age(last_seen: SystemTime, now: SystemTime) -> Duration {
 
 /// A moment as milliseconds since the epoch, which is how this interface writes
 /// every other time.
-fn milliseconds(moment: SystemTime) -> i64 {
+pub(crate) fn milliseconds(moment: SystemTime) -> i64 {
     match moment.duration_since(UNIX_EPOCH) {
         Ok(since) => since.as_millis() as i64,
         Err(_) => 0,
@@ -155,119 +155,8 @@ fn milliseconds(moment: SystemTime) -> i64 {
 /// A client that sends nothing, or sends nothing usable, is listed by its
 /// address alone. That is a name the interface has to be able to be without —
 /// see `unknown` on the page — and not a reason to leave the row out.
-fn device_name(agent: Option<&HeaderValue>) -> Option<String> {
+pub(crate) fn device_name(agent: Option<&HeaderValue>) -> Option<String> {
     let value = agent?.to_str().ok()?;
     let product = value.split_whitespace().next()?;
     (!product.is_empty()).then(|| product.chars().take(NAME_LIMIT).collect())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Activity, Device, WINDOW};
-    use http::HeaderValue;
-    use std::net::{IpAddr, Ipv4Addr};
-    use std::time::{Duration, SystemTime};
-
-    fn address(last: u8) -> IpAddr {
-        IpAddr::V4(Ipv4Addr::new(192, 168, 1, last))
-    }
-
-    fn agent(value: &str) -> HeaderValue {
-        HeaderValue::from_str(value).unwrap()
-    }
-
-    #[test]
-    fn a_client_is_listed_under_the_name_it_gives_itself() {
-        assert_eq!(
-            super::device_name(Some(&agent("VLC/3.0.20 LibVLC/3.0.20"))).as_deref(),
-            Some("VLC/3.0.20")
-        );
-        assert_eq!(
-            super::device_name(Some(&agent("Infuse/7.6.4 (iPhone; iOS 17.4)"))).as_deref(),
-            Some("Infuse/7.6.4")
-        );
-        // A name and nothing else, which some clients send.
-        assert_eq!(
-            super::device_name(Some(&agent("Infuse"))).as_deref(),
-            Some("Infuse")
-        );
-    }
-
-    #[test]
-    fn a_client_that_says_nothing_usable_is_still_a_client() {
-        for nothing in [None, Some(&agent("")), Some(&agent("   "))] {
-            assert_eq!(super::device_name(nothing), None, "{nothing:?}");
-        }
-        // Long enough to push the rest of the row off the screen, and kept to
-        // the part of it that is a name.
-        let enormous = "x".repeat(400);
-        let name = super::device_name(Some(&agent(&enormous))).unwrap();
-        assert_eq!(name.len(), 64);
-    }
-
-    #[test]
-    fn an_entry_is_dropped_once_the_window_has_passed() {
-        let activity = Activity::default();
-        activity.saw(address(5), Some(&agent("VLC/3.0.20")));
-        let now = SystemTime::now();
-
-        // Inside the window, and at the last moment of it.
-        assert_eq!(activity.recent(now).len(), 1);
-        assert_eq!(
-            activity.recent(now + WINDOW - Duration::from_secs(1)).len(),
-            1
-        );
-        // And past it, gone. Asked at a moment later than the request rather
-        // than waited for, which is the whole reason the moment is a parameter.
-        assert!(activity.recent(now + WINDOW).is_empty());
-    }
-
-    #[test]
-    fn a_client_that_comes_back_is_the_same_row_and_moves_to_the_top() {
-        let activity = Activity::default();
-        let now = SystemTime::now();
-        // Two clients, one of them heard from again after the other.
-        activity.saw(address(5), Some(&agent("VLC/3.0.20")));
-        let first = activity.recent(now);
-        activity.saw(address(9), Some(&agent("Infuse/7.6.4")));
-        activity.saw(address(5), Some(&agent("VLC/3.0.20")));
-
-        let devices = activity.recent(now + Duration::from_secs(1));
-        assert_eq!(devices.len(), 2, "a second request opened a second row");
-        assert_eq!(devices[0].address, address(5));
-        assert_eq!(devices[1].address, address(9));
-        // The one that came back is the row it was, timed from the request that
-        // came back: it is one client that made two requests.
-        assert!(devices[0].last_seen >= first[0].last_seen);
-        assert_eq!(devices[0].name.as_deref(), Some("VLC/3.0.20"));
-    }
-
-    #[test]
-    fn a_client_that_stops_naming_itself_keeps_the_name_it_gave() {
-        let activity = Activity::default();
-        activity.saw(address(5), Some(&agent("VLC/3.0.20")));
-        // A second request with no User-Agent at all, which is what a client
-        // that sends the header only on the first request of a session looks
-        // like. The row does not lose the name it was listed under.
-        activity.saw(address(5), None);
-        let devices = activity.recent(SystemTime::now());
-        assert_eq!(devices.len(), 1);
-        assert_eq!(devices[0].name.as_deref(), Some("VLC/3.0.20"));
-    }
-
-    #[test]
-    fn the_list_carries_the_address_and_the_moment_it_was_heard_from() {
-        let activity = Activity::default();
-        let before = super::milliseconds(SystemTime::now());
-        activity.saw(address(5), Some(&agent("VLC/3.0.20")));
-        let devices: Vec<Device> = activity.recent(SystemTime::now());
-        let device = &devices[0];
-        assert_eq!(device.address, address(5));
-        assert!(
-            device.last_seen >= before,
-            "{} was before {}",
-            device.last_seen,
-            before
-        );
-    }
 }

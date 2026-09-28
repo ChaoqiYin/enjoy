@@ -39,6 +39,15 @@ use super::landing;
 /// the interface shows.
 pub(crate) const DEFAULT_PORT: u16 = 4918;
 
+/// How many ports are tried, starting at the one asked for.
+///
+/// 4918 is a convention rather than a reservation, and whatever else on the
+/// machine has taken it is no reason the user cannot share: the service moves
+/// along until it finds one, and the interface shows the one it ended up on. A
+/// machine where ten ports in a row are all taken has a problem that a wider
+/// range would not fix.
+pub(crate) const PORT_ATTEMPTS: u16 = 10;
+
 /// A service listening on a port, until it is ended.
 pub(crate) struct Service {
     port: u16,
@@ -65,7 +74,9 @@ impl Service {
     ///
     /// `requested` is the port to take, or `None` to let the operating system
     /// choose one. The tests ask for the latter, so that two of them cannot
-    /// collide on a port neither owns; the interface always names one.
+    /// collide on a port neither owns; the interface always names one, and the
+    /// service moves along to the next free port rather than failing when it is
+    /// held.
     ///
     /// `paths` is the 共享清单, in path order. Reading it into the filesystem
     /// happens here rather than on the serving thread for the same reason the
@@ -150,16 +161,52 @@ impl Service {
 /// reachable at are the machine's own, and a request arriving on any of them is
 /// the same request. Which one a device should be told to use is the interface's
 /// question, and it is answered from the machine's interfaces rather than here.
+///
+/// `requested` is where the search starts, and the ports just after it are tried
+/// in turn: a port the machine asked for is a preference, and one that something
+/// else holds is not a reason to refuse to share. Which port was taken is read
+/// back from the listener rather than assumed from this argument, which is what
+/// keeps the number the interface shows the number that works.
+///
+/// `None` asks the operating system to choose, and does not search: it is the
+/// tests that ask that way, so that two of them cannot collide on a port neither
+/// owns.
 fn bind(requested: Option<u16>) -> Result<std::net::TcpListener, AppError> {
-    let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, requested.unwrap_or(0)));
-    std::net::TcpListener::bind(address).map_err(|error| match requested {
-        // A port the user is told about, and the only thing that can be wrong
-        // with it: something else already has it.
-        Some(port) if error.kind() == std::io::ErrorKind::AddrInUse => {
-            AppError::new("share.port.in_use", error).with_param("port", port)
+    let Some(base) = requested else {
+        return bind_one(0).map_err(|error| AppError::new("share.start.failed", error));
+    };
+    // Taken from a range rather than counted up, because the range ends at the
+    // last number a port can be: asking for the ten after 65530 is asking for
+    // five, and the count that goes into the message has to be the one that was
+    // actually tried.
+    let mut tried = 0;
+    let mut last = None;
+    let mut held = false;
+    for port in (base..).take(usize::from(PORT_ATTEMPTS)) {
+        tried += 1;
+        match bind_one(port) {
+            Ok(listener) => return Ok(listener),
+            Err(error) => {
+                held |= error.kind() == std::io::ErrorKind::AddrInUse;
+                last = Some(error);
+            }
         }
-        _ => AppError::new("share.start.failed", error),
-    })
+    }
+    let error = last.expect("a port is always tried at least once");
+    // A port is one thing that can be wrong here, and it is the one worth a
+    // sentence of its own. Anything else — no permission, no such address — is
+    // a failure the log has more to say about than a message can.
+    if !held {
+        return Err(AppError::new("share.start.failed", error));
+    }
+    Err(AppError::new("share.port.in_use", error)
+        .with_param("port", base)
+        .with_param("count", tried))
+}
+
+/// One attempt at one port.
+fn bind_one(port: u16) -> std::io::Result<std::net::TcpListener> {
+    std::net::TcpListener::bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, port)))
 }
 
 /// The handler for the protocol, over the filesystem built from the list.
