@@ -88,7 +88,7 @@ export function status(overrides: Partial<ShareStatus> = {}): ShareStatus {
     port: null,
     missingFiles: 0,
     username: 'enjoy',
-    password: 'sample-passw0rd',
+    password: '7315',
     needsRestart: false,
     listChanged: false,
     devices: [],

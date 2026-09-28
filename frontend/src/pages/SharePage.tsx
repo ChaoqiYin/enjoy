@@ -227,12 +227,13 @@ export function SharePage() {
           </div>
           <div className="flex items-center gap-3">
             <span className="w-24 text-sm opacity-70">{t('password')}</span>
-            {/* Dots of a fixed length rather than one per character: how long
-                the password is is not a secret — it is this length every time —
-                and a mask that changed width as the password changed would say
-                more about it than the mask is for. */}
+            {/* Four dots, which is what the password is: every password here is
+                the same four digits, so the mask tells the user nothing the
+                screen would not have told them a moment later, and a mask that
+                disagreed with the length of what they are about to type on a
+                remote would be worse than one that agreed. */}
             <code className="select-all">
-              {shown ? share.password : '••••••••••••'}
+              {shown ? share.password : '••••'}
             </code>
             <button
               className="btn btn-ghost btn-sm"

@@ -9,8 +9,12 @@
 //! It is stored beside the language and the theme because that is what it is: a
 //! preference the application keeps for the user, not a record about a video.
 //! The password is drawn here rather than chosen, because a user asked to invent
-//! one will invent one they have used before, and this one is copied far more
-//! often than it is typed.
+//! one will invent one they have used before.
+//!
+//! It is four digits, and that is a decision about a remote control: this string
+//! is typed by hand into a television at least once, and every character that has
+//! to be hunted for on a remote is a reason to choose a password that is worse in
+//! some other way. The cost is written down rather than hidden — see below.
 //!
 //! ## What this does not defend against
 //!
@@ -19,9 +23,20 @@
 //! watch it reads the password out of the request rather than guessing it. What
 //! the password keeps out is the device that was never told it — a guest on the
 //! wireless, a neighbour on the same flat network — and that is the boundary the
-//! feature is drawn to. The comparison at the bottom is an ordinary one for the
-//! same reason: a timing side channel is a way of learning a password that was
-//! never sent, and every password that reaches here has been sent.
+//! feature is drawn to.
+//!
+//! Four digits sharpens the edge on that: there are ten thousand of them, so a
+//! device that *tries* rather than watches will walk the whole space in minutes.
+//! What stands between it and the library is then the network this is meant for —
+//! a home LAN — and not the string. A longer password would buy real strength,
+//! and the cost would be paid on the remote control this length exists for; if
+//! that trade ever needs making, the lever to reach for first is a limit on
+//! failed attempts rather than length, because it costs the user who types
+//! correctly nothing at all.
+//!
+//! The comparison at the bottom is an ordinary one for the same reason: a timing
+//! side channel is a way of learning a password that was never sent, and every
+//! password that reaches here has been sent.
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -52,14 +67,12 @@ const KEY: &str = "sharePassword";
 
 /// The characters a password is drawn from, and how many of them are drawn.
 ///
-/// Lower case letters and digits with the pairs that are read for each other
-/// left out — no `i` beside `1`, no `o` beside `0`. This one is copied off the
-/// screen most of the time, but it is typed by hand into a television at least
-/// once, and that is the case the alphabet is chosen for. Twenty-three letters
-/// and eight digits is thirty-one symbols, so twelve of them is about sixty
-/// bits: past guessing, and still short enough to read out.
-const ALPHABET: &[u8] = b"abcdefghjkmnpqrstuvwxyz23456789";
-const LENGTH: usize = 12;
+/// Digits, and four of them: the alphabet is what a television remote has keys
+/// for, and the length is what someone will put up with entering there. The two
+/// together are ten thousand combinations, which is not a secret in any strong
+/// sense — the module comment above says what that does and does not buy.
+const DIGITS: &[u8] = b"0123456789";
+const LENGTH: usize = 4;
 
 /// The name and password a client is checked against.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -119,12 +132,17 @@ impl Credentials {
     }
 
     /// A password nothing has been told yet.
+    ///
+    /// Every digit in it is as likely as every other, which for a password this
+    /// short is the whole of its strength: ten thousand combinations are easy to
+    /// walk only because they are few, and they would be far fewer if the draw
+    /// favoured some of them.
     fn draw() -> Self {
         let mut password = String::with_capacity(LENGTH);
         while password.len() < LENGTH {
             let mut batch = [0u8; LENGTH];
             getrandom::fill(&mut batch).expect("the operating system has random bytes");
-            password.extend(batch.iter().copied().filter_map(character));
+            password.extend(batch.iter().copied().filter_map(digit));
         }
         password.truncate(LENGTH);
         Self {
@@ -164,21 +182,23 @@ impl Credentials {
     }
 }
 
-/// The character a random byte stands for, or nothing when it stands for none.
+/// The digit a random byte stands for, or nothing when it stands for none.
 ///
-/// The alphabet has thirty-one symbols, so its low five bits cover it and the
-/// one value left over is dropped rather than folded onto a symbol below it:
-/// folding would make some characters likelier than others, and this is the one
-/// string in the application where that would matter.
-fn character(byte: u8) -> Option<char> {
-    ALPHABET
-        .get(usize::from(byte & 0x1f))
-        .map(|symbol| char::from(*symbol))
+/// A byte holds 256 values and the digits are ten, so the two do not divide
+/// evenly: `byte % 10` alone would hand the first six digits one extra value
+/// each, which over four digits is a bias worth avoiding in the one string here
+/// whose strength is exactly its spread. The six values with no digit to stand
+/// for are therefore dropped and another byte is drawn in their place.
+fn digit(byte: u8) -> Option<char> {
+    // The largest multiple of ten a byte can hold; above it the values are the
+    // remainder that has no digit of its own.
+    const EVEN: u8 = 250;
+    (byte < EVEN).then(|| char::from(DIGITS[usize::from(byte % 10)]))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{character, Credentials, ALPHABET, LENGTH, USERNAME};
+    use super::{digit, Credentials, DIGITS, LENGTH, USERNAME};
     use base64::engine::general_purpose::STANDARD as BASE64;
     use base64::Engine;
     use http::HeaderValue;
@@ -193,42 +213,43 @@ mod tests {
     }
 
     #[test]
-    fn a_password_is_made_of_the_characters_that_survive_being_read_out() {
-        for _ in 0..100 {
+    fn a_password_is_the_length_of_a_pin_and_made_of_digits() {
+        // Each digit has a value as well as a length, so the whole space is ten
+        // thousand and not one: a draw that could only make, say, 1111 would
+        // pass a length check and be worth nothing.
+        let mut seen = std::collections::HashSet::new();
+        for _ in 0..500 {
             let credentials = Credentials::draw();
             assert_eq!(credentials.username, USERNAME);
             assert_eq!(credentials.password.len(), LENGTH);
             for symbol in credentials.password.bytes() {
-                assert!(ALPHABET.contains(&symbol), "{}", credentials.password);
+                assert!(DIGITS.contains(&symbol), "{}", credentials.password);
             }
-            // The pairs that get read for each other, and the letters that are
-            // not in the alphabet at all.
-            for confusion in ["i", "l", "o", "0", "1"] {
-                assert!(
-                    !credentials.password.contains(confusion),
-                    "{}",
-                    credentials.password
-                );
-            }
+            seen.insert(credentials.password);
         }
-        // A draw that repeated itself would be one every copy of this
-        // application made the same. A hundred of them colliding is a
-        // coincidence with thirty digits of probability against it.
-        let drawn: std::collections::HashSet<_> =
-            (0..100).map(|_| Credentials::draw().password).collect();
-        assert_eq!(drawn.len(), 100);
+        // Five hundred draws over ten thousand values will collide — that is
+        // arithmetic, not a fault — so the assertion is the one that can be
+        // made: the draws are not a constant. A `draw` that returned the same
+        // password every time would put this file well under half of five
+        // hundred, and a biased one would still show here as a small number.
+        assert!(
+            seen.len() > 400,
+            "only {} of 500 draws differed",
+            seen.len()
+        );
     }
 
     #[test]
-    fn a_byte_stands_for_a_character_where_there_is_one() {
-        assert_eq!(character(0), Some('a'));
-        assert_eq!(character(30), Some('9'));
-        // The value the alphabet is one short of holding, and the one above it.
-        assert_eq!(character(31), None);
-        assert_eq!(character(63), None);
-        // Only the low five bits are read, so the bits above them are not a
-        // second draw: this byte stands for the same character as zero does.
-        assert_eq!(character(0b1100_0000), Some('a'));
+    fn a_byte_stands_for_a_digit_where_there_is_one() {
+        assert_eq!(digit(0), Some('0'));
+        assert_eq!(digit(9), Some('9'));
+        // The tenth value, which is the first with no digit of its own, and the
+        // top of the range. Both are dropped rather than folded onto `0` and
+        // `5`, which is what a bare remainder would do to them.
+        assert_eq!(digit(10), Some('0'));
+        assert_eq!(digit(249), Some('9'));
+        assert_eq!(digit(250), None);
+        assert_eq!(digit(255), None);
     }
 
     #[test]

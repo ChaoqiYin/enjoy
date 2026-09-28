@@ -136,7 +136,7 @@ export function share(overrides: Partial<Share> = {}): Share {
   return {
     port: null,
     username: 'enjoy',
-    password: 'sample-passw0rd',
+    password: '7315',
     needsRestart: false,
     listChanged: false,
     missingFiles: 0,

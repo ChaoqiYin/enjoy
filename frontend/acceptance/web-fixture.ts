@@ -67,7 +67,9 @@ const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
 let language = 'en';
 let settings: SettingsState = { language: 'en', theme: 'dark' };
 let sharePort: number | null = null;
-let sharePassword = 'sample-passw0rd';
+// Four digits, like the one the backend draws: what a client is told to type, and
+// what this copy is for is letting someone see the screen the way a user sees it.
+let sharePassword = '7315';
 /// What a running service is checking against, which is the password it started
 /// with and not the one stored now.
 let served = sharePassword;
