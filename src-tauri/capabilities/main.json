@@ -1,12 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "What the main window's interface reaches for: the core defaults, the listener it follows the library on, holding a close while the user is asked about it, the folder picker, and showing a file in its folder",
+  "description": "What the main window's interface reaches for: the core defaults, the listener it follows the library on, the destroy that ends a close it has held, the folder picker, and showing a file in its folder",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "core:event:allow-listen",
-    "core:window:allow-close",
+    "core:window:allow-destroy",
     "dialog:allow-open",
     "opener:allow-reveal-item-in-dir"
   ]

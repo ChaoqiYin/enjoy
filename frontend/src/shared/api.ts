@@ -312,6 +312,17 @@ export const shareApi = {
  * answer that has to be given from the interface, because the prompt is the
  * interface's own.
  *
+ * Closing is a destroy, and it cannot be Tauri's `close()`. Tauri prevents a
+ * close whenever the window has a listener for the close-requested event
+ * (`tauri::manager::window::on_window_event`, which asks
+ * `has_js_listener`), and the event then arrives as a notification rather than
+ * a question: nothing the handler does lets that close through, and `close()`
+ * raises the same request only to have it prevented again. `destroy()` is the
+ * one that does not ask — which is what is wanted once the answer is yes.
+ * Tauri's own `onCloseRequested` finishes the same way, destroying the window
+ * itself when the handler does not prevent the event, so a window that has ever
+ * subscribed needs the destroy permission whether or not this one is used.
+ *
  * Both are absent outside the application. A browser has no window to close and
  * nothing to be told about it, so the two answer the way a window that is
  * already closing would: the subscription is for nothing, and closing has
@@ -326,7 +337,7 @@ export const windowApi = {
   },
   close: (): Promise<void> => {
     if (!isTauri()) return Promise.resolve();
-    return getCurrentWindow().close();
+    return getCurrentWindow().destroy();
   },
 };
 

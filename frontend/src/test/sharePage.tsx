@@ -36,15 +36,29 @@ export const videoActions = doubles.videoActions();
  *
  * The handler is kept so that a test can be the window: there is no other way
  * to ask for a close from here, and being asked is the whole of what the
- * provider has to get right.
+ * provider has to get right. `subscribed` is the other half of that, and the
+ * one that is not about the question at all: a window with a close-requested
+ * listener never closes by itself, so whether one is outstanding is what
+ * decides whether the close button still works — which is why it is torn down
+ * with the service and why a test watches it.
+ *
+ * `destroy` is what the provider asks for once the answer is yes; there is no
+ * `close` here, because a window that has subscribed cannot be closed by one
+ * (see `shared/api.ts`), and a mock that offered it would let a test pass on a
+ * call that could never work.
  */
 export const windowMock = {
   handler: undefined as
     ((event: { preventDefault: () => void }) => void) | undefined,
-  close: vi.fn(async () => {}),
+  subscribed: false,
+  destroy: vi.fn(async () => {}),
   onCloseRequested(handler: (event: { preventDefault: () => void }) => void) {
     windowMock.handler = handler;
-    return Promise.resolve(() => {});
+    windowMock.subscribed = true;
+    return Promise.resolve(() => {
+      windowMock.subscribed = false;
+      if (windowMock.handler === handler) windowMock.handler = undefined;
+    });
   },
 };
 
@@ -135,7 +149,8 @@ export function resetSharePage(backend: Backend) {
   vi.mocked(backend).mockReset();
   library.videos.data = [video({ shared: true })];
   windowMock.handler = undefined;
-  windowMock.close.mockClear();
+  windowMock.subscribed = false;
+  windowMock.destroy.mockClear();
   vi.stubGlobal(
     'ResizeObserver',
     class {

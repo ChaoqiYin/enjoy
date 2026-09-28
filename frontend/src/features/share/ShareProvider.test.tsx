@@ -39,7 +39,7 @@ vi.mock('@tauri-apps/api/window', () => ({
     onCloseRequested: (
       handler: (event: { preventDefault: () => void }) => void,
     ) => windowMock.onCloseRequested(handler),
-    close: () => windowMock.close(),
+    destroy: () => windowMock.destroy(),
   }),
 }));
 vi.mock('../library/useVideos', () => ({ useVideos: () => library }));
@@ -124,7 +124,7 @@ it('holds the window open while the service is running, and asks first', async (
     name: english.shareCloseQuestion,
   });
   expect(invoke).not.toHaveBeenCalledWith('close_share');
-  expect(windowMock.close).not.toHaveBeenCalled();
+  expect(windowMock.destroy).not.toHaveBeenCalled();
 
   fireEvent.click(
     screen.getByRole('button', { name: english.shareCloseConfirm }),
@@ -132,24 +132,46 @@ it('holds the window open while the service is running, and asks first', async (
   // Both, and the service first: the process going away releases the port, but
   // the connections a device is holding are closed by the service stopping.
   await waitFor(() => expect(invoke).toHaveBeenCalledWith('close_share'));
-  await waitFor(() => expect(windowMock.close).toHaveBeenCalled());
+  // And it is a destroy: the window subscribed, so Tauri would prevent a close
+  // and hand it back here as another question — which is what left the window
+  // open on a service that had already stopped.
+  await waitFor(() => expect(windowMock.destroy).toHaveBeenCalled());
 });
 
-it('lets the window close without a word when nothing is being shared', async () => {
+it('subscribes to nothing when there is nothing to interrupt', async () => {
   backend(invoke, { share_status: status() });
   page();
   await screen.findByText(english.connectionIdle);
-  await waitFor(() => expect(windowMock.handler).toBeDefined());
 
-  // A prompt on every close is one the user learns to dismiss without reading,
-  // and there is nothing here to interrupt.
-  expect(closeTheWindow()).toBe(false);
+  // Nothing running, so nothing is held: no listener means Tauri has nothing to
+  // prevent and the window's own close path goes through, with no question to
+  // answer. A prompt on every close is one the user learns to dismiss without
+  // reading, and a listener left behind would be worse than that — it would be
+  // a window that never closes at all.
+  expect(windowMock.subscribed).toBe(false);
+  expect(windowMock.handler).toBeUndefined();
   expect(
     screen.queryByRole('dialog', { name: english.shareCloseQuestion }),
   ).toBeNull();
+});
 
-  // Said no to, the window stays open and the service keeps running.
-  cleanup();
+it('lets go of the window when the service ends, question or no question', async () => {
+  backend(invoke, {
+    share_status: status({ port: 4918 }),
+    close_share: status(),
+  });
+  page();
+  await screen.findByRole('button', { name: english.stopSharing });
+  await waitFor(() => expect(windowMock.subscribed).toBe(true));
+
+  // Ended from the page rather than from the window: the service is gone, so
+  // the close button is the window's own business again.
+  fireEvent.click(screen.getByRole('button', { name: english.stopSharing }));
+  await waitFor(() => expect(windowMock.subscribed).toBe(false));
+  expect(windowMock.handler).toBeUndefined();
+});
+
+it('stays open when the question is answered no', async () => {
   backend(invoke, {
     share_status: status({ port: 4918 }),
     close_share: status(),
@@ -157,10 +179,12 @@ it('lets the window close without a word when nothing is being shared', async ()
   page();
   await screen.findByRole('button', { name: english.stopSharing });
   await waitFor(() => expect(windowMock.handler).toBeDefined());
+
   closeTheWindow();
   fireEvent.click(await screen.findByRole('button', { name: english.cancel }));
   expect(
     screen.queryByRole('dialog', { name: english.shareCloseQuestion }),
   ).toBeNull();
-  expect(windowMock.close).not.toHaveBeenCalled();
+  expect(windowMock.destroy).not.toHaveBeenCalled();
+  expect(invoke).not.toHaveBeenCalledWith('close_share');
 });

@@ -61,7 +61,14 @@ const needs = {
     // permission is the listener's, not the window's.
     getCurrentWindow: nothing,
     onCloseRequested: 'core:event:allow-listen',
-    close: 'core:window:allow-close',
+    // `close()` is not in this table, and adding a call to it takes two
+    // mistakes rather than one: Tauri prevents a close whenever the window has
+    // a close-requested listener, so `close()` is a request that can never go
+    // through on a window that has ever subscribed. `destroy()` is the way out
+    // — see the note in `frontend/src/shared/api.ts`. The permission it needs
+    // is also the one Tauri's own `onCloseRequested` needs, since that
+    // destroys the window itself when a handler does not prevent the event.
+    destroy: 'core:window:allow-destroy',
   },
   '@tauri-apps/plugin-dialog': {
     open: 'dialog:allow-open',

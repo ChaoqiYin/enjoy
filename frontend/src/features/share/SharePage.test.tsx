@@ -45,7 +45,7 @@ vi.mock('@tauri-apps/api/window', () => ({
     onCloseRequested: (
       handler: (event: { preventDefault: () => void }) => void,
     ) => windowMock.onCloseRequested(handler),
-    close: () => windowMock.close(),
+    destroy: () => windowMock.destroy(),
   }),
 }));
 vi.mock('../library/useVideos', () => ({ useVideos: () => library }));

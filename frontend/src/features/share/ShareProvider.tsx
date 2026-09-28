@@ -39,24 +39,34 @@ export function ShareProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const share = useShare();
   const [closing, setClosing] = useState(false);
-  // Read through a ref rather than closed over: the subscription is made once,
-  // and the port it asks about changes every time the service starts or stops.
+  // Read through a ref rather than closed over: the subscription is made once
+  // per service, and what it reads is the moment rather than the render.
   const latest = useLatestRef(share);
-  // Set when the user has said yes and the close is being carried out. The
-  // close that follows arrives here a second time, and this is what lets it
-  // through: by then the question has been answered, and asking it again would
-  // leave the window open on a service that is already stopped.
+  // Set when the user has said yes and the close is being carried out. A close
+  // arriving after that is held rather than asked about: the window is already
+  // on its way out, and re-asking would put a second dialog in front of a
+  // service that is being ended.
   const answered = useRef(false);
+  // Subscribed while there is something to interrupt, and only then. A window
+  // with a close-requested listener never closes by itself — Tauri prevents
+  // every close and hands the request to this handler instead — so a
+  // subscription that outlived the service would be a window that cannot be
+  // closed by its own close button, and nothing running means there is no
+  // question worth holding it for. Without a listener the close goes through
+  // the window's own path, with no permission and no round trip.
+  const asking = share.port !== null;
   useEffect(() => {
+    if (!asking) return;
     let stop: (() => void) | undefined;
     let live = true;
     void windowApi
       .onCloseRequested((event) => {
-        // Silence when there is nothing to interrupt: a window that closes
-        // without a prompt is what closing a window normally does.
-        if (answered.current || latest.current.port === null) return;
+        // Held even when the answer is already on its way: Tauri has prevented
+        // this close by the time the event arrives, so letting it through here
+        // would destroy the window behind the question. What the answer decides
+        // is when the window goes, which is the destroy in `close` below.
         event.preventDefault();
-        setClosing(true);
+        if (!answered.current) setClosing(true);
       })
       .then((unlisten) => {
         // The subscription may come back after this effect was torn down, which
@@ -68,15 +78,23 @@ export function ShareProvider({ children }: { children: ReactNode }) {
       live = false;
       stop?.();
     };
-  }, [latest]);
+  }, [asking, latest]);
   const close = async () => {
+    // Answered twice is answered once: the second arrival is a second click on
+    // a button whose question is already being carried out.
+    if (answered.current) return;
     answered.current = true;
     // The window is closed whatever became of the service: the user asked to
     // leave, and the process going away releases the port in any case — a
     // failure worth reading is shown by the notice below, and holding the
-    // window open on it would be worse than the failure.
-    await latest.current.stop();
-    await windowApi.close();
+    // window open on it would be worse than the failure. `stop` answers whether
+    // it worked rather than throwing, so the `finally` is what keeps the window
+    // from depending on that staying true.
+    try {
+      await latest.current.stop();
+    } finally {
+      await windowApi.close();
+    }
   };
   return (
     <ShareContext.Provider value={share}>
