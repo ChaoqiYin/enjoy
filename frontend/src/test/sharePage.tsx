@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 import type { invoke } from '@tauri-apps/api/core';
 import * as doubles from './doubles';
 import { video } from './fixtures';
-import type { Address, Device, ShareStatus } from '../shared/api';
+import type { ShareStatus } from '../shared/api';
 
 /**
  * The 共享页's stand-ins: what the library and the window say to it, what the
@@ -107,26 +107,6 @@ export function status(overrides: Partial<ShareStatus> = {}): ShareStatus {
     listChanged: false,
     devices: [],
     addresses: [],
-    ...overrides,
-  };
-}
-
-/** An address this machine would be reached at. */
-export function address(overrides: Partial<Address> = {}): Address {
-  return {
-    interface: 'Wi-Fi',
-    address: '192.168.1.5',
-    loopback: false,
-    ...overrides,
-  };
-}
-
-/** A client the backend has heard from, at a moment the test chooses. */
-export function device(overrides: Partial<Device> = {}): Device {
-  return {
-    address: '192.168.1.24',
-    name: 'Infuse/7.6.4',
-    lastSeen: Date.now(),
     ...overrides,
   };
 }

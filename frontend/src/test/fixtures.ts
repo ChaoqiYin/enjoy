@@ -1,4 +1,4 @@
-import type { ScanStatus, Video } from '../shared/api';
+import type { Address, Device, ScanStatus, Video } from '../shared/api';
 
 /**
  * A scan that is not running, as the backend reports one.
@@ -53,6 +53,32 @@ export function video(overrides: Partial<Video> = {}): Video {
     last_played_at: null,
     created_at: 0,
     updated_at: 0,
+    ...overrides,
+  };
+}
+
+/**
+ * An address this machine would be reached at, as the backend lists one.
+ *
+ * Here rather than beside the sharing page's doubles because it is data, not a
+ * stand-in: the blocks that draw one are plain components now, and a test that
+ * mounts one should not have to mount the sharing state to get at it.
+ */
+export function address(overrides: Partial<Address> = {}): Address {
+  return {
+    interface: 'Wi-Fi',
+    address: '192.168.1.5',
+    loopback: false,
+    ...overrides,
+  };
+}
+
+/** A client the backend has heard from, at a moment the test chooses. */
+export function device(overrides: Partial<Device> = {}): Device {
+  return {
+    address: '192.168.1.24',
+    name: 'Infuse/7.6.4',
+    lastSeen: Date.now(),
     ...overrides,
   };
 }

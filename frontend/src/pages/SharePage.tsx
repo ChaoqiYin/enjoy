@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { PageFrame } from '../features/library/PageFrame';
@@ -7,6 +6,10 @@ import { useVideos } from '../features/library/useVideos';
 import { useVideoBoard } from '../features/library/useVideoBoard';
 import { VideoGrid } from '../features/library/VideoGrid';
 import { hoverRoomStyle } from '../features/library/videoCardBox';
+import { ConnectionDetails } from '../features/share/ConnectionDetails';
+import { DeviceList } from '../features/share/DeviceList';
+import { ListWarnings } from '../features/share/ListWarnings';
+import { PasswordDetails } from '../features/share/PasswordDetails';
 import { useShareContext } from '../features/share/ShareProvider';
 import { ScrollViewport } from '../shared/ScrollViewport';
 import type { AppError } from '../shared/api';
@@ -18,17 +21,16 @@ function clientError(code: string): AppError {
 }
 
 /**
- * How long ago a device was last heard from, in whole seconds.
+ * The 共享服务's page: what is being offered, how a client gets to it, and who has
+ * been asking.
  *
- * Never less than one. The moment comes from the backend and the clock it is
- * measured against is this one's, which are two clocks however well they agree;
- * a row that said "0 秒前" because they disagreed by a hair would read as one
- * that had stopped counting.
+ * It places the blocks and owns the two things none of them can: what the
+ * 共享清单 is (the records, read the way every page reads them, filtered by a mark
+ * that travels on the record — the backend has no command for the list), and what
+ * a press on copy means here. Everything a block draws is handed to it as a fact,
+ * so each of the four is a module of its own with its own test, and this file is
+ * read for what sits where.
  */
-function secondsAgo(lastSeen: number, now: number): number {
-  return Math.max(1, Math.round((now - lastSeen) / 1000));
-}
-
 export function SharePage() {
   const { t, i18n } = useTranslation();
   const share = useShareContext();
@@ -41,23 +43,11 @@ export function SharePage() {
   const board = useVideoBoard();
   const videos = (collection.data ?? []).filter((video) => video.shared);
   const offline = videos.length === 0;
-  // Hidden until asked for, which is what makes it safe to photograph the screen
-  // or leave the page open in a room. Nothing is gained by it being hidden from
-  // the person who started the service and is looking at it, so one press shows
-  // it and the press is not remembered beyond the visit.
-  const [shown, setShown] = useState(false);
   const running = share.port !== null;
-  // The list of devices arrives with a timestamp, and how long ago that was is
-  // the thing a person reads. It is worked out here against a clock that ticks
-  // rather than against the one the list was fetched with, so that the ages
-  // count up between the polls instead of standing still for five seconds and
-  // then jumping.
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, [running]);
+  // The one thing every block can ask for, and the one thing it is not told: what
+  // a copy that did not work is reported as. Two blocks can copy, and neither
+  // knows the notices exist — the answer to a failure is this page's, said here
+  // once.
   const copy = async (text: string) => {
     if (!navigator.clipboard) {
       notices.setError(clientError('app.clipboard.failed'));
@@ -70,12 +60,7 @@ export function SharePage() {
       notices.setError(clientError('app.clipboard.failed'));
     }
   };
-  // What goes on the clipboard, and what the row shows: the address the machine
-  // is on with the port the service actually took, which is not always the one
-  // it asked for. The trailing slash is the protocol's own way of saying this
-  // is a collection to browse rather than a file to fetch, and a client that is
-  // given the address without it may try to treat the root as one.
-  const url = (address: string) => `http://${address}:${share.port}/`;
+  const copyText = (text: string) => void copy(text);
   return (
     <PageFrame>
       {/* The page's own scroll viewport, and the only thing that clips the
@@ -119,23 +104,11 @@ export function SharePage() {
             raises — what am I about to share. */}
         <div className="space-y-3">
           <h2 className="text-xl font-semibold">{t('shareListTitle')}</h2>
-          {/* Both of these are facts about a list some running service is
-              offering, so both are said only while something is serving. The
-              first is about files that went away, the second about the list
-              having changed since the service read it — the service keeps
-              offering what it started with, so a change is only a change after
-              a restart, and saying so is the whole point of noticing. */}
-          {running && share.missingFiles > 0 && (
-            <p className="text-sm text-warning">
-              {t('shareMissingFiles', {
-                count: share.missingFiles,
-                countText: share.missingFiles.toLocaleString(i18n.language),
-              })}
-            </p>
-          )}
-          {running && share.listChanged && (
-            <p className="text-sm text-warning">{t('shareListChanged')}</p>
-          )}
+          <ListWarnings
+            running={running}
+            missingFiles={share.missingFiles}
+            listChanged={share.listChanged}
+          />
           {offline ? (
             // A port a device can connect to and find nothing on reads as a
             // service that is broken, so the button above will not start over an
@@ -166,151 +139,29 @@ export function SharePage() {
             </>
           )}
         </div>
-        {/* Everything a user has to type into the television, in one place:
-            the address to enter, the user name, and the password. It is shown
-            whether or not the service is running, and that is the point of it —
-            the password is drawn the first time the interface asks for it, so
-            it can be written down, or typed into a television, before anything
-            is answering, and the block is never an empty heading. */}
-        <div className="space-y-3">
-          <h2 className="text-xl font-semibold">{t('connectionTitle')}</h2>
-          {running ? (
-            <>
-              <p className="text-sm opacity-70">{t('connectionRunning')}</p>
-              {/* An address is the machine's, so this is the one case where the
-                  block has nothing to show: every network adapter is down, and
-                  there is nothing to type. Said in as many words rather than
-                  left as an empty list. */}
-              {share.addresses.length === 0 ? (
-                <p className="text-sm opacity-70">{t('connectionNoAddress')}</p>
-              ) : (
-                <ul className="space-y-1">
-                  {share.addresses.map((address) => (
-                    <li
-                      key={`${address.interface}:${address.address}`}
-                      className="flex items-center gap-3"
-                    >
-                      <code className="select-all">{url(address.address)}</code>
-                      <button
-                        className="btn btn-ghost btn-sm"
-                        // The label of the button is the same on every row; its
-                        // accessible name is not, so that a screen reader — and
-                        // a test — can tell one row's copy from another's.
-                        aria-label={`${t('copyAddress')}: ${url(address.address)}`}
-                        onClick={() => void copy(url(address.address))}
-                      >
-                        {t('copyAddress')}
-                      </button>
-                      <span className="text-sm opacity-70">
-                        {address.interface}
-                      </span>
-                      {/* The one address on the list that works here and
-                          nowhere else. Marked for the same reason it is sorted
-                          last: it is the one most likely to be tried by
-                          mistake. */}
-                      {address.loopback && (
-                        <span className="text-sm text-warning">
-                          {t('addressLoopback')}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          ) : (
-            <p className="text-sm opacity-70">{t('connectionIdle')}</p>
-          )}
-          <div className="flex items-center gap-3">
-            <span className="w-24 text-sm opacity-70">{t('username')}</span>
-            <code className="select-all">{share.username}</code>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="w-24 text-sm opacity-70">{t('password')}</span>
-            {/* Four dots, which is what the password is: every password here is
-                the same four digits, so the mask tells the user nothing the
-                screen would not have told them a moment later, and a mask that
-                disagreed with the length of what they are about to type on a
-                remote would be worse than one that agreed. */}
-            <code className="select-all">
-              {shown ? share.password : '••••'}
-            </code>
-            <button
-              className="btn btn-ghost btn-sm"
-              aria-pressed={shown}
-              onClick={() => setShown(!shown)}
-            >
-              {shown ? t('hidePassword') : t('showPassword')}
-            </button>
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => void copy(share.password)}
-            >
-              {t('copyPassword')}
-            </button>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              className="btn btn-soft btn-sm btn-neutral"
-              disabled={share.busy}
-              onClick={() => void share.regeneratePassword()}
-            >
-              {t('regeneratePassword')}
-            </button>
-            {/* Said only while it is true, which is the one moment a user would
-                otherwise be looking at a password that does not work. */}
-            {share.needsRestart && (
-              <span className="text-sm text-warning">
-                {t('passwordRestartNeeded')}
-              </span>
-            )}
-          </div>
-        </div>
+        {/* Everything a user has to type into the television, in one place: the
+            address to enter, the user name, and the password — which is handed
+            in as this block's own child, because it belongs under this heading
+            and is read and tested on its own. */}
+        <ConnectionDetails
+          running={running}
+          port={share.port}
+          addresses={share.addresses}
+          username={share.username}
+          onCopy={copyText}
+        >
+          <PasswordDetails
+            password={share.password}
+            busy={share.busy}
+            needsRestart={share.needsRestart}
+            onCopy={copyText}
+            onRegenerate={() => void share.regeneratePassword()}
+          />
+        </ConnectionDetails>
         {/* Only while the service is running: nobody is a client of a service
             that is not there, and an empty list under a stopped service would
             read as a complaint about something that has not been asked for. */}
-        {running && (
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold">{t('devicesTitle')}</h2>
-            {/* The wording is load-bearing, and that is why it is a paragraph
-                rather than a tooltip: a WebDAV client connects, takes the file
-                it wants and disconnects, so a device that has gone back to the
-                television menu looks exactly like one that never arrived —
-                until a minute has passed. Someone who expects the row to
-                disappear with the film will report the page as broken. */}
-            <p className="text-sm opacity-70">{t('devicesHelp')}</p>
-            {share.devices.length === 0 ? (
-              <p className="text-sm opacity-70">{t('devicesEmpty')}</p>
-            ) : (
-              <ul className="space-y-1">
-                {share.devices.map((device) => {
-                  const seconds = secondsAgo(device.lastSeen, now);
-                  return (
-                    <li
-                      key={device.address}
-                      className="flex items-center gap-3"
-                    >
-                      {/* A client that did not say who it is still gets a row:
-                          the address and the moment are what the row is made
-                          of, and a blank name would read as a device that
-                          failed to arrive. */}
-                      <span className="truncate">
-                        {device.name ?? t('unknown')}
-                      </span>
-                      <code>{device.address}</code>
-                      <span className="text-sm opacity-70">
-                        {t('activeAgo', {
-                          count: seconds,
-                          countText: seconds.toLocaleString(i18n.language),
-                        })}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        )}
+        {running && <DeviceList devices={share.devices} />}
       </ScrollViewport>
       {/* The menu a right-click on a card opens, and the drawer a click opens:
           the two things the cards in the list above need a page for. */}
