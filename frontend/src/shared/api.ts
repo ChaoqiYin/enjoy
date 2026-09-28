@@ -222,7 +222,10 @@ export const libraryApi = {
  */
 export const shareApi = {
   status: () => invoke<ShareStatus>('share_status'),
-  open: () => invoke<ShareStatus>('open_share'),
+  // The space is named because what the service offers is that space's 共享清单:
+  // "the one on screen" is not an answer the backend can give, since it is the
+  // interface that decides which space is being shown.
+  open: (spaceId: number) => invoke<ShareStatus>('open_share', { spaceId }),
   close: () => invoke<ShareStatus>('close_share'),
 };
 

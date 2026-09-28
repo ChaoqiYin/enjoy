@@ -33,6 +33,12 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 vi.mock('../library/useScan', () => ({ useScan: () => scan }));
 vi.mock('../library/useNotices', () => ({ useNotices: () => notices }));
+// The page reads the current space to name it when starting the service. What
+// the space *is* belongs to the space provider's own tests; what this file is
+// about is which space the command was told.
+vi.mock('../space/SpaceProvider', () => ({
+  useSpace: () => ({ id: 7, name: 'Acceptance' }),
+}));
 
 const i18n = createInstance();
 
@@ -92,7 +98,11 @@ it('offers to start the service, and shows the port it ended up on', async () =>
   });
   fireEvent.click(start);
 
-  await waitFor(() => expect(invoke).toHaveBeenCalledWith('open_share'));
+  // The space travels with the command: the backend offers one space's 共享清单
+  // and cannot know which one is on screen.
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('open_share', { spaceId: 7 }),
+  );
   // The state follows the answer, not the request: the button turns into the
   // one that ends the service only once the backend has said one is running.
   expect(

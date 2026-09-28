@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { shareApi } from '../../shared/api';
 import type { AppError, ShareStatus } from '../../shared/api';
 import { useCommand } from '../../shared/useCommand';
+import { useSpace } from '../space/SpaceProvider';
 
 /**
  * The 共享服务: whether it is running, and the two commands that change that.
@@ -27,6 +28,9 @@ export type Share = {
 
 export function useShare(): Share {
   const [port, setPort] = useState<number | null>(null);
+  // Which space the service would offer, read the way every other space-scoped
+  // call in the interface reads it (ADR 0012).
+  const { id: spaceId } = useSpace();
   const command = useCommand();
   // Read once, when the interface comes up. There is nothing to find — the
   // service is a task inside this process, so it cannot outlive the application
@@ -53,7 +57,7 @@ export function useShare(): Share {
     busy: command.busy,
     error: command.failure?.error ?? null,
     dismissError: command.dismissFailure,
-    start: () => act(shareApi.open),
+    start: () => act(() => shareApi.open(spaceId)),
     stop: () => act(shareApi.close),
   };
 }
