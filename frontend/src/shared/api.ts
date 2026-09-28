@@ -101,12 +101,18 @@ export interface LanguageSettings {
  * The 共享服务 as the interface sees it: the port it is listening on, or null
  * when it is not running.
  *
- * One field, because there is one fact. Whether the service is running *is*
+ * `port` is the whole of the first fact. Whether the service is running *is*
  * whether it has a port, and a flag beside a port would be two answers to one
  * question with nothing keeping them in step.
+ *
+ * `missingFiles` is the second fact, and it is about the list rather than the
+ * service: videos the user picked whose file is not on disk any more, counted
+ * when the service starts because that is when the list is read. It is zero
+ * when nothing is running.
  */
 export interface ShareStatus {
   port: number | null;
+  missingFiles: number;
 }
 
 /**

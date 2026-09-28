@@ -983,6 +983,7 @@ name = "enjoy"
 version = "0.1.11"
 dependencies = [
  "base64 0.22.1",
+ "bytes",
  "dav-server",
  "futures-util",
  "http",

@@ -52,9 +52,10 @@ dav-server= {version="0.11",default-features=false }
 hyper= {version="1",features= ["http1","server"] }
 hyper-util= {version="0.1",features= ["tokio"] }
 # The request and response types the two of them and the WebDAV handler all
-# speak. Declared for the same reason as hyper: already in the tree, now ours to
-# name.
+# speak, and the buffer a file is read into. Declared for the same reason as
+# hyper: already in the tree, now ours to name.
 http="1"
+bytes="1"
 
 [dev-dependencies]
 # Only for the signature tests, which have to bring a key of their own: a valid

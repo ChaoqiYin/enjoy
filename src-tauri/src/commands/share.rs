@@ -5,9 +5,15 @@ use tauri::State;
 use crate::app::AppState;
 use crate::error::AppError;
 use crate::i18n::language;
+use crate::repository::lock_shared;
 use crate::share::{ShareStatus, DEFAULT_PORT};
 
-/// Starts the 共享服务 on the port it is registered on.
+/// Starts the 共享服务 on the port it is registered on, over the 共享清单 of the
+/// space the interface is showing.
+///
+/// The space is named by the caller like every other command's (ADR 0012), and
+/// the list is read here rather than inside the share module: which videos are
+/// on it is the library's business, and opening a port is not.
 ///
 /// The language is read here rather than passed from the interface because the
 /// landing page is written by this side of the seam, and the interface is not
@@ -15,11 +21,13 @@ use crate::share::{ShareStatus, DEFAULT_PORT};
 /// the button is looking at.
 #[tauri::command]
 pub(crate) fn open_share(
+    space_id: i64,
     state: State<'_, AppState>,
     languages: State<'_, language::LanguageState>,
 ) -> Result<ShareStatus, AppError> {
     let language = language::current(&languages)?;
-    state.share.open(Some(DEFAULT_PORT), &language)
+    let paths = lock_shared(&state.repository)?.shared_paths(space_id)?;
+    state.share.open(Some(DEFAULT_PORT), &language, &paths)
 }
 
 /// Ends the service, and answers once the port is free again.

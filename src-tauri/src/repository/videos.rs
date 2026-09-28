@@ -57,6 +57,23 @@ impl Repository {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
+    /// One space's 共享清单: the paths of the records on it, in path order.
+    ///
+    /// Ordered by path because the 虚拟文件名 are handed out in this order — the
+    /// first file to want a name gets it, and the next one to want the same name
+    /// gets a number. A list order that was not the list's own would make the
+    /// names depend on something the user cannot see: numbering by when each
+    /// video was added would shift every later number the moment one was
+    /// inserted in the middle, and the television would show a different set of
+    /// names for no reason.
+    pub fn shared_paths(&self, space_id: i64) -> Result<Vec<String>, AppError> {
+        let mut query = self
+            .connection
+            .prepare("SELECT path FROM videos WHERE space_id=?1 AND shared=1 ORDER BY path")?;
+        let rows = query.query_map([space_id], |row| row.get(0))?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
     /// The identity the space holds for a path, if it holds one.
     ///
     /// The lookup behind both questions about a path: what a refresh compares

@@ -82,6 +82,48 @@ fn a_scanned_directory_clears_the_stale_records_of_files_it_no_longer_holds() {
 }
 
 #[test]
+fn the_share_list_comes_back_in_path_order_and_holds_only_what_is_on_it() {
+    let fixture = Fixture::new();
+    for name in ["b.mp4", "a.mp4", "c.mp4"] {
+        fs::write(fixture.0.join(name), b"video").unwrap();
+    }
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
+    repository
+        .index(
+            space,
+            fixture.0.to_str().unwrap(),
+            &scanner::collect(&fixture.0).unwrap(),
+        )
+        .unwrap();
+    // Nothing is on the list until the user puts something there.
+    assert!(repository.shared_paths(space).unwrap().is_empty());
+
+    let all = repository.list(space).unwrap();
+    let path_of = |suffix: &str| {
+        all.iter()
+            .find(|video| video.path.ends_with(suffix))
+            .unwrap()
+            .path
+            .clone()
+    };
+    // Picked in an order that is not the path order, which is the point: the
+    // 虚拟文件名 are handed out in the order this comes back in, and a list order
+    // that followed the picking would renumber everything after an insertion.
+    repository.share(space, &path_of("c.mp4"), true).unwrap();
+    repository.share(space, &path_of("a.mp4"), true).unwrap();
+
+    let shared = repository.shared_paths(space).unwrap();
+    assert_eq!(shared.len(), 2);
+    assert!(shared[0].ends_with("a.mp4"), "{shared:?}");
+    assert!(shared[1].ends_with("c.mp4"), "{shared:?}");
+    // The one that was not picked is not on it, however it was found.
+    assert!(!shared.iter().any(|path| path.ends_with("b.mp4")));
+}
+
+#[test]
 fn a_scan_target_that_is_not_a_directory_is_a_verdict_and_not_an_error() {
     let fixture = Fixture::new();
     let movie = fixture.0.join("clip.webm");

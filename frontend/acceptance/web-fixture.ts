@@ -281,13 +281,13 @@ mockIPC(
       // the button moves the interface between its two states, and the port it
       // names is the one the interface would have to show.
       case 'share_status':
-        return { port: sharePort };
+        return { port: sharePort, missingFiles: 0 };
       case 'open_share':
         sharePort = 4918;
-        return { port: sharePort };
+        return { port: sharePort, missingFiles: 0 };
       case 'close_share':
         sharePort = null;
-        return { port: sharePort };
+        return { port: sharePort, missingFiles: 0 };
       case 'check_for_update':
         return { ...updateCheck };
       case 'install_update': {

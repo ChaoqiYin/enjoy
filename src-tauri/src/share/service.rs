@@ -39,6 +39,7 @@ pub(crate) const DEFAULT_PORT: u16 = 4918;
 /// A service listening on a port, until it is ended.
 pub(crate) struct Service {
     port: u16,
+    missing: usize,
     ending: oneshot::Sender<()>,
     thread: std::thread::JoinHandle<()>,
 }
@@ -54,7 +55,16 @@ impl Service {
     /// `requested` is the port to take, or `None` to let the operating system
     /// choose one. The tests ask for the latter, so that two of them cannot
     /// collide on a port neither owns; the interface always names one.
-    pub(crate) fn start(requested: Option<u16>, language: &str) -> Result<Self, AppError> {
+    ///
+    /// `paths` is the 共享清单, in path order. Reading it into the filesystem
+    /// happens here rather than on the serving thread for the same reason the
+    /// bind does: what the list came to — how many videos it holds, how many of
+    /// them are no longer on disk — is part of the answer the caller is given.
+    pub(crate) fn start(
+        requested: Option<u16>,
+        language: &str,
+        paths: &[String],
+    ) -> Result<Self, AppError> {
         let listener = bind(requested)?;
         let port = listener
             .local_addr()
@@ -63,14 +73,17 @@ impl Service {
         listener
             .set_nonblocking(true)
             .map_err(|error| AppError::new("share.start.failed", error))?;
+        let files = ShareFs::build(paths);
+        let missing = files.missing();
         let endpoints = Endpoints {
-            webdav: dav_handler(),
+            webdav: dav_handler(files),
             landing: landing::page(language),
         };
         let (ending, signal) = oneshot::channel();
         let thread = std::thread::spawn(move || serve(listener, signal, endpoints));
         Ok(Self {
             port,
+            missing,
             ending,
             thread,
         })
@@ -80,6 +93,12 @@ impl Service {
     /// for: `None` asks for the system's own choice.
     pub(crate) fn port(&self) -> u16 {
         self.port
+    }
+
+    /// How many videos on the list this service cannot offer, because their file
+    /// is not on disk.
+    pub(crate) fn missing(&self) -> usize {
+        self.missing
     }
 
     /// Ends the service and returns once the port is free again.
@@ -116,9 +135,9 @@ fn bind(requested: Option<u16>) -> Result<std::net::TcpListener, AppError> {
 }
 
 /// The handler for the protocol, over the filesystem built from the list.
-fn dav_handler() -> DavHandler {
+fn dav_handler(files: ShareFs) -> DavHandler {
     DavHandler::builder()
-        .filesystem(Box::new(ShareFs))
+        .filesystem(Box::new(files))
         // Finder and Explorer probe for locks before they will mount anything.
         // The placeholder answers those probes without keeping any lock: the
         // service is read-only, so there is nothing a lock could protect.

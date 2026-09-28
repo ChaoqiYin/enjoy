@@ -17,7 +17,11 @@
 //!   one entry of the 共享清单.
 
 pub(crate) mod control;
+#[cfg(test)]
+mod fixture;
 mod fs;
+#[cfg(test)]
+mod fs_tests;
 mod landing;
 mod service;
 #[cfg(test)]

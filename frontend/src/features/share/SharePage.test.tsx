@@ -83,8 +83,8 @@ function page() {
 
 it('offers to start the service, and shows the port it ended up on', async () => {
   backend({
-    share_status: { port: null },
-    open_share: { port: 4918 },
+    share_status: { port: null, missingFiles: 0 },
+    open_share: { port: 4918, missingFiles: 0 },
   });
   page();
   const start = await screen.findByRole('button', {
@@ -103,8 +103,8 @@ it('offers to start the service, and shows the port it ended up on', async () =>
 
 it('ends a service that is running', async () => {
   backend({
-    share_status: { port: 4918 },
-    close_share: { port: null },
+    share_status: { port: 4918, missingFiles: 0 },
+    close_share: { port: null, missingFiles: 0 },
   });
   page();
   const stop = await screen.findByRole('button', { name: english.stopSharing });
@@ -118,7 +118,7 @@ it('ends a service that is running', async () => {
 
 it('says so, beside the reference, when the service cannot start', async () => {
   vi.mocked(invoke).mockImplementation((async (command: string) => {
-    if (command === 'share_status') return { port: null };
+    if (command === 'share_status') return { port: null, missingFiles: 0 };
     throw {
       code: 'share.port.in_use',
       params: { port: '4918' },
