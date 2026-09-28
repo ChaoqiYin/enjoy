@@ -14,7 +14,7 @@
 //! to observe it is to speak the protocol to it.
 
 use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::net::{IpAddr, Ipv4Addr, TcpStream};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -84,14 +84,15 @@ fn get(port: u16, path: &str) -> Vec<u8> {
     request(port, "GET", path, "")
 }
 
-/// A request carrying exactly the credential header it is given, which is how a
-/// client that got the password wrong offers it.
-fn offering(port: u16, method: &str, path: &str, credential: &str) -> Vec<u8> {
+/// A request carrying exactly the headers it is given, with nothing added and
+/// no credential of its own: how a client that got the password wrong offers it,
+/// and how a test sends a request no helper has had a hand in.
+fn raw_request(port: u16, method: &str, path: &str, headers: &str) -> Vec<u8> {
     ask(
         port,
         &format!(
             "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\
-             {credential}\r\n\r\n"
+             {headers}\r\n"
         ),
     )
 }
@@ -218,8 +219,8 @@ fn credentials_that_are_not_right_are_refused_the_same_way() {
         // Decodes to nothing that holds a user name and a password at all.
         ("no colon in it", "treasure".to_string()),
     ] {
-        let header = format!("Authorization: Basic {}", BASE64.encode(offered));
-        let response = offering(port, "GET", "/", &header);
+        let header = format!("Authorization: Basic {}\r\n", BASE64.encode(offered));
+        let response = raw_request(port, "GET", "/", &header);
         assert_eq!(status(&response), 401, "{name}");
         assert!(
             head_of(&response)
@@ -247,6 +248,73 @@ fn the_password_that_is_right_is_served_both_of_the_answers_the_others_are_not()
         String::from_utf8_lossy(&body_of(&listing)).contains(&encoded("开场.mp4")),
         "the listing came back without the video on it"
     );
+    control.close(&credentials());
+}
+
+#[test]
+fn a_client_that_gets_in_is_listed_under_the_name_it_gives_itself() {
+    let (control, port) = started("en");
+    assert!(control.status(&credentials()).devices.is_empty());
+    request(port, "GET", "/", "User-Agent: VLC/3.0.20 LibVLC/3.0.20\r\n");
+    request(port, "PROPFIND", "/", "Depth: 1\r\nContent-Length: 0\r\n");
+
+    let devices = control.status(&credentials()).devices;
+    // One row for two requests: a client is a client, not a request.
+    assert_eq!(devices.len(), 1);
+    assert_eq!(devices[0].address, IpAddr::V4(Ipv4Addr::LOCALHOST));
+    assert_eq!(devices[0].name.as_deref(), Some("VLC/3.0.20"));
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    // Dated, so that the page can say how long ago it was, and never in the
+    // future by more than the clock this test was read against.
+    assert!(
+        devices[0].last_seen <= now,
+        "{} > {now}",
+        devices[0].last_seen
+    );
+    assert!(devices[0].last_seen > now - 60_000);
+    control.close(&credentials());
+    // Ending the service ends the list with it: nobody is connected to a
+    // service that is not there.
+    assert!(control.status(&credentials()).devices.is_empty());
+}
+
+#[test]
+fn a_client_that_says_nothing_about_itself_is_still_listed() {
+    let (control, port) = started("en");
+    request(port, "GET", "/", "");
+    // Named or not, the address and the moment are what the row is made of, and
+    // a client that sends no User-Agent still has both.
+    let devices = control.status(&credentials()).devices;
+    assert_eq!(devices.len(), 1);
+    assert_eq!(devices[0].address, IpAddr::V4(Ipv4Addr::LOCALHOST));
+    assert_eq!(devices[0].name, None);
+    control.close(&credentials());
+}
+
+#[test]
+fn a_device_that_never_got_past_the_password_is_not_a_client() {
+    let (control, port) = started("en");
+    let response = raw_request(
+        port,
+        "GET",
+        "/",
+        &format!(
+            "Authorization: Basic {}\r\n",
+            BASE64.encode("enjoy:doubloons")
+        ),
+    );
+    assert_eq!(status(&response), 401);
+    assert!(
+        control.status(&credentials()).devices.is_empty(),
+        "a refused request was listed as a client"
+    );
+    // And the same address, with the password, is listed: what was left out is
+    // the request that was refused, not the device.
+    assert_eq!(status(&get(port, "/")), 200);
+    assert_eq!(control.status(&credentials()).devices.len(), 1);
     control.close(&credentials());
 }
 

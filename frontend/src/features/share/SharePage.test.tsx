@@ -4,6 +4,7 @@
 // in for.
 import * as doubles from '../../test/doubles';
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -18,7 +19,7 @@ import { ShareProvider } from './ShareProvider';
 import { SharePage } from '../../pages/SharePage';
 import english from '../../../../shared/locales/en/common.json';
 import errors from '../../../../shared/locales/en/errors.json';
-import type { ShareStatus } from '../../shared/api';
+import type { Device, ShareStatus } from '../../shared/api';
 
 // The chrome the page sits in asks the library two things — whether a pass is
 // running, and what the library has to say. Neither is what this file is about,
@@ -71,6 +72,17 @@ function status(overrides: Partial<ShareStatus> = {}): ShareStatus {
     username: 'enjoy',
     password: 'sample-passw0rd',
     needsRestart: false,
+    devices: [],
+    ...overrides,
+  };
+}
+
+/** A client the backend has heard from, at a moment the test chooses. */
+function device(overrides: Partial<Device> = {}): Device {
+  return {
+    address: '192.168.1.24',
+    name: 'Infuse/7.6.4',
+    lastSeen: Date.now(),
     ...overrides,
   };
 }
@@ -101,6 +113,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   delete (window.navigator as { clipboard?: unknown }).clipboard;
 });
@@ -238,4 +251,83 @@ it('says a running service is behind a password that has been replaced', async (
   expect(await screen.findByText(english.passwordRestartNeeded)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: english.showPassword }));
   expect(screen.getByText('doubloons6789')).toBeTruthy();
+});
+
+it('lists the devices that have asked for something, and how long ago', async () => {
+  backend({
+    share_status: status({
+      port: 4918,
+      // In the order the backend hands them over, most recently heard from
+      // first: the page draws the list rather than sorting it, and the sort is
+      // the backend's — it is the one that knows when each request arrived.
+      devices: [
+        device({ address: '192.168.1.31', name: null, lastSeen: Date.now() }),
+        device({ lastSeen: Date.now() - 12_000 }),
+      ],
+    }),
+  });
+  page();
+  // The name the client gave, the address it came from, and the moment it was
+  // last heard from. The list is most-recent-first, so the client that has just
+  // been here is the row above the one that has been quiet for twelve seconds.
+  const rows = await screen.findAllByRole('listitem');
+  expect(rows).toHaveLength(2);
+  expect(rows[0].textContent).toContain('192.168.1.31');
+  // A second and not two: the singular is what the backend's own answer of
+  // "just now" reads as, and it is the only count that has a form of its own.
+  expect(rows[0].textContent).toContain(
+    english.activeAgo_one.replace('{{countText}}', '1'),
+  );
+  expect(rows[1].textContent).toContain('Infuse/7.6.4');
+  expect(rows[1].textContent).toContain('192.168.1.24');
+  expect(rows[1].textContent).toContain(
+    english.activeAgo_other.replace('{{countText}}', '12'),
+  );
+  // A client that did not name itself is still a row, under the word for not
+  // knowing: a blank there would read as a device that failed to arrive.
+  expect(rows[0].textContent).toContain(english.unknown);
+});
+
+it('says the list is empty when no device has asked', async () => {
+  backend({ share_status: status({ port: 4918 }) });
+  page();
+  // The wording and not just the absence: the list is drawn only while the
+  // service is running, so an empty one is a fact about the last minute rather
+  // than a section that has not loaded.
+  expect(await screen.findByText(english.devicesEmpty)).toBeTruthy();
+  expect(screen.getByText(english.devicesHelp)).toBeTruthy();
+});
+
+it('reads the list again on its own, so a device appears and drops off', async () => {
+  // The criterion is that neither arrival nor departure needs the user to do
+  // anything, and the only way to see that is to run the clock: nothing pushes
+  // either event, so what the page does with a quiet five seconds is the whole
+  // of the feature.
+  vi.useFakeTimers();
+  let answer = status({ port: 4918 });
+  vi.mocked(invoke).mockImplementation((async (command: string) => {
+    if (command === 'share_status') return answer;
+    throw { code: 'app.unexpected', errorId: 'test' };
+  }) as never);
+  page();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  expect(screen.getByText(english.devicesEmpty)).toBeTruthy();
+
+  // A device that was not there a moment ago, and the page hears about it
+  // without anyone touching it.
+  answer = status({ port: 4918, devices: [device()] });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5000);
+  });
+  expect(screen.getByText('Infuse/7.6.4')).toBeTruthy();
+  expect(screen.queryByText(english.devicesEmpty)).toBeNull();
+
+  // And gone again once the backend stops counting it among the recent.
+  answer = status({ port: 4918 });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5000);
+  });
+  expect(screen.getByText(english.devicesEmpty)).toBeTruthy();
 });

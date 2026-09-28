@@ -71,6 +71,22 @@ let drawnPasswords = 0;
  * password on one side, and on the other whether the service that is running is
  * still behind that password.
  */
+/**
+ * The clients a walkthrough is shown while the service is running.
+ *
+ * Dated from the moment the fixture loaded, so that the ages start from whenever
+ * the walkthrough began rather than from the epoch. Two of them, one quiet for
+ * long enough to be on its way out, and one that never gave a name — which is
+ * the row the page has to render without a blank. Nothing here ages anything
+ * out: the minute-long window is the backend's rule, and it is held by the
+ * backend's own tests.
+ */
+const startedAt = Date.now();
+const listedDevices = [
+  { address: '192.168.1.24', name: 'Infuse/7.6.4', lastSeen: startedAt },
+  { address: '192.168.1.31', name: null, lastSeen: startedAt - 42_000 },
+];
+
 function share() {
   return {
     port: sharePort,
@@ -78,6 +94,7 @@ function share() {
     username: 'enjoy',
     password: sharePassword,
     needsRestart: sharePort !== null && served !== sharePassword,
+    devices: sharePort === null ? [] : listedDevices,
   };
 }
 // The acceptance fixture stands in for the backend, so the space rules are

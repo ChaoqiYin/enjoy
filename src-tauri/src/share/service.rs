@@ -15,7 +15,8 @@
 //! of the boundary at all.
 
 use std::convert::Infallible;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::sync::Arc;
 
 use dav_server::fakels::FakeLs;
 use dav_server::{body::Body, DavHandler};
@@ -28,6 +29,7 @@ use tokio::sync::oneshot;
 
 use crate::error::AppError;
 
+use super::activity::{Activity, Device};
 use super::credentials::{Credentials, CHALLENGE};
 use super::fs::ShareFs;
 use super::landing;
@@ -46,6 +48,9 @@ pub(crate) struct Service {
     /// service that read the preferences per request would start accepting a
     /// password the interface had just told the user it was not yet using.
     credentials: Credentials,
+    /// Held here and on the serving thread at once: the thread writes to it as
+    /// requests arrive, and the slot reads it to answer the interface.
+    activity: Arc<Activity>,
     ending: oneshot::Sender<()>,
     thread: std::thread::JoinHandle<()>,
 }
@@ -82,10 +87,12 @@ impl Service {
             .map_err(|error| AppError::new("share.start.failed", error))?;
         let files = ShareFs::build(paths);
         let missing = files.missing();
+        let activity = Arc::new(Activity::default());
         let endpoints = Endpoints {
             webdav: dav_handler(files),
             landing: landing::page(language),
             credentials: credentials.clone(),
+            activity: Arc::clone(&activity),
         };
         let (ending, signal) = oneshot::channel();
         let thread = std::thread::spawn(move || serve(listener, signal, endpoints));
@@ -93,6 +100,7 @@ impl Service {
             port,
             missing,
             credentials,
+            activity,
             ending,
             thread,
         })
@@ -114,6 +122,11 @@ impl Service {
     /// when it started and not the ones stored now.
     pub(crate) fn credentials(&self) -> &Credentials {
         &self.credentials
+    }
+
+    /// The clients heard from in the last minute, as of now.
+    pub(crate) fn devices(&self) -> Vec<Device> {
+        self.activity.recent(std::time::SystemTime::now())
     }
 
     /// Ends the service and returns once the port is free again.
@@ -167,6 +180,7 @@ struct Endpoints {
     webdav: DavHandler,
     landing: String,
     credentials: Credentials,
+    activity: Arc<Activity>,
 }
 
 /// Serves the port until the signal arrives, on a runtime and a thread of its
@@ -215,10 +229,15 @@ async fn accept_loop(
                     }
                 };
                 let endpoints = endpoints.clone();
+                // Who is asking is a property of the connection and not of the
+                // request, which is why it is read here rather than in
+                // `answer`: nothing in an HTTP request carries the sender's
+                // address, and a header claiming one is the client's word.
+                let caller = stream.peer_addr().ok().map(|peer| peer.ip());
                 tokio::spawn(async move {
                     let service = service_fn(move |request| {
                         let endpoints = endpoints.clone();
-                        async move { Ok::<_, Infallible>(answer(request, endpoints).await) }
+                        async move { Ok::<_, Infallible>(answer(request, endpoints, caller).await) }
                     });
                     if let Err(error) = http1::Builder::new()
                         .serve_connection(TokioIo::new(stream), service)
@@ -243,12 +262,25 @@ async fn accept_loop(
 /// up, and a client's PROPFIND on the same path is the protocol asking what is
 /// here. They are the same request line and two different questions, and each is
 /// answered by the half that understands it.
-async fn answer(request: Request<Incoming>, endpoints: Endpoints) -> Response<Body> {
+async fn answer(
+    request: Request<Incoming>,
+    endpoints: Endpoints,
+    caller: Option<IpAddr>,
+) -> Response<Body> {
     if !endpoints
         .credentials
         .accepts(request.headers().get(header::AUTHORIZATION))
     {
         return unauthorized();
+    }
+    // Recorded here and not at the door, so that what the page lists is the
+    // devices the password let in. A connection made by something that never
+    // gets that far is not a client of this library, and a scan of the network
+    // would otherwise fill the list with addresses the user has never seen.
+    if let Some(caller) = caller {
+        endpoints
+            .activity
+            .saw(caller, request.headers().get(header::USER_AGENT));
     }
     if landing::wanted(&request) {
         return landing::response(&request, &endpoints.landing);

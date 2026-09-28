@@ -1,8 +1,21 @@
 import { useEffect, useState } from 'react';
 import { shareApi } from '../../shared/api';
-import type { AppError, ShareStatus } from '../../shared/api';
+import type { AppError, Device, ShareStatus } from '../../shared/api';
 import { useCommand } from '../../shared/useCommand';
 import { useSpace } from '../space/SpaceProvider';
+
+/**
+ * How often the status is read again while the service is running.
+ *
+ * The device list changes without the interface doing anything — a client asking
+ * for a file is what puts a row there, and a client going quiet is what takes it
+ * away — and nothing pushes that news: the backend cannot know when a television
+ * stopped asking for anything. So the status is asked for again on a timer,
+ * which is what makes a row disappear on its own. Five seconds against a
+ * minute-long window is short enough that no one is left looking at a row that
+ * should already be gone, and long enough to be one small call.
+ */
+const REFRESH_MS = 5000;
 
 /**
  * The 共享服务: whether it is running, who may connect, and the commands that
@@ -27,6 +40,8 @@ export type Share = {
   password: string;
   /** Whether a service is running that would refuse `password` above it. */
   needsRestart: boolean;
+  /** The clients heard from in the last minute, most recent first. */
+  devices: Device[];
   busy: boolean;
   /** The last failure, or null. Where it is shown is the provider's business. */
   error: AppError | null;
@@ -63,6 +78,27 @@ export function useShare(): Share {
       live = false;
     };
   }, []);
+  const running = status?.port != null;
+  const busy = command.busy;
+  useEffect(() => {
+    // Not while a command is in flight: its answer is newer than anything a
+    // timer started before it could bring back, and a poll that landed after it
+    // would undo it on screen for as long as the next one took.
+    if (!running || busy) return;
+    let live = true;
+    const timer = setInterval(() => {
+      shareApi
+        .status()
+        .then((answer) => {
+          if (live) setStatus(answer);
+        })
+        .catch(() => {});
+    }, REFRESH_MS);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [running, busy]);
   const act = (action: () => Promise<ShareStatus>) =>
     command.run(undefined, async () => setStatus(await action()));
   return {
@@ -70,7 +106,8 @@ export function useShare(): Share {
     username: status?.username ?? '',
     password: status?.password ?? '',
     needsRestart: status?.needsRestart ?? false,
-    busy: command.busy,
+    devices: status?.devices ?? [],
+    busy,
     error: command.failure?.error ?? null,
     dismissError: command.dismissFailure,
     start: () => act(() => shareApi.open(spaceId)),

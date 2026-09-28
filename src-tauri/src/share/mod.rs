@@ -6,7 +6,7 @@
 //! the space ends it. It reads a snapshot of the list taken when it started, so
 //! what a device sees does not change under it while it is playing.
 //!
-//! Four pieces, in four files:
+//! Five pieces, in five files:
 //!
 //! - [`control`] is the slot: whether a service is running, starting one, ending
 //!   one. It is what the interface asks, and it answers without starting
@@ -16,9 +16,12 @@
 //!   asked for one.
 //! - [`service`] is the running thing: the bound port, the thread serving it, and
 //!   the answers a request can get.
+//! - [`activity`] is who has been connecting: the clients heard from in the last
+//!   minute, for the page that says which of the user's devices has arrived.
 //! - [`fs`] is what the service serves: a virtual filesystem whose every name is
 //!   one entry of the 共享清单.
 
+pub(crate) mod activity;
 pub(crate) mod control;
 pub(crate) mod credentials;
 #[cfg(test)]

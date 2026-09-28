@@ -116,6 +116,10 @@ export interface LanguageSettings {
  * `needsRestart` is the one thing that cannot be worked out from them — whether
  * the service that is running is still behind the password shown above it, which
  * it stops being the moment the user regenerates one.
+ *
+ * `devices` is the one part of this that changes without the user doing
+ * anything, which is why the page reads the whole status again on a timer while
+ * the service is running.
  */
 export interface ShareStatus {
   port: number | null;
@@ -123,6 +127,28 @@ export interface ShareStatus {
   username: string;
   password: string;
   needsRestart: boolean;
+  devices: Device[];
+}
+
+/**
+ * A client that has talked to the service recently.
+ *
+ * There is no `online` here to go with it, and that is the protocol's own
+ * answer: a WebDAV client opens a connection, takes what it asked for and
+ * closes it, so "connected" is a word this service has nothing to be. What it
+ * has is the last request and when it arrived.
+ */
+export interface Device {
+  /** The address the request came from, as the socket had it. */
+  address: string;
+  /**
+   * What the client calls itself — the first product of its `User-Agent` — or
+   * null when it sent nothing this could be read from. Null is not a reason to
+   * leave the row out: the address and the time are the row.
+   */
+  name: string | null;
+  /** When it was last heard from, in milliseconds since the epoch. */
+  lastSeen: number;
 }
 
 /**

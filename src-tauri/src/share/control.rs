@@ -10,6 +10,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use crate::error::AppError;
 
+use super::activity::Device;
 use super::credentials::Credentials;
 use super::service::Service;
 
@@ -32,6 +33,12 @@ use super::service::Service;
 /// which is why `needs_restart` has to be said separately: regenerating a
 /// password while the service is running changes this answer and not what the
 /// running service will accept.
+///
+/// `devices` is the last fact, and the only one that changes without the user
+/// doing anything: a client making a request is what puts a row there, and a
+/// client going quiet is what takes it away. The interface reads this again on a
+/// timer for exactly that reason, and it is empty whenever nothing is running —
+/// nobody is connected to a service that is not there.
 #[derive(Clone, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ShareStatus {
@@ -42,6 +49,7 @@ pub struct ShareStatus {
     /// Whether a service is running that would refuse the very password above
     /// it, because the password was regenerated after it started.
     pub needs_restart: bool,
+    pub devices: Vec<Device>,
 }
 
 #[derive(Default)]
@@ -73,15 +81,17 @@ impl ShareControl {
     /// started with, and one that no longer matches the stored password is a
     /// service whose password has been changed underneath it.
     pub fn status(&self, credentials: &Credentials) -> ShareStatus {
-        let (port, missing_files, needs_restart) = match self.lock().as_ref() {
+        let (port, missing_files, needs_restart, devices) = match self.lock().as_ref() {
             Some(service) => (
                 Some(service.port()),
                 service.missing(),
                 service.credentials() != credentials,
+                service.devices(),
             ),
-            // Nothing is running, so there is nothing left to restart and
-            // nothing to offer: the credentials are the whole of this answer.
-            None => (None, 0, false),
+            // Nothing is running, so there is nothing left to restart, nobody
+            // is connected, and nothing is on offer: the credentials are the
+            // whole of this answer.
+            None => (None, 0, false, Vec::new()),
         };
         ShareStatus {
             port,
@@ -89,6 +99,7 @@ impl ShareControl {
             username: credentials.username.clone(),
             password: credentials.password.clone(),
             needs_restart,
+            devices,
         }
     }
 
