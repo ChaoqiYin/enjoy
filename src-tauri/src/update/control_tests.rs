@@ -1,40 +1,11 @@
-use super::control::{is_same_offer, published_at, ProgressThrottle, Stop, UpdateControl};
-use crate::scan::control::ScanControl;
 use std::sync::Arc;
-use time::{Duration, OffsetDateTime};
 
-#[test]
-fn a_published_date_is_written_as_rfc3339() {
-    // `OffsetDateTime`'s own rendering is not a date JavaScript reads, and the
-    // settings page formats this string while rendering: sending the rendering
-    // would leave the frontend with an invalid date, which throws and takes the
-    // whole window down with it.
-    let date = OffsetDateTime::from_unix_timestamp(1_756_000_000).unwrap();
-    assert_eq!(
-        published_at(Some(date)).as_deref(),
-        Some("2025-08-24T01:46:40Z")
-    );
-}
+use super::control::{Stop, UpdateControl};
+use super::fixture::stand_in;
+use crate::scan::control::ScanControl;
 
-#[test]
-fn a_published_date_keeps_the_manifest_fraction() {
-    // The manifest the plugin reads carries milliseconds rather than whole
-    // seconds — a real one reads `2026-09-26T15:47:36.624Z` — so the instant
-    // handed to this function is almost never whole. The fraction has to
-    // survive the round trip as a fraction, not as something JavaScript reads
-    // as a different instant or refuses outright.
-    let date =
-        OffsetDateTime::from_unix_timestamp(1_756_000_000).unwrap() + Duration::milliseconds(624);
-    assert_eq!(
-        published_at(Some(date)).as_deref(),
-        Some("2025-08-24T01:46:40.624Z")
-    );
-}
-
-#[test]
-fn a_release_without_a_date_sends_none() {
-    assert_eq!(published_at(None), None);
-}
+/// Any address at all: nothing in this file fetches anything.
+const ADDRESS: &str = "http://127.0.0.1:1/installer";
 
 #[test]
 fn install_reports_the_platform_before_anything_else() {
@@ -93,12 +64,36 @@ fn install_refuses_before_a_download() {
     assert!(scan.begin().is_ok());
 }
 
-// What no test here reaches: `install` succeeding, and the slot being closed
-// behind it. A successful install needs a `ready` control — bytes *and* the
-// release they belong to — and the release is a `tauri_plugin_updater::Update`,
-// whose fields are private and which nothing outside the plugin can build. So
-// the closing call itself is the one step of this rule no test holds; the slot's
-// own half of it is tested where the slot lives, and the refusals are above.
+#[test]
+fn a_ready_install_hands_over_the_release_and_closes_the_slot_behind_it() {
+    // What a comment here used to say no test could reach. A successful install
+    // needs bytes *and* the release they belong to, and the release was a
+    // `tauri_plugin_updater::Update` — private fields, and nothing outside the
+    // plugin can build one — so the last step of this rule was the one step no
+    // test held. With a release a test can build it is the ordinary case.
+    let control = UpdateControl::default();
+    let scan = Arc::new(ScanControl::default());
+    let release = stand_in("0.2.0", ADDRESS, "signature");
+    control.remember(release.clone());
+    control.take_slot(true).unwrap().install(vec![1, 2, 3]);
+
+    let (handed_over, bytes) = control.install(&scan, true).unwrap();
+    assert_eq!(handed_over.version(), "0.2.0");
+    assert_eq!(bytes, vec![1, 2, 3]);
+    assert_eq!(
+        release.installed(),
+        None,
+        "the handover is the caller's to make"
+    );
+    // Both halves are spent, and the scan slot is closed rather than merely
+    // free: installing exits the process, so there is no later to scan in.
+    assert_eq!(control.ready_version(), None);
+    assert_eq!(
+        control.install(&scan, true).err().unwrap().code,
+        "update.not_downloaded"
+    );
+    assert!(scan.begin().is_err());
+}
 
 #[test]
 fn taking_the_slot_refuses_on_an_unsupported_platform() {
@@ -124,52 +119,49 @@ fn taking_the_slot_refuses_a_second_download_until_the_first_ends() {
 }
 
 #[test]
-fn throttle_reports_the_first_chunk() {
-    let mut throttle = ProgressThrottle::default();
-    assert!(throttle.should_emit(0, Some(1_000)));
+fn a_different_offer_throws_away_what_was_already_downloaded() {
+    // The rule that had no test until a release could be built, and the one
+    // place in the application that throws away bytes the user has waited for.
+    // The version is what decides it: an installer downloaded for one release
+    // answers nothing once another is offered, and neither does half of one.
+    //
+    // What it prevents is not a wrong install — the signature would catch that —
+    // but a payload assembled from two releases, which is discovered after the
+    // user has waited for the whole transfer a second time.
+    let control = UpdateControl::default();
+    control.remember(stand_in("0.2.0", ADDRESS, "signature"));
+    control.take_slot(true).unwrap().install(vec![1, 2, 3]);
+    assert_eq!(control.ready_version().as_deref(), Some("0.2.0"));
+
+    control.remember(stand_in("0.2.1", ADDRESS, "signature"));
+    assert_eq!(control.ready_version(), None, "the installer is dropped");
+    let next = control.take_slot(true).unwrap();
+    assert!(
+        next.resume().is_empty(),
+        "and so is whatever a pause had kept"
+    );
+    next.discard();
+    assert_eq!(
+        control.pending().unwrap().version(),
+        "0.2.1",
+        "and the offer is the new one"
+    );
 }
 
 #[test]
-fn throttle_only_reports_a_new_whole_percent() {
-    let mut throttle = ProgressThrottle::default();
-    assert!(throttle.should_emit(0, Some(1_000)));
-    assert!(!throttle.should_emit(5, Some(1_000)));
-    assert!(throttle.should_emit(15, Some(1_000)));
-    assert!(!throttle.should_emit(19, Some(1_000)));
-}
+fn the_same_offer_keeps_what_was_already_downloaded() {
+    // The other half, and the one the user feels: checking for updates again
+    // while the same version is on offer must not throw away a download that is
+    // already in hand. Without this, a second press of "check" would silently
+    // restart a transfer the user had already sat through.
+    let control = UpdateControl::default();
+    control.remember(stand_in("0.2.0", ADDRESS, "signature"));
+    control.take_slot(true).unwrap().keep(vec![4, 5, 6]);
+    control.remember(stand_in("0.2.0", ADDRESS, "signature"));
 
-#[test]
-fn throttle_falls_back_to_a_mebibyte_step() {
-    let mut throttle = ProgressThrottle::default();
-    assert!(throttle.should_emit(0, None));
-    assert!(!throttle.should_emit(1 << 19, None));
-    assert!(throttle.should_emit(1 << 20, None));
-}
-
-#[test]
-fn throttle_treats_a_zero_total_as_unknown() {
-    // A server answering `Content-Length: 0` must not divide by zero.
-    let mut throttle = ProgressThrottle::default();
-    assert!(throttle.should_emit(0, Some(0)));
-    assert!(!throttle.should_emit(1 << 19, Some(0)));
-    assert!(throttle.should_emit(1 << 20, Some(0)));
-}
-
-#[test]
-fn throttle_clamps_a_server_that_over_reports_progress() {
-    let mut throttle = ProgressThrottle::default();
-    assert!(throttle.should_emit(0, Some(100)));
-    // Past the reported total the step must stay at 100, otherwise every
-    // further chunk would count as a new step and emit again.
-    assert!(throttle.should_emit(200, Some(100)));
-    assert!(!throttle.should_emit(500, Some(100)));
-}
-
-#[test]
-fn same_offer_only_matches_the_same_version() {
-    assert!(is_same_offer(Some("0.2.0"), "0.2.0"));
-    assert!(!is_same_offer(Some("0.2.0"), "0.2.1"));
-    assert!(!is_same_offer(None, "0.2.0"));
+    let next = control.take_slot(true).unwrap();
+    assert_eq!(next.resume(), &[4, 5, 6]);
+    next.discard();
 }
 
 #[test]

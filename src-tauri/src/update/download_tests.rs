@@ -1,98 +1,15 @@
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::io::Write;
+use std::net::TcpListener;
 use std::thread;
 use std::time::Duration;
 
 use super::control::{Stop, StopFlag};
 use super::download::{fetch, next_attempt, Asked, Transfer, FIRST_BACKOFF, MAX_BACKOFF};
+use super::fixture::{body, read_head, serve_cut, Server};
 use super::verify::verify;
 
-/// A server that serves `body` once, cutting the answer short after `cut`
-/// bytes, and answers with ranges afterwards.
-///
-/// This is the connection this whole module exists for: one that dies partway
-/// through with the length already announced. It hands back the address to
-/// fetch from and the list of offsets it was asked for, so a test can say not
-/// only that the bytes arrived but that they arrived by resuming.
-fn spawn_cutting_server(body: Vec<u8>, cut: usize) -> (String, Arc<Mutex<Vec<u64>>>) {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("a port on the loopback");
-    let address = format!("http://{}", listener.local_addr().expect("a bound address"));
-    let served = Arc::new(AtomicUsize::new(0));
-    let asked = Arc::new(Mutex::new(Vec::new()));
-    let seen = Arc::clone(&asked);
-    thread::spawn(move || {
-        for connection in listener.incoming() {
-            let Ok(mut connection) = connection else {
-                break;
-            };
-            let start = range_start(&read_head(&mut connection));
-            seen.lock().expect("the offsets are shared").push(start);
-            if start as usize > body.len() {
-                let _ = connection
-                    .write_all(b"HTTP/1.1 416 Range Not Satisfiable\r\nContent-Length: 0\r\n\r\n");
-                continue;
-            }
-            let rest = &body[start as usize..];
-            let head = match start {
-                0 => format!(
-                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nAccept-Ranges: bytes\r\n\r\n",
-                    rest.len()
-                ),
-                _ => format!(
-                    "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes {}-{}/{}\r\n\r\n",
-                    rest.len(),
-                    start,
-                    body.len() - 1,
-                    body.len()
-                ),
-            };
-            let _ = connection.write_all(head.as_bytes());
-            let first = served.fetch_add(1, Ordering::SeqCst) == 0;
-            let send = if first {
-                &rest[..cut.min(rest.len())]
-            } else {
-                rest
-            };
-            let _ = connection.write_all(send);
-            // Dropping the connection is the failure being reproduced: the
-            // announced length is never reached.
-            let _ = connection.flush();
-        }
-    });
-    (address, asked)
-}
-
-fn read_head(connection: &mut TcpStream) -> String {
-    let mut head = Vec::new();
-    let mut byte = [0u8; 1];
-    while connection.read_exact(&mut byte).is_ok() {
-        head.push(byte[0]);
-        if head.ends_with(b"\r\n\r\n") {
-            break;
-        }
-    }
-    String::from_utf8_lossy(&head).into_owned()
-}
-
-/// The offset a request asks for. A request carrying no range header is asking
-/// for all of it, which is what the first connection of a download does.
-fn range_start(head: &str) -> u64 {
-    head.lines()
-        .find(|line| line.to_ascii_lowercase().starts_with("range:"))
-        .and_then(|line| line.split_once("bytes="))
-        .and_then(|(_, value)| value.split_once('-'))
-        .and_then(|(start, _)| start.parse().ok())
-        .unwrap_or(0)
-}
-
-fn body(length: usize) -> Vec<u8> {
-    (0..length).map(|index| (index % 251) as u8).collect()
-}
-
-fn fetch_from(address: &str) -> Result<Vec<u8>, super::download::FetchError> {
-    match fetch_whole(address, &[], &StopFlag::default()) {
+fn fetch_from(server: &Server) -> Result<Vec<u8>, super::download::FetchError> {
+    match fetch_whole(&server.address, &[], &StopFlag::default()) {
         Transfer::Complete(bytes) => Ok(bytes),
         Transfer::Failed { error, .. } => Err(error),
         Transfer::Stopped { .. } => panic!("nothing asked this transfer to stop"),
@@ -135,11 +52,11 @@ fn stop_after(address: &str, wanted: u64, ask: Stop) -> Transfer {
 #[test]
 fn a_cut_connection_is_resumed_rather_than_restarted() {
     let expected = body(200_000);
-    let (address, asked) = spawn_cutting_server(expected.clone(), 60_000);
-    let bytes = fetch_from(&address).expect("the payload arrives across two connections");
+    let server = serve_cut(expected.clone(), 60_000);
+    let bytes = fetch_from(&server).expect("the payload arrives across two connections");
 
     assert_eq!(bytes, expected);
-    let asked = asked.lock().expect("the offsets are shared").clone();
+    let asked = server.asked();
     assert!(asked.len() >= 2, "a second connection is opened at all");
     assert_eq!(asked[0], 0, "the first connection asks for everything");
     assert_eq!(
@@ -177,7 +94,10 @@ fn a_server_that_never_continues_what_is_held_gives_up() {
     });
     let started = std::time::Instant::now();
     assert!(
-        fetch_from(&address).is_err(),
+        matches!(
+            fetch_whole(&address, &[], &StopFlag::default()),
+            Transfer::Failed { .. }
+        ),
         "a range that never continues what is held cannot be assembled"
     );
     assert!(
@@ -199,8 +119,11 @@ fn a_server_that_answers_nothing_at_all_gives_up() {
         }
     });
     let started = std::time::Instant::now();
-    let outcome = fetch_from(&address);
-    assert!(outcome.is_err(), "there is nothing to fetch");
+    let outcome = fetch_whole(&address, &[], &StopFlag::default());
+    assert!(
+        matches!(outcome, Transfer::Failed { .. }),
+        "there is nothing to fetch"
+    );
     assert!(
         started.elapsed() < Duration::from_secs(30),
         "giving up is bounded, and it took {:?}",
@@ -252,8 +175,8 @@ fn a_ceiling_end_is_reported_as_its_own_thing() {
 #[test]
 fn a_pause_ends_the_transfer_where_it_stands() {
     let expected = body(200_000);
-    let (address, _) = spawn_cutting_server(expected.clone(), 60_000);
-    match stop_after(&address, 1, Stop::Pause) {
+    let server = serve_cut(expected.clone(), 60_000);
+    match stop_after(&server.address, 1, Stop::Pause) {
         Transfer::Stopped {
             asked,
             bytes,
@@ -279,10 +202,10 @@ fn a_pause_ends_the_transfer_where_it_stands() {
 fn a_cancel_ends_the_transfer_the_same_way_and_says_so() {
     // The transfer reports which ask stopped it; keeping or dropping the bytes
     // is the caller's decision, and this is the value it decides on.
-    let (address, _) = spawn_cutting_server(body(200_000), 60_000);
+    let server = serve_cut(body(200_000), 60_000);
     assert!(
         matches!(
-            stop_after(&address, 1, Stop::Cancel),
+            stop_after(&server.address, 1, Stop::Cancel),
             Transfer::Stopped {
                 asked: Asked::Cancel,
                 ..
@@ -295,18 +218,18 @@ fn a_cancel_ends_the_transfer_the_same_way_and_says_so() {
 #[test]
 fn a_paused_transfer_continues_from_what_it_kept() {
     let expected = body(200_000);
-    let (address, asked) = spawn_cutting_server(expected.clone(), 60_000);
-    let kept = match stop_after(&address, 1, Stop::Pause) {
+    let server = serve_cut(expected.clone(), 60_000);
+    let kept = match stop_after(&server.address, 1, Stop::Pause) {
         Transfer::Stopped { bytes, .. } => bytes,
         _ => panic!("a pause was asked for and not obeyed"),
     };
 
-    let resumed = match fetch_whole(&address, &kept, &StopFlag::default()) {
+    let resumed = match fetch_whole(&server.address, &kept, &StopFlag::default()) {
         Transfer::Complete(bytes) => bytes,
         _ => panic!("nothing stopped the second transfer"),
     };
     assert_eq!(resumed, expected, "the two halves are one payload");
-    let asked = asked.lock().expect("the offsets are shared").clone();
+    let asked = server.asked();
     assert_eq!(
         asked[1],
         kept.len() as u64,
@@ -319,10 +242,10 @@ fn a_stop_asked_for_before_the_first_connection_opens_none() {
     // The moment between pressing download and pressing pause is short; a
     // transfer that has been told to stop before it starts must not spend a
     // connection finding that out.
-    let (address, asked) = spawn_cutting_server(body(200_000), 60_000);
+    let server = serve_cut(body(200_000), 60_000);
     let stop = StopFlag::default();
     stop.request(Stop::Pause);
-    match fetch_whole(&address, &[], &stop) {
+    match fetch_whole(&server.address, &[], &stop) {
         Transfer::Stopped {
             asked,
             bytes,
@@ -335,7 +258,7 @@ fn a_stop_asked_for_before_the_first_connection_opens_none() {
         _ => panic!("a pause was asked for and not obeyed"),
     }
     assert!(
-        asked.lock().expect("the offsets are shared").is_empty(),
+        server.asked().is_empty(),
         "and the server was never asked for anything"
     );
 }

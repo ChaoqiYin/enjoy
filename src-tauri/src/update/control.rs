@@ -1,14 +1,12 @@
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 
-use serde::Serialize;
-use tauri_plugin_updater::Update;
-use time::format_description::well_known::Rfc3339;
-use time::OffsetDateTime;
 use tokio::sync::Notify;
 
 use crate::error::AppError;
 use crate::scan::control::ScanControl;
+
+use super::release::Release;
 
 /// What a running download has been asked to do.
 ///
@@ -92,114 +90,24 @@ pub fn is_supported() -> bool {
     cfg!(all(target_os = "windows", target_arch = "x86_64"))
 }
 
-/// The release the user is being asked to install.
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AvailableUpdate {
-    pub version: String,
-    pub current_version: String,
-    pub notes: Option<String>,
-    /// RFC 3339, which is the one string form the frontend turns back into an
-    /// instant; it then formats that for the current language. See
-    /// [`published_at`] for why this is not simply the date's own rendering.
-    pub date: Option<String>,
-}
-
-/// The single shape `check_for_update` returns, covering every outcome so the
-/// settings section renders from one value.
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateCheck {
-    pub supported: bool,
-    pub current_version: String,
-    pub available: Option<AvailableUpdate>,
-    /// The installer is downloaded and verified; only a restart is missing. It
-    /// is remembered in the backend so leaving the settings page and coming
-    /// back still shows it.
-    pub ready_to_restart: bool,
-}
-
-/// Payload of the `update-progress` event.
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateProgress {
-    pub phase: String,
-    pub downloaded: u64,
-    pub total: Option<u64>,
-    pub version: String,
-}
-
-/// The publish date in the form the frontend parses.
-///
-/// `Update::date` is a `time::OffsetDateTime`, and its own rendering is not RFC
-/// 3339: it comes out as `2026-09-26 14:34:10.0 +00:00:00`. JavaScript's `Date`
-/// reads none of that — an offset carrying seconds is enough to fail on its own
-/// — so `to_string` would hand the frontend an unreadable date. Formatting the
-/// instant here, where its type is known, is what keeps the string on the wire
-/// the same shape the release manifest arrived in.
-///
-/// A date that cannot be written is dropped rather than sent in another form:
-/// the frontend renders what it can read and leaves the line out otherwise, and
-/// a release note without its date is worth more than a screen that fails to
-/// draw. Only years outside RFC 3339's range can fail, which no release has.
-pub(super) fn published_at(date: Option<OffsetDateTime>) -> Option<String> {
-    date.and_then(|date| date.format(&Rfc3339).ok())
-}
-
-pub fn describe(update: &Update) -> AvailableUpdate {
-    AvailableUpdate {
-        version: update.version.clone(),
-        current_version: update.current_version.clone(),
-        notes: update.body.clone(),
-        date: published_at(update.date),
-    }
-}
-
-/// Decides which progress updates are worth sending to the webview.
-///
-/// A fast download fires hundreds of chunk callbacks; one event each would
-/// flood the frontend over a difference nobody can see.
-#[derive(Default)]
-pub struct ProgressThrottle {
-    reported: bool,
-    last_step: u64,
-}
-
-/// Step used when the server does not report a content length.
-const UNKNOWN_TOTAL_STEP: u64 = 1 << 20;
-
-impl ProgressThrottle {
-    pub fn should_emit(&mut self, downloaded: u64, total: Option<u64>) -> bool {
-        let step = match total.filter(|total| *total > 0) {
-            Some(total) => (downloaded.saturating_mul(100) / total).min(100),
-            None => downloaded / UNKNOWN_TOTAL_STEP,
-        };
-        if self.reported && step == self.last_step {
-            return false;
-        }
-        self.reported = true;
-        self.last_step = step;
-        true
-    }
-}
-
 /// The bytes and the release they belong to, when both are here.
 ///
 /// One statement of what "ready" means, shared by the question the interface
 /// asks (`ready_version`) and the one the install path asks. Bytes alone are not
 /// ready: an installer whose release is gone no longer answers anything.
-fn installable(state: &State) -> Option<(&Update, &Vec<u8>)> {
-    match (state.pending.as_ref(), state.installer.as_ref()) {
-        (Some(update), Some(bytes)) => Some((update, bytes)),
+fn installable(state: &State) -> Option<(&dyn Release, &Vec<u8>)> {
+    match (state.pending.as_deref(), state.installer.as_ref()) {
+        (Some(release), Some(bytes)) => Some((release, bytes)),
         _ => None,
     }
 }
 
 #[derive(Default)]
 struct State {
-    /// The release the user was asked about. Keeping it means `install_update`
-    /// does not check again: the offer the user accepted is the one installed.
-    pending: Option<Update>,
+    /// The release the user was asked about. Keeping it means the transfer does
+    /// not check again: the offer the user accepted is the one downloaded and
+    /// installed.
+    pending: Option<Arc<dyn Release>>,
     /// Verified installer bytes held until the user restarts. The updater
     /// returns bytes rather than a path, so this is memory instead of an
     /// unsigned file on disk that would need cleaning up.
@@ -209,12 +117,6 @@ struct State {
     /// the moment it stops being what the user is being offered.
     partial: Option<Vec<u8>>,
     downloading: bool,
-}
-
-/// Whether a newly offered release is the one already pending. A different
-/// version means a downloaded installer no longer answers the question.
-pub(super) fn is_same_offer(pending: Option<&str>, offered: &str) -> bool {
-    pending == Some(offered)
 }
 
 /// The one download the application may have in flight, held for the duration of
@@ -289,19 +191,27 @@ impl UpdateControl {
     }
 
     /// Records the release currently being offered. An installer downloaded for
-    /// a different version is dropped: those bytes no longer answer the
-    /// question being asked, and neither do half of them.
-    pub fn remember(&self, update: Update) {
+    /// a different version is dropped: those bytes no longer answer the question
+    /// being asked, and neither do half of them.
+    ///
+    /// Both halves of that are one statement here rather than a rule that names
+    /// a release and a helper beside it that compares versions — the version a
+    /// release answers with is the release's own now, so the rule can be written
+    /// where it acts and a test can bring a release to it. The bytes it drops
+    /// are the ones a user waited for, which is what made leaving it unwatched
+    /// the worst of the gaps.
+    pub fn remember(&self, release: Arc<dyn Release>) {
         let mut state = self.lock();
-        let pending = state
+        let same = state
             .pending
             .as_ref()
-            .map(|pending| pending.version.as_str());
-        if !is_same_offer(pending, &update.version) {
+            .map(|pending| pending.version())
+            .is_some_and(|pending| pending == release.version());
+        if !same {
             state.installer = None;
             state.partial = None;
         }
-        state.pending = Some(update);
+        state.pending = Some(release);
     }
 
     /// The cursor a transfer watches, so a running download can be stopped.
@@ -383,7 +293,7 @@ impl UpdateControl {
         Ok(())
     }
 
-    pub fn pending(&self) -> Result<Update, AppError> {
+    pub fn pending(&self) -> Result<Arc<dyn Release>, AppError> {
         self.lock()
             .pending
             .clone()
@@ -391,10 +301,11 @@ impl UpdateControl {
     }
 
     pub fn ready_version(&self) -> Option<String> {
-        installable(&self.lock()).map(|(update, _)| update.version.clone())
+        installable(&self.lock()).map(|(release, _)| release.version().to_string())
     }
 
-    /// Whether the update may be installed, with the installer when it may.
+    /// Whether the update may be installed, with the release and the installer
+    /// when it may.
     ///
     /// The three questions are asked in the order the interface reports them —
     /// platform, then the running scan, then whether anything was downloaded —
@@ -418,7 +329,7 @@ impl UpdateControl {
         &self,
         scan: &ScanControl,
         supported: bool,
-    ) -> Result<(Update, Vec<u8>), AppError> {
+    ) -> Result<(Arc<dyn Release>, Vec<u8>), AppError> {
         let mut state = self.lock();
         if !supported {
             return Err(AppError::new(
@@ -446,11 +357,11 @@ impl UpdateControl {
         }
         // Present under this lock, and the slot closing cannot change that: the
         // two questions above are the only way this can fail.
-        let update = state.pending.take().expect("installable, under this lock");
+        let release = state.pending.take().expect("installable, under this lock");
         let bytes = state
             .installer
             .take()
             .expect("installable, under this lock");
-        Ok((update, bytes))
+        Ok((release, bytes))
     }
 }

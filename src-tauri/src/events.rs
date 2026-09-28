@@ -1,5 +1,6 @@
 use crate::error::AppError;
 use crate::scan::control::ScanStatus;
+use crate::update::UpdateProgress;
 use tauri::{AppHandle, Emitter};
 
 /// Everything the backend tells the interface, one method per event.
@@ -20,6 +21,18 @@ pub trait Events {
     fn scan_progress(&self, status: ScanStatus);
     fn library_changed(&self);
     fn media_error(&self, error: &AppError);
+    /// Where a download has got to. How it ended is not here: that is the
+    /// answer the command returns, because the section has to settle on exactly
+    /// one of "ready", "paused" or "cancelled" and an event is not a race it
+    /// should have to win.
+    ///
+    /// The numbers are here rather than sent from the transfer because a
+    /// progress bar is the one thing the user watches while nothing else on the
+    /// page moves: a download that reported nothing, or reported numbers that
+    /// never changed, would be indistinguishable from one that had stopped, and
+    /// the only way to tell was to open the window and look. Through this, a
+    /// test reads the same numbers the interface does.
+    fn update_progress(&self, progress: UpdateProgress);
 }
 
 /// The application's own interface, over Tauri's emitter.
@@ -36,6 +49,10 @@ impl Events for AppEvents {
 
     fn media_error(&self, error: &AppError) {
         let _ = self.0.emit("media-error", error);
+    }
+
+    fn update_progress(&self, progress: UpdateProgress) {
+        let _ = self.0.emit("update-progress", progress);
     }
 }
 
@@ -54,6 +71,8 @@ pub struct Recorded {
     pub scan: std::sync::Mutex<Vec<ScanStatus>>,
     pub library_changes: std::sync::atomic::AtomicUsize,
     pub media_errors: std::sync::Mutex<Vec<String>>,
+    /// Every progress report a download sent, in order.
+    pub downloads: std::sync::Mutex<Vec<UpdateProgress>>,
     /// Runs as each status goes out, before it is written down.
     ///
     /// Some rules can only be exercised from inside the pass that has them:
@@ -91,6 +110,11 @@ impl Recorded {
     pub fn media_error_codes(&self) -> Vec<String> {
         self.media_errors.lock().unwrap().clone()
     }
+
+    /// What a download said while it ran.
+    pub fn updates(&self) -> Vec<UpdateProgress> {
+        self.downloads.lock().unwrap().clone()
+    }
 }
 
 #[cfg(test)]
@@ -109,5 +133,9 @@ impl Events for Recorded {
 
     fn media_error(&self, error: &AppError) {
         self.media_errors.lock().unwrap().push(error.code.clone());
+    }
+
+    fn update_progress(&self, progress: UpdateProgress) {
+        self.downloads.lock().unwrap().push(progress);
     }
 }

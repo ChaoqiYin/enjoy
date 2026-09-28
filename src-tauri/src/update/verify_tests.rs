@@ -1,67 +1,8 @@
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
-use ring::rand::SystemRandom;
-use ring::signature::{Ed25519KeyPair, KeyPair};
 
+use super::fixture::{key, public_key_field, signature_field};
 use super::verify::verify;
-
-/// Minisign's two algorithms: legacy (not prehashed) and prehashed. The plugin
-/// accepts both, so the tests exercise the legacy one, which is the shape a
-/// release signature made by `tauri signer` has.
-const LEGACY: [u8; 2] = [0x45, 0x64];
-
-/// The trusted comment the signature's second half is over, without its prefix.
-const COMMENT: &str = "enjoy-test";
-
-/// A key pair and the id a signature by it carries.
-///
-/// The fixtures are made here rather than kept as files: a valid minisign
-/// signature can only be produced by the key that signs it, and the key that
-/// signs our releases is not in this repository — so a positive test has to
-/// bring a key of its own. What it proves is the thing that matters: the
-/// verifier accepts a payload signed by the key it is given, and refuses
-/// everything else.
-struct Key {
-    pair: Ed25519KeyPair,
-    id: [u8; 8],
-}
-
-fn key(id: u8) -> Key {
-    let pair = Ed25519KeyPair::from_pkcs8(
-        Ed25519KeyPair::generate_pkcs8(&SystemRandom::new())
-            .expect("a key pair can be generated")
-            .as_ref(),
-    )
-    .expect("the generated pair is a key pair");
-    Key { pair, id: [id; 8] }
-}
-
-/// The manifest's `pubkey` field: base64 around minisign's armoured text.
-fn public_key_field(key: &Key) -> String {
-    let mut blob = Vec::from(LEGACY);
-    blob.extend_from_slice(&key.id);
-    blob.extend_from_slice(key.pair.public_key().as_ref());
-    let text = format!("untrusted comment: test key\n{}", BASE64.encode(blob));
-    BASE64.encode(text)
-}
-
-/// The manifest's `signature` field, for a payload this key signs.
-fn signature_field(key: &Key, payload: &[u8]) -> String {
-    let signature = key.pair.sign(payload).as_ref().to_vec();
-    let mut blob = Vec::from(LEGACY);
-    blob.extend_from_slice(&key.id);
-    blob.extend_from_slice(&signature);
-    // Minisign signs the signature together with the trusted comment, so a
-    // comment that has been edited invalidates the signature.
-    let mut global = signature;
-    global.extend_from_slice(COMMENT.as_bytes());
-    let text = format!(
-        "untrusted comment: test signature\n{}\ntrusted comment: {COMMENT}\n{}",
-        BASE64.encode(blob),
-        BASE64.encode(key.pair.sign(&global).as_ref())
-    );
-    BASE64.encode(text)
-}
 
 const PAYLOAD: &[u8] = b"the installer bytes";
 
