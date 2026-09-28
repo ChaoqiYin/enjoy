@@ -10,8 +10,8 @@
 use super::addresses::Address;
 use super::control::ShareControl;
 use super::credentials::Credentials;
-use super::harness::the_machine_ports;
 use super::service::PORT_ATTEMPTS;
+use crate::ports::the_machine_ports;
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::time::Duration;
 
@@ -92,7 +92,10 @@ fn the_status_answers_without_starting_anything() {
     // Reading the status started nothing: asking twice did not open
     // anything, and the port the status would have taken is still quiet.
     assert_eq!(control.status(&credentials(), Vec::new(), &[]).port, None);
-    assert!(!listening(port));
+    assert!(
+        !listening(port),
+        "the port {port} answers although nothing was started"
+    );
 }
 
 #[test]
@@ -126,7 +129,10 @@ fn a_service_starts_ends_and_leaves_the_port_behind_it_free() {
     // The port comes back because the thread serving it has ended by the
     // time `close` returns, not at some later point nobody waited for. This
     // is the assertion the whole thread-and-runtime arrangement is for.
-    assert!(!listening(port));
+    assert!(
+        !listening(port),
+        "the port {port} still answers after the service ended"
+    );
 }
 
 #[test]
@@ -236,8 +242,14 @@ fn a_port_something_else_holds_is_passed_over_rather_than_refused() {
     // And the port it passed over is still the other program's.
     assert!(listening(port));
     control.close(&credentials(), Vec::new());
-    // Ending gives back the one it took, and leaves the held one alone.
-    assert!(!listening(taken));
+    // Ending gives back the one it took, and leaves the held one alone. When
+    // this fails it is usually not the service: something else on the machine
+    // took the port while the test was running, and the message says so rather
+    // than leaving the next reader to guess (see `crate::ports`).
+    assert!(
+        !listening(taken),
+        "the port {taken} still answers after the service ended"
+    );
     assert!(listening(port));
 }
 

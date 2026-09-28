@@ -9,6 +9,8 @@ mod logging;
 mod media;
 mod model;
 mod player;
+#[cfg(test)]
+mod ports;
 mod preferences;
 mod process;
 mod repository;

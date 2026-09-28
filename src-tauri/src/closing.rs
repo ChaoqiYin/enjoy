@@ -59,7 +59,7 @@ pub(crate) fn handle(share: &ShareControl, events: &impl Events, hold: impl FnOn
 mod tests {
     use super::*;
     use crate::events::Recorded;
-    use crate::share::harness::the_machine_ports;
+    use crate::ports::the_machine_ports;
 
     #[test]
     fn nothing_running_means_the_close_goes_through_unannounced() {

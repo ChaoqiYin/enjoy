@@ -18,10 +18,13 @@
 //! what it remembers about who asked, and `closing` for whether a service being
 //! there at all decides anything — and a second copy of a request writer would be
 //! a second thing to keep in step with the protocol.
+//!
+//! The lock every one of those tests takes first lives in `crate::ports`: the
+//! ports are the machine's, not this service's, and the download tests take it
+//! too.
 
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::sync::{Mutex, MutexGuard};
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -160,35 +163,6 @@ pub(crate) fn split_at(response: &[u8]) -> (usize, &[u8]) {
         + 4;
     (end, &response[end..])
 }
-
-/// The machine's ports, held for the length of one test that uses them.
-///
-/// `cargo test` runs the tests of one binary in parallel threads, and the ports
-/// of one machine are a single thing they all share. Two tests that ask the
-/// system for a free port at the same moment can be handed the same number; a
-/// test that has just released a port can watch another test's service take it;
-/// and a test that names a port and expects the service to end up on exactly
-/// that one is measuring the other tests as much as the service. What that looks
-/// like is a suite that is green here and red on a runner that happened to
-/// schedule three of them side by side -- which is how
-/// `!listening(taken)`, `!listening(port)` and `Some(49221)` came out of CI on
-/// the same commit that passed on this machine.
-///
-/// So every test that starts a service -- or asks whether something is listening
-/// on a port -- takes this first. A test that fails while holding it poisons it,
-/// which is why the guard is taken through `unwrap_or_else`: one failure should
-/// not turn the rest of the file into a second failure.
-///
-/// Coarse on purpose. The alternative -- a lock per port range -- is a lock per
-/// test, since what each of them needs is that no other test takes the port it
-/// is about, and that is every other test here.
-pub(crate) fn the_machine_ports() -> MutexGuard<'static, ()> {
-    PORTS
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
-static PORTS: Mutex<()> = Mutex::new(());
 
 /// A service over nothing, for the answers that are not about the list.
 pub(crate) fn started(language: &str) -> (ShareControl, u16) {

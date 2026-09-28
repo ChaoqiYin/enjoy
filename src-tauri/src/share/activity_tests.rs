@@ -15,7 +15,8 @@ use base64::Engine;
 use http::HeaderValue;
 
 use super::activity::{Activity, Device, WINDOW};
-use super::harness::{credentials, get, raw_request, request, started, status, the_machine_ports};
+use super::harness::{credentials, get, raw_request, request, started, status};
+use crate::ports::the_machine_ports;
 
 fn address(last: u8) -> IpAddr {
     IpAddr::V4(Ipv4Addr::new(192, 168, 1, last))

@@ -15,8 +15,9 @@ use super::credentials::USERNAME;
 use super::fixture::{encoded, listing, path_of};
 use super::harness::{
     ask, body_of, credentials, get, head_of, password, raw_request, request, serving, started,
-    status, the_machine_ports,
+    status,
 };
+use crate::ports::the_machine_ports;
 #[test]
 fn a_request_that_offers_no_credentials_is_refused_and_told_which_scheme_to_use() {
     let _ports = the_machine_ports();
