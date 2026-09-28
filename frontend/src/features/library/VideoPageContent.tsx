@@ -40,7 +40,7 @@ export function VideoPageContent({
   const notices = useNotices();
   const videoActions = useVideoActions();
   const { id: spaceId } = useSpace();
-  const { collectionKey, videos, search, folder, clearFilters } = view;
+  const { collectionKey, videos, filtered, clearFilters } = view;
   // `detailVideo` is the panel's contents, not a mount gate: the drawer shell
   // is always mounted and only `detailsOpen` moves it, so the video stays put
   // through the closing slide and is replaced the next time one is opened.
@@ -120,11 +120,9 @@ export function VideoPageContent({
           <p>{t('loading')}</p>
         ) : videos.length === 0 ? (
           <ScrollViewport className="text-center py-24 space-y-4">
-            <h2 className="text-2xl">
-              {search || folder ? t('noMatch') : emptyTitle}
-            </h2>
-            <p>{search || folder ? t('noMatchHelp') : emptyHelp}</p>
-            {(search || folder) && (
+            <h2 className="text-2xl">{filtered ? t('noMatch') : emptyTitle}</h2>
+            <p>{filtered ? t('noMatchHelp') : emptyHelp}</p>
+            {filtered && (
               <button
                 className="btn btn-outline btn-sm btn-info"
                 onClick={clearFilters}

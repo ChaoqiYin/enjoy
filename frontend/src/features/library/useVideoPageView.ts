@@ -29,6 +29,17 @@ export function useVideoPageView(page: '/' | '/favorites' | '/history') {
     ],
     [collection.data],
   );
+  // Whether anything is narrowing the list, which is the one thing the list
+  // itself needs to know: it says "nothing matched" rather than "nothing here",
+  // and offers the way back. It does not need to know which filter it was — the
+  // controls are the header's, and they are handed the values below. Handing
+  // them out here as well put one fact at two addresses, and left every reader
+  // of the list re-deriving `search || folder` for itself.
+  //
+  // Which of the two counts as a filter is [`clearFilters`]'s answer too, and
+  // the sort order is in neither: it says how to read a list, not which part of
+  // it to read, and a list sorted differently is not a narrowed one.
+  const filtered = search !== '' || folder !== '';
   return {
     page,
     // The space is part of what makes a collection that collection, and the key
@@ -37,9 +48,7 @@ export function useVideoPageView(page: '/' | '/favorites' | '/history') {
     // nothing filtered, where the filter changes above would not.
     collectionKey: JSON.stringify([spaceId, page, search, folder, sort]),
     videos,
-    search,
-    folder,
-    sort,
+    filtered,
     clearFilters,
     headerProps: {
       folders,
