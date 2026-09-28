@@ -1,8 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import { libraryApi, normalizeError } from '../../shared/api';
+import { backendEvents, libraryApi, normalizeError } from '../../shared/api';
 import type { AppError, ScanStatus } from '../../shared/api';
 import { useLatestRef } from '../../shared/useLatestRef';
 import { shouldAnnounceScan } from './scanFeedback';
@@ -53,17 +52,17 @@ export function useScanLifecycle(
       }, 200);
     };
     const subscriptions = [
-      listen('library-changed', () => {
+      backendEvents.onLibraryChanged(() => {
         if (!disposed) refresh();
       }),
-      listen<ScanStatus>('scan-progress', ({ payload }) => {
+      backendEvents.onScanProgress((status) => {
         if (disposed) return;
-        client.setQueryData(['scan', spaceId], payload);
-        if (shouldAnnounceScan(payload)) latest.current.onCompletion(payload);
+        client.setQueryData(['scan', spaceId], status);
+        if (shouldAnnounceScan(status)) latest.current.onCompletion(status);
         refresh();
       }),
-      listen<AppError>('media-error', ({ payload }) => {
-        if (!disposed) latest.current.onError(normalizeError(payload));
+      backendEvents.onMediaError((error) => {
+        if (!disposed) latest.current.onError(normalizeError(error));
       }),
     ];
     for (const subscription of subscriptions) {

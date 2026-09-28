@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import { libraryApi, normalizeError } from '../../shared/api';
+import { backendEvents, libraryApi, normalizeError } from '../../shared/api';
 import type { AppError, UpdateCheck, UpdateProgress } from '../../shared/api';
 
 /**
@@ -28,13 +27,10 @@ export function useUpdate() {
     // Progress only. How the transfer ended comes back as the answer to
     // `installUpdate`, so the section never has to decide whether an event or
     // an answer was the last word on it.
-    const subscription = listen<UpdateProgress>(
-      'update-progress',
-      ({ payload }) => {
-        if (disposed) return;
-        setProgress(payload);
-      },
-    );
+    const subscription = backendEvents.onUpdateProgress((ended) => {
+      if (disposed) return;
+      setProgress(ended);
+    });
     void subscription
       .then((stop) => {
         if (disposed) stop();

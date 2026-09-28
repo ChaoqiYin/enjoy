@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { useState } from 'react';
+import { thumbnailUrl } from '../../shared/api';
 import type { ScanStatus } from '../../shared/api';
 import { pictureClass } from './videoCardBox';
 
@@ -55,7 +55,7 @@ export function Thumbnail({
     <figure className={`${pictureClass} bg-base-300`}>
       <img
         className="w-full h-full object-cover"
-        src={convertFileSrc(path)}
+        src={thumbnailUrl(path)}
         alt={name}
         loading="lazy"
         onError={() => setFailedPath(path)}

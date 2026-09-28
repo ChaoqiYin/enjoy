@@ -17,6 +17,7 @@ import errors from '../../../shared/locales/en/errors.json';
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
   isTauri: () => true,
+  convertFileSrc: (path: string) => path,
 }));
 
 // The preference lives in the settings store now, so what the select shows and

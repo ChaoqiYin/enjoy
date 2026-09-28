@@ -1,12 +1,9 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import i18n from 'i18next';
+import { settingsApi } from '../shared/api';
+import type { SettingsState } from '../shared/api';
 
-export type SettingsState = {
-  language: 'system' | 'zh-CN' | 'en';
-  theme: 'system' | 'light' | 'dark';
-};
 type Context = {
   state: SettingsState;
   update: (patch: Partial<SettingsState>) => Promise<void>;
@@ -18,7 +15,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(defaults);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    void invoke<SettingsState>('get_settings')
+    void settingsApi
+      .read()
       .then(setState)
       .catch(() => {});
   }, []);
@@ -28,9 +26,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setState(next);
     setSaving(true);
     try {
-      const saved = await invoke<SettingsState>('save_settings', {
-        settings: next,
-      });
+      const saved = await settingsApi.save(next);
       setState(saved);
       if (saved.language !== 'system')
         await i18n.changeLanguage(saved.language);

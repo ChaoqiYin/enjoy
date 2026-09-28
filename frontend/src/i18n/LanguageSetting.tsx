@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { readLanguage, synchronizeLanguage } from './language';
-import type { LanguageSettings } from './language';
+import { synchronizeLanguage } from './language';
+import { readLanguage } from '../shared/api';
+import type { LanguageSettings } from '../shared/api';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { useCommand } from '../shared/useCommand';
 import { useSettings } from '../settings/SettingsProvider';

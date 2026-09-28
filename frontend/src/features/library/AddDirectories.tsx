@@ -2,8 +2,8 @@ import { FolderPlus, Trash2 } from 'lucide-react';
 import { Tooltip } from '../../shared/Tooltip';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useRef, useState } from 'react';
-import { open } from '@tauri-apps/plugin-dialog';
 import { useCommand } from '../../shared/useCommand';
+import { pickDirectories } from '../../shared/api';
 import type { AppError } from '../../shared/api';
 
 interface Props {
@@ -25,7 +25,7 @@ export function AddDirectories({ onClose, onConfirm, onError }: Props) {
   }, []);
   function choose() {
     return run(undefined, async () => {
-      const selected = await open({ directory: true, multiple: true });
+      const selected = await pickDirectories();
       if (selected)
         setPaths((current) => [...new Set([...current, ...selected])]);
     });

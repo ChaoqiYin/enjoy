@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router';
 import { Toast } from './shared/Toast';
 import { App } from './app/App';
 import { initializeLanguage } from './i18n/language';
-import { readCurrentSpace } from './features/space/space';
+import { readCurrentSpace } from './shared/api';
 import english from '../../shared/locales/en/common.json';
 import chinese from '../../shared/locales/zh-CN/common.json';
 import './style.css';

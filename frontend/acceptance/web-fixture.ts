@@ -3,12 +3,12 @@ import { emit } from '@tauri-apps/api/event';
 import type {
   AppError,
   ScanStatus,
+  SettingsState,
   Space,
   UpdateCheck,
   UpdateProgress,
   Video,
 } from '../src/shared/api';
-import type { SettingsState } from '../src/settings/SettingsProvider';
 
 // Every space holds the same files, because that is what spaces are: the same
 // path is a different record in each of them (ADR 0011). What a space keeps for

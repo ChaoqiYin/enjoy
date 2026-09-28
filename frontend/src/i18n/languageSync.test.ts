@@ -2,11 +2,12 @@ import { invoke } from '@tauri-apps/api/core';
 import i18n from 'i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { saveLanguage, synchronizeLanguage } from './language';
-import type { LanguageSettings } from './language';
+import type { LanguageSettings } from '../shared/api';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
   isTauri: () => true,
+  convertFileSrc: (path: string) => path,
 }));
 
 beforeEach(async () => {

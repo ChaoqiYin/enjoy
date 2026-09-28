@@ -4,7 +4,11 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useUpdate } from './useUpdate';
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn(),
+  isTauri: () => true,
+  convertFileSrc: (path: string) => path,
+}));
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
 
 type Handler = (event: { payload: unknown }) => void;

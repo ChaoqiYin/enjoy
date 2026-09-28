@@ -1,6 +1,7 @@
-import { invoke, isTauri } from '@tauri-apps/api/core';
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
+import { languageApi, readLanguage } from '../shared/api';
+import type { LanguageSettings } from '../shared/api';
 import english from '../../../shared/locales/en/common.json';
 import chinese from '../../../shared/locales/zh-CN/common.json';
 import englishErrors from '../../../shared/locales/en/errors.json';
@@ -8,26 +9,6 @@ import chineseErrors from '../../../shared/locales/zh-CN/errors.json';
 
 let languageRevision = 0;
 let pendingLanguageSaves = 0;
-
-export interface LanguageSettings {
-  preference: 'system' | 'zh-CN' | 'en';
-  language: 'zh-CN' | 'en';
-}
-
-// Reads the language resolved now, and deliberately remembers nothing between
-// calls: follow-system mode resolves the system language again every time the
-// app regains focus (baseline §10.1), so answering out of a cache would pin the
-// interface to whichever language happened to be read first.
-export async function readLanguage(): Promise<LanguageSettings> {
-  if (!isTauri())
-    return {
-      preference: 'system',
-      language: navigator.language.toLowerCase().startsWith('zh')
-        ? 'zh-CN'
-        : 'en',
-    };
-  return invoke<LanguageSettings>('get_language');
-}
 
 export async function initializeLanguage() {
   const settings = await readLanguage();
@@ -49,9 +30,7 @@ export async function saveLanguage(preference: LanguageSettings['preference']) {
   ++languageRevision;
   ++pendingLanguageSaves;
   try {
-    const settings = await invoke<LanguageSettings>('set_language', {
-      preference,
-    });
+    const settings = await languageApi.save(preference);
     await applyLanguage(settings);
     return settings;
   } finally {
