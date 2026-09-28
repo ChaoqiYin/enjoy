@@ -15,7 +15,7 @@ use base64::Engine;
 use http::HeaderValue;
 
 use super::activity::{Activity, Device, WINDOW};
-use super::harness::{credentials, get, raw_request, request, started, status};
+use super::harness::{credentials, get, raw_request, request, started, status, the_machine_ports};
 
 fn address(last: u8) -> IpAddr {
     IpAddr::V4(Ipv4Addr::new(192, 168, 1, last))
@@ -122,6 +122,7 @@ fn the_list_carries_the_address_and_the_moment_it_was_heard_from() {
 
 #[test]
 fn a_client_that_gets_in_is_listed_under_the_name_it_gives_itself() {
+    let _ports = the_machine_ports();
     let (control, port) = started("en");
     assert!(control
         .status(&credentials(), Vec::new(), &[])
@@ -158,6 +159,7 @@ fn a_client_that_gets_in_is_listed_under_the_name_it_gives_itself() {
 
 #[test]
 fn a_client_that_says_nothing_about_itself_is_still_listed() {
+    let _ports = the_machine_ports();
     let (control, port) = started("en");
     request(port, "GET", "/", "");
     // Named or not, the address and the moment are what the row is made of, and
@@ -171,6 +173,7 @@ fn a_client_that_says_nothing_about_itself_is_still_listed() {
 
 #[test]
 fn a_device_that_never_got_past_the_password_is_not_a_client() {
+    let _ports = the_machine_ports();
     let (control, port) = started("en");
     let response = raw_request(
         port,

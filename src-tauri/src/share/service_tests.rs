@@ -15,10 +15,11 @@ use super::credentials::USERNAME;
 use super::fixture::{encoded, listing, path_of};
 use super::harness::{
     ask, body_of, credentials, get, head_of, password, raw_request, request, serving, started,
-    status,
+    status, the_machine_ports,
 };
 #[test]
 fn a_request_that_offers_no_credentials_is_refused_and_told_which_scheme_to_use() {
+    let _ports = the_machine_ports();
     let (control, port) = started("en");
     // A person's browser asking for the page, and a client asking what is here.
     // Neither is answered: what is on the list is the user's business, and so is
@@ -48,6 +49,7 @@ fn a_request_that_offers_no_credentials_is_refused_and_told_which_scheme_to_use(
 
 #[test]
 fn credentials_that_are_not_right_are_refused_the_same_way() {
+    let _ports = the_machine_ports();
     let (control, port) = started("en");
     for (name, offered) in [
         ("the wrong password", format!("{}:doubloons", USERNAME)),
@@ -78,6 +80,7 @@ fn credentials_that_are_not_right_are_refused_the_same_way() {
 
 #[test]
 fn the_password_that_is_right_is_served_both_of_the_answers_the_others_are_not() {
+    let _ports = the_machine_ports();
     // Both halves of what the service answers, reached with credentials: the
     // page a person is shown, and the listing a client is given. Without this
     // every test below would be proving that a service refuses everything.
@@ -93,6 +96,7 @@ fn the_password_that_is_right_is_served_both_of_the_answers_the_others_are_not()
 }
 #[test]
 fn a_browser_opening_the_address_is_shown_a_page_rather_than_a_listing() {
+    let _ports = the_machine_ports();
     let (control, port) = started("en");
     let response = get(port, "/");
     assert_eq!(status(&response), 200);
@@ -112,6 +116,7 @@ fn a_browser_opening_the_address_is_shown_a_page_rather_than_a_listing() {
 
 #[test]
 fn a_webdav_client_on_the_same_path_is_answered_by_the_library() {
+    let _ports = the_machine_ports();
     let (control, port) = started("en");
     let response = request(port, "PROPFIND", "/", "Depth: 1\r\nContent-Length: 0\r\n");
     // A multi-status listing, which is the protocol's own answer and not the
@@ -124,6 +129,7 @@ fn a_webdav_client_on_the_same_path_is_answered_by_the_library() {
 
 #[test]
 fn the_service_keeps_answering_until_it_is_ended() {
+    let _ports = the_machine_ports();
     let (control, port) = started("en");
     assert_eq!(status(&get(port, "/")), 200);
     assert_eq!(status(&get(port, "/")), 200);
@@ -136,6 +142,7 @@ fn the_service_keeps_answering_until_it_is_ended() {
 
 #[test]
 fn the_page_is_written_in_the_language_the_application_is_being_read_in() {
+    let _ports = the_machine_ports();
     let (control, port) = started("zh-CN");
     let body = String::from_utf8_lossy(&body_of(&get(port, "/"))).into_owned();
     assert!(body.contains("Enjoy 共享服务"), "{body}");
@@ -144,6 +151,7 @@ fn the_page_is_written_in_the_language_the_application_is_being_read_in() {
 
 #[test]
 fn a_client_listing_the_root_sees_one_flat_row_of_videos() {
+    let _ports = the_machine_ports();
     let (_fixture, control, port) =
         serving(&["Movies/开场.mp4", "Archive/开场.mp4", "Archive/花絮.mkv"]);
     let response = request(port, "PROPFIND", "/", "Depth: 1\r\nContent-Length: 0\r\n");
@@ -167,6 +175,7 @@ fn a_client_listing_the_root_sees_one_flat_row_of_videos() {
 
 #[test]
 fn the_listing_says_how_big_a_video_is() {
+    let _ports = the_machine_ports();
     // The number a client shows in its list, and the one a player reads before it
     // decides whether it can drag its position bar. A size a client cannot read
     // arrives as "unknown" — some clients print -1 byte — and a list of videos
@@ -205,6 +214,7 @@ fn the_listing_says_how_big_a_video_is() {
 
 #[test]
 fn a_client_that_asks_without_a_depth_header_is_told_what_is_here() {
+    let _ports = the_machine_ports();
     // The header is the protocol's, not the client's: RFC 4918 has a client send
     // one and a server read a missing one as `infinity`. Not every client does
     // what the protocol says, and before the service filled it in, a request
@@ -236,6 +246,7 @@ fn a_client_that_asks_without_a_depth_header_is_told_what_is_here() {
 
 #[test]
 fn a_range_request_gets_the_slice_that_was_asked_for() {
+    let _ports = the_machine_ports();
     let (fixture, control, port) = serving(&["Movies/开场.mp4"]);
     let content = std::fs::read(path_of(&fixture, "Movies/开场.mp4")).unwrap();
     let response = request(
@@ -260,6 +271,7 @@ fn a_range_request_gets_the_slice_that_was_asked_for() {
 
 #[test]
 fn the_service_refuses_to_be_written_to_and_leaves_the_disk_alone() {
+    let _ports = the_machine_ports();
     let (fixture, control, port) = serving(&["Movies/开场.mp4"]);
     let shared = path_of(&fixture, "Movies/开场.mp4");
     let before = std::fs::read(&shared).unwrap();
@@ -290,6 +302,7 @@ fn the_service_refuses_to_be_written_to_and_leaves_the_disk_alone() {
 
 #[test]
 fn a_video_that_is_no_longer_on_disk_is_counted_and_not_offered() {
+    let _ports = the_machine_ports();
     let (fixture, mut paths) = listing(&["Movies/开场.mp4"]);
     let gone = fixture.0.join("Archive").join("花絮.mkv");
     paths.push(gone.to_string_lossy().into_owned());
@@ -323,6 +336,7 @@ fn a_video_that_is_no_longer_on_disk_is_counted_and_not_offered() {
 
 #[test]
 fn a_request_for_something_outside_the_list_is_not_found() {
+    let _ports = the_machine_ports();
     let (fixture, control, port) = serving(&["Movies/开场.mp4"]);
     // A file that is really there, beside the one that was picked.
     std::fs::write(fixture.0.join("outside.mp4"), b"not picked").unwrap();
@@ -346,6 +360,7 @@ fn a_request_for_something_outside_the_list_is_not_found() {
 
 #[test]
 fn a_player_can_jump_to_anywhere_in_a_video() {
+    let _ports = the_machine_ports();
     // Seeking, from this side of the wire, is one request: a player dragged to a
     // new position asks for the bytes from there, and the answer is only those
     // bytes. All the shapes such a player sends are here, because the answer to

@@ -10,6 +10,7 @@
 use super::addresses::Address;
 use super::control::ShareControl;
 use super::credentials::Credentials;
+use super::harness::the_machine_ports;
 use super::service::PORT_ATTEMPTS;
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::time::Duration;
@@ -84,6 +85,7 @@ fn listening(port: u16) -> bool {
 
 #[test]
 fn the_status_answers_without_starting_anything() {
+    let _ports = the_machine_ports();
     let control = ShareControl::default();
     assert_eq!(control.status(&credentials(), Vec::new(), &[]).port, None);
     let port = a_port_nothing_holds();
@@ -106,6 +108,7 @@ fn the_status_carries_the_credentials_the_interface_has_to_show() {
 
 #[test]
 fn a_service_starts_ends_and_leaves_the_port_behind_it_free() {
+    let _ports = the_machine_ports();
     let control = ShareControl::default();
     let credentials = credentials();
     let started = control
@@ -128,6 +131,7 @@ fn a_service_starts_ends_and_leaves_the_port_behind_it_free() {
 
 #[test]
 fn a_password_regenerated_under_a_running_service_is_one_it_does_not_accept() {
+    let _ports = the_machine_ports();
     let control = ShareControl::default();
     let old = credentials();
     // The user pressed 重新生成: the stored password is now a different one,
@@ -162,6 +166,7 @@ fn a_password_regenerated_under_a_running_service_is_one_it_does_not_accept() {
 
 #[test]
 fn the_same_port_can_be_taken_again_after_ending_and_taking_it() {
+    let _ports = the_machine_ports();
     let control = ShareControl::default();
     let credentials = credentials();
     // A port the test names, so that the second start is known to be
@@ -187,6 +192,7 @@ fn the_same_port_can_be_taken_again_after_ending_and_taking_it() {
 
 #[test]
 fn a_second_service_is_refused_while_one_is_running() {
+    let _ports = the_machine_ports();
     let control = ShareControl::default();
     let credentials = credentials();
     let running = control
@@ -207,6 +213,7 @@ fn a_second_service_is_refused_while_one_is_running() {
 
 #[test]
 fn a_port_something_else_holds_is_passed_over_rather_than_refused() {
+    let _ports = the_machine_ports();
     // Held on every interface, which is where the service would take it.
     // Whatever else on the machine wants 4918 -- another video server, a
     // developer's own running copy -- is not a reason the user cannot share,
@@ -236,6 +243,7 @@ fn a_port_something_else_holds_is_passed_over_rather_than_refused() {
 
 #[test]
 fn a_run_of_ports_all_held_is_refused_and_named() {
+    let _ports = the_machine_ports();
     // The range is ten ports from the one asked for, so ten listeners in a
     // row is the whole of what can be taken. Found by looking for a run the
     // system will give up rather than by naming one, since a port this test
@@ -264,6 +272,7 @@ fn a_run_of_ports_all_held_is_refused_and_named() {
 
 #[test]
 fn a_list_added_to_under_a_running_service_is_one_it_is_not_offering() {
+    let _ports = the_machine_ports();
     let control = ShareControl::default();
     let credentials = credentials();
     let started = vec!["/movies/a.mp4".to_string()];
