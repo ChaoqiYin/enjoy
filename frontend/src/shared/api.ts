@@ -3,6 +3,8 @@ import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { open } from '@tauri-apps/plugin-dialog';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import type { CloseRequestedEvent } from '@tauri-apps/api/window';
 
 export interface Video {
   id: number;
@@ -288,6 +290,35 @@ export const shareApi = {
   // caller that had to ask again for the second fact could draw the two
   // contradicting each other.
   regeneratePassword: () => invoke<ShareStatus>('regenerate_share_password'),
+};
+
+/**
+ * The window this interface is drawn in, asked for the two things the 共享服务
+ * needs of it.
+ *
+ * A close has to be interruptible: ending the service closes connections a
+ * device may be in the middle of reading, and the user is the only one who can
+ * say whether that is all right. So the window is asked to hold the close while
+ * the question is put, and to go through with it once the answer is yes — an
+ * answer that has to be given from the interface, because the prompt is the
+ * interface's own.
+ *
+ * Both are absent outside the application. A browser has no window to close and
+ * nothing to be told about it, so the two answer the way a window that is
+ * already closing would: the subscription is for nothing, and closing has
+ * nothing left to do.
+ */
+export const windowApi = {
+  onCloseRequested: (
+    handler: (event: CloseRequestedEvent) => void,
+  ): Promise<UnlistenFn> => {
+    if (!isTauri()) return Promise.resolve(() => {});
+    return getCurrentWindow().onCloseRequested(handler);
+  },
+  close: (): Promise<void> => {
+    if (!isTauri()) return Promise.resolve();
+    return getCurrentWindow().close();
+  },
 };
 
 /**

@@ -1,8 +1,11 @@
 import { Check, ChevronDown } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ConfirmDialog } from '../../shared/ConfirmDialog';
+import type { Space } from '../../shared/api';
 import { useScan } from '../library/useScan';
 import { useSpaceCommands } from '../library/useSpaceCommands';
+import { useShareContext } from '../share/ShareProvider';
 import { useSpaces } from './SpaceProvider';
 
 /// One width for the trigger and for the list under it, so the control does not
@@ -34,7 +37,13 @@ export function SpaceSwitcher() {
   const { t } = useTranslation();
   const { isRunning: scanning } = useScan();
   const commands = useSpaceCommands();
+  const share = useShareContext();
   const { space, spaces } = useSpaces();
+  // The space the user picked while the service was running, held until they
+  // have said whether they meant it. A service belongs to the space that
+  // started it — it is serving a snapshot of that space's 共享清单 — so moving
+  // to another one ends it, and a device in the middle of a film is the cost.
+  const [pending, setPending] = useState<Space | null>(null);
   const menu = useRef<HTMLDetailsElement>(null);
   const close = () => {
     if (menu.current) menu.current.open = false;
@@ -92,7 +101,12 @@ export function SpaceSwitcher() {
               aria-current={item.id === space.id || undefined}
               onClick={() => {
                 close();
-                if (item.id !== space.id) void commands.switchSpace(item.id);
+                if (item.id === space.id) return;
+                if (share.port !== null) {
+                  setPending(item);
+                  return;
+                }
+                void commands.switchSpace(item.id);
               }}
             >
               <Check
@@ -105,6 +119,28 @@ export function SpaceSwitcher() {
           </li>
         ))}
       </ul>
+      {pending && (
+        <ConfirmDialog
+          message={t('spaceSwitchQuestion', { name: pending.name })}
+          confirmLabel={t('confirm')}
+          cancelLabel={t('cancel')}
+          onCancel={() => setPending(null)}
+          onConfirm={async () => {
+            // The question is answered, so it comes down before anything is
+            // attempted: a service that will not stop is reported by the notice
+            // at the corner of the screen, and a modal in front of it is a
+            // failure the user cannot read.
+            const target = pending;
+            setPending(null);
+            // And the move happens only if the service really ended. Moving
+            // anyway would leave it serving the space that is no longer on
+            // screen, which is the one state these two concepts have to be kept
+            // apart in.
+            if (!(await share.stop())) return;
+            await commands.switchSpace(target.id);
+          }}
+        />
+      )}
     </details>
   );
 }

@@ -2,36 +2,47 @@
 // the doubles have to be in hand by the time a mocked module is first asked
 // for. Everything after this line is imported through the modules they stand
 // in for.
-import * as doubles from '../../test/doubles';
+import {
+  address,
+  backend,
+  device,
+  library,
+  notices,
+  resetSharePage,
+  scan,
+  setClipboard,
+  sharePage,
+  status,
+  video,
+  windowMock,
+} from '../../test/sharePage';
 import {
   act,
   cleanup,
   fireEvent,
-  render,
   screen,
   waitFor,
 } from '@testing-library/react';
 import { createInstance } from 'i18next';
-import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
-import { ShareProvider } from './ShareProvider';
-import { SharePage } from '../../pages/SharePage';
 import english from '../../../../shared/locales/en/common.json';
 import errors from '../../../../shared/locales/en/errors.json';
-import type { Address, Device, ShareStatus } from '../../shared/api';
-
-// The chrome the page sits in asks the library two things — whether a pass is
-// running, and what the library has to say. Neither is what this file is about,
-// and both come from the slices' own declarations.
-const scan = doubles.scan();
-const notices = doubles.notices();
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
   isTauri: () => true,
   convertFileSrc: (path: string) => path,
 }));
+vi.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow: () => ({
+    onCloseRequested: (
+      handler: (event: { preventDefault: () => void }) => void,
+    ) => windowMock.onCloseRequested(handler),
+    close: () => windowMock.close(),
+  }),
+}));
+vi.mock('../library/useVideos', () => ({ useVideos: () => library }));
 vi.mock('../library/useScan', () => ({ useScan: () => scan }));
 vi.mock('../library/useNotices', () => ({ useNotices: () => notices }));
 // The page reads the current space to name it when starting the service. What
@@ -43,83 +54,12 @@ vi.mock('../space/SpaceProvider', () => ({
 
 const i18n = createInstance();
 
-/**
- * What the backend would answer, one command at a time. The port is the
- * backend's to choose, so a test that named it in the interface would be
- * testing the wrong side of the seam: this hands back one the interface never
- * asked for.
- */
-function backend(answers: Partial<Record<string, ShareStatus>>) {
-  vi.mocked(invoke).mockImplementation((async (command: string) => {
-    const answer = answers[command];
-    if (!answer) throw { code: 'app.unexpected', errorId: 'test' };
-    return answer;
-  }) as never);
-}
-
-/**
- * The status the backend would answer with, with everything the test is not
- * about left as it is when nothing has been started.
- *
- * The credentials are the backend's, drawn by it and never by the interface, so
- * a test names what it wants to see on screen rather than a value the interface
- * would have had to invent.
- */
-function status(overrides: Partial<ShareStatus> = {}): ShareStatus {
-  return {
-    port: null,
-    missingFiles: 0,
-    username: 'enjoy',
-    password: 'sample-passw0rd',
-    needsRestart: false,
-    devices: [],
-    addresses: [],
-    ...overrides,
-  };
-}
-
-/** An address this machine would be reached at. */
-function address(overrides: Partial<Address> = {}): Address {
-  return {
-    interface: 'Wi-Fi',
-    address: '192.168.1.5',
-    loopback: false,
-    ...overrides,
-  };
-}
-
-/** A client the backend has heard from, at a moment the test chooses. */
-function device(overrides: Partial<Device> = {}): Device {
-  return {
-    address: '192.168.1.24',
-    name: 'Infuse/7.6.4',
-    lastSeen: Date.now(),
-    ...overrides,
-  };
-}
-
-/** The clipboard the page copies a password to. */
-function setClipboard(writeText?: (text: string) => Promise<void>) {
-  Object.defineProperty(window.navigator, 'clipboard', {
-    configurable: true,
-    value: writeText ? { writeText } : undefined,
-  });
-}
-
 beforeEach(async () => {
   await i18n.init({
     lng: 'en',
     resources: { en: { translation: english, errors } },
   });
-  vi.mocked(invoke).mockReset();
-  vi.stubGlobal(
-    'ResizeObserver',
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
-  );
+  resetSharePage(invoke);
 });
 
 afterEach(() => {
@@ -129,22 +69,12 @@ afterEach(() => {
   delete (window.navigator as { clipboard?: unknown }).clipboard;
 });
 
-function page() {
-  return render(
-    <I18nextProvider i18n={i18n}>
-      <ShareProvider>
-        <SharePage />
-      </ShareProvider>
-    </I18nextProvider>,
-  );
-}
-
 it('offers to start the service, and shows the port it ended up on', async () => {
-  backend({
+  backend(invoke, {
     share_status: status(),
     open_share: status({ port: 4918 }),
   });
-  page();
+  sharePage(i18n);
   const start = await screen.findByRole('button', {
     name: english.startSharing,
   });
@@ -169,11 +99,11 @@ it('offers to start the service, and shows the port it ended up on', async () =>
 });
 
 it('ends a service that is running', async () => {
-  backend({
+  backend(invoke, {
     share_status: status({ port: 4918 }),
     close_share: status(),
   });
-  page();
+  sharePage(i18n);
   const stop = await screen.findByRole('button', { name: english.stopSharing });
   fireEvent.click(stop);
 
@@ -192,7 +122,7 @@ it('says so, beside the reference, when the service cannot start', async () => {
       errorId: 'err_test',
     };
   }) as never);
-  page();
+  sharePage(i18n);
   fireEvent.click(
     await screen.findByRole('button', { name: english.startSharing }),
   );
@@ -213,8 +143,8 @@ it('says so, beside the reference, when the service cannot start', async () => {
 });
 
 it('shows what to connect with before anything has been started', async () => {
-  backend({ share_status: status({ password: 'clipper12345' }) });
-  page();
+  backend(invoke, { share_status: status({ password: 'clipper12345' }) });
+  sharePage(i18n);
   // The user name a device signs in with, and the password it is drawn, both
   // readable before the port is open: a password that only appeared once the
   // service was running would be one nobody could write down first.
@@ -235,8 +165,8 @@ it('shows what to connect with before anything has been started', async () => {
 it('copies the password, and says so', async () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
   setClipboard(writeText);
-  backend({ share_status: status({ password: 'clipper12345' }) });
-  page();
+  backend(invoke, { share_status: status({ password: 'clipper12345' }) });
+  sharePage(i18n);
   fireEvent.click(
     await screen.findByRole('button', { name: english.copyPassword }),
   );
@@ -248,7 +178,7 @@ it('copies the password, and says so', async () => {
 });
 
 it('says a running service is behind a password that has been replaced', async () => {
-  backend({
+  backend(invoke, {
     share_status: status({ port: 4918, password: 'clipper12345' }),
     // What the backend answers after the press: a new password, and a service
     // that is still checking the old one.
@@ -258,7 +188,7 @@ it('says a running service is behind a password that has been replaced', async (
       needsRestart: true,
     }),
   });
-  page();
+  sharePage(i18n);
   fireEvent.click(
     await screen.findByRole('button', { name: english.regeneratePassword }),
   );
@@ -273,16 +203,57 @@ it('says a running service is behind a password that has been replaced', async (
   expect(screen.getByText('doubloons6789')).toBeTruthy();
 });
 
+it('will not start over an empty share list, and says what to do', async () => {
+  library.videos.data = [video(false)];
+  backend(invoke, { share_status: status() });
+  sharePage(i18n);
+  const start = await screen.findByRole('button', {
+    name: english.startSharing,
+  });
+  // A port a device can connect to and find nothing on reads as a service that
+  // is broken, so the answer is refused before it is asked for — and the reason
+  // is said rather than left to a greyed-out button to explain.
+  expect(start.hasAttribute('disabled')).toBe(true);
+  expect(screen.getByText(english.shareListEmpty)).toBeTruthy();
+  expect(
+    screen.getByRole('link', { name: english.shareListEmptyAction }),
+  ).toBeTruthy();
+
+  // And offered as soon as there is something to offer.
+  cleanup();
+  library.videos.data = [video(true)];
+  sharePage(i18n);
+  expect(
+    (
+      await screen.findByRole('button', { name: english.startSharing })
+    ).hasAttribute('disabled'),
+  ).toBe(false);
+  expect(screen.queryByText(english.shareListEmpty)).toBeNull();
+});
+
+it('says how many videos on the list a client will not be offered', async () => {
+  backend(invoke, { share_status: status({ port: 4918, missingFiles: 2 }) });
+  sharePage(i18n);
+  // The count and not the names: what the user needs to know is that the
+  // television will show fewer than they picked. Said only while something is
+  // serving, because it is about what a client is being offered.
+  expect(
+    await screen.findByText(
+      english.shareMissingFiles_other.replace('{{countText}}', '2'),
+    ),
+  ).toBeTruthy();
+});
+
 it('shows the address the service is really on, and copies it', async () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
   setClipboard(writeText);
-  backend({
+  backend(invoke, {
     // A port other than the one the service asks for, which is what the
     // interface has to be able to show: the address it offers is the one that
     // works, and 4918 is what was wanted rather than what was taken.
     share_status: status({ port: 4919, addresses: [address()] }),
   });
-  page();
+  sharePage(i18n);
   // The address and the port together, in the spelling a client is given: the
   // trailing slash is how the protocol says this is a collection to browse.
   const url = 'http://192.168.1.5:4919/';
@@ -302,7 +273,7 @@ it('shows the address the service is really on, and copies it', async () => {
 });
 
 it('marks the address that cannot reach a television', async () => {
-  backend({
+  backend(invoke, {
     share_status: status({
       port: 4918,
       addresses: [
@@ -315,7 +286,7 @@ it('marks the address that cannot reach a television', async () => {
       ],
     }),
   });
-  page();
+  sharePage(i18n);
   const rows = await screen.findAllByRole('listitem');
   // The order is the backend's, and the mark is on the last row: the machine
   // talking to itself, which a user copying down the list would be most likely
@@ -327,8 +298,8 @@ it('marks the address that cannot reach a television', async () => {
 });
 
 it('says what to do instead of showing addresses while nothing is running', async () => {
-  backend({ share_status: status({ addresses: [address()] }) });
-  page();
+  backend(invoke, { share_status: status({ addresses: [address()] }) });
+  sharePage(i18n);
   // Nothing is running, so there is no port to put on an address: the block
   // explains itself rather than listing addresses that lead nowhere.
   expect(await screen.findByText(english.connectionIdle)).toBeTruthy();
@@ -339,15 +310,15 @@ it('says what to do instead of showing addresses while nothing is running', asyn
 });
 
 it('says so when the machine has no address to offer', async () => {
-  backend({ share_status: status({ port: 4918, addresses: [] }) });
-  page();
+  backend(invoke, { share_status: status({ port: 4918, addresses: [] }) });
+  sharePage(i18n);
   // Every adapter down: a heading with nothing under it is the one thing this
   // block must not be.
   expect(await screen.findByText(english.connectionNoAddress)).toBeTruthy();
 });
 
 it('lists the devices that have asked for something, and how long ago', async () => {
-  backend({
+  backend(invoke, {
     share_status: status({
       port: 4918,
       // In the order the backend hands them over, most recently heard from
@@ -359,7 +330,7 @@ it('lists the devices that have asked for something, and how long ago', async ()
       ],
     }),
   });
-  page();
+  sharePage(i18n);
   // The name the client gave, the address it came from, and the moment it was
   // last heard from. The list is most-recent-first, so the client that has just
   // been here is the row above the one that has been quiet for twelve seconds.
@@ -382,8 +353,8 @@ it('lists the devices that have asked for something, and how long ago', async ()
 });
 
 it('says the list is empty when no device has asked', async () => {
-  backend({ share_status: status({ port: 4918 }) });
-  page();
+  backend(invoke, { share_status: status({ port: 4918 }) });
+  sharePage(i18n);
   // The wording and not just the absence: the list is drawn only while the
   // service is running, so an empty one is a fact about the last minute rather
   // than a section that has not loaded.
@@ -402,7 +373,7 @@ it('reads the list again on its own, so a device appears and drops off', async (
     if (command === 'share_status') return answer;
     throw { code: 'app.unexpected', errorId: 'test' };
   }) as never);
-  page();
+  sharePage(i18n);
   await act(async () => {
     await vi.advanceTimersByTimeAsync(0);
   });

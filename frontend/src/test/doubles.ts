@@ -8,6 +8,7 @@ import type { Busy } from '../features/library/useBusy';
 import type { Directories } from '../features/library/useDirectories';
 import type { VideoActions } from '../features/library/useVideoActions';
 import type { SpaceCommands } from '../features/library/useSpaceCommands';
+import type { Share } from '../features/share/useShare';
 
 /**
  * A stand-in for each slice of the library, as a page sees one.
@@ -122,4 +123,30 @@ export function spaceCommands(
 /** One space, as the space layer hands it out. */
 export function space(overrides: Partial<Space> = {}): Space {
   return { id: 1, name: 'Library', ...overrides };
+}
+
+/**
+ * The 共享服务, as a page or the navigation reads it.
+ *
+ * The commands answer `true`, which is what a caller has to be told before it
+ * acts on them: leaving a space and closing the window both go through
+ * `stop` and both stop short if it did not work.
+ */
+export function share(overrides: Partial<Share> = {}): Share {
+  return {
+    port: null,
+    username: 'enjoy',
+    password: 'sample-passw0rd',
+    needsRestart: false,
+    missingFiles: 0,
+    devices: [],
+    addresses: [],
+    busy: false,
+    error: null,
+    dismissError: vi.fn(),
+    start: vi.fn(async () => true),
+    stop: vi.fn(async () => true),
+    regeneratePassword: vi.fn(async () => true),
+    ...overrides,
+  };
 }

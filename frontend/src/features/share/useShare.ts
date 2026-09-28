@@ -40,6 +40,9 @@ export type Share = {
   password: string;
   /** Whether a service is running that would refuse `password` above it. */
   needsRestart: boolean;
+  /** Videos on the list whose file is not on disk any more, so a client will
+   * not be offered them. Zero when nothing is running. */
+  missingFiles: number;
   /** The clients heard from in the last minute, most recent first. */
   devices: Device[];
   /** Where this machine can be reached, most likely to be the one to use first. */
@@ -48,9 +51,18 @@ export type Share = {
   /** The last failure, or null. Where it is shown is the provider's business. */
   error: AppError | null;
   dismissError: () => void;
-  start: () => Promise<void>;
-  stop: () => Promise<void>;
-  regeneratePassword: () => Promise<void>;
+  /**
+   * The three commands, each answering whether it worked.
+   *
+   * `useCommand` swallows a failure into the notice this provider shows, so a
+   * caller that awaited one of these would otherwise be told nothing and would
+   * carry on as though it had succeeded. Staying in the same space after a
+   * service that would not stop, or closing a window over a service that is
+   * still serving, are both the wrong thing to do silently.
+   */
+  start: () => Promise<boolean>;
+  stop: () => Promise<boolean>;
+  regeneratePassword: () => Promise<boolean>;
 };
 
 export function useShare(): Share {
@@ -101,13 +113,20 @@ export function useShare(): Share {
       clearInterval(timer);
     };
   }, [running, busy]);
-  const act = (action: () => Promise<ShareStatus>) =>
-    command.run(undefined, async () => setStatus(await action()));
+  const act = async (action: () => Promise<ShareStatus>) => {
+    let worked = false;
+    await command.run(undefined, async () => {
+      setStatus(await action());
+      worked = true;
+    });
+    return worked;
+  };
   return {
     port: status?.port ?? null,
     username: status?.username ?? '',
     password: status?.password ?? '',
     needsRestart: status?.needsRestart ?? false,
+    missingFiles: status?.missingFiles ?? 0,
     devices: status?.devices ?? [],
     addresses: status?.addresses ?? [],
     busy,

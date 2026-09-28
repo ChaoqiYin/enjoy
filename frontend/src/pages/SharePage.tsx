@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 import { PageFrame } from '../features/library/PageFrame';
 import { useNotices } from '../features/library/useNotices';
+import { useVideos } from '../features/library/useVideos';
 import { useShareContext } from '../features/share/ShareProvider';
 import { ScrollViewport } from '../shared/ScrollViewport';
 import type { AppError } from '../shared/api';
@@ -28,6 +30,14 @@ export function SharePage() {
   const { t, i18n } = useTranslation();
   const share = useShareContext();
   const notices = useNotices();
+  // What is on the 共享清单, read the way every page reads the videos: the mark
+  // travels on the record, so the list is the collection with a filter over it
+  // and no command of its own (the backend has none).
+  const { videos } = useVideos();
+  const sharedCount = (videos.data ?? []).filter(
+    (video) => video.shared,
+  ).length;
+  const offline = sharedCount === 0;
   // Hidden until asked for, which is what makes it safe to photograph the screen
   // or leave the page open in a room. Nothing is gained by it being hidden from
   // the person who started the service and is looking at it, so one press shows
@@ -84,11 +94,35 @@ export function SharePage() {
               ? 'btn btn-soft btn-md btn-neutral'
               : 'btn btn-soft btn-md btn-primary'
           }
-          disabled={share.busy}
+          // A service over an empty list is a port a device can connect to and
+          // find nothing on, which reads as a service that is broken. The
+          // backend would serve it happily; this is the interface saying what
+          // has to happen first, and it is said below rather than left to the
+          // greyed-out button to explain.
+          disabled={share.busy || (!running && offline)}
           onClick={() => void (running ? share.stop() : share.start())}
         >
           {running ? t('stopSharing') : t('startSharing')}
         </button>
+        {!running && offline && (
+          <p className="text-sm opacity-70">
+            {t('shareListEmpty')}{' '}
+            <Link className="link" to="/">
+              {t('shareListEmptyAction')}
+            </Link>
+          </p>
+        )}
+        {/* Said only while it is true, and only while something is serving: it
+            is about what a client would be offered, which is a question only a
+            running service has an answer to. */}
+        {running && share.missingFiles > 0 && (
+          <p className="text-sm text-warning">
+            {t('shareMissingFiles', {
+              count: share.missingFiles,
+              countText: share.missingFiles.toLocaleString(i18n.language),
+            })}
+          </p>
+        )}
         {/* Everything a user has to type into the television, in one place:
             the address to enter, the user name, and the password. It is shown
             whether or not the service is running, and that is the point of it —
