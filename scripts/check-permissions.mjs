@@ -55,19 +55,21 @@ const needs = {
   '@tauri-apps/api/event': {
     listen: 'core:event:allow-listen',
   },
+  // Nothing reaches through this package, and the entries stay as what a reach
+  // would need rather than as what is used. The interface stopped touching its
+  // own window when the close became the backend's decision (`crate::closing`):
+  // holding a close, asking about it and closing afterwards are all on the other
+  // side of the seam now, so no permission over the window is granted either.
+  //
+  // An entry here is not a grant — it is the other half of the check, the fact
+  // Tauri owns. Adding a reach back through this package is exactly the mistake
+  // the table exists to catch, and `core:window:allow-destroy` is the one to be
+  // careful with: Tauri prevents a close whenever the window has a close-requested
+  // listener, so `close()` can never go through on a window that has ever
+  // subscribed, and `destroy()` is the way out.
   '@tauri-apps/api/window': {
-    // The window an interface is drawn in is answered by the API itself, and
-    // the close request it subscribes to is an event like any other — the
-    // permission is the listener's, not the window's.
     getCurrentWindow: nothing,
     onCloseRequested: 'core:event:allow-listen',
-    // `close()` is not in this table, and adding a call to it takes two
-    // mistakes rather than one: Tauri prevents a close whenever the window has
-    // a close-requested listener, so `close()` is a request that can never go
-    // through on a window that has ever subscribed. `destroy()` is the way out
-    // — see the note in `frontend/src/shared/api.ts`. The permission it needs
-    // is also the one Tauri's own `onCloseRequested` needs, since that
-    // destroys the window itself when a handler does not prevent the event.
     destroy: 'core:window:allow-destroy',
   },
   '@tauri-apps/plugin-dialog': {

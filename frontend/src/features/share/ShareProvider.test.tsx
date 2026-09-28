@@ -11,9 +11,9 @@ import {
   scan,
   status,
   videoActions,
-  windowMock,
 } from '../../test/sharePage';
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -25,23 +25,32 @@ import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { ShareProvider } from './ShareProvider';
 import { SharePage } from '../../pages/SharePage';
 import english from '../../../../shared/locales/en/common.json';
+import errors from '../../../../shared/locales/en/errors.json';
 
+/**
+ * The question a close arrives as, and what the two answers do.
+ *
+ * Which closes are held is the backend's to decide and is tested there
+ * (`crate::closing`): a service is running, or it is not, and this side cannot
+ * tell the difference from a message it is sent. What is this side's is the
+ * question and the answer — asking the user, and answering with the one command
+ * that ends the service and closes the window.
+ *
+ * The page is mounted anyway, because a user being asked would be looking at
+ * one — and because the question belongs to the provider for the reason it
+ * always did: the window can be closed from any page, and the service outlives
+ * a visit to the one that started it.
+ */
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
   isTauri: () => true,
   convertFileSrc: (path: string) => path,
 }));
-vi.mock('@tauri-apps/api/window', () => ({
-  getCurrentWindow: () => ({
-    onCloseRequested: (
-      handler: (event: { preventDefault: () => void }) => void,
-    ) => windowMock.onCloseRequested(handler),
-    destroy: () => windowMock.destroy(),
-  }),
-}));
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
 vi.mock('../library/useVideos', () => ({ useVideos: () => library }));
 vi.mock('../library/useVideoActions', () => ({
   useVideoActions: () => videoActions,
@@ -55,21 +64,37 @@ vi.mock('../space/SpaceProvider', () => ({
 
 const i18n = createInstance();
 
+/**
+ * The backend asking for an answer, which is the only way a question arrives:
+ * the listener the provider subscribed is called with nothing, because the event
+ * carries nothing.
+ */
+let askedToClose: (() => void) | undefined;
+
 beforeEach(async () => {
-  await i18n.init({ lng: 'en', resources: { en: { translation: english } } });
-  resetSharePage(invoke);
+  await i18n.init({
+    lng: 'en',
+    resources: { en: { translation: english, errors } },
+  });
+  resetSharePage(invoke, listen);
+  askedToClose = undefined;
+  vi.mocked(listen).mockImplementation((async (
+    event: string,
+    handler: () => void,
+  ) => {
+    if (event === 'close-requested') askedToClose = handler;
+    // Nothing else subscribes here: the library's own providers are the ones
+    // that follow the scan, and they are not mounted in this test.
+    return () => {};
+  }) as never);
 });
 
 afterEach(() => {
   cleanup();
-  vi.unstubAllGlobals();
+  vi.resetAllMocks();
 });
 
-/**
- * The page as a user meets it, with the provider above it: the service outlives
- * a visit to the page that started it, and the window can be closed from any
- * page, which is why the question is the provider's.
- */
+/** The page as a user meets it, with the provider above it. */
 function page() {
   return render(
     <I18nextProvider i18n={i18n}>
@@ -82,109 +107,95 @@ function page() {
   );
 }
 
-/**
- * The window being closed, as the window asks: the handler the provider
- * subscribed is called, and what it did with the event is the answer.
- */
-function closeTheWindow(): boolean {
-  let prevented = false;
-  windowMock.handler?.({
-    preventDefault: () => {
-      prevented = true;
-    },
+/** The backend holding a close and waiting for an answer. */
+async function theBackendAsks() {
+  await act(async () => {
+    askedToClose?.();
   });
-  return prevented;
 }
 
-/**
- * What the 共享服务 costs when the window is closed, which the page it is
- * started from is not the right home for.
- *
- * The window can be closed from any page — the service is the whole
- * application's, and it outlives a visit to the page that started it — so the
- * question is asked by the provider that sits above every page, and it is asked
- * here rather than in the sharing page's own tests. The page is mounted anyway,
- * because a user being asked would be looking at one.
- */
-it('holds the window open while the service is running, and asks first', async () => {
-  backend(invoke, {
-    share_status: status({ port: 4918 }),
-    close_share: status(),
-  });
+function question() {
+  return screen.queryByRole('dialog', { name: english.shareCloseQuestion });
+}
+
+it('asks the user before closing, and closes through the backend when the answer is yes', async () => {
+  backend(invoke, { share_status: status({ port: 4918 }) });
   page();
   await screen.findByRole('button', { name: english.stopSharing });
-  await waitFor(() => expect(windowMock.handler).toBeDefined());
 
-  // The window is closing, and it is held: nothing has been stopped and nothing
-  // has been closed, because the user has not answered yet.
-  expect(closeTheWindow()).toBe(true);
-  // Asked for by its own words: the page keeps a closed details drawer mounted
-  // (the drawer's shell never unmounts), and that one is a dialog too.
-  const question = await screen.findByRole('dialog', {
-    name: english.shareCloseQuestion,
-  });
-  expect(invoke).not.toHaveBeenCalledWith('close_share');
-  expect(windowMock.destroy).not.toHaveBeenCalled();
+  // Nothing is held and nothing is asked while no close has arrived: the close
+  // button is the window's own business, and this side has not been told
+  // otherwise.
+  expect(question()).toBeNull();
+  expect(invoke).not.toHaveBeenCalledWith('close_window');
+
+  await theBackendAsks();
+  expect(
+    await screen.findByRole('dialog', { name: english.shareCloseQuestion }),
+  ).toBeTruthy();
+  // Asked, and nothing done yet: the service is still serving and the window is
+  // still here, because the user has not answered.
+  expect(invoke).not.toHaveBeenCalledWith('close_window');
 
   fireEvent.click(
     screen.getByRole('button', { name: english.shareCloseConfirm }),
   );
-  // Both, and the service first: the process going away releases the port, but
-  // the connections a device is holding are closed by the service stopping.
-  await waitFor(() => expect(invoke).toHaveBeenCalledWith('close_share'));
-  // And it is a destroy: the window subscribed, so Tauri would prevent a close
-  // and hand it back here as another question — which is what left the window
-  // open on a service that had already stopped.
-  await waitFor(() => expect(windowMock.destroy).toHaveBeenCalled());
-});
-
-it('subscribes to nothing when there is nothing to interrupt', async () => {
-  backend(invoke, { share_status: status() });
-  page();
-  await screen.findByText(english.connectionIdle);
-
-  // Nothing running, so nothing is held: no listener means Tauri has nothing to
-  // prevent and the window's own close path goes through, with no question to
-  // answer. A prompt on every close is one the user learns to dismiss without
-  // reading, and a listener left behind would be worse than that — it would be
-  // a window that never closes at all.
-  expect(windowMock.subscribed).toBe(false);
-  expect(windowMock.handler).toBeUndefined();
-  expect(
-    screen.queryByRole('dialog', { name: english.shareCloseQuestion }),
-  ).toBeNull();
-});
-
-it('lets go of the window when the service ends, question or no question', async () => {
-  backend(invoke, {
-    share_status: status({ port: 4918 }),
-    close_share: status(),
-  });
-  page();
-  await screen.findByRole('button', { name: english.stopSharing });
-  await waitFor(() => expect(windowMock.subscribed).toBe(true));
-
-  // Ended from the page rather than from the window: the service is gone, so
-  // the close button is the window's own business again.
-  fireEvent.click(screen.getByRole('button', { name: english.stopSharing }));
-  await waitFor(() => expect(windowMock.subscribed).toBe(false));
-  expect(windowMock.handler).toBeUndefined();
+  // One command, and not a stop followed by a close: what the user answered was
+  // one thing, and the backend is the side that can do both — it ends the
+  // service and then closes the window it decided to hold. Nothing here reaches
+  // for the window at all, so nothing here needs a permission over it.
+  await waitFor(() => expect(invoke).toHaveBeenCalledWith('close_window'));
+  expect(invoke).not.toHaveBeenCalledWith('close_share');
 });
 
 it('stays open when the question is answered no', async () => {
-  backend(invoke, {
-    share_status: status({ port: 4918 }),
-    close_share: status(),
-  });
+  backend(invoke, { share_status: status({ port: 4918 }) });
   page();
   await screen.findByRole('button', { name: english.stopSharing });
-  await waitFor(() => expect(windowMock.handler).toBeDefined());
 
-  closeTheWindow();
+  await theBackendAsks();
   fireEvent.click(await screen.findByRole('button', { name: english.cancel }));
-  expect(
-    screen.queryByRole('dialog', { name: english.shareCloseQuestion }),
-  ).toBeNull();
-  expect(windowMock.destroy).not.toHaveBeenCalled();
-  expect(invoke).not.toHaveBeenCalledWith('close_share');
+
+  // The window stays and the service keeps running, which is what saying no
+  // means — and it is not a state the user is stuck in: the next close is asked
+  // again.
+  expect(question()).toBeNull();
+  expect(invoke).not.toHaveBeenCalledWith('close_window');
+  await theBackendAsks();
+  expect(question()).toBeTruthy();
+});
+
+it('does not put the question a second time while the answer is on its way', async () => {
+  // A close arriving while the window is already being closed is the same
+  // question, and the same answer is being carried out: reopening it would put
+  // a dialog in front of a close that is happening.
+  backend(invoke, { share_status: status({ port: 4918 }) });
+  page();
+  await screen.findByRole('button', { name: english.stopSharing });
+
+  await theBackendAsks();
+  fireEvent.click(
+    screen.getByRole('button', { name: english.shareCloseConfirm }),
+  );
+  await theBackendAsks();
+  expect(question()).toBeNull();
+});
+
+it('says so when the window could not be closed', async () => {
+  // The one failure the user is entitled to hear about rather than be left
+  // pressing a button that does nothing. Reported in the same place every other
+  // failure of this surface is.
+  vi.mocked(invoke).mockImplementation((async (command: string) => {
+    if (command === 'share_status') return status({ port: 4918 });
+    throw { code: 'app.close.failed', params: {}, errorId: 'err_test' };
+  }) as never);
+  page();
+  await screen.findByRole('button', { name: english.stopSharing });
+
+  await theBackendAsks();
+  fireEvent.click(
+    screen.getByRole('button', { name: english.shareCloseConfirm }),
+  );
+  expect(await screen.findByText(english.operationFailed)).toBeTruthy();
+  expect(screen.getByText(errors['app.close.failed'])).toBeTruthy();
 });

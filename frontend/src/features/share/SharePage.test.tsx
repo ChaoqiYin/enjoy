@@ -12,7 +12,6 @@ import {
   setClipboard,
   status,
   videoActions,
-  windowMock,
 } from '../../test/sharePage';
 import { address, device, video } from '../../test/fixtures';
 import {
@@ -28,6 +27,7 @@ import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { ShareProvider } from './ShareProvider';
 import { SharePage } from '../../pages/SharePage';
 import english from '../../../../shared/locales/en/common.json';
@@ -42,21 +42,17 @@ import errors from '../../../../shared/locales/en/errors.json';
  * (`ConnectionDetails.test.tsx`, `PasswordDetails.test.tsx`,
  * `DeviceList.test.tsx`, `ListWarnings.test.tsx`), each with only the facts it
  * draws. What is left here needs the whole page standing up: the sharing state,
- * the library's slices, and the window.
+ * the library's slices, and the backend it talks to.
  */
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
   isTauri: () => true,
   convertFileSrc: (path: string) => path,
 }));
-vi.mock('@tauri-apps/api/window', () => ({
-  getCurrentWindow: () => ({
-    onCloseRequested: (
-      handler: (event: { preventDefault: () => void }) => void,
-    ) => windowMock.onCloseRequested(handler),
-    destroy: () => windowMock.destroy(),
-  }),
-}));
+// The sharing state subscribes to the close question for the life of the
+// interface, which is a subscription this file has to answer for the provider
+// to mount at all. What the message says belongs to the provider's own file.
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
 vi.mock('../library/useVideos', () => ({ useVideos: () => library }));
 // The cards in the 共享清单 act through the library's own actions, which is a
 // slice with its own tests; what this file is about is which cards are drawn.
@@ -80,7 +76,7 @@ beforeEach(async () => {
     lng: 'en',
     resources: { en: { translation: english, errors } },
   });
-  resetSharePage(invoke);
+  resetSharePage(invoke, listen);
 });
 
 afterEach(() => {

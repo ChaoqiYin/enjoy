@@ -86,6 +86,18 @@ impl ShareControl {
             .unwrap_or_else(|error| error.into_inner())
     }
 
+    /// Whether anything is running right now.
+    ///
+    /// The one question that is not about *what* is running: it is asked when
+    /// the window is asked to close, where the answer decides whether there is
+    /// anything the user should be told before it happens
+    /// ([`crate::closing`]). Nothing else is read, because nothing else is
+    /// wanted — a close that is held is held for whoever is watching, and that
+    /// is exactly the fact of a service being there.
+    pub fn running(&self) -> bool {
+        self.lock().is_some()
+    }
+
     /// What is running right now, against the credentials the application is
     /// keeping.
     ///

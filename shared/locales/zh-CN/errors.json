@@ -29,6 +29,7 @@
   "settings.language.save_failed": "无法保存语言设置，请重试。",
   "media.tool.timeout": "媒体工具处理超时，请尝试其他文件。",
   "app.startup.failed": "Enjoy 无法启动，请重启应用。",
+  "app.close.failed": "Enjoy 无法关闭窗口，请从任务栏关闭，或重启应用。",
   "media.player.unsupported": "此平台暂不支持进度回传播放。",
   "settings.read_failed": "无法读取设置。",
   "settings.save_failed": "无法保存设置，请重试。",

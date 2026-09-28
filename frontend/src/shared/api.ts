@@ -3,8 +3,6 @@ import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { open } from '@tauri-apps/plugin-dialog';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { CloseRequestedEvent } from '@tauri-apps/api/window';
 
 export interface Video {
   id: number;
@@ -314,43 +312,22 @@ export const shareApi = {
 };
 
 /**
- * The window this interface is drawn in, asked for the two things the 共享服务
- * needs of it.
+ * The window this interface is drawn in, asked for the one thing the 共享服务
+ * needs of it: to go away once the user has said so.
  *
- * A close has to be interruptible: ending the service closes connections a
- * device may be in the middle of reading, and the user is the only one who can
- * say whether that is all right. So the window is asked to hold the close while
- * the question is put, and to go through with it once the answer is yes — an
- * answer that has to be given from the interface, because the prompt is the
- * interface's own.
+ * Whether a close is held — and if so, that the user is asked first — is the
+ * backend's decision, taken where the fact it rests on lives: only the backend
+ * knows a service is running (`crate::closing`). It holds the close and tells
+ * this side a question is due; the answer comes back here as a command, and the
+ * window is closed by the side that decided it should wait. Nothing here
+ * subscribes to the window or destroys it, and the interface needs no permission
+ * over its own window at all.
  *
- * Closing is a destroy, and it cannot be Tauri's `close()`. Tauri prevents a
- * close whenever the window has a listener for the close-requested event
- * (`tauri::manager::window::on_window_event`, which asks
- * `has_js_listener`), and the event then arrives as a notification rather than
- * a question: nothing the handler does lets that close through, and `close()`
- * raises the same request only to have it prevented again. `destroy()` is the
- * one that does not ask — which is what is wanted once the answer is yes.
- * Tauri's own `onCloseRequested` finishes the same way, destroying the window
- * itself when the handler does not prevent the event, so a window that has ever
- * subscribed needs the destroy permission whether or not this one is used.
- *
- * Both are absent outside the application. A browser has no window to close and
- * nothing to be told about it, so the two answer the way a window that is
- * already closing would: the subscription is for nothing, and closing has
- * nothing left to do.
+ * The command ends the service before the window goes, which is why the answer
+ * to a yes is one call rather than two.
  */
 export const windowApi = {
-  onCloseRequested: (
-    handler: (event: CloseRequestedEvent) => void,
-  ): Promise<UnlistenFn> => {
-    if (!isTauri()) return Promise.resolve(() => {});
-    return getCurrentWindow().onCloseRequested(handler);
-  },
-  close: (): Promise<void> => {
-    if (!isTauri()) return Promise.resolve();
-    return getCurrentWindow().destroy();
-  },
+  close: (): Promise<void> => invoke<void>('close_window'),
 };
 
 /**
@@ -406,6 +383,16 @@ export const backendEvents = {
     listen<UpdateProgress>('update-progress', ({ payload }) =>
       handler(payload),
     ),
+  /**
+   * The window was asked to close while a 共享服务 is running, and is being held
+   * while the user is asked about it.
+   *
+   * Carries nothing: what is being asked is a question this side already has the
+   * words for, and what would close is the window it is drawn in. The answer
+   * goes back as `windowApi.close`.
+   */
+  onCloseRequested: (handler: () => void): Promise<UnlistenFn> =>
+    listen('close-requested', handler),
 };
 
 /** Asks the user for folders, through the platform's own picker. */

@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod app;
+mod closing;
 mod commands;
 mod error;
 mod events;
@@ -53,11 +54,33 @@ fn main() {
             commands::space::rename_space,
             commands::space::delete_space,
             commands::space::switch_space,
+            commands::window::close_window,
             update::commands::check_for_update,
             update::commands::install_update,
             update::commands::control_update,
             update::commands::restart_app
         ])
+        // What a close means is decided here rather than in the interface: a
+        // close is held only while a 共享服务 is running, and the backend is the
+        // one that knows whether one is (`closing`). The interface is asked
+        // nothing about its own window, and it is told a close is being held the
+        // same way it is told everything else.
+        //
+        // This is the whole of the wiring: the decision, the holding and the
+        // telling are one call, so what is left here is the one thing no test can
+        // do — hold Tauri's window.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // A close arriving before the backend came up — a startup that
+                // failed, and said so natively — has nothing to hold it: the
+                // window is the only thing left to close.
+                let Some(state) = window.try_state::<app::AppState>() else {
+                    return;
+                };
+                let events = events::AppEvents(window.app_handle().clone());
+                closing::handle(&state.share, &events, || api.prevent_close());
+            }
+        })
         .setup(|app| {
             // First, so that a failure below is written down. The log file
             // needs the application data folder, which only exists once there

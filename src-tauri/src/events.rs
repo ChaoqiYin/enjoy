@@ -21,6 +21,12 @@ pub trait Events {
     fn scan_progress(&self, status: ScanStatus);
     fn library_changed(&self);
     fn media_error(&self, error: &AppError);
+    /// The window was asked to close while a 共享服务 is running, and is being
+    /// held while the user is asked about it (`crate::closing`).
+    ///
+    /// Carries nothing: what is being asked is a question the interface already
+    /// has the words for, and what would be closed is the window it is drawn in.
+    fn close_requested(&self);
     /// Where a download has got to. How it ended is not here: that is the
     /// answer the command returns, because the section has to settle on exactly
     /// one of "ready", "paused" or "cancelled" and an event is not a race it
@@ -51,6 +57,10 @@ impl Events for AppEvents {
         let _ = self.0.emit("media-error", error);
     }
 
+    fn close_requested(&self) {
+        let _ = self.0.emit("close-requested", ());
+    }
+
     fn update_progress(&self, progress: UpdateProgress) {
         let _ = self.0.emit("update-progress", progress);
     }
@@ -73,6 +83,8 @@ pub struct Recorded {
     pub media_errors: std::sync::Mutex<Vec<String>>,
     /// Every progress report a download sent, in order.
     pub downloads: std::sync::Mutex<Vec<UpdateProgress>>,
+    /// How many times the interface was told a close is being held for it.
+    pub close_requests: std::sync::atomic::AtomicUsize,
     /// Runs as each status goes out, before it is written down.
     ///
     /// Some rules can only be exercised from inside the pass that has them:
@@ -115,6 +127,12 @@ impl Recorded {
     pub fn updates(&self) -> Vec<UpdateProgress> {
         self.downloads.lock().unwrap().clone()
     }
+
+    /// How many times the interface was told a close is being held.
+    pub fn close_requests(&self) -> usize {
+        self.close_requests
+            .load(std::sync::atomic::Ordering::SeqCst)
+    }
 }
 
 #[cfg(test)]
@@ -137,5 +155,10 @@ impl Events for Recorded {
 
     fn update_progress(&self, progress: UpdateProgress) {
         self.downloads.lock().unwrap().push(progress);
+    }
+
+    fn close_requested(&self) {
+        self.close_requests
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     }
 }

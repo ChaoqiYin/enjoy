@@ -15,8 +15,9 @@
 //!
 //! Kept apart from the tests themselves because there is more than one file of
 //! them — `service_tests` for what the service answers, `activity_tests` for
-//! what it remembers about who asked — and a second copy of a request writer
-//! would be a second thing to keep in step with the protocol.
+//! what it remembers about who asked, and `closing` for whether a service being
+//! there at all decides anything — and a second copy of a request writer would be
+//! a second thing to keep in step with the protocol.
 
 use std::io::{Read, Write};
 use std::net::TcpStream;

@@ -35,7 +35,7 @@ mod fs;
 #[cfg(test)]
 mod fs_tests;
 #[cfg(test)]
-mod harness;
+pub(crate) mod harness;
 mod landing;
 mod service;
 #[cfg(test)]

@@ -29,6 +29,7 @@
   "settings.language.save_failed": "Could not save language settings. Please try again.",
   "media.tool.timeout": "The media tool timed out. Please try another file.",
   "app.startup.failed": "Enjoy could not start. Please restart the app.",
+  "app.close.failed": "Enjoy could not close its window. Please close it from the taskbar, or restart the app.",
   "media.player.unsupported": "Tracked playback is not yet supported on this platform.",
   "settings.read_failed": "Could not read settings.",
   "settings.save_failed": "Could not save settings. Please try again.",

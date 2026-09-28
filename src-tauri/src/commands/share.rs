@@ -64,7 +64,8 @@ pub(crate) fn open_share(
     )
 }
 
-/// Ends the service, and answers once the port is free again.
+/// Ends the service the interface asked to end, and answers once the port is
+/// free again.
 ///
 /// On a blocking thread because ending joins the thread that was serving, and
 /// the answer is not sent until the port has actually been given back: a
@@ -76,7 +77,21 @@ pub(crate) async fn close_share(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<ShareStatus, AppError> {
-    let share = Arc::clone(&state.share);
+    end_service(app, Arc::clone(&state.share)).await
+}
+
+/// Ends the service, and answers with what is left of it.
+///
+/// Two commands end it — the one that only ends it and the one that ends it and
+/// closes the window (`commands::window`) — and everything about the ending is
+/// the same in both: read the password that is in force, since a service holds
+/// the one it started with, and wait on a blocking thread for the port to come
+/// back. What differs is only what is done with the answer, so the answer is
+/// what comes back here.
+pub(crate) async fn end_service(
+    app: AppHandle,
+    share: Arc<crate::share::ShareControl>,
+) -> Result<ShareStatus, AppError> {
     tauri::async_runtime::spawn_blocking(move || {
         let credentials = Credentials::load(&store::open(&app)?)?;
         Ok(share.close(&credentials, addresses::of_this_machine()))

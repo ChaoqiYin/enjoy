@@ -15,6 +15,7 @@ pub(crate) mod library;
 pub(crate) mod scan;
 pub(crate) mod share;
 pub(crate) mod space;
+pub(crate) mod window;
 
 #[cfg(test)]
 mod share_tests;

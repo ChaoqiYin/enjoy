@@ -10,6 +10,7 @@ import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { listen } from '@tauri-apps/api/event';
 import { App } from './App';
 import { libraryApi } from '../shared/api';
 import { useLibraryView } from '../features/library/libraryView';
@@ -53,6 +54,10 @@ vi.mock('../i18n/LanguageSetting', () => ({
   LanguageFocusSync: () => null,
   LanguageSetting: () => null,
 }));
+// The one subscription left in the real tree: the sharing state follows the
+// close question for the life of the interface (`ShareProvider`). The library's
+// own subscriptions are out with its provider, above.
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
 const i18n = createInstance();
 // Not "Library": the navigation has a tab by that name, and a page that shows
 // the space it is about is the thing being looked for here.
@@ -67,6 +72,8 @@ beforeEach(async () => {
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
   }));
+  // A subscription that can be stopped, which is all the provider asks of it.
+  vi.mocked(listen).mockResolvedValue(vi.fn() as never);
   useLibraryView.setState({ search: '', folder: '', sorts: {} });
   vi.stubGlobal(
     'ResizeObserver',

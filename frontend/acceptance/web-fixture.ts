@@ -406,6 +406,13 @@ mockIPC(
         // No space: nothing is running, and the answer says so in every field
         // the space was only ever needed for.
         return share();
+      case 'close_window':
+        // The window going away is the one answer a page cannot be shown: in
+        // the application the backend ends the service and closes the window,
+        // and here there is nothing left to do. Answered rather than left
+        // unimplemented so that a walkthrough past the close question reads the
+        // application rather than a banner about the fixture.
+        return;
       case 'regenerate_share_password':
         sharePassword = `drawn-${String(++drawnPasswords)}`;
         return share(Number(payload.spaceId));
