@@ -166,6 +166,44 @@ fn a_client_listing_the_root_sees_one_flat_row_of_videos() {
 }
 
 #[test]
+fn the_listing_says_how_big_a_video_is() {
+    // The number a client shows in its list, and the one a player reads before it
+    // decides whether it can drag its position bar. A size a client cannot read
+    // arrives as "unknown" — some clients print -1 byte — and a list of videos
+    // that are all -1 byte looks like a service that is answering about files it
+    // does not really have.
+    let (fixture, control, port) = serving(&["Movies/开场.mp4"]);
+    let size = std::fs::metadata(path_of(&fixture, "Movies/开场.mp4"))
+        .unwrap()
+        .len();
+    let body = String::from_utf8_lossy(&body_of(&request(
+        port,
+        "PROPFIND",
+        "/",
+        "Depth: 1\r\nContent-Length: 0\r\n",
+    )))
+    .into_owned();
+    assert!(
+        body.contains(&format!("<D:getcontentlength>{size}</D:getcontentlength>")),
+        "the listing did not say how big the video is: {body}"
+    );
+    // And the same number on the way in, whole and sliced: what a player opens
+    // the file by, and what it asks for when it seeks.
+    let file = format!("/{}", encoded("开场.mp4"));
+    let whole = head_of(&request(port, "GET", &file, "")).to_ascii_lowercase();
+    assert!(
+        whole.contains(&format!("content-length: {size}")),
+        "{whole}"
+    );
+    let slice = head_of(&request(port, "GET", &file, "Range: bytes=2-5\r\n")).to_ascii_lowercase();
+    assert!(
+        slice.contains(&format!("content-range: bytes 2-5/{size}")),
+        "{slice}"
+    );
+    control.close(&credentials(), Vec::new());
+}
+
+#[test]
 fn a_range_request_gets_the_slice_that_was_asked_for() {
     let (fixture, control, port) = serving(&["Movies/开场.mp4"]);
     let content = std::fs::read(path_of(&fixture, "Movies/开场.mp4")).unwrap();
