@@ -12,6 +12,7 @@ mod process;
 mod repository;
 mod scan;
 mod settings;
+mod share;
 mod update;
 
 use i18n::{language, native};
@@ -42,6 +43,9 @@ fn main() {
             commands::library::set_favorite,
             commands::library::set_shared,
             commands::library::open_video,
+            commands::share::open_share,
+            commands::share::close_share,
+            commands::share::share_status,
             commands::space::current_space,
             commands::space::list_spaces,
             commands::space::create_space,

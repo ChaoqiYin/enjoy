@@ -2,6 +2,7 @@ use crate::error::AppError;
 use crate::i18n::{language, native};
 use crate::repository::Repository;
 use crate::scan::control::ScanControl;
+use crate::share::ShareControl;
 use crate::update::UpdateControl;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -18,6 +19,7 @@ pub(crate) struct AppState {
     pub(crate) scan: Arc<ScanControl>,
     pub(crate) repository: Arc<Mutex<Repository>>,
     pub(crate) update: Arc<UpdateControl>,
+    pub(crate) share: Arc<ShareControl>,
 }
 
 /// A state a test can hold. It lives here rather than beside any one test
@@ -36,6 +38,7 @@ pub(crate) fn test_state(fixture: &crate::repository::fixture::Fixture) -> AppSt
         scan: Arc::new(ScanControl::default()),
         repository: Arc::new(Mutex::new(repository)),
         update: Arc::new(UpdateControl::default()),
+        share: Arc::new(ShareControl::default()),
     }
 }
 
@@ -70,6 +73,7 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
         repository: Arc::new(Mutex::new(repository)),
         scan: Arc::new(ScanControl::default()),
         update: Arc::new(UpdateControl::default()),
+        share: Arc::new(ShareControl::default()),
     });
     Ok(())
 }

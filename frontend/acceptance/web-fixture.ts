@@ -25,8 +25,10 @@ function markedOf(kind: Marker, spaceId: number) {
   return held;
 }
 
-/// The two marks a space can put on a record, named by the field the command
-/// carries them in, so one handler can serve both.
+/**
+ * The two marks a space can put on a record, named by the field the command
+ * carries them in, so one handler can serve both.
+ */
 type Marker = 'favorite' | 'shared';
 
 function markOn(kind: Marker, payload: Record<string, unknown>) {
@@ -58,6 +60,7 @@ const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
 }));
 let language = 'en';
 let settings: SettingsState = { language: 'en', theme: 'dark' };
+let sharePort: number | null = null;
 // The acceptance fixture stands in for the backend, so the space rules are
 // repeated here rather than shared with it: they are the backend's, and the
 // tests that hold them are Rust's. What they are for here is letting someone
@@ -274,6 +277,17 @@ mockIPC(
         return markOn('favorite', payload);
       case 'set_shared':
         return markOn('shared', payload);
+      // The service itself is not here: what a walkthrough can check is that
+      // the button moves the interface between its two states, and the port it
+      // names is the one the interface would have to show.
+      case 'share_status':
+        return { port: sharePort };
+      case 'open_share':
+        sharePort = 4918;
+        return { port: sharePort };
+      case 'close_share':
+        sharePort = null;
+        return { port: sharePort };
       case 'check_for_update':
         return { ...updateCheck };
       case 'install_update': {

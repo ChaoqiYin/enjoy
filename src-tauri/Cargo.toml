@@ -32,8 +32,29 @@ reqwest= {version="0.13",default-features=false,features= ["stream","rustls-no-p
 rustls= {version="0.23",default-features=false,features= ["ring"] }
 # `macros` for the select that lets a stop interrupt a read, `sync` for the
 # notification that makes it felt before the next byte rather than after it, and
-# `time` for the retry waits.
-tokio= {version="1",features= ["macros","sync","time"] }
+# `time` for the retry waits. The last three are the 共享服务's: `net` for the
+# listener it accepts on, `rt-multi-thread` so that two devices pulling two
+# videos are not queued behind each other, and `io-util` for the adapter that
+# hands a tokio socket to hyper.
+tokio= {version="1",features= ["macros","sync","time","net","rt-multi-thread","io-util"] }
+# The WebDAV server the 共享服务 is built on, and the HTTP server it runs on.
+# hyper and hyper-util are already in the tree through the update client's own
+# stack -- and `http`, which both of them speak -- so this adds no new version
+# line, only makes them ours to name.
+#
+# `default-features` is off because the crate's defaults are its two
+# filesystems, the local one and the in-memory one, and this application uses
+# neither: the service serves from a virtual filesystem built out of the 共享清单
+# rather than out of a directory (see `share::fs`). The one backend it does use
+# -- the placeholder lock system that answers Finder's and Explorer's LOCK
+# probes -- has no feature to turn off and always arrives.
+dav-server= {version="0.11",default-features=false }
+hyper= {version="1",features= ["http1","server"] }
+hyper-util= {version="0.1",features= ["tokio"] }
+# The request and response types the two of them and the WebDAV handler all
+# speak. Declared for the same reason as hyper: already in the tree, now ours to
+# name.
+http="1"
 
 [dev-dependencies]
 # Only for the signature tests, which have to bring a key of their own: a valid

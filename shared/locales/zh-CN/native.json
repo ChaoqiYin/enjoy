@@ -1,4 +1,6 @@
 {
   "startupFailed": "Enjoy 无法启动。排查编号：{{id}}",
-  "defaultSpace": "默认空间"
+  "defaultSpace": "默认空间",
+  "shareLandingTitle": "Enjoy 共享服务",
+  "shareLandingBody": "这里是 Enjoy 的视频共享服务。它把本机挑选出来的视频以只读方式提供给局域网里的其他设备，用支持 WebDAV 的客户端（电视和手机上的播放器、系统的文件管理器）连接即可，浏览器里看不到内容。"
 }

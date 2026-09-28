@@ -47,5 +47,9 @@
   "space.name.taken": "Another space is already called “{{name}}”.",
   "space.not_found": "That space no longer exists.",
   "space.remove_last": "Enjoy always keeps at least one space, so the last one cannot be removed.",
-  "space.blocked.scanning": "A scan is running, so spaces cannot be changed. Finish or cancel it first."
+  "space.blocked.scanning": "A scan is running, so spaces cannot be changed. Finish or cancel it first.",
+  "share.port.in_use": "Port {{port}} is already taken by another program, so the share service could not start.",
+  "share.start.failed": "The share service could not start. Look up the reference in the log.",
+  "share.already_running": "The share service is already running.",
+  "share.stop_failed": "The share service could not be stopped. Look up the reference in the log."
 }

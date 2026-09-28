@@ -13,6 +13,7 @@ export function AppNavigation() {
           ['/', t('library')],
           ['/favorites', t('favorites')],
           ['/history', t('history')],
+          ['/share', t('sharing')],
           ['/settings', t('settings')],
         ].map(([path, label]) => (
           <NavLink

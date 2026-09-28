@@ -98,6 +98,18 @@ export interface LanguageSettings {
 }
 
 /**
+ * The 共享服务 as the interface sees it: the port it is listening on, or null
+ * when it is not running.
+ *
+ * One field, because there is one fact. Whether the service is running *is*
+ * whether it has a port, and a flag beside a port would be two answers to one
+ * question with nothing keeping them in step.
+ */
+export interface ShareStatus {
+  port: number | null;
+}
+
+/**
  * What the user chose about the application itself, as opposed to about a
  * space: the language preference and the theme.
  */
@@ -188,6 +200,24 @@ export const libraryApi = {
   // Installing hands the update to the platform installer and exits, so this
   // never answers a restart that worked; the caller swallows the rejection.
   restartApp: () => invoke<void>('restart_app'),
+};
+
+/**
+ * The 共享服务, which belongs to no space of its own: it is one service for the
+ * application, started by the user and ended when they say so or when the
+ * application exits.
+ *
+ * Each of the three answers with the status that follows it, so a caller never
+ * has to work out where it now stands: opening answers with the port that was
+ * taken — which is not always the one asked for — and ending answers with the
+ * one that says nothing is running. Reading is its own command because the
+ * status is asked from every page, and a question that had to open a port to be
+ * answered would turn looking at the interface into starting a service.
+ */
+export const shareApi = {
+  status: () => invoke<ShareStatus>('share_status'),
+  open: () => invoke<ShareStatus>('open_share'),
+  close: () => invoke<ShareStatus>('close_share'),
 };
 
 /**
