@@ -367,14 +367,18 @@ export const settingsApi = {
 /**
  * The language, and the preference behind it.
  *
- * `set` answers with the language the preference resolves to right now, which
- * is not the preference itself in follow-system mode — so the caller applies
- * what came back rather than what it sent.
+ * Reading answers with the language the preference resolves to right now, which
+ * is not the preference itself in follow-system mode.
+ *
+ * Changing it is not here. The settings page is where a language is chosen, and
+ * it goes through `settingsApi.save` with the theme beside it, because the two
+ * are one file and one write (`crate::preferences`). A second command that
+ * wrote the same key is how the application came to have two answers to which
+ * language it was in: one the interface was drawn with, and one the native
+ * menus and the 共享服务's landing page were written in, until the next run.
  */
 export const languageApi = {
   read: () => invoke<LanguageSettings>('get_language'),
-  save: (preference: LanguageSettings['preference']) =>
-    invoke<LanguageSettings>('set_language', { preference }),
 };
 
 /**

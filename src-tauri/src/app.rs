@@ -66,7 +66,7 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
     // now: the upgrade happens once, on a machine whose interface language is a
     // fact of that moment, and the name is theirs to change afterwards. That is
     // also why this reads the language before it opens the database.
-    let language = language::current(&app.state::<language::LanguageState>())?;
+    let language = language::current(app)?;
     let path = database_path(app)?;
     let repository = Repository::open(&path, native::translate(&language, "defaultSpace"))?;
     app.manage(AppState {

@@ -36,9 +36,8 @@ pub(crate) fn open_share(
     space_id: i64,
     app: AppHandle,
     state: State<'_, AppState>,
-    languages: State<'_, language::LanguageState>,
 ) -> Result<ShareStatus, AppError> {
-    let language = language::current(&languages)?;
+    let language = language::current(&app)?;
     let credentials = Credentials::load(&app)?;
     let paths = lock_shared(&state.repository)?.shared_paths(space_id)?;
     state.share.open(

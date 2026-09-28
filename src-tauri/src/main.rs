@@ -8,6 +8,7 @@ mod logging;
 mod media;
 mod model;
 mod player;
+mod preferences;
 mod process;
 mod repository;
 mod scan;
@@ -27,7 +28,6 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             language::get_language,
-            language::set_language,
             settings::get_settings,
             settings::save_settings,
             commands::scan::regenerate_thumbnails,
@@ -63,7 +63,6 @@ fn main() {
             // needs the application data folder, which only exists once there
             // is an application to ask, so this cannot happen any earlier.
             logging::init(app.handle());
-            app.manage(language::load(app.handle()));
             let result = app::initialize_backend(app.handle());
             if let Err(error) = result {
                 native::startup_failure(app.handle(), &error);

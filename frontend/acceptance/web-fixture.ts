@@ -278,13 +278,14 @@ mockIPC(
     switch (command) {
       case 'get_language':
         return { preference: language, language };
-      case 'set_language':
-        language = String(payload.preference);
-        return { preference: language, language };
       case 'get_settings':
         return { ...settings };
       case 'save_settings':
+        // The language and the theme together, in one write, the way the
+        // preferences keep them: changing the language is this command now, and
+        // what the interface is drawn in follows from the same answer.
         settings = { ...(payload.settings as SettingsState) };
+        language = settings.language;
         return { ...settings };
       case 'current_space':
         return { ...currentSpace() };

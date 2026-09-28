@@ -41,11 +41,10 @@
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use http::HeaderValue;
-use serde_json::json;
 use tauri::AppHandle;
-use tauri_plugin_store::StoreExt;
 
 use crate::error::AppError;
+use crate::preferences::{store, Preference};
 
 /// The user name every client signs in with.
 ///
@@ -60,10 +59,6 @@ pub(crate) const USERNAME: &str = "enjoy";
 /// user for a password; the realm is what a client shows in its box, and it is
 /// the application's name for the same reason the landing page carries it.
 pub(crate) const CHALLENGE: &str = "Basic realm=\"Enjoy\", charset=\"UTF-8\"";
-
-/// The preference the password is kept in, and the key inside it.
-const PREFERENCES: &str = "preferences.json";
-const KEY: &str = "sharePassword";
 
 /// The characters a password is drawn from, and how many of them are drawn.
 ///
@@ -89,45 +84,26 @@ impl Credentials {
     /// starts it shows the password: one that came into being when the port
     /// opened would be one the user could not write down first.
     pub(crate) fn load(app: &AppHandle) -> Result<Self, AppError> {
-        let store = app
-            .store(PREFERENCES)
-            .map_err(|error| AppError::new("settings.read_failed", error))?;
-        let stored = store
-            .get(KEY)
-            .and_then(|value| value.as_str().map(str::to_owned));
-        match stored {
-            Some(password) => Ok(Self {
-                username: USERNAME.to_string(),
-                password,
-            }),
-            // Nothing stored is not an empty password: it is the first run, and
-            // the answer is a password of this application's making rather than
-            // one of nobody's.
-            None => Self::regenerate(app),
+        let stored = store::open(app)?.read(Preference::SharePassword);
+        // Nothing stored is not an empty password: it is the first run, and the
+        // answer is a password of this application's making rather than one of
+        // nobody's.
+        if stored.is_empty() {
+            return Self::regenerate(app);
         }
+        Ok(Self {
+            username: USERNAME.to_string(),
+            password: stored,
+        })
     }
 
     /// Draws a new password and keeps it.
     ///
-    /// A failed write puts back what was there, so the preferences are left
-    /// holding a password that has served rather than one that never did — the
-    /// same rule the settings are saved by.
+    /// Kept through the preferences, so a write that cannot be made leaves the
+    /// file holding a password that has served rather than one that never did.
     pub(crate) fn regenerate(app: &AppHandle) -> Result<Self, AppError> {
-        let store = app
-            .store(PREFERENCES)
-            .map_err(|error| AppError::new("settings.save_failed", error))?;
         let credentials = Self::draw();
-        let previous = store.get(KEY);
-        store.set(KEY, json!(&credentials.password));
-        if let Err(error) = store.save() {
-            match previous {
-                Some(value) => store.set(KEY, value),
-                None => {
-                    let _ = store.delete(KEY);
-                }
-            }
-            return Err(AppError::new("settings.save_failed", error));
-        }
+        store::open(app)?.write(&[(Preference::SharePassword, &credentials.password)])?;
         Ok(credentials)
     }
 

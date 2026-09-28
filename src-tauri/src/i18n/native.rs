@@ -1,8 +1,9 @@
 use crate::error::AppError;
-use crate::i18n::language::{resolve, LanguageState};
+use crate::i18n::language::resolve;
+use crate::preferences::{store, Preference};
 use serde_json::Value;
 use std::sync::LazyLock;
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 static ENGLISH: LazyLock<Value> = LazyLock::new(|| {
@@ -28,10 +29,12 @@ pub fn translate(language: &str, key: &str) -> &'static str {
 }
 
 pub fn startup_failure(app: &AppHandle, error: &AppError) {
-    let preference = app
-        .try_state::<LanguageState>()
-        .and_then(|state| state.0.lock().ok().map(|value| value.clone()))
-        .unwrap_or_else(|| "system".into());
+    // Every failure here answers "system", which is the same thing a first
+    // run reads: this is the path for a failure to start, and the language is
+    // the least of it.
+    let preference = store::open(app)
+        .map(|preferences| preferences.read(Preference::Language))
+        .unwrap_or_else(|_| "system".into());
     let language = resolve(&preference, sys_locale::get_locale().as_deref());
     let message = translate(&language, "startupFailed").replace("{{id}}", &error.error_id);
     let handle = app.clone();
