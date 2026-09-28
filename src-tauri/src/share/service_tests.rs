@@ -204,6 +204,37 @@ fn the_listing_says_how_big_a_video_is() {
 }
 
 #[test]
+fn a_client_that_asks_without_a_depth_header_is_told_what_is_here() {
+    // The header is the protocol's, not the client's: RFC 4918 has a client send
+    // one and a server read a missing one as `infinity`. Not every client does
+    // what the protocol says, and before the service filled it in, a request
+    // without it reached the library as a listing of a resource's *children* —
+    // so a video asked about this way came back inside a multi-status with no
+    // `response` element in it at all. Nothing about the file, then: not its
+    // size, not that it is a file. What a television showing `-1 byte` for every
+    // video has to go on is exactly that emptiness.
+    let (_fixture, control, port) = serving(&["Movies/开场.mp4"]);
+    let file = format!("/{}", encoded("开场.mp4"));
+    for (name, path, expected) in [
+        // The listing, which is the same answer as with `Depth: 1`.
+        ("the root", "/", "<D:collection>"),
+        // And one file, which has no children to list and is what such a client
+        // is asking about when it asks this way.
+        ("one video", file.as_str(), "<D:getcontentlength>"),
+    ] {
+        let response = request(port, "PROPFIND", path, "Content-Length: 0\r\n");
+        assert_eq!(status(&response), 207, "{name}");
+        let body = String::from_utf8_lossy(&body_of(&response)).into_owned();
+        assert!(
+            body.contains(&encoded("开场.mp4")),
+            "{name} came back without the video in it: {body}"
+        );
+        assert!(body.contains(expected), "{name}: {body}");
+    }
+    control.close(&credentials(), Vec::new());
+}
+
+#[test]
 fn a_range_request_gets_the_slice_that_was_asked_for() {
     let (fixture, control, port) = serving(&["Movies/开场.mp4"]);
     let content = std::fs::read(path_of(&fixture, "Movies/开场.mp4")).unwrap();

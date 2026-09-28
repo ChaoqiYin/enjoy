@@ -39,6 +39,16 @@ use super::landing;
 /// the interface shows.
 pub(crate) const DEFAULT_PORT: u16 = 4918;
 
+/// The method whose missing `Depth` header this service fills in, and the header
+/// itself. Neither is a constant in the `http` crate: `PROPFIND` is WebDAV's own
+/// method and `Depth` is WebDAV's own header, and the crate knows only the ones
+/// HTTP itself defines.
+const PROPFIND: &str = "PROPFIND";
+const DEPTH: http::HeaderName = http::HeaderName::from_static("depth");
+/// The depth such a request is answered at: everything there is, which for a
+/// share that is one level deep is also the `infinity` the protocol names.
+const EVERYTHING: http::HeaderValue = http::HeaderValue::from_static("1");
+
 /// How many ports are tried, starting at the one asked for.
 ///
 /// 4918 is a convention rather than a reservation, and whatever else on the
@@ -324,7 +334,7 @@ async fn accept_loop(
 /// here. They are the same request line and two different questions, and each is
 /// answered by the half that understands it.
 async fn answer(
-    request: Request<Incoming>,
+    mut request: Request<Incoming>,
     endpoints: Endpoints,
     caller: Option<IpAddr>,
 ) -> Response<Body> {
@@ -345,6 +355,24 @@ async fn answer(
     }
     if landing::wanted(&request) {
         return landing::response(&request, &endpoints.landing);
+    }
+    // A `PROPFIND` with no `Depth` header is a request the protocol already says
+    // how to read — RFC 4918 has a server treat the absent header as `infinity` —
+    // and the library reads it as neither that nor anything else: measured, a
+    // video asked about this way comes back inside a multi-status with no
+    // `response` element in it at all, so the client is told nothing about the
+    // file it asked about — not its size, not that it is a file. That is the
+    // shape of a television showing every video as `-1 byte`.
+    //
+    // `Depth: 1` is not a guess at what `infinity` would have meant: the share is
+    // one level deep, so for it the two are the same answer, and this is the one
+    // the library can give (`infinity` itself is refused with
+    // `propfind-finite-depth`, which the protocol allows). Written here, in front
+    // of the handler, because it is a repair to somebody else's request rather
+    // than a rule of ours: a `Depth` a client did send is passed on as it
+    // arrived, whatever it says.
+    if request.method().as_str() == PROPFIND && !request.headers().contains_key(DEPTH) {
+        request.headers_mut().insert(DEPTH, EVERYTHING);
     }
     endpoints.webdav.handle(request).await
 }
