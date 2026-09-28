@@ -3,7 +3,6 @@ import { Download, RefreshCw, RotateCw } from 'lucide-react';
 import packageInfo from '../../../../package.json';
 import type { AvailableUpdate, UpdateProgress } from '../../shared/api';
 import { useScan } from '../library/useScan';
-import { isScanRunning } from '../library/scanFeedback';
 import { useUpdateContext } from './UpdateProvider';
 import { formatBytes, formatReleaseDate, progressRatio } from './updateFormat';
 

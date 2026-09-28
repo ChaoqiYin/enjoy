@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 import { Toast } from '../../shared/Toast';
 import { useScan } from '../library/useScan';
-import { isScanRunning } from '../library/scanFeedback';
 import { useUpdate } from './useUpdate';
 import type { UpdateState } from './useUpdate';
 
