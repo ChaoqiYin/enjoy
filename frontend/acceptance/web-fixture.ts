@@ -61,6 +61,25 @@ const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
 let language = 'en';
 let settings: SettingsState = { language: 'en', theme: 'dark' };
 let sharePort: number | null = null;
+let sharePassword = 'sample-passw0rd';
+/// What a running service is checking against, which is the password it started
+/// with and not the one stored now.
+let served = sharePassword;
+let drawnPasswords = 0;
+/**
+ * The status, composed the way the backend composes it: the port and the
+ * password on one side, and on the other whether the service that is running is
+ * still behind that password.
+ */
+function share() {
+  return {
+    port: sharePort,
+    missingFiles: 0,
+    username: 'enjoy',
+    password: sharePassword,
+    needsRestart: sharePort !== null && served !== sharePassword,
+  };
+}
 // The acceptance fixture stands in for the backend, so the space rules are
 // repeated here rather than shared with it: they are the backend's, and the
 // tests that hold them are Rust's. What they are for here is letting someone
@@ -279,15 +298,24 @@ mockIPC(
         return markOn('shared', payload);
       // The service itself is not here: what a walkthrough can check is that
       // the button moves the interface between its two states, and the port it
-      // names is the one the interface would have to show.
+      // names is the one the interface would have to show. The credentials are
+      // repeated here the way the space rules are — the backend's own tests hold
+      // them — and what this copy is for is letting someone see the password
+      // change under their hands, and the warning that follows it.
       case 'share_status':
-        return { port: sharePort, missingFiles: 0 };
+        return share();
       case 'open_share':
         sharePort = 4918;
-        return { port: sharePort, missingFiles: 0 };
+        // Started under whatever is stored now, so the warning goes away: the
+        // service is behind the password on screen again.
+        served = sharePassword;
+        return share();
       case 'close_share':
         sharePort = null;
-        return { port: sharePort, missingFiles: 0 };
+        return share();
+      case 'regenerate_share_password':
+        sharePassword = `drawn-${String(++drawnPasswords)}`;
+        return share();
       case 'check_for_update':
         return { ...updateCheck };
       case 'install_update': {

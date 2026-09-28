@@ -109,10 +109,20 @@ export interface LanguageSettings {
  * service: videos the user picked whose file is not on disk any more, counted
  * when the service starts because that is when the list is read. It is zero
  * when nothing is running.
+ *
+ * `username` and `password` are what a device is told to connect with, and they
+ * come in the same answer because they are read off the same page: a page that
+ * asked twice could show a password beside a port it does not go with.
+ * `needsRestart` is the one thing that cannot be worked out from them — whether
+ * the service that is running is still behind the password shown above it, which
+ * it stops being the moment the user regenerates one.
  */
 export interface ShareStatus {
   port: number | null;
   missingFiles: number;
+  username: string;
+  password: string;
+  needsRestart: boolean;
 }
 
 /**
@@ -227,6 +237,11 @@ export const shareApi = {
   // interface that decides which space is being shown.
   open: (spaceId: number) => invoke<ShareStatus>('open_share', { spaceId }),
   close: () => invoke<ShareStatus>('close_share'),
+  // Answers with the whole status rather than the password alone: regenerating
+  // it also decides whether a service that is running is still behind it, and a
+  // caller that had to ask again for the second fact could draw the two
+  // contradicting each other.
+  regeneratePassword: () => invoke<ShareStatus>('regenerate_share_password'),
 };
 
 /**

@@ -19,7 +19,7 @@ use std::net::{Ipv4Addr, SocketAddr};
 
 use dav_server::fakels::FakeLs;
 use dav_server::{body::Body, DavHandler};
-use http::{Request, Response};
+use http::{header, Request, Response, StatusCode};
 use hyper::body::Incoming;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
@@ -28,6 +28,7 @@ use tokio::sync::oneshot;
 
 use crate::error::AppError;
 
+use super::credentials::{Credentials, CHALLENGE};
 use super::fs::ShareFs;
 use super::landing;
 
@@ -40,6 +41,11 @@ pub(crate) const DEFAULT_PORT: u16 = 4918;
 pub(crate) struct Service {
     port: u16,
     missing: usize,
+    /// The credentials this service answers to, held here and not read again:
+    /// the password can be regenerated while the service is running, and a
+    /// service that read the preferences per request would start accepting a
+    /// password the interface had just told the user it was not yet using.
+    credentials: Credentials,
     ending: oneshot::Sender<()>,
     thread: std::thread::JoinHandle<()>,
 }
@@ -64,6 +70,7 @@ impl Service {
         requested: Option<u16>,
         language: &str,
         paths: &[String],
+        credentials: Credentials,
     ) -> Result<Self, AppError> {
         let listener = bind(requested)?;
         let port = listener
@@ -78,12 +85,14 @@ impl Service {
         let endpoints = Endpoints {
             webdav: dav_handler(files),
             landing: landing::page(language),
+            credentials: credentials.clone(),
         };
         let (ending, signal) = oneshot::channel();
         let thread = std::thread::spawn(move || serve(listener, signal, endpoints));
         Ok(Self {
             port,
             missing,
+            credentials,
             ending,
             thread,
         })
@@ -99,6 +108,12 @@ impl Service {
     /// is not on disk.
     pub(crate) fn missing(&self) -> usize {
         self.missing
+    }
+
+    /// The credentials this service is answering to, which are the ones stored
+    /// when it started and not the ones stored now.
+    pub(crate) fn credentials(&self) -> &Credentials {
+        &self.credentials
     }
 
     /// Ends the service and returns once the port is free again.
@@ -145,12 +160,13 @@ fn dav_handler(files: ShareFs) -> DavHandler {
         .build_handler()
 }
 
-/// What every connection is served with: the handler for the protocol, and the
-/// page for the people.
+/// What every connection is served with: the handler for the protocol, the page
+/// for the people, and the password both of them are behind.
 #[derive(Clone)]
 struct Endpoints {
     webdav: DavHandler,
     landing: String,
+    credentials: Credentials,
 }
 
 /// Serves the port until the signal arrives, on a runtime and a thread of its
@@ -216,15 +232,41 @@ async fn accept_loop(
     }
 }
 
-/// The one answer every request gets, from one of two places.
+/// The one answer every request gets, from one of three places.
 ///
-/// A browser at the root is a person checking whether the service is up; a
-/// client's PROPFIND on the same path is the protocol asking what is here. They
-/// are the same request line and two different questions, and each is answered
-/// by the half that understands it.
+/// Who is asking comes first, and nothing is decided before it: what a request
+/// is about is not something a caller without the password has any business
+/// learning. Whether a name is on the list is answered by 200 and 404, and that
+/// is a question about the user's library.
+///
+/// Past that, a browser at the root is a person checking whether the service is
+/// up, and a client's PROPFIND on the same path is the protocol asking what is
+/// here. They are the same request line and two different questions, and each is
+/// answered by the half that understands it.
 async fn answer(request: Request<Incoming>, endpoints: Endpoints) -> Response<Body> {
+    if !endpoints
+        .credentials
+        .accepts(request.headers().get(header::AUTHORIZATION))
+    {
+        return unauthorized();
+    }
     if landing::wanted(&request) {
         return landing::response(&request, &endpoints.landing);
     }
     endpoints.webdav.handle(request).await
+}
+
+/// What a caller without the password is told.
+///
+/// The challenge is the whole of the answer: it names the scheme, and a client
+/// that knows the scheme asks the user for a password, which is the only way in.
+/// The body is empty because nothing reads it — a browser acts on the header and
+/// shows its own box rather than the body, and a WebDAV client reports the
+/// status and stops.
+fn unauthorized() -> Response<Body> {
+    Response::builder()
+        .status(StatusCode::UNAUTHORIZED)
+        .header(header::WWW_AUTHENTICATE, CHALLENGE)
+        .body(Body::empty())
+        .expect("A status and one header always build a response")
 }

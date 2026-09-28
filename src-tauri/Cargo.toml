@@ -56,6 +56,12 @@ hyper-util= {version="0.1",features= ["tokio"] }
 # hyper: already in the tree, now ours to name.
 http="1"
 bytes="1"
+# The bytes the 共享服务's password is drawn from. The operating system is the
+# only thing in this application that produces a number nobody can predict --
+# the clock and the hash functions are things a reader of this source can work
+# out -- and this is the one string where that matters. It arrives through
+# `tauri`, so declaring it adds no new version line either.
+getrandom="0.3"
 
 [dev-dependencies]
 # Only for the signature tests, which have to bring a key of their own: a valid

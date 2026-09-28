@@ -56,6 +56,33 @@ function backend(answers: Partial<Record<string, ShareStatus>>) {
   }) as never);
 }
 
+/**
+ * The status the backend would answer with, with everything the test is not
+ * about left as it is when nothing has been started.
+ *
+ * The credentials are the backend's, drawn by it and never by the interface, so
+ * a test names what it wants to see on screen rather than a value the interface
+ * would have had to invent.
+ */
+function status(overrides: Partial<ShareStatus> = {}): ShareStatus {
+  return {
+    port: null,
+    missingFiles: 0,
+    username: 'enjoy',
+    password: 'sample-passw0rd',
+    needsRestart: false,
+    ...overrides,
+  };
+}
+
+/** The clipboard the page copies a password to. */
+function setClipboard(writeText?: (text: string) => Promise<void>) {
+  Object.defineProperty(window.navigator, 'clipboard', {
+    configurable: true,
+    value: writeText ? { writeText } : undefined,
+  });
+}
+
 beforeEach(async () => {
   await i18n.init({
     lng: 'en',
@@ -75,6 +102,7 @@ beforeEach(async () => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  delete (window.navigator as { clipboard?: unknown }).clipboard;
 });
 
 function page() {
@@ -89,8 +117,8 @@ function page() {
 
 it('offers to start the service, and shows the port it ended up on', async () => {
   backend({
-    share_status: { port: null, missingFiles: 0 },
-    open_share: { port: 4918, missingFiles: 0 },
+    share_status: status(),
+    open_share: status({ port: 4918 }),
   });
   page();
   const start = await screen.findByRole('button', {
@@ -113,8 +141,8 @@ it('offers to start the service, and shows the port it ended up on', async () =>
 
 it('ends a service that is running', async () => {
   backend({
-    share_status: { port: 4918, missingFiles: 0 },
-    close_share: { port: null, missingFiles: 0 },
+    share_status: status({ port: 4918 }),
+    close_share: status(),
   });
   page();
   const stop = await screen.findByRole('button', { name: english.stopSharing });
@@ -128,7 +156,7 @@ it('ends a service that is running', async () => {
 
 it('says so, beside the reference, when the service cannot start', async () => {
   vi.mocked(invoke).mockImplementation((async (command: string) => {
-    if (command === 'share_status') return { port: null, missingFiles: 0 };
+    if (command === 'share_status') return status();
     throw {
       code: 'share.port.in_use',
       params: { port: '4918' },
@@ -149,4 +177,65 @@ it('says so, beside the reference, when the service cannot start', async () => {
   expect(
     screen.getByRole('button', { name: english.startSharing }),
   ).toBeTruthy();
+});
+
+it('shows what to connect with before anything has been started', async () => {
+  backend({ share_status: status({ password: 'clipper12345' }) });
+  page();
+  // The user name a device signs in with, and the password it is drawn, both
+  // readable before the port is open: a password that only appeared once the
+  // service was running would be one nobody could write down first.
+  expect(await screen.findByText('enjoy')).toBeTruthy();
+  // Masked until asked for, and the mask is not the password.
+  const hidden = screen.getByRole('button', { name: english.showPassword });
+  expect(hidden.getAttribute('aria-pressed')).toBe('false');
+  expect(screen.queryByText('clipper12345')).toBeNull();
+
+  fireEvent.click(hidden);
+  expect(screen.getByText('clipper12345')).toBeTruthy();
+  const shown = screen.getByRole('button', { name: english.hidePassword });
+  expect(shown.getAttribute('aria-pressed')).toBe('true');
+  fireEvent.click(shown);
+  expect(screen.queryByText('clipper12345')).toBeNull();
+});
+
+it('copies the password, and says so', async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  setClipboard(writeText);
+  backend({ share_status: status({ password: 'clipper12345' }) });
+  page();
+  fireEvent.click(
+    await screen.findByRole('button', { name: english.copyPassword }),
+  );
+  // The password and not what is on screen: the button is there precisely for
+  // the user who has not asked to see it.
+  await waitFor(() => expect(writeText).toHaveBeenCalledWith('clipper12345'));
+  expect(notices.showCopyHint).toHaveBeenCalled();
+  expect(notices.setError).not.toHaveBeenCalled();
+});
+
+it('says a running service is behind a password that has been replaced', async () => {
+  backend({
+    share_status: status({ port: 4918, password: 'clipper12345' }),
+    // What the backend answers after the press: a new password, and a service
+    // that is still checking the old one.
+    regenerate_share_password: status({
+      port: 4918,
+      password: 'doubloons6789',
+      needsRestart: true,
+    }),
+  });
+  page();
+  fireEvent.click(
+    await screen.findByRole('button', { name: english.regeneratePassword }),
+  );
+  await waitFor(() =>
+    expect(invoke).toHaveBeenCalledWith('regenerate_share_password'),
+  );
+  // The new password is shown at once — it is the one the user needs after they
+  // do what the warning says — and the warning is what tells them the running
+  // service does not take it yet.
+  expect(await screen.findByText(english.passwordRestartNeeded)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: english.showPassword }));
+  expect(screen.getByText('doubloons6789')).toBeTruthy();
 });

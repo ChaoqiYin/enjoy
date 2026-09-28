@@ -4,9 +4,10 @@
 //! Nothing here goes through the application. What it is checking is exactly
 //! what cannot be checked from inside — that the port is really open, that a
 //! browser and a WebDAV client are really given different answers on the same
-//! path, that a range request really comes back as a slice, that the write
-//! methods really do nothing to the disk, and that ending the service really
-//! gives the port back.
+//! path, that a client without the password is really refused and a client with
+//! it really served, that a range request really comes back as a slice, that the
+//! write methods really do nothing to the disk, and that ending the service
+//! really gives the port back.
 //!
 //! This is also the only place a claim about the WebDAV library itself can be
 //! made: it is somebody else's understanding of the protocol, and the only way
@@ -15,10 +16,41 @@
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
+
 use crate::repository::fixture::Fixture;
 
 use super::control::ShareControl;
+use super::credentials::{Credentials, USERNAME};
 use super::fixture::{encoded, listing, path_of};
+
+/// The password every service here is started under, and every client connects
+/// with.
+///
+/// A value the test names rather than one the backend draws, because the point
+/// of the tests below is a client that has been told the password and one that
+/// has not: a drawn password would have to be read back out of the service to be
+/// offered to it, and the request that offered it would then be the only thing
+/// saying what it was.
+fn password() -> String {
+    "treasure".to_string()
+}
+
+fn credentials() -> Credentials {
+    Credentials {
+        username: USERNAME.to_string(),
+        password: password(),
+    }
+}
+
+/// The credential header a client that knows the password sends.
+fn authorization() -> String {
+    format!(
+        "Authorization: Basic {}",
+        BASE64.encode(format!("{}:{}", USERNAME, password()))
+    )
+}
 
 /// One request over a real connection, read back to the last byte.
 ///
@@ -33,17 +65,35 @@ fn ask(port: u16, request: &str) -> Vec<u8> {
     response
 }
 
+/// A request from a client that has been told the password, which is what every
+/// test that is not about the password is asking as. The ones that are call
+/// `ask` directly, so that what they send is visibly a request with nothing
+/// added to it.
 fn request(port: u16, method: &str, path: &str, headers: &str) -> Vec<u8> {
     ask(
         port,
         &format!(
-            "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n{headers}\r\n"
+            "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\
+             {}\r\n{headers}\r\n",
+            authorization()
         ),
     )
 }
 
 fn get(port: u16, path: &str) -> Vec<u8> {
     request(port, "GET", path, "")
+}
+
+/// A request carrying exactly the credential header it is given, which is how a
+/// client that got the password wrong offers it.
+fn offering(port: u16, method: &str, path: &str, credential: &str) -> Vec<u8> {
+    ask(
+        port,
+        &format!(
+            "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\
+             {credential}\r\n\r\n"
+        ),
+    )
 }
 
 /// Everything above the blank line, as text.
@@ -118,11 +168,86 @@ fn serving(names: &[&str]) -> (Fixture, ShareControl, u16) {
 fn serving_from(paths: Vec<String>, language: &str) -> (ShareControl, u16) {
     let control = ShareControl::default();
     let port = control
-        .open(None, language, &paths)
+        .open(None, language, &paths, credentials())
         .unwrap()
         .port
         .expect("a started service has a port");
     (control, port)
+}
+
+#[test]
+fn a_request_that_offers_no_credentials_is_refused_and_told_which_scheme_to_use() {
+    let (control, port) = started("en");
+    // A person's browser asking for the page, and a client asking what is here.
+    // Neither is answered: what is on the list is the user's business, and so is
+    // whether the service is on at all.
+    for method in ["GET", "PROPFIND"] {
+        let response = ask(
+            port,
+            &format!("{method} / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"),
+        );
+        assert_eq!(status(&response), 401, "{method}");
+        // The header is the whole of what makes the refusal usable: a client not
+        // told the scheme has no way to ask the user for a password, and the
+        // service would be one nothing could connect to.
+        let head = head_of(&response).to_ascii_lowercase();
+        assert!(
+            head.contains("www-authenticate: basic realm=\"enjoy\""),
+            "{head}"
+        );
+        // And nothing of the library came with it: the refusal is not a listing
+        // with a 401 in front of it, and not the page either.
+        let body = String::from_utf8_lossy(&body_of(&response)).into_owned();
+        assert!(!body.contains("Enjoy share service"), "{body}");
+        assert!(!body.contains("<?xml"), "{body}");
+    }
+    control.close(&credentials());
+}
+
+#[test]
+fn credentials_that_are_not_right_are_refused_the_same_way() {
+    let (control, port) = started("en");
+    for (name, offered) in [
+        ("the wrong password", format!("{}:doubloons", USERNAME)),
+        ("the wrong user name", format!("someone:{}", password())),
+        // Right user name and right password, the wrong way round.
+        (
+            "the two the wrong way round",
+            format!("{}:{}", password(), USERNAME),
+        ),
+        // Decodes to nothing that holds a user name and a password at all.
+        ("no colon in it", "treasure".to_string()),
+    ] {
+        let header = format!("Authorization: Basic {}", BASE64.encode(offered));
+        let response = offering(port, "GET", "/", &header);
+        assert_eq!(status(&response), 401, "{name}");
+        assert!(
+            head_of(&response)
+                .to_ascii_lowercase()
+                .contains("www-authenticate"),
+            "{name}"
+        );
+    }
+    // And the credential that is right is not refused, so the four above are
+    // about what was offered rather than about how this call was made.
+    assert_eq!(status(&get(port, "/")), 200);
+    control.close(&credentials());
+}
+
+#[test]
+fn the_password_that_is_right_is_served_both_of_the_answers_the_others_are_not() {
+    // Both halves of what the service answers, reached with credentials: the
+    // page a person is shown, and the listing a client is given. Without this
+    // every test below would be proving that a service refuses everything.
+    let (_fixture, control, port) = serving(&["Movies/开场.mp4"]);
+    assert_eq!(status(&get(port, "/")), 200);
+    let listing = request(port, "PROPFIND", "/", "Depth: 1\r\nContent-Length: 0\r\n");
+    assert_eq!(status(&listing), 207);
+    assert!(
+        String::from_utf8_lossy(&body_of(&listing)).contains(&encoded("开场.mp4")),
+        "the listing came back without the video on it"
+    );
+    control.close(&credentials());
 }
 
 #[test]
@@ -141,7 +266,7 @@ fn a_browser_opening_the_address_is_shown_a_page_rather_than_a_listing() {
     let body = String::from_utf8_lossy(&body_of(&response)).into_owned();
     assert!(body.contains("Enjoy share service"), "{body}");
     assert!(!body.contains("<?xml"), "{body}");
-    control.close();
+    control.close(&credentials());
 }
 
 #[test]
@@ -153,7 +278,7 @@ fn a_webdav_client_on_the_same_path_is_answered_by_the_library() {
     assert_eq!(status(&response), 207);
     let body = String::from_utf8_lossy(&body_of(&response)).into_owned();
     assert!(!body.contains("Enjoy share service"), "{body}");
-    control.close();
+    control.close(&credentials());
 }
 
 #[test]
@@ -162,7 +287,7 @@ fn the_service_keeps_answering_until_it_is_ended() {
     assert_eq!(status(&get(port, "/")), 200);
     assert_eq!(status(&get(port, "/")), 200);
 
-    control.close();
+    control.close(&credentials());
     // Nothing is listening any more, so the connection is not merely unanswered
     // -- there is nothing to answer it.
     assert!(TcpStream::connect(("127.0.0.1", port)).is_err());
@@ -173,7 +298,7 @@ fn the_page_is_written_in_the_language_the_application_is_being_read_in() {
     let (control, port) = started("zh-CN");
     let body = String::from_utf8_lossy(&body_of(&get(port, "/"))).into_owned();
     assert!(body.contains("Enjoy 共享服务"), "{body}");
-    control.close();
+    control.close(&credentials());
 }
 
 #[test]
@@ -196,7 +321,7 @@ fn a_client_listing_the_root_sees_one_flat_row_of_videos() {
     for folder in ["Movies", "Archive"] {
         assert!(!body.contains(folder), "{folder} leaked into {body}");
     }
-    control.close();
+    control.close(&credentials());
 }
 
 #[test]
@@ -220,7 +345,7 @@ fn a_range_request_gets_the_slice_that_was_asked_for() {
         "{head}"
     );
     assert_eq!(body_of(&response), content[2..6]);
-    control.close();
+    control.close(&credentials());
 }
 
 #[test]
@@ -250,7 +375,7 @@ fn the_service_refuses_to_be_written_to_and_leaves_the_disk_alone() {
     assert!(!fixture.0.join("Movies").join("moved.mp4").exists());
     assert!(!fixture.0.join("new.mp4").exists());
     assert!(!fixture.0.join("new-folder").exists());
-    control.close();
+    control.close(&credentials());
 }
 
 #[test]
@@ -262,7 +387,7 @@ fn a_video_that_is_no_longer_on_disk_is_counted_and_not_offered() {
 
     // The count is the answer to "why does the television show fewer videos than
     // I picked", so it is part of what starting the service reports.
-    let status_of_start = control.open(None, "en", &paths).unwrap();
+    let status_of_start = control.open(None, "en", &paths, credentials()).unwrap();
     assert_eq!(status_of_start.missing_files, 1);
     let port = status_of_start.port.unwrap();
 
@@ -275,8 +400,8 @@ fn a_video_that_is_no_longer_on_disk_is_counted_and_not_offered() {
     .into_owned();
     assert!(!body.contains(&encoded("花絮.mkv")), "{body}");
 
-    control.close();
-    assert_eq!(control.status().missing_files, 0);
+    control.close(&credentials());
+    assert_eq!(control.status(&credentials()).missing_files, 0);
 }
 
 #[test]
@@ -299,5 +424,5 @@ fn a_request_for_something_outside_the_list_is_not_found() {
     }
     // And the one that is on the list is served.
     assert_eq!(status(&get(port, &format!("/{shared}"))), 200);
-    control.close();
+    control.close(&credentials());
 }

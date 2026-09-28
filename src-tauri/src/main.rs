@@ -46,6 +46,7 @@ fn main() {
             commands::share::open_share,
             commands::share::close_share,
             commands::share::share_status,
+            commands::share::regenerate_share_password,
             commands::space::current_space,
             commands::space::list_spaces,
             commands::space::create_space,

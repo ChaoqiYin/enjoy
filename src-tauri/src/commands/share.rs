@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::app::AppState;
 use crate::error::AppError;
 use crate::i18n::language;
 use crate::repository::lock_shared;
+use crate::share::credentials::Credentials;
 use crate::share::{ShareStatus, DEFAULT_PORT};
 
 /// Starts the 共享服务 on the port it is registered on, over the 共享清单 of the
@@ -19,31 +20,67 @@ use crate::share::{ShareStatus, DEFAULT_PORT};
 /// landing page is written by this side of the seam, and the interface is not
 /// told which one it is reading: it is the same language the person who pressed
 /// the button is looking at.
+///
+/// The password is read here too, and read afresh rather than remembered: it can
+/// be regenerated between two starts, and a service started with a stale copy
+/// would be one the interface could not describe.
 #[tauri::command]
 pub(crate) fn open_share(
     space_id: i64,
+    app: AppHandle,
     state: State<'_, AppState>,
     languages: State<'_, language::LanguageState>,
 ) -> Result<ShareStatus, AppError> {
     let language = language::current(&languages)?;
+    let credentials = Credentials::load(&app)?;
     let paths = lock_shared(&state.repository)?.shared_paths(space_id)?;
-    state.share.open(Some(DEFAULT_PORT), &language, &paths)
+    state
+        .share
+        .open(Some(DEFAULT_PORT), &language, &paths, credentials)
 }
 
 /// Ends the service, and answers once the port is free again.
 ///
 /// On a blocking thread because ending joins the thread that was serving, and
 /// the answer is not sent until the port has actually been given back: a
-/// caller told the service stopped is entitled to act on it.
+/// caller told the service stopped is entitled to act on it. Reading the
+/// password is on that thread for the same reason: it is a file, and this one is
+/// the command that is already not allowed to hold up the interface.
 #[tauri::command]
-pub(crate) async fn close_share(state: State<'_, AppState>) -> Result<ShareStatus, AppError> {
+pub(crate) async fn close_share(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ShareStatus, AppError> {
     let share = Arc::clone(&state.share);
-    tauri::async_runtime::spawn_blocking(move || share.close())
-        .await
-        .map_err(|error| AppError::new("share.stop_failed", error))
+    tauri::async_runtime::spawn_blocking(move || {
+        let credentials = Credentials::load(&app)?;
+        Ok(share.close(&credentials))
+    })
+    .await
+    .map_err(|error| AppError::new("share.stop_failed", error))?
 }
 
+/// What the interface is told about the service, asked from every page.
 #[tauri::command]
-pub(crate) fn share_status(state: State<'_, AppState>) -> ShareStatus {
-    state.share.status()
+pub(crate) fn share_status(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ShareStatus, AppError> {
+    Ok(state.share.status(&Credentials::load(&app)?))
+}
+
+/// Replaces the password, and answers with the sharing state that follows it.
+///
+/// The answer is the whole status rather than the password alone, because two
+/// things about it have just changed: the password itself, and whether a service
+/// that is running is still behind the one the interface would show. A caller
+/// that had to ask again for the second would be able to draw the two
+/// contradicting each other.
+#[tauri::command]
+pub(crate) fn regenerate_share_password(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ShareStatus, AppError> {
+    let credentials = Credentials::regenerate(&app)?;
+    Ok(state.share.status(&credentials))
 }
