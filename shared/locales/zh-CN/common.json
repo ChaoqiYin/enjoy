@@ -9,6 +9,7 @@
   "sharingOn": "共享服务正在运行，端口 {{port}}，其他设备可以连接。",
   "sharingOff": "共享服务未运行。",
   "sharingIndicator": "共享服务正在运行",
+  "sharedMarker": "已共享",
   "shareListTitle": "共享清单",
   "shareListEmpty": "共享清单是空的，先挑几部要分享的视频。",
   "shareListEmptyAction": "去视频库挑选",

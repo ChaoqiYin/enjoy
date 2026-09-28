@@ -9,6 +9,7 @@
   "sharingOn": "The share service is running on port {{port}}. Other devices can connect.",
   "sharingOff": "The share service is not running.",
   "sharingIndicator": "The share service is running",
+  "sharedMarker": "Shared",
   "shareListTitle": "Share list",
   "shareListEmpty": "The share list is empty. Pick the videos you want to share first.",
   "shareListEmptyAction": "Choose videos in the library",
