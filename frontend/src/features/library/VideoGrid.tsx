@@ -2,7 +2,6 @@ import type { ComponentProps } from 'react';
 import { virtualGridLayout } from '../../shared/VirtualGrid';
 import { useContentWidth } from '../../shared/useContentWidth';
 import { VideoCard } from './VideoCard';
-import { hoverRoom } from './videoCardBox';
 import type { Video } from '../../shared/api';
 
 /**
@@ -17,9 +16,16 @@ import type { Video } from '../../shared/api';
  * whatever the page already has, so this renders a grid and no viewport.
  *
  * What it keeps from the other one is the part that is the same fact in both
- * places: how many columns a width has room for, and the room the first column's
- * hover feedback needs. Neither is written down here — both come from where they
- * are already declared, so a change to either is a change to both grids.
+ * places: how many columns a width has room for. It is not written down here —
+ * it comes from where it is already declared, so a change to it is a change to
+ * both grids.
+ *
+ * The room the first column's hover feedback needs is **not** kept here, and
+ * that is the whole of the correction this file needed: the room belongs to
+ * whatever clips the cards, which is the page's scroll viewport rather than the
+ * grid inside it (`videoCardBox.hoverRoomStyle` has the reason). A page that
+ * gives the room to the viewport gets the same grid as the library, and this
+ * one has nothing to say about it.
  */
 export function VideoGrid({
   videos,
@@ -34,12 +40,6 @@ export function VideoGrid({
       style={{
         gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
         gap: virtualGridLayout.gap,
-        // The scroll viewport clips at its padding box, which is exactly where
-        // the first column puts the outward half of a card's hover — so the same
-        // room the virtual grid keeps is kept here, and taken back with a margin
-        // of the same value so that nothing in the static layout moves.
-        paddingInlineStart: hoverRoom,
-        marginInlineStart: -hoverRoom,
       }}
     >
       {videos.map((video) => (

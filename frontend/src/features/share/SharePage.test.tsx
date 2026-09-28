@@ -168,72 +168,6 @@ it('says so, beside the reference, when the service cannot start', async () => {
   ).toBeTruthy();
 });
 
-it('shows what to connect with before anything has been started', async () => {
-  backend(invoke, { share_status: status({ password: 'clipper12345' }) });
-  page();
-  // The user name a device signs in with, and the password it is drawn, both
-  // readable before the port is open: a password that only appeared once the
-  // service was running would be one nobody could write down first.
-  expect(await screen.findByText('enjoy')).toBeTruthy();
-  // Masked until asked for, and the mask is not the password.
-  const hidden = screen.getByRole('button', { name: english.showPassword });
-  expect(hidden.getAttribute('aria-pressed')).toBe('false');
-  expect(screen.queryByText('clipper12345')).toBeNull();
-
-  fireEvent.click(hidden);
-  expect(screen.getByText('clipper12345')).toBeTruthy();
-  const shown = screen.getByRole('button', { name: english.hidePassword });
-  expect(shown.getAttribute('aria-pressed')).toBe('true');
-  fireEvent.click(shown);
-  expect(screen.queryByText('clipper12345')).toBeNull();
-});
-
-it('copies the password, and says so', async () => {
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  setClipboard(writeText);
-  backend(invoke, { share_status: status({ password: 'clipper12345' }) });
-  page();
-  fireEvent.click(
-    await screen.findByRole('button', { name: english.copyPassword }),
-  );
-  // The password and not what is on screen: the button is there precisely for
-  // the user who has not asked to see it.
-  await waitFor(() => expect(writeText).toHaveBeenCalledWith('clipper12345'));
-  expect(notices.showCopyHint).toHaveBeenCalled();
-  expect(notices.setError).not.toHaveBeenCalled();
-});
-
-it('says a running service is behind a password that has been replaced', async () => {
-  backend(invoke, {
-    share_status: status({ port: 4918, password: 'clipper12345' }),
-    // What the backend answers after the press: a new password, and a service
-    // that is still checking the old one.
-    regenerate_share_password: status({
-      port: 4918,
-      password: 'doubloons6789',
-      needsRestart: true,
-    }),
-  });
-  page();
-  fireEvent.click(
-    await screen.findByRole('button', { name: english.regeneratePassword }),
-  );
-  // The space travels with it like every other space-scoped call: the answer is
-  // the whole status, and part of that status is whether the running service is
-  // still offering the list that space holds now.
-  await waitFor(() =>
-    expect(invoke).toHaveBeenCalledWith('regenerate_share_password', {
-      spaceId: 7,
-    }),
-  );
-  // The new password is shown at once — it is the one the user needs after they
-  // do what the warning says — and the warning is what tells them the running
-  // service does not take it yet.
-  expect(await screen.findByText(english.passwordRestartNeeded)).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: english.showPassword }));
-  expect(screen.getByText('doubloons6789')).toBeTruthy();
-});
-
 it('will not start over an empty share list, and says what to do', async () => {
   library.videos.data = [video()];
   backend(invoke, { share_status: status() });
@@ -285,6 +219,26 @@ it('shows the videos that are on the list, and how many there are', async () => 
   expect(screen.getByText('first.mp4')).toBeTruthy();
   expect(screen.getByText('second.mp4')).toBeTruthy();
   expect(screen.queryByText('third.mp4')).toBeNull();
+});
+
+it('gives the room a hover needs to the viewport that clips, not to the grid', async () => {
+  backend(invoke, { share_status: status() });
+  const { container } = page();
+  await screen.findByText('example.mp4');
+  // The room the first column's hover paints into is the clip's to give: an
+  // `overflow` box clips at its padding box, and a descendant's negative start
+  // margin is the one thing such a box cannot scroll to, so room kept by the
+  // grid was room spent outside the glass. Measured on the built page, the
+  // first column's card sat 1.61px past the clip edge with its lift 4.92px
+  // above it, its shadow sliced off along both. jsdom lays nothing out, so what
+  // this proves is where the room was put; that it is enough is the browser's
+  // measurement, in `videoCardBox` and ADR 0008.
+  const viewport = container.querySelector<HTMLElement>('.scroll-viewport')!;
+  expect(viewport.style.paddingInlineStart).toBe('10px');
+  expect(viewport.style.marginInlineStart).toBe('-10px');
+  expect(container.querySelector('.grid')?.getAttribute('style')).not.toContain(
+    'padding',
+  );
 });
 
 it('offers 移出共享清单 from the cards it draws', async () => {

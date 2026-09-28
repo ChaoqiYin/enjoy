@@ -6,6 +6,7 @@ import { useNotices } from '../features/library/useNotices';
 import { useVideos } from '../features/library/useVideos';
 import { useVideoBoard } from '../features/library/useVideoBoard';
 import { VideoGrid } from '../features/library/VideoGrid';
+import { hoverRoomStyle } from '../features/library/videoCardBox';
 import { useShareContext } from '../features/share/ShareProvider';
 import { ScrollViewport } from '../shared/ScrollViewport';
 import type { AppError } from '../shared/api';
@@ -77,7 +78,11 @@ export function SharePage() {
   const url = (address: string) => `http://${address}:${share.port}/`;
   return (
     <PageFrame>
-      <ScrollViewport className="min-h-0 space-y-4">
+      {/* The page's own scroll viewport, and the only thing that clips the
+          cards in it: the room the first row's and first column's hover
+          feedback needs is carried here, exactly as the library's viewport
+          carries it, so the 共享清单's left edge is not sliced flat. */}
+      <ScrollViewport className="min-h-0 space-y-4" style={hoverRoomStyle}>
         <h1 className="text-3xl font-bold">{t('sharing')}</h1>
         {/* The port is named here and not only in the addresses below, because
             the port is the fact that can be surprising: 4918 is what the
