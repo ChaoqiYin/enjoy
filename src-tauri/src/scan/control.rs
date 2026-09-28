@@ -1,5 +1,5 @@
 use serde::Serialize;
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 
 use crate::error::{AppError, SCAN_CANCELLED};
 use crate::repository::IndexChanges;
@@ -41,24 +41,44 @@ pub struct ScanControl {
     changed: Condvar,
 }
 
+impl State {
+    /// What a reader sees right now.
+    ///
+    /// The pause overlay is applied here rather than at each reader, because
+    /// there are two of them and they must not disagree. A paused pass keeps
+    /// working, so it keeps writing the phase its work is in — `processing`,
+    /// `thumbnails` — and the phase the user is shown while the pause is on is
+    /// `paused` regardless. Written at both readers, that rule had two sources
+    /// and "paused" was free to drift apart from itself.
+    fn seen(&self) -> ScanStatus {
+        let mut snapshot = self.status.clone();
+        if self.paused {
+            snapshot.phase = "paused".into();
+        }
+        snapshot
+    }
+}
+
 pub struct ScanGuard(Arc<ScanControl>);
 
 impl ScanControl {
-    pub fn is_cancelled(&self) -> bool {
-        self.state
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .cancelled
+    /// The scan lock, taken the way every method here takes it: a poisoned lock
+    /// is one a panicking thread left behind, and what it left behind is still
+    /// the state.
+    fn lock(&self) -> MutexGuard<'_, State> {
+        self.state.lock().unwrap_or_else(|error| error.into_inner())
     }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.lock().cancelled
+    }
+
     pub fn is_running(&self) -> bool {
-        self.state
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .running
+        self.lock().running
     }
 
     pub fn begin(self: &Arc<Self>) -> Result<ScanGuard, AppError> {
-        let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        let mut state = self.lock();
         if state.closed {
             // Only the install path closes the slot, and installing exits the
             // process. A scan asked for in the moment before that is not
@@ -102,7 +122,7 @@ impl ScanControl {
     /// words for it belong to the caller: the install path reports it as
     /// `update.blocked.scanning`, not as a scan failure.
     pub fn close(&self) -> bool {
-        let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        let mut state = self.lock();
         if state.running {
             return false;
         }
@@ -111,7 +131,7 @@ impl ScanControl {
     }
 
     pub fn checkpoint(&self) -> Result<(), AppError> {
-        let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        let mut state = self.lock();
         while state.paused && !state.cancelled {
             state = self
                 .changed
@@ -131,7 +151,7 @@ impl ScanControl {
                 "Unknown scan action",
             ));
         }
-        let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        let mut state = self.lock();
         if !state.running {
             return Ok(());
         }
@@ -150,29 +170,22 @@ impl ScanControl {
 
     /// Writes the status and hands back what a reader would see from now on.
     ///
-    /// The pause overlay is applied here rather than only at the reader, so a
-    /// caller that has just written a status can send it out without reading it
-    /// back — one lock instead of two, and one way to get it right instead of a
-    /// dozen. What must not change is which of the two is sent: a paused pass
-    /// keeps reporting `paused` while its own work moves the rest of the status
-    /// on, and a caller that sent back the value it passed in would lose that.
+    /// The overlay is applied here rather than only at the reader, so a caller
+    /// that has just written a status can send it out without reading it back —
+    /// one lock instead of two, and one way to get it right instead of a dozen.
+    /// What must not change is which of the two is sent: a paused pass keeps
+    /// reporting `paused` while its own work moves the rest of the status on,
+    /// and a caller that sent back the value it passed in would lose that. Both
+    /// readers go through [`State::seen`], so that is not a second rule to keep
+    /// in step.
     pub fn publish(&self, status: ScanStatus) -> ScanStatus {
-        let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        let mut state = self.lock();
         state.status = status;
-        let mut snapshot = state.status.clone();
-        if state.paused {
-            snapshot.phase = "paused".into();
-        }
-        snapshot
+        state.seen()
     }
 
     pub fn status(&self) -> ScanStatus {
-        let state = self.state.lock().unwrap_or_else(|error| error.into_inner());
-        let mut status = state.status.clone();
-        if state.paused {
-            status.phase = "paused".into();
-        }
-        status
+        self.lock().seen()
     }
 }
 
@@ -199,11 +212,7 @@ pub fn space_change_gate(scanning: bool) -> Result<(), AppError> {
 
 impl Drop for ScanGuard {
     fn drop(&mut self) {
-        let mut state = self
-            .0
-            .state
-            .lock()
-            .unwrap_or_else(|error| error.into_inner());
+        let mut state = self.0.lock();
         state.running = false;
         state.paused = false;
         if state.cancelled {
