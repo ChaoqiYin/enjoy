@@ -107,7 +107,9 @@ function mount(path = '/') {
   );
 }
 function navigate(name: string) {
-  fireEvent.click(screen.getByRole('link', { name }));
+  // The entries are the tab primitive's, so that is the role they answer to
+  // here; the element behind each of them is still the anchor the header draws.
+  fireEvent.click(screen.getByRole('tab', { name }));
 }
 it('renders independent pages with shared navigation and page-specific actions', () => {
   mount();

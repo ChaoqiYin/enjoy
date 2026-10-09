@@ -180,5 +180,12 @@
   "paginationSummary": "Showing {{from}}–{{to}} of {{total}}",
   "paginationPrevious": "Previous",
   "paginationNext": "Next",
-  "paginationPage": "Page {{page}}"
+  "paginationPage": "Page {{page}}",
+  "lanOnline": "LAN online",
+  "lanOffline": "LAN offline",
+  "footerProduct": "Enjoy Unified Media Launcher",
+  "footerPort": "Port: {{port}}",
+  "footerAccelerationOn": "Encode acceleration: on",
+  "footerAccelerationOff": "Encode acceleration: off",
+  "footerAccelerationUnknown": "Encode acceleration: not reported"
 }
