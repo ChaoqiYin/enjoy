@@ -1,8 +1,11 @@
+import type { ReactNode } from 'react';
 import { FolderOpen, Heart, Play, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
-import { Tooltip } from '../../shared/Tooltip';
 import type { Video } from '../../shared/api';
+import { Button } from '../../shared/ui/button';
+import type { ButtonProps } from '../../shared/ui/button';
+import { Tooltip } from '../../shared/Tooltip';
 
 export interface VideoActionHandlers {
   details: (video: Video) => void;
@@ -22,20 +25,72 @@ export interface VideoActionHandlers {
 // rather than inlined so that it does not read as a leftover to be deleted.
 const CLAIM_TAP = {};
 
+/**
+ * The controls every place a video is drawn offers: the card, the compact row,
+ * the table's last cell and the details panel.
+ *
+ * One set rather than four, because the four places differ in what they have
+ * room for and not in what can be asked of a video — so the difference is
+ * expressed by leaving controls out (`iconOnly`, `hidePlay`, `hideRemove`)
+ * rather than by a second copy of them.
+ *
+ * Each control carries its own accessible name, which is what lets the
+ * icon-only form say as much as the labelled one, and each keeps the colour the
+ * interface already gave that action: play is the emphatic one, a favourite is
+ * the secondary mark, showing the file is the informational one and taking the
+ * video out of the index is the destructive one. A favourite that is on wears
+ * the secondary fill and says so through `aria-pressed`, so the state survives
+ * a theme that redraws the glyph.
+ *
+ * `hidePlay` exists because the two views that draw a picture hand the play
+ * affordance to the overlay on it (`HoverPlayOverlay`): one action, one control,
+ * one name, rather than two controls a reader would hear as the same word.
+ */
 export function VideoActions({
   video,
   busy,
   actions,
   iconOnly = false,
+  hidePlay = false,
   hideRemove = false,
 }: {
   iconOnly?: boolean;
+  hidePlay?: boolean;
   hideRemove?: boolean;
   video: Video;
   busy: boolean;
   actions: VideoActionHandlers;
 }) {
   const { t } = useTranslation();
+  const favorite = video.favorite ? t('unfavorite') : t('favorites');
+  const size: ButtonProps['size'] = iconOnly ? 'icon-sm' : 'sm';
+  const control = (
+    label: string,
+    variant: ButtonProps['variant'],
+    onClick: () => void,
+    icon: ReactNode,
+    pressed?: boolean,
+  ) => (
+    <Tooltip text={label}>
+      <Button
+        variant={variant}
+        size={size}
+        disabled={busy}
+        aria-label={label}
+        aria-pressed={pressed}
+        onClick={onClick}
+      >
+        {iconOnly ? (
+          icon
+        ) : (
+          <>
+            {icon}
+            {label}
+          </>
+        )}
+      </Button>
+    </Tooltip>
+  );
   return (
     <motion.div
       className={
@@ -58,79 +113,37 @@ export function VideoActions({
       propagate={{ tap: false }}
       tabIndex={-1}
     >
-      <Tooltip text={t('play')}>
-        <button
-          className={
-            iconOnly
-              ? 'btn btn-outline btn-xs btn-square btn-primary'
-              : 'btn btn-outline btn-sm btn-primary'
-          }
-          disabled={busy}
-          onClick={() => actions.play(video)}
-          aria-label={t('play')}
-        >
-          {iconOnly ? <Play size={14} aria-hidden="true" /> : t('play')}
-        </button>
-      </Tooltip>
-      <Tooltip text={video.favorite ? t('unfavorite') : t('favorites')}>
-        <button
-          className={
-            iconOnly
-              ? 'btn btn-outline btn-xs btn-square btn-secondary'
-              : 'btn btn-outline btn-sm btn-secondary'
-          }
-          disabled={busy}
-          onClick={() => actions.favorite(video)}
-          aria-label={video.favorite ? t('unfavorite') : t('favorites')}
-          aria-pressed={video.favorite}
-        >
-          {iconOnly ? (
-            <Heart
-              size={14}
-              fill={video.favorite ? 'currentColor' : 'none'}
-              aria-hidden="true"
-            />
-          ) : video.favorite ? (
-            t('unfavorite')
-          ) : (
-            t('favorites')
-          )}
-        </button>
-      </Tooltip>
-      <Tooltip text={t('reveal')}>
-        <button
-          className={
-            iconOnly
-              ? 'btn btn-outline btn-xs btn-square btn-info'
-              : 'btn btn-outline btn-sm btn-info'
-          }
-          disabled={busy}
-          onClick={() => actions.reveal(video)}
-          aria-label={t('reveal')}
-        >
-          {iconOnly ? <FolderOpen size={14} aria-hidden="true" /> : t('reveal')}
-        </button>
-      </Tooltip>
-      {!hideRemove && (
-        <Tooltip text={t('removeIndex')}>
-          <button
-            className={
-              iconOnly
-                ? 'btn btn-outline btn-xs btn-square btn-error'
-                : 'btn btn-outline btn-sm btn-error'
-            }
-            disabled={busy}
-            onClick={() => actions.remove(video)}
-            aria-label={t('removeIndex')}
-          >
-            {iconOnly ? (
-              <Trash2 size={14} aria-hidden="true" />
-            ) : (
-              t('removeIndex')
-            )}
-          </button>
-        </Tooltip>
+      {!hidePlay &&
+        control(
+          t('play'),
+          'primary',
+          () => actions.play(video),
+          <Play size={14} aria-hidden="true" />,
+        )}
+      {control(
+        favorite,
+        video.favorite ? 'secondary' : 'outline',
+        () => actions.favorite(video),
+        <Heart
+          size={14}
+          fill={video.favorite ? 'currentColor' : 'none'}
+          aria-hidden="true"
+        />,
+        video.favorite,
       )}
+      {control(
+        t('reveal'),
+        'info',
+        () => actions.reveal(video),
+        <FolderOpen size={14} aria-hidden="true" />,
+      )}
+      {!hideRemove &&
+        control(
+          t('removeIndex'),
+          'destructive',
+          () => actions.remove(video),
+          <Trash2 size={14} aria-hidden="true" />,
+        )}
     </motion.div>
   );
 }
