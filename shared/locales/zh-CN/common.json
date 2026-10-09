@@ -174,5 +174,10 @@
   "updateRestart": "立即重启",
   "updateRestarting": "正在重启…",
   "updateRestartBlocked": "请先完成或取消正在进行的扫描",
-  "busy": "另一个媒体任务正在运行"
+  "busy": "另一个媒体任务正在运行",
+  "pagination": "分页",
+  "paginationSummary": "显示第 {{from}} 至 {{to}} 个结果 • 共 {{total}} 项本地记录",
+  "paginationPrevious": "上一页",
+  "paginationNext": "下一页",
+  "paginationPage": "第 {{page}} 页"
 }
