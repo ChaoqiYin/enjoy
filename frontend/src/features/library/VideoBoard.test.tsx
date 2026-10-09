@@ -4,6 +4,7 @@ import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Video } from '../../shared/api';
 import { VideoBoard } from './VideoBoard';
+import type { ViewMode } from './listing';
 import english from '../../../../shared/locales/en/common.json';
 
 const i18n = createInstance();
@@ -33,7 +34,7 @@ beforeEach(async () => {
 
 afterEach(cleanup);
 
-function board(viewMode: 'grid' | 'list' | 'table') {
+function board(viewMode: ViewMode) {
   render(
     <I18nextProvider i18n={i18n}>
       <VideoBoard

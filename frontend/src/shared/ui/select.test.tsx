@@ -12,6 +12,17 @@ import {
 // reaches for when it brings the chosen option into view.
 Element.prototype.scrollIntoView = vi.fn();
 
+// jsdom answers `element.matches(':modal')` by recursing through nwsapi, which
+// costs about 180ms a call; floating-ui asks every ancestor of the floating
+// panel that one question when the menu opens, which is what made this file the
+// slowest one in the suite. Nothing here is a top-layer element, so answering
+// `false` outright is both correct and instant (界面迁移的已知坑 §4).
+const matches = Element.prototype.matches;
+Element.prototype.matches = function (selector: string) {
+  if (selector === ':modal') return false;
+  return matches.call(this, selector);
+};
+
 afterEach(cleanup);
 
 function theme({

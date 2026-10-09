@@ -5,7 +5,10 @@ export type EmptyStateProps = {
   /** The mark above the words. Hidden from a reader: the title says it. */
   icon: ReactNode;
   title: ReactNode;
-  message: ReactNode;
+  /** What the title does not say. Left out where there is nothing to add: a
+   *  title that names the state and an action that answers it are a whole
+   *  statement, and a second sentence under them would be furniture. */
+  message?: ReactNode;
   /** What to do about it, when there is something to do. */
   action?: ReactNode;
   /**
@@ -69,7 +72,7 @@ export function EmptyState({
       <h2 className={cn('font-semibold', hero ? 'text-3xl' : 'text-2xl')}>
         {title}
       </h2>
-      <p className="max-w-md text-muted-foreground">{message}</p>
+      {message && <p className="max-w-md text-muted-foreground">{message}</p>}
       {hints && hints.length > 0 && (
         <div
           data-slot="empty-state-hints"

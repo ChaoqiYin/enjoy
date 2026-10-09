@@ -4,9 +4,7 @@ import { VideoRow } from './VideoRow';
 import { VideoTable } from './VideoTable';
 import type { VideoActionHandlers } from './VideoActions';
 import type { MenuTarget } from './VideoMenu';
-
-/** The three ways the library can be read. */
-export type ViewMode = 'grid' | 'list' | 'table';
+import type { ViewMode } from './listing';
 
 /**
  * The records of one page, drawn the way the user asked to read them.
@@ -24,6 +22,11 @@ export type ViewMode = 'grid' | 'list' | 'table';
  * every record and passes the same handlers through. Nothing here decides what
  * a record can be asked, so a new action is added in one place
  * (`VideoActions`) and reaches all three.
+ *
+ * The three shapes are the listing's vocabulary (`listing.ViewMode`, ADR 0017)
+ * and not this file's: the switch that picks one and the query that reads the
+ * list are two other readers of the same three words, and a fourth name for
+ * them here would be a fourth thing to keep in step.
  *
  * The grid's columns are the design document's breakpoints rather than a
  * measured count: at the widths the library is laid out at, the four steps

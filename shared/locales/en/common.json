@@ -120,7 +120,7 @@
   "scanning": "Scanning",
   "paused": "Scan paused",
   "scanSummary": "{{phase}} · {{found}} found, {{processed}} processed",
-  "videoCount": "{{countText}} items in this library",
+  "videoCount": "Videos in this library: {{countText}}",
   "detailSummary": "Codec: {{codec}} · Plays: {{plays}}",
   "removeQuestion": "Remove “{{name}}” from the index?",
   "removePath": "Remove {{path}}",

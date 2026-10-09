@@ -12,6 +12,7 @@ export function FavoritesPage() {
       <LibraryToolbar {...view.toolbarProps} title={t('favorites')} />
       <VideoPageContent
         view={view}
+        listLabel={t('favorites')}
         emptyTitle={t('emptyFavorites')}
         emptyHelp={t('favoritesHelp')}
       />

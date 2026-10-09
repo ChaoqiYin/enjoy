@@ -9,6 +9,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
@@ -16,6 +17,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Video } from '../../shared/api';
 import { VideoPageContent } from './VideoPageContent';
 import type { useVideoPageView } from './useVideoPageView';
+import type { ViewMode } from './listing';
 import english from '../../../../shared/locales/en/common.json';
 
 const i18n = createInstance();
@@ -77,20 +79,16 @@ vi.mock('../space/SpaceProvider', () => ({
   useSpace: () => space,
 }));
 
-vi.mock('./VirtualVideos', () => ({
-  VirtualVideos: (props: {
-    videos: Video[];
-    actions: { details: (video: Video) => void };
-  }) => (
-    <div>
-      {props.videos.map((item) => (
-        <button key={item.id} onClick={() => props.actions.details(item)}>
-          {item.file_name}
-        </button>
-      ))}
-    </div>
-  ),
-}));
+// jsdom answers `element.matches(':modal')` by recursing through nwsapi, which
+// costs about 180ms a call and grows with the size of the page; floating-ui asks
+// every ancestor of a floating panel that one question, so opening a card's menu
+// spends the whole test's time in it. Nothing here is a top-layer element, so
+// answering `false` outright is both correct and instant (界面迁移的已知坑 §4).
+const matches = Element.prototype.matches;
+Element.prototype.matches = function (selector: string) {
+  if (selector === ':modal') return false;
+  return matches.call(this, selector);
+};
 
 beforeEach(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: english } } });
@@ -135,8 +133,12 @@ function page(
     onAdd?: () => void;
     filtered?: boolean;
     clearFilters?: () => void;
+    viewMode?: ViewMode;
   } = {},
 ) {
+  // The shape the page is drawn in arrives on the same props bag the toolbar is
+  // handed (`useVideoPageView`): the switch and the board read one value.
+  const viewMode = options.viewMode ?? 'grid';
   const view = {
     collectionKey: collection.pageKey,
     videos: collection.videos.data?.items ?? [],
@@ -145,11 +147,13 @@ function page(
     turnTo: options.turnTo ?? (() => {}),
     filtered: options.filtered ?? false,
     clearFilters: options.clearFilters ?? (() => {}),
+    toolbarProps: { viewMode },
   } as unknown as ReturnType<typeof useVideoPageView>;
   return (
     <I18nextProvider i18n={i18n}>
       <VideoPageContent
         view={view}
+        listLabel={english.library}
         emptyTitle={options.emptyTitle ?? ''}
         emptyHelp={options.emptyHelp ?? ''}
         onAdd={options.onAdd}
@@ -200,7 +204,13 @@ it('surfaces a notification when copying the path fails', async () => {
 it('asks the library to play the video the click landed on', () => {
   render(page());
   fireEvent.click(screen.getByRole('button', { name: video.file_name }));
-  fireEvent.click(screen.getByRole('button', { name: english.play }));
+  // The panel's own play, not the card's underneath it: the card draws one too,
+  // and the two would be the same name twice over if this asked for either.
+  fireEvent.click(
+    within(screen.getByRole('dialog')).getByRole('button', {
+      name: english.play,
+    }),
+  );
   expect(videoActions.play).toHaveBeenCalledWith(video);
 });
 
@@ -317,19 +327,86 @@ it('does not read a record that moved off the page as a removal', async () => {
 
 it('says how much the library holds, not how much this page holds', () => {
   collection.videos.data = { items: [video, { ...video, id: 2 }], total: 36 };
-  render(page());
+  const { container } = render(page());
   // The page holds one page of a list (ADR 0016), so the count over it is about
   // the whole library — the backend's answer, and the drawing `_2`'s 「共 36 个视频」.
   // It is drawn whether or not there is another page, because it is a statement
   // about the list rather than a control.
-  expect(screen.getByText('36 items in this library')).toBeTruthy();
+  const count = screen.getByText(
+    english.videoCount.replace('{{countText}}', '36'),
+  );
+  expect(count).toBeTruthy();
+  // And it is drawn above the list rather than in it: the number of records is
+  // not one of them, so it must not scroll away with the cards it counts.
+  const viewport = container.querySelector<HTMLElement>('.scroll-viewport')!;
+  expect(viewport.contains(count)).toBe(false);
 });
 
 it('says nothing about a count it has not been told yet', () => {
   collection.videos.isPending = true;
   render(page());
   expect(screen.getByText(english.loading)).toBeTruthy();
-  expect(screen.queryByText(/items in this library/)).toBeNull();
+  expect(
+    screen.queryByText(english.videoCount.replace('{{countText}}', '1')),
+  ).toBeNull();
+});
+
+it('draws the records in the shape the page says it is in, and only that one', () => {
+  collection.videos.data = { items: [video, { ...video, id: 2 }], total: 2 };
+  const { container, rerender } = render(page({ viewMode: 'grid' }));
+  expect(screen.getAllByRole('article')).toHaveLength(2);
+  expect(container.querySelector('table')).toBeNull();
+
+  rerender(page({ viewMode: 'list' }));
+  expect(container.querySelectorAll('article')).toHaveLength(0);
+  expect(container.querySelector('table')).toBeNull();
+  expect(screen.getAllByRole('listitem')).toHaveLength(2);
+
+  rerender(page({ viewMode: 'table' }));
+  expect(screen.queryAllByRole('listitem')).toHaveLength(0);
+  expect(container.querySelectorAll('article')).toHaveLength(0);
+  expect(screen.getByRole('table')).toBeTruthy();
+});
+
+it('gives the room a hover needs to the viewport that clips, not to the grid', () => {
+  const { container } = render(page());
+  // The room the first row's and first column's hover paints into is the clip's
+  // to give: an `overflow` box clips at its padding box, and a descendant's
+  // negative start margin is the one thing such a box cannot scroll to, so room
+  // kept by the grid was room spent outside the glass (ADR 0008,
+  // `videoCardBox.hoverRoomStyle`). jsdom lays nothing out, so what this proves
+  // is where the room was put; that it is enough is the browser's measurement.
+  const viewport = container.querySelector<HTMLElement>('.scroll-viewport')!;
+  expect(viewport.style.paddingInlineStart).toBe('10px');
+  expect(viewport.style.marginInlineStart).toBe('-10px');
+  expect(
+    container.querySelector('.grid')?.getAttribute('style') ?? '',
+  ).not.toContain('padding');
+});
+
+it('mounts the next page afresh, so it is read from its top', () => {
+  const { container, rerender } = render(page());
+  const before = container.querySelector('.scroll-viewport');
+  // A page the user has turned to is read from its beginning, not from wherever
+  // the last one was scrolled to. jsdom implements no scrolling, so what is
+  // asserted is the mechanism that does it there: the list is mounted again.
+  pageIndex = 1;
+  collection.pageKey = 'library page 2';
+  rerender(page());
+  expect(container.querySelector('.scroll-viewport')).not.toBe(before);
+});
+
+it('closes the menu a scroll leaves behind', async () => {
+  const { container } = render(page());
+  const card = screen.getByText(video.file_name).closest('article')!;
+  fireEvent.contextMenu(card, { clientX: 10, clientY: 20 });
+  expect(
+    await screen.findByRole('menuitem', { name: english.play }),
+  ).toBeTruthy();
+  // The menu is anchored where the pointer asked, and a list that has moved
+  // under it leaves it pointing at nothing.
+  fireEvent.scroll(container.querySelector('.scroll-viewport')!);
+  await waitFor(() => expect(screen.queryByRole('menuitem')).toBeNull());
 });
 
 it('offers the rest of the list when it runs past this page', () => {
