@@ -134,6 +134,29 @@ it('narrows to what was typed, from the first page of the narrower list', async 
   );
   expect(result.current.videos.index).toBe(0);
 });
+it('falls back to the last page when the list shrinks under the user', async () => {
+  // Three pages of a list the user has walked to its end.
+  vi.mocked(libraryApi.list).mockResolvedValue({ items: [], total: 72 });
+  const { result } = mount();
+  await waitFor(() =>
+    expect(vi.mocked(libraryApi.list)).toHaveBeenCalledTimes(1),
+  );
+  await act(() => result.current.videos.turnTo(2));
+  await waitFor(() => expect(result.current.videos.index).toBe(2));
+
+  // A rescan drops records, and the third page is no longer there. The index is
+  // clamped to the last page that is, and the next request asks for that one
+  // rather than the one that is gone: past the end there are no records to draw
+  // and no footer to leave by, which is how a stale index turns into "the
+  // library is empty" with the way back gone (ADR 0016, `Pagination`).
+  vi.mocked(libraryApi.list).mockResolvedValue({ items: [], total: 30 });
+  await act(() => result.current.directories.rescan());
+  await waitFor(() => expect(result.current.videos.index).toBe(1));
+  expect(vi.mocked(libraryApi.list)).toHaveBeenLastCalledWith(
+    expect.objectContaining({ offset: 24, limit: 24 }),
+  );
+  expect(useLibraryView.getState().page.index).toBe(1);
+});
 it('retries the failed action and clears its error after success', async () => {
   const rescan = vi.mocked(libraryApi.rescan);
   rescan.mockRejectedValueOnce(failure).mockResolvedValueOnce([]);

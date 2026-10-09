@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 import { Toast } from '../../shared/Toast';
+import { Button } from '../../shared/ui/button';
 import { useScan } from '../library/useScan';
 import { useUpdate } from './useUpdate';
 import type { UpdateState } from './useUpdate';
@@ -60,13 +61,15 @@ export function UpdateProvider({ children }: { children: ReactNode }) {
           <p className="text-sm break-words">
             {t('updateReady', { version: readyVersion })}
           </p>
-          <button
-            className="btn btn-outline btn-sm btn-primary mt-2"
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
             disabled={scanning || restarting}
             onClick={update.restart}
           >
             {restarting ? t('updateRestarting') : t('updateRestart')}
-          </button>
+          </Button>
           {scanning && (
             <p className="text-sm opacity-65">{t('updateRestartBlocked')}</p>
           )}

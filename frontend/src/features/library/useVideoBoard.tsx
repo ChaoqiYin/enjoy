@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router';
 import type { AppError, Video } from '../../shared/api';
 import { displayPath } from '../../shared/format';
 import { Drawer } from '../../shared/Drawer';
+import { listingAt } from './listing';
 import { useBusy } from './useBusy';
 import { useNotices } from './useNotices';
 import { useScan } from './useScan';
@@ -43,7 +45,13 @@ type Opened = { video: Video; pageKey: string; total: number };
  */
 export function useVideoBoard() {
   const { t } = useTranslation();
+  const { pathname } = useLocation();
   const { videos: collection, lastPlayedId, pageKey } = useVideos();
+  // Which listing is on screen. It is the route's answer, as it is everywhere
+  // else a page asks which of the four it is (`useLibrary`, `useVideoPageView`),
+  // and the removal rule below is the one place that needs it: only the whole
+  // library can say a record has left it.
+  const listing = listingAt(pathname);
   const { status } = useScan();
   const { busy } = useBusy();
   const notices = useNotices();
@@ -88,6 +96,15 @@ export function useVideoBoard() {
     // 页 is read in playing order, and pushed back here — is still in the
     // library, and so is one that slid back on.
     if (answer.total >= detail.total) return;
+    // And only the whole library can say a record has left it. Three of the
+    // four listings are the library under a condition the drawer can itself
+    // answer — 收藏 and 共享 drop a record the moment the user un-favourites or
+    // un-shares it — and that answer is not a removal: the file is still there,
+    // the list simply no longer holds it. The condition is not part of the page
+    // key the check above compares, so it has to be read from the page. On 视频库
+    // there is no such condition: nothing the drawer can do shortens the list,
+    // so a shorter one there means the record really left.
+    if (listing !== '/') return;
     if (answer.items.some((video) => video.id === detail.video.id)) return;
     setDetailsOpen(false);
     notices.setError(clientError('media.file.removed'));
@@ -97,6 +114,7 @@ export function useVideoBoard() {
     collection.isPending,
     collection.data,
     pageKey,
+    listing,
     notices.setError,
   ]);
   const copyPath = async (video: Video) => {

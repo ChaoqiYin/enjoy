@@ -1,73 +1,43 @@
-// First, deliberately: the mocks below are registered above these imports, so
-// the doubles have to be in hand by the time a mocked module is first asked
-// for. Everything after this line is imported through the modules they stand
-// in for.
-import * as doubles from '../../test/doubles';
+// First, deliberately: the standing-in slices below are in hand before a mocked
+// module is first asked for. Everything after this line is imported through the
+// modules they stand in for.
+import {
+  busy,
+  collection,
+  listing,
+  notices,
+  resetVideoPage,
+  scan,
+  space,
+  video,
+  videoActions,
+} from '../../test/videoPage';
 import {
   cleanup,
   fireEvent,
   render,
   screen,
   waitFor,
-  within,
 } from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { Video } from '../../shared/api';
 import { VideoPageContent } from './VideoPageContent';
 import type { useVideoPageView } from './useVideoPageView';
 import type { ViewMode } from './listing';
 import english from '../../../../shared/locales/en/common.json';
 
-const i18n = createInstance();
-const video: Video = {
-  id: 1,
-  path: '/movies/example.mp4',
-  file_name: 'example.mp4',
-  folder_path: '/movies',
-  file_size: 1024,
-  modified_at: 0,
-  duration_ms: 65000,
-  width: 1920,
-  height: 1080,
-  codec: 'h264',
-  thumbnail_path: null,
-  favorite: false,
-  shared: false,
-  play_count: 3,
-  last_played_at: 10,
-  created_at: 0,
-  updated_at: 0,
-};
+/**
+ * The listing itself: how much the library holds, the records of the page being
+ * read, the shape they are drawn in, and the footer that reaches the rest of it.
+ *
+ * The panel a card opens is the board's and is beside it (`useVideoBoard.test`):
+ * the two are the same page mounted differently, and what each file is about is
+ * what a failure in it would say.
+ */
 
-// One double per module the page reads, built from that module's own declared
-// type rather than written out here: the page reads five of them — the
-// collection, the scan, the in-flight counter, the notices, and what can be
-// asked of a video — and a key one of those slices grows is a compile error in
-// `doubles`, not a test that quietly goes on passing.
-//
-// The functions under test are handed in as the test's own mocks, so what the
-// page did with them is observable without reaching through the interface for
-// it: a slice's type says a function is a function, which is all a caller needs
-// to know and not enough for an assertion.
-const setError = vi.fn();
-const showCopyHint = vi.fn();
-const actionMocks = {
-  play: vi.fn(),
-  toggleFavorite: vi.fn(),
-  toggleShared: vi.fn(),
-  reveal: vi.fn(),
-  removeVideo: vi.fn(),
-  regenerateThumbnail: vi.fn(),
-  refreshInfo: vi.fn(),
-};
-const collection = doubles.videos();
-const scan = doubles.scan();
-const notices = doubles.notices({ setError, showCopyHint });
-const videoActions = doubles.videoActions(actionMocks);
-const busy = doubles.busy();
-const space = doubles.space({ name: 'Library' });
+const i18n = createInstance();
 
 vi.mock('./useVideos', () => ({ useVideos: () => collection }));
 vi.mock('./useScan', () => ({ useScan: () => scan }));
@@ -79,51 +49,15 @@ vi.mock('../space/SpaceProvider', () => ({
   useSpace: () => space,
 }));
 
-// jsdom answers `element.matches(':modal')` by recursing through nwsapi, which
-// costs about 180ms a call and grows with the size of the page; floating-ui asks
-// every ancestor of a floating panel that one question, so opening a card's menu
-// spends the whole test's time in it. Nothing here is a top-layer element, so
-// answering `false` outright is both correct and instant (界面迁移的已知坑 §4).
-const matches = Element.prototype.matches;
-Element.prototype.matches = function (selector: string) {
-  if (selector === ':modal') return false;
-  return matches.call(this, selector);
-};
-
 beforeEach(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: english } } });
-  space.id = 1;
-  collection.videos.data = { items: [video], total: 1 };
-  collection.videos.isPending = false;
-  collection.pageKey = 'library page 1';
-  pageIndex = 0;
-  scan.status = undefined;
-  busy.busy = false;
-  setError.mockReset();
-  showCopyHint.mockReset();
-  // What each action does with its argument is the library's business and is
-  // covered where the library is; here they only have to be observable.
-  for (const action of Object.values(actionMocks)) action.mockReset();
-  vi.stubGlobal(
-    'ResizeObserver',
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
-  );
+  resetVideoPage();
 });
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
-  delete (window.navigator as { clipboard?: unknown }).clipboard;
 });
-
-// Which page of the list the view says it is drawing, and the page identity the
-// slice is answering from: the two move together when the user turns a page, and
-// a test that turns one turns both.
-let pageIndex = 0;
 
 function page(
   options: {
@@ -143,7 +77,7 @@ function page(
     collectionKey: collection.pageKey,
     videos: collection.videos.data?.items ?? [],
     total: collection.videos.data?.total ?? 0,
-    index: pageIndex,
+    index: listing.index,
     turnTo: options.turnTo ?? (() => {}),
     filtered: options.filtered ?? false,
     clearFilters: options.clearFilters ?? (() => {}),
@@ -151,179 +85,21 @@ function page(
   } as unknown as ReturnType<typeof useVideoPageView>;
   return (
     <I18nextProvider i18n={i18n}>
-      <VideoPageContent
-        view={view}
-        listLabel={english.library}
-        emptyTitle={options.emptyTitle ?? ''}
-        emptyHelp={options.emptyHelp ?? ''}
-        onAdd={options.onAdd}
-      />
+      {/* The page is drawn inside a route because it is drawn inside one in the
+          application, and the board behind the cards asks the route which
+          listing this is. */}
+      <MemoryRouter>
+        <VideoPageContent
+          view={view}
+          listLabel={english.library}
+          emptyTitle={options.emptyTitle ?? ''}
+          emptyHelp={options.emptyHelp ?? ''}
+          onAdd={options.onAdd}
+        />
+      </MemoryRouter>
     </I18nextProvider>
   );
 }
-
-function setClipboard(writeText?: (text: string) => Promise<void>) {
-  Object.defineProperty(window.navigator, 'clipboard', {
-    configurable: true,
-    value: writeText ? { writeText } : undefined,
-  });
-}
-
-it('copies the path the panel shows, and announces it', async () => {
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  setClipboard(writeText);
-  collection.videos.data = {
-    items: [{ ...video, path: '\\\\?\\E:\\movies\\example.mp4' }],
-    total: 1,
-  };
-  render(page());
-  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
-  expect(screen.getByText('E:\\movies\\example.mp4')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: english.copyPath }));
-  await waitFor(() => expect(notices.showCopyHint).toHaveBeenCalledOnce());
-  expect(writeText).toHaveBeenCalledWith('E:\\movies\\example.mp4');
-  expect(notices.setError).not.toHaveBeenCalled();
-});
-
-it('surfaces a notification when copying the path fails', async () => {
-  setClipboard();
-  render(page());
-  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
-  fireEvent.click(screen.getByRole('button', { name: english.copyPath }));
-  await waitFor(() =>
-    expect(notices.setError).toHaveBeenCalledWith(
-      expect.objectContaining({ code: 'app.clipboard.failed' }),
-    ),
-  );
-  expect(notices.showCopyHint).not.toHaveBeenCalled();
-});
-
-// What a launch does to the record and the marker is the library's rule and is
-// covered beside the library; the page's job is to name the video, not to carry
-// the command.
-it('asks the library to play the video the click landed on', () => {
-  render(page());
-  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
-  // The panel's own play, not the card's underneath it: the card draws one too,
-  // and the two would be the same name twice over if this asked for either.
-  fireEvent.click(
-    within(screen.getByRole('dialog')).getByRole('button', {
-      name: english.play,
-    }),
-  );
-  expect(videoActions.play).toHaveBeenCalledWith(video);
-});
-
-it('closes what was opened onto the old space when the space changes', async () => {
-  const { rerender } = render(page());
-  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
-  expect(document.querySelector('[role="dialog"]')?.hasAttribute('inert')).toBe(
-    false,
-  );
-  // The panel is describing a video of the space that was on screen. Another
-  // space keeps its own records, so the same path is a different video there
-  // and the panel would be describing something that is not in this list.
-  space.id = 2;
-  rerender(page());
-  await waitFor(() =>
-    expect(
-      document.querySelector('[role="dialog"]')?.hasAttribute('inert'),
-    ).toBe(true),
-  );
-});
-
-it('closes the drawer and notifies when a rescan removes the video', async () => {
-  const { rerender } = render(page());
-  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
-  expect(screen.getByRole('dialog')).toBeTruthy();
-  // The same list, asked the same question, and now one record shorter: the one
-  // the drawer is describing.
-  collection.videos.data = { items: [], total: 0 };
-  rerender(page());
-  await waitFor(() =>
-    expect(notices.setError).toHaveBeenCalledWith(
-      expect.objectContaining({ code: 'media.file.removed' }),
-    ),
-  );
-  // The shell outlives the close, so wait for it to become `inert` rather than
-  // to leave the DOM: that attribute is what takes the closed panel out of the
-  // tab order and the accessibility tree.
-  await waitFor(() =>
-    expect(
-      document.querySelector('[role="dialog"]')?.hasAttribute('inert'),
-    ).toBe(true),
-  );
-});
-
-it('leaves the open drawer alone when the user turns to the next page', async () => {
-  const { rerender } = render(page());
-  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
-  expect(screen.getByRole('dialog')).toBeTruthy();
-  // The page that follows holds other records, and holds none of this one: a
-  // drawer that read that as "the file was removed" would close every time the
-  // user turned a page.
-  pageIndex = 1;
-  collection.pageKey = 'library page 2';
-  collection.videos.data = {
-    items: [{ ...video, id: 2, file_name: 'second.mp4' }],
-    total: 1,
-  };
-  rerender(page());
-  // Effects have already run by the time `rerender` returns, so a notice that
-  // was going to be raised has been.
-  expect(notices.setError).not.toHaveBeenCalled();
-  expect(document.querySelector('[role="dialog"]')?.hasAttribute('inert')).toBe(
-    false,
-  );
-});
-
-it('does not read a shorter answer to another question as a removal', async () => {
-  // Two records here, so the list can get shorter without the drawer's record
-  // being the one that left.
-  collection.videos.data = {
-    items: [video, { ...video, id: 2, file_name: 'second.mp4' }],
-    total: 2,
-  };
-  const { rerender } = render(page());
-  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
-  // The user is now reading the second page of a list a rescan has since
-  // shortened: the answer is shorter, and this record is not in it. Neither fact
-  // is about this record — it is on the page the drawer was opened on, and the
-  // shorter list may have dropped it on any page at all.
-  pageIndex = 1;
-  collection.pageKey = 'library page 2';
-  collection.videos.data = {
-    items: [{ ...video, id: 3, file_name: 'third.mp4' }],
-    total: 1,
-  };
-  rerender(page());
-  expect(notices.setError).not.toHaveBeenCalled();
-  expect(document.querySelector('[role="dialog"]')?.hasAttribute('inert')).toBe(
-    false,
-  );
-});
-
-it('does not read a record that moved off the page as a removal', async () => {
-  collection.videos.data = {
-    items: [video, { ...video, id: 2, file_name: 'second.mp4' }],
-    total: 2,
-  };
-  const { rerender } = render(page());
-  fireEvent.click(screen.getByRole('button', { name: 'second.mp4' }));
-  // The same list, the same page, the same number of records — read in playing
-  // order, as 最近播放页 is, so opening one of them brings it to the front and
-  // pushes the last record here back to the next page. The library is no shorter
-  // than it was: this record has moved, not gone.
-  collection.videos.data = {
-    items: [video, { ...video, id: 3, file_name: 'third.mp4' }],
-    total: 2,
-  };
-  rerender(page());
-  expect(notices.setError).not.toHaveBeenCalled();
-  expect(document.querySelector('[role="dialog"]')?.hasAttribute('inert')).toBe(
-    false,
-  );
-});
 
 it('says how much the library holds, not how much this page holds', () => {
   collection.videos.data = { items: [video, { ...video, id: 2 }], total: 36 };
@@ -390,7 +166,7 @@ it('mounts the next page afresh, so it is read from its top', () => {
   // A page the user has turned to is read from its beginning, not from wherever
   // the last one was scrolled to. jsdom implements no scrolling, so what is
   // asserted is the mechanism that does it there: the list is mounted again.
-  pageIndex = 1;
+  listing.index = 1;
   collection.pageKey = 'library page 2';
   rerender(page());
   expect(container.querySelector('.scroll-viewport')).not.toBe(before);
@@ -440,6 +216,27 @@ it('says a filter found nothing, and offers the way back to everything', () => {
   expect(screen.getByText(english.noMatchHelp)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: english.clear }));
   expect(clearFilters).toHaveBeenCalledOnce();
+});
+
+it('draws a page it is still putting right as loading, not as an empty library', () => {
+  // A rescan shortened the list and the page the user was standing on is gone:
+  // the answer holds no records, but the library is not empty. Read as "the
+  // library is empty" it would say something false about a library that has
+  // thirty records in it. The page is being put back on the last page that
+  // exists (`useLibrary` clamps the index), and until that answer arrives this
+  // is a page being read rather than a state the library is in.
+  listing.index = 2;
+  collection.videos.data = { items: [], total: 30 };
+  render(
+    page({
+      emptyTitle: english.empty,
+      emptyHelp: english.welcome,
+      onAdd: () => {},
+    }),
+  );
+  expect(screen.getByText(english.loading)).toBeTruthy();
+  expect(screen.queryByRole('heading', { name: english.empty })).toBeNull();
+  expect(screen.queryByText(english.welcome)).toBeNull();
 });
 
 it('welcomes an empty library and says how to start it', () => {

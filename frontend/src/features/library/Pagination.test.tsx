@@ -71,11 +71,11 @@ it('offers no pages in a list that fits on one', () => {
 });
 
 it('offers no pages beyond the end of the list', () => {
-  // A stale index outlives its description: searching is a page-one question,
-  // but the index itself is not corrected (see `libraryView`), so a request for
-  // page 4 of a list that has three is answered by a footer that says nothing at
-  // all — never by a range that runs backwards.
-  render(footer({ index: 3, total: 60 }));
+  // An index past the end is clamped before it reaches this footer (`useLibrary`,
+  // `clampPage`), which leaves the one index that is past the end of every
+  // possible list: the first page of one holding nothing. A footer there would
+  // name a range that runs backwards, so it says nothing at all.
+  render(footer({ index: 0, total: 0 }));
   expect(screen.queryByText(/^Showing/)).toBeNull();
   expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
 });

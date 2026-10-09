@@ -65,6 +65,26 @@ export const SORT_ORDER_LABELS: Record<SortOrder, string> = {
  */
 export const PAGE_SIZE = 24;
 
+/**
+ * The page a list of `total` records actually has, given the page asked for.
+ *
+ * A list can get shorter while the user is standing in it — a rescan drops
+ * records — and the page they were reading can stop existing. Past the end there
+ * are no records to draw and no footer to leave by, so a stale index turns into
+ * "the library is empty" with the way back gone; this is the rule that puts it
+ * back on the last page that is there. `total` is the backend's answer and may
+ * not have arrived: with no length to clamp against, the index asked for stands.
+ *
+ * It is one rule with two readers — the page the library asks for and the one it
+ * hands the interface — and it lives here, beside the page size it counts with,
+ * so the two cannot disagree about how many pages a list has.
+ */
+export function clampPage(index: number, total: number | undefined): number {
+  if (total === undefined) return index;
+  const last = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
+  return Math.min(index, last);
+}
+
 /** What narrows a listing and how it is ordered, as the interface holds it. */
 export type ListingView = {
   search: string;

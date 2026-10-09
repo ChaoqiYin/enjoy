@@ -83,7 +83,16 @@ export function VideoPageContent({
         </p>
       )}
       <div className="min-h-0 flex-1 flex flex-col">
-        {collection.isPending ? (
+        {collection.isPending || (videos.length === 0 && total > 0) ? (
+          // The list is being read: either the backend has not answered yet, or
+          // it has answered a page that is no longer there — a rescan can
+          // shorten the list under the user — and the library is putting the
+          // index back on the last page that exists. Neither is "the library is
+          // empty", and drawing it as one would say something false about a
+          // library that still holds records. A page of a non-empty list that
+          // holds none is exactly this, and it is the only thing that is: the
+          // index is clamped (`useLibrary`), so a page at a valid index has its
+          // records.
           <p className="py-8 text-muted-foreground">{t('loading')}</p>
         ) : videos.length === 0 ? (
           <ScrollViewport>

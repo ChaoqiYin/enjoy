@@ -27,10 +27,12 @@ export type PaginationProps = {
  * ADR 0017), and a footer that could be told otherwise is a second place for that
  * number to live.
  *
- * An index past the end is not corrected here or anywhere (a stale index outlives
- * the description it was taken in), but it is not spoken either: a footer naming
- * records 49 to 30 of 30 would be saying something false, so a page with nothing
- * on it is left without a footer until the reader asks for a page that exists.
+ * An index past the end is not corrected here: it is clamped where the page is
+ * decided, before the interface is handed one (`useLibrary`, `clampPage`), so
+ * what reaches this is a page that exists. The guard stays as the last word for
+ * the one index that remains past the end — the first page of a list holding
+ * nothing — where a range would name records 1 to 0 of 0 and be saying something
+ * false.
  */
 export function Pagination({
   index,
