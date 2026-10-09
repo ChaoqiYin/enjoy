@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Button } from './ui/button';
+import {
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverTrigger,
+} from './ui/popover';
+import type { ReactNode } from 'react';
 
 type ConfirmTooltipProps = {
   children: ReactNode;
@@ -9,6 +16,23 @@ type ConfirmTooltipProps = {
   disabled?: boolean;
 };
 
+/**
+ * A question hung off the control that was pressed, for the small destructive
+ * acts that sit inside a page: removing a folder from the library, removing a
+ * space. It is a popover rather than a dialog because the page behind it stays
+ * live — nothing about answering is modal, and a panel that dimmed the page
+ * would read as heavier than the act.
+ *
+ * The panel is `PopoverContent`, so the anchoring, the collision handling, the
+ * Escape, the press outside it and the return of focus to the control are all
+ * the library's. The panel carries no focus trap of its own: it is a small
+ * panel of two buttons beside a control the user is still holding, not a second
+ * window.
+ *
+ * `disabled` is the caller's, not the panel's: a control that cannot be pressed
+ * is not one to hang a question from, so the child is handed back untouched and
+ * nothing here is mounted for it.
+ */
 export function ConfirmTooltip({
   children,
   message,
@@ -17,61 +41,40 @@ export function ConfirmTooltip({
   cancelLabel,
   disabled = false,
 }: ConfirmTooltipProps) {
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('mousedown', close);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [open]);
   if (disabled) return <>{children}</>;
   return (
-    <span
-      ref={root}
-      className="relative inline-flex"
-      onClick={() => setOpen(true)}
-    >
-      {children}
-      {open && (
-        <span
-          className="absolute right-0 bottom-full z-20 mb-2 w-72 rounded-box bg-base-100 p-3 text-base-content shadow-lg border border-base-300"
-          role="dialog"
-          aria-label={message}
-        >
-          <span className="block break-all text-sm">{message}</span>
-          <span className="flex justify-end items-center gap-3 pt-3">
-            <button
-              className="btn btn-soft btn-error btn-sm"
-              onClick={(event) => {
-                event.stopPropagation();
-                void onConfirm();
-                setOpen(false);
-              }}
+    <Popover>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      {/* The panel is named by the question it asks and announced as a panel,
+          which is what it was before: without the name a screen reader would
+          hear the control expand and then nothing. */}
+      <PopoverContent
+        align="end"
+        className="w-72 p-3"
+        role="dialog"
+        aria-label={message}
+      >
+        <span className="block break-all text-sm">{message}</span>
+        <span className="flex items-center justify-end gap-3 pt-3">
+          {/* Both answers bring the panel down as well as doing their own
+              thing: a question that stays up after it has been answered is not
+              a question any more. */}
+          <PopoverClose asChild>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => void onConfirm()}
             >
               {confirmLabel}
-            </button>
-            <button
-              className="btn btn-soft btn-neutral btn-sm"
-              onClick={(event) => {
-                event.stopPropagation();
-                setOpen(false);
-              }}
-            >
+            </Button>
+          </PopoverClose>
+          <PopoverClose asChild>
+            <Button variant="secondary" size="sm">
               {cancelLabel}
-            </button>
-          </span>
+            </Button>
+          </PopoverClose>
         </span>
-      )}
-    </span>
+      </PopoverContent>
+    </Popover>
   );
 }

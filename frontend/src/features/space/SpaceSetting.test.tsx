@@ -24,6 +24,17 @@ vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn().mockResolvedValue(() => {}),
 }));
 
+// jsdom answers `element.matches(':modal')` by recursing through nwsapi, which
+// costs about 180ms per call; floating-ui asks every ancestor of a panel
+// whether it sits in the top layer, so the inline confirmation this page grows
+// spends several seconds of that per open. Nothing here is a top-layer element,
+// so answering `false` outright is both correct and instant.
+const matches = Element.prototype.matches;
+Element.prototype.matches = function (selector: string) {
+  if (selector === ':modal') return false;
+  return matches.call(this, selector);
+};
+
 const films: Space = { id: 1, name: 'Films' };
 const shows: Space = { id: 2, name: 'Shows' };
 const i18n = createInstance();

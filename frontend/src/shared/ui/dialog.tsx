@@ -56,12 +56,15 @@ export function DialogOverlay({
   );
 }
 
-export function DialogContent({
+/** The panel itself: the portal, the overlay and the frame, with nothing in it
+ *  that was not asked for. `DialogContent` is this plus a dismiss control, and
+ *  a caller whose answers are its own two buttons takes this one — a dismiss
+ *  control labelled with either of them would be that answer twice, and one
+ *  labelled with neither would be a third way to say the same thing. */
+export function DialogPanel({
   className,
-  children,
-  closeLabel,
   ...props
-}: ComponentProps<typeof DialogPrimitive.Content> & { closeLabel: string }) {
+}: ComponentProps<typeof DialogPrimitive.Content>) {
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -76,20 +79,31 @@ export function DialogContent({
           className,
         )}
         {...props}
-      >
-        {children}
-        <DialogPrimitive.Close
-          aria-label={closeLabel}
-          className={cn(
-            'absolute top-4 right-4 flex size-8 items-center justify-center rounded-lg',
-            'bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground',
-            'transition-colors outline-none',
-          )}
-        >
-          <X size={16} aria-hidden="true" />
-        </DialogPrimitive.Close>
-      </DialogPrimitive.Content>
+      />
     </DialogPortal>
+  );
+}
+
+export function DialogContent({
+  className,
+  children,
+  closeLabel,
+  ...props
+}: ComponentProps<typeof DialogPrimitive.Content> & { closeLabel: string }) {
+  return (
+    <DialogPanel className={className} {...props}>
+      {children}
+      <DialogPrimitive.Close
+        aria-label={closeLabel}
+        className={cn(
+          'absolute top-4 right-4 flex size-8 items-center justify-center rounded-lg',
+          'bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground',
+          'transition-colors outline-none',
+        )}
+      >
+        <X size={16} aria-hidden="true" />
+      </DialogPrimitive.Close>
+    </DialogPanel>
   );
 }
 

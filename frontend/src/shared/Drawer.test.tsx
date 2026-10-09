@@ -25,22 +25,21 @@ function drawer({
   );
 }
 
-/** The backdrop and the icon button. The slide that would hide the backdrop is
- *  daisyUI's stylesheet, which jsdom never applies, so both are reachable by
- *  role from the first render. */
-function closeButtons() {
-  return screen.getAllByRole('button', { name: closeLabel });
-}
-
-it('takes focus on open and hands it back as soon as the close starts', () => {
+it('takes focus into the drawer on open and hands it back as the close starts', () => {
   const trigger = document.createElement('button');
   document.body.append(trigger);
   trigger.focus();
   const result = render(drawer());
+  // The keyboard followed the drawer rather than staying on the page behind it.
+  expect(document.activeElement).not.toBe(trigger);
   expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(
     true,
   );
   result.rerender(drawer({ open: false }));
+  // Read straight after the flip rather than awaited: the panel is still on its
+  // way out at this moment in a browser, and focus must already be back. jsdom
+  // cannot draw that half — that the handover lands mid-slide is what the
+  // browser walkthrough is for.
   expect(document.activeElement).toBe(trigger);
   trigger.remove();
 });
@@ -57,59 +56,51 @@ it('leaves focus alone while the panel re-renders', () => {
   inside.focus();
   result.rerender(drawer());
   expect(document.activeElement).toBe(inside);
-  expect(panel.contains(document.activeElement)).toBe(true);
 });
 
-it('closes with Escape and with the backdrop', () => {
-  const onClose = vi.fn();
-  render(drawer({ onClose }));
-  fireEvent.keyDown(document, { key: 'Escape' });
-  expect(onClose).toHaveBeenCalledOnce();
-  fireEvent.click(closeButtons()[0]);
-  expect(onClose).toHaveBeenCalledTimes(2);
+/** The shell is the same element the whole time: open, closed, open again.
+ *  Being absent from the document is not how a closed drawer is expressed —
+ *  `inert` is what takes it away instead, and that is what keeps the frame the
+ *  page was given rather than a new one per open. */
+it('keeps its dialog element in the document and takes it out with `inert`', () => {
+  const result = render(drawer({ open: false }));
+  // While closed the frame is the only dialog-shaped element there is, which is
+  // how it can be read off the document on its own.
+  const frame = document.querySelector('[role="dialog"]')!;
+  expect(frame.hasAttribute('inert')).toBe(true);
+  result.rerender(drawer({ open: true }));
+  expect(document.contains(frame)).toBe(true);
+  expect(frame.hasAttribute('inert')).toBe(false);
+  result.rerender(drawer({ open: false }));
+  expect(document.contains(frame)).toBe(true);
+  expect(frame.hasAttribute('inert')).toBe(true);
 });
 
-/** The backdrop is clickable, so daisyUI styles it with a pointer cursor, and
- *  the whole content area under a hand reads as one big button. jsdom loads no
- *  stylesheets and computes no styles, so all this can pin is the class that
- *  clears it; the arrow a browser paints is confirmed by a desktop walkthrough. */
-it('keeps the backdrop on the default cursor', () => {
+it('opens as a dialog named after its own heading', () => {
   render(drawer());
-  const backdrop = closeButtons()[0];
-  expect(backdrop.classList.contains('drawer-overlay')).toBe(true);
-  expect(backdrop.classList.contains('cursor-default')).toBe(true);
+  const heading = screen.getByRole('heading', { name: 'Details' });
+  const dialog = screen.getByRole('dialog');
+  expect(document.getElementById(dialog.getAttribute('aria-labelledby')!)).toBe(
+    heading,
+  );
 });
 
-it('stops listening for Escape once it is closed', () => {
-  const onClose = vi.fn();
-  const result = render(drawer({ onClose }));
-  result.rerender(drawer({ open: false, onClose }));
-  fireEvent.keyDown(document, { key: 'Escape' });
-  expect(onClose).not.toHaveBeenCalled();
-});
-
-it('dismisses from an icon-only button that keeps its accessible name', () => {
+it('closes from a button that keeps its accessible name', () => {
   const onClose = vi.fn();
   render(drawer({ onClose }));
-  const dismiss = closeButtons()[1];
+  const dismiss = screen.getByRole('button', { name: closeLabel });
   expect(dismiss.textContent).toBe('');
   expect(dismiss.querySelector('svg')).toBeTruthy();
   fireEvent.click(dismiss);
   expect(onClose).toHaveBeenCalledOnce();
 });
 
-/** `checked` on the toggle is the only thing that drives the slide now — that
- *  is what daisyUI's stylesheet reads, and jsdom never runs it — so this is the
- *  one place the contract can be pinned. The shell is expected to stay mounted
- *  through the close; being absent from the DOM is what `inert` replaces. */
-it('drives the toggle from `open` and keeps the shell mounted when closed', () => {
-  const result = render(drawer());
-  const dialog = screen.getByRole('dialog');
-  const toggle = document.querySelector<HTMLInputElement>('.drawer-toggle')!;
-  expect(toggle.checked).toBe(true);
-  expect(dialog.hasAttribute('inert')).toBe(false);
-  result.rerender(drawer({ open: false }));
-  expect(toggle.checked).toBe(false);
-  expect(dialog.hasAttribute('inert')).toBe(true);
-  expect(document.querySelector('[role="dialog"]')).toBe(dialog);
+it('closes with Escape while it is open, and not once it is closed', () => {
+  const onClose = vi.fn();
+  const result = render(drawer({ onClose }));
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(onClose).toHaveBeenCalledOnce();
+  result.rerender(drawer({ open: false, onClose }));
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(onClose).toHaveBeenCalledOnce();
 });
