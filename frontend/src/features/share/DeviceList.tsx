@@ -43,9 +43,9 @@ export function DeviceList({ devices }: { devices: Device[] }) {
           television menu looks exactly like one that never arrived —
           until a minute has passed. Someone who expects the row to
           disappear with the film will report the page as broken. */}
-      <p className="text-sm opacity-70">{t('devicesHelp')}</p>
+      <p className="text-sm text-muted-foreground">{t('devicesHelp')}</p>
       {devices.length === 0 ? (
-        <p className="text-sm opacity-70">{t('devicesEmpty')}</p>
+        <p className="text-sm text-muted-foreground">{t('devicesEmpty')}</p>
       ) : (
         <ul className="space-y-1">
           {devices.map((device) => {
@@ -58,7 +58,7 @@ export function DeviceList({ devices }: { devices: Device[] }) {
                     failed to arrive. */}
                 <span className="truncate">{device.name ?? t('unknown')}</span>
                 <code>{device.address}</code>
-                <span className="text-sm opacity-70">
+                <span className="text-sm text-muted-foreground">
                   {t('activeAgo', {
                     count: seconds,
                     countText: seconds.toLocaleString(i18n.language),

@@ -109,6 +109,10 @@ it('offers to start the service, and shows the port it ended up on', async () =>
   const start = await screen.findByRole('button', {
     name: english.startSharing,
   });
+  // Starting is the one emphatic action on this page, so it is the one the
+  // drawing gives its brand colour to. Asked of the variant rather than of a
+  // class, which is the visual language and changes when it does.
+  expect(start.getAttribute('data-variant')).toBe('primary');
   fireEvent.click(start);
 
   // The space travels with the command: the backend offers one space's 共享清单
@@ -118,9 +122,12 @@ it('offers to start the service, and shows the port it ended up on', async () =>
   );
   // The state follows the answer, not the request: the button turns into the
   // one that ends the service only once the backend has said one is running.
-  expect(
-    await screen.findByRole('button', { name: english.stopSharing }),
-  ).toBeTruthy();
+  const stop = await screen.findByRole('button', {
+    name: english.stopSharing,
+  });
+  // Ending is a close, and nothing is being undone or thrown away by it, so it
+  // is not given the page's own colour: the two directions are two things.
+  expect(stop.getAttribute('data-variant')).toBe('secondary');
   // The port the backend ended up on, and not the one it was asked for: this
   // test answers with 4918 through a fixture and a different one through the
   // status, and what is on screen is the one the service is really on.
@@ -141,6 +148,25 @@ it('ends a service that is running', async () => {
   await waitFor(() => expect(invoke).toHaveBeenCalledWith('close_share'));
   expect(
     await screen.findByRole('button', { name: english.startSharing }),
+  ).toBeTruthy();
+});
+
+it('does not confuse a service that is up with a list that has something on it', async () => {
+  // Two facts that look alike and are not: whether anything is listening, and
+  // whether there is anything on the list for it to offer. A service can be up
+  // over an empty list — the user has just taken the last video off it — and
+  // the page has to be able to say both at once rather than pick one.
+  library.videos.data = [video()];
+  backend(invoke, { share_status: status({ port: 4918 }) });
+  page();
+  expect(
+    await screen.findByText(english.sharingOn.replace('{{port}}', '4918')),
+  ).toBeTruthy();
+  expect(screen.getByText(english.shareListEmpty)).toBeTruthy();
+  // And the button still ends the service it can see running: an empty list is
+  // not a reason to offer to start one that is already up.
+  expect(
+    screen.getByRole('button', { name: english.stopSharing }),
   ).toBeTruthy();
 });
 
