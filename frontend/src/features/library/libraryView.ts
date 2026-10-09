@@ -1,25 +1,62 @@
 import { create } from 'zustand';
-import type { Video } from '../../shared/api';
+import type { SortOrder } from './listing';
 
-export type SortOrder = 'newest' | 'played' | 'name';
+// The words a list is read in are the listing's, not this store's; they are
+// handed on from here because every control that names one already imports this
+// module, and a second path to the same vocabulary would be a second place it
+// could change.
+export type { SortOrder } from './listing';
+
 interface LibraryView {
   search: string;
   folder: string;
   sorts: Record<string, SortOrder>;
+  /**
+   * Which page of which listing the user is reading.
+   *
+   * The two travel together because an index means nothing on its own: it is an
+   * index *of a description*, and a description that has changed describes
+   * records the user has not turned any pages of. Reading them apart is how a
+   * page index comes to be applied to a list nobody asked it of — the third page
+   * of a search that has four matches in it.
+   */
+  page: { listing: string; index: number };
   setSearch: (value: string) => void;
   setFolder: (value: string) => void;
-  setSort: (page: string, value: SortOrder) => void;
+  setSort: (listing: string, value: SortOrder) => void;
+  setPage: (listing: string, index: number) => void;
 }
 
 export const useLibraryView = create<LibraryView>((set) => ({
   search: '',
   folder: '',
   sorts: {},
+  // A listing nothing matches, which is the first page of every listing: no
+  // description is this one, so every list starts at its beginning.
+  page: { listing: '', index: 0 },
   setSearch: (search) => set({ search }),
   setFolder: (folder) => set({ folder }),
-  setSort: (page, value) =>
-    set((state) => ({ sorts: { ...state.sorts, [page]: value } })),
+  setSort: (listing, value) =>
+    set((state) => ({ sorts: { ...state.sorts, [listing]: value } })),
+  setPage: (listing, index) => set({ page: { listing, index } }),
 }));
+
+/**
+ * Which page of the listing described by `listing` is being read.
+ *
+ * The first page of any list the user has not turned a page of, which is what
+ * follows from holding the index beside the description it was taken in: a
+ * search that was typed, a folder that was picked, an order that was changed and
+ * a space that was switched to all describe a different listing, and the user is
+ * at its beginning rather than wherever they happened to be in the last one.
+ *
+ * Read off the store rather than subscribed to, because every caller is a hook
+ * that already re-renders when this store changes.
+ */
+export function pageIndexOf(listing: string): number {
+  const { page } = useLibraryView.getState();
+  return page.listing === listing ? page.index : 0;
+}
 
 /**
  * Puts the filters back to where a library the user has not narrowed down yet
@@ -32,35 +69,11 @@ export const useLibraryView = create<LibraryView>((set) => ({
  * callers need it — the button that clears the filters under a search that found
  * nothing, and moving into another space — and neither should decide the answer
  * for itself.
+ *
+ * It needs no word about the page index: clearing the filters describes a
+ * listing the user has not read yet, and [`pageIndexOf`] answers for one of
+ * those on its own.
  */
 export function clearFilters() {
   useLibraryView.setState({ search: '', folder: '' });
-}
-
-export function selectVideos(
-  videos: Video[],
-  page: string,
-  search: string,
-  folder: string,
-  sort: SortOrder,
-  language: string,
-): Video[] {
-  const query = search.toLocaleLowerCase(language);
-  return videos
-    .filter(
-      (video) =>
-        video.file_name.toLocaleLowerCase(language).includes(query) &&
-        (!folder || video.folder_path === folder) &&
-        (page !== '/favorites' || video.favorite) &&
-        (page !== '/history' || video.last_played_at !== null),
-    )
-    .sort((a, b) => {
-      const difference =
-        sort === 'name'
-          ? a.file_name.localeCompare(b.file_name, language)
-          : sort === 'played'
-            ? (b.last_played_at ?? 0) - (a.last_played_at ?? 0)
-            : b.created_at - a.created_at;
-      return difference || b.id - a.id;
-    });
 }

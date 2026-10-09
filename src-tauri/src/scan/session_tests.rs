@@ -19,7 +19,7 @@ fn space_with_an_unreadable_file(fixture: &Fixture) -> (Arc<Mutex<Repository>>, 
     repository
         .replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
-    let path = repository.list(space).unwrap().remove(0).path;
+    let path = repository.records(space).unwrap().remove(0).path;
     (Arc::new(Mutex::new(repository)), space, path)
 }
 

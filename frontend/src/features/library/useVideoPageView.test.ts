@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { createElement } from 'react';
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { libraryApi } from '../../shared/api';
 import { idleScan } from '../../test/fixtures';
@@ -24,10 +25,15 @@ beforeEach(() => {
   vi.mocked(listen).mockResolvedValue(() => {});
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   vi.spyOn(libraryApi, 'listSpaces').mockResolvedValue([space, other]);
-  vi.spyOn(libraryApi, 'list').mockResolvedValue([]);
+  vi.spyOn(libraryApi, 'list').mockResolvedValue({ items: [], total: 0 });
   vi.spyOn(libraryApi, 'directories').mockResolvedValue([]);
   vi.spyOn(libraryApi, 'scanStatus').mockResolvedValue(idleScan());
-  useLibraryView.setState({ search: '', folder: '', sorts: {} });
+  useLibraryView.setState({
+    search: '',
+    folder: '',
+    sorts: {},
+    page: { listing: '', index: 0 },
+  });
 });
 
 afterEach(() => {
@@ -38,16 +44,20 @@ afterEach(() => {
 
 function mount() {
   return renderHook(
-    () => ({ library: useLibrary(), view: useVideoPageView('/') }),
+    () => ({ library: useLibrary(), view: useVideoPageView() }),
     {
       wrapper: ({ children }: { children: ReactNode }) =>
         createElement(
           QueryClientProvider,
           { client },
           createElement(
-            SpaceProvider,
-            { initialSpace: space, children },
-            createElement(LibraryProvider, { children }),
+            MemoryRouter,
+            { initialEntries: ['/'] },
+            createElement(
+              SpaceProvider,
+              { initialSpace: space, children },
+              createElement(LibraryProvider, { children }),
+            ),
           ),
         ),
     },
@@ -65,4 +75,14 @@ it('restarts the list on a switch, so it comes back at the top', async () => {
   // typed and nothing filtered leaves the filters alone, so the space is the
   // only part of the key that can carry the change.
   expect(result.current.view.collectionKey).not.toBe(before);
+});
+
+it('restarts the list on a turn of the page, so the next page is read from its top', async () => {
+  const { result } = mount();
+  const before = result.current.view.collectionKey;
+  act(() => result.current.view.turnTo(1));
+  // A page the user has turned to is read from its beginning, not from wherever
+  // the last one was scrolled to.
+  expect(result.current.view.collectionKey).not.toBe(before);
+  expect(result.current.view.index).toBe(1);
 });

@@ -156,7 +156,7 @@ it('does not confuse a service that is up with a list that has something on it',
   // whether there is anything on the list for it to offer. A service can be up
   // over an empty list — the user has just taken the last video off it — and
   // the page has to be able to say both at once rather than pick one.
-  library.videos.data = [video()];
+  library.videos.data = { items: [], total: 0 };
   backend(invoke, { share_status: status({ port: 4918 }) });
   page();
   expect(
@@ -200,7 +200,9 @@ it('says so, beside the reference, when the service cannot start', async () => {
 });
 
 it('will not start over an empty share list, and says what to do', async () => {
-  library.videos.data = [video()];
+  // What the backend answers for the 共享清单 when nothing is on it: no records,
+  // and a count of none.
+  library.videos.data = { items: [], total: 0 };
   backend(invoke, { share_status: status() });
   page();
   const start = await screen.findByRole('button', {
@@ -217,7 +219,10 @@ it('will not start over an empty share list, and says what to do', async () => {
 
   // And offered as soon as there is something to offer.
   cleanup();
-  library.videos.data = [video({ shared: true })];
+  library.videos.data = {
+    items: [video({ shared: true })],
+    total: 1,
+  };
   page();
   expect(
     (
@@ -227,29 +232,48 @@ it('will not start over an empty share list, and says what to do', async () => {
   expect(screen.queryByText(english.shareListEmpty)).toBeNull();
 });
 
-it('shows the videos that are on the list, and how many there are', async () => {
-  library.videos.data = [
-    video({ shared: true, id: 1, file_name: 'first.mp4' }),
-    video({ shared: true, id: 2, file_name: 'second.mp4' }),
-    // Not on the list, and not drawn: what this block is for is seeing what is
-    // being offered, and a card the service would not serve would answer the
-    // wrong question.
-    video({ id: 3, file_name: 'third.mp4' }),
-  ];
+it('shows the page of records the list answered with, and how many there are', async () => {
+  // The records on this page, and how many the whole 清单 holds. That only these
+  // two are marked as shared is the listing's doing, not this page's: /share is
+  // asked for the shared records (`only: 'shared'`), so a record that is not one
+  // of them is a record this page was never handed.
+  library.videos.data = {
+    items: [
+      video({ shared: true, id: 1, file_name: 'first.mp4' }),
+      video({ shared: true, id: 2, file_name: 'second.mp4' }),
+    ],
+    total: 2,
+  };
   backend(invoke, { share_status: status() });
   page();
-  // The heading, then the count, then the cards themselves: the list is a view
-  // of the records rather than a command of its own (the backend has none), so
-  // what is drawn here is what the library already knows.
+  // The heading, then the count, then the cards themselves: what is drawn here
+  // is the backend's answer about the 共享清单.
   expect(
     await screen.findByRole('heading', { name: english.shareListTitle }),
   ).toBeTruthy();
   expect(
-    screen.getByText(english.videoCount_other.replace('{{countText}}', '2')),
+    screen.getByText(english.videoCount.replace('{{countText}}', '2')),
   ).toBeTruthy();
   expect(screen.getByText('first.mp4')).toBeTruthy();
   expect(screen.getByText('second.mp4')).toBeTruthy();
-  expect(screen.queryByText('third.mp4')).toBeNull();
+});
+
+it('offers the rest of the 共享清单 when there is more of it than this page', async () => {
+  library.videos.data = {
+    items: [video({ shared: true, id: 1, file_name: 'first.mp4' })],
+    // A list longer than one page, of which this is the first.
+    total: 48,
+  };
+  backend(invoke, { share_status: status() });
+  page();
+  expect(
+    await screen.findByText(
+      english.videoRange
+        .replace('{{fromText}}', '1')
+        .replace('{{toText}}', '24'),
+    ),
+  ).toBeTruthy();
+  expect(screen.getByRole('button', { name: english.nextPage })).toBeTruthy();
 });
 
 it('gives the room a hover needs to the viewport that clips, not to the grid', async () => {

@@ -1,8 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useLocation } from 'react-router';
 import { libraryApi, normalizeError } from '../../shared/api';
 import type { AppError, ScanStatus, Space, Video } from '../../shared/api';
-import { clearFilters } from './libraryView';
+import { clearFilters, pageIndexOf, useLibraryView } from './libraryView';
+import { PAGE_SIZE, defaultSort, listingAt, listingQuery } from './listing';
 import { useAdoptSpace, useSpace } from '../space/SpaceProvider';
 import { useNoticeState } from './notices';
 import { isScanRunning } from './scanFeedback';
@@ -61,9 +63,46 @@ export function useLibrary(): Library {
   const [lastPlayed, setLastPlayed] = useState<Record<number, number>>({});
   const lastPlayedId = lastPlayed[spaceId] ?? null;
 
+  // Which listing is on screen, and how it is being read. It comes from the
+  // route because that is what decides it — every page that shows a listing is a
+  // route of its own, and one that names its listing twice could name one that
+  // is not the page it is drawn at.
+  const { pathname } = useLocation();
+  const listing = listingAt(pathname);
+  const view = useLibraryView();
+  const sort = listing
+    ? (view.sorts[listing] ?? defaultSort(listing))
+    : 'newest';
+  const description =
+    listing === null
+      ? null
+      : listingQuery(listing, spaceId, {
+          search: view.search,
+          folder: view.folder,
+          sort,
+        });
+  // The description without the page on it is the identity of the list, and the
+  // page index is only the index of the list it was taken in ([`pageIndexOf`]):
+  // a search that was typed describes another list, and the user is at the start
+  // of it rather than wherever they were in the last one.
+  const listingKey = JSON.stringify(description);
+  const index = pageIndexOf(listingKey);
+  const ask =
+    description === null
+      ? null
+      : { ...description, offset: index * PAGE_SIZE, limit: PAGE_SIZE };
+
   const videos = useQuery({
-    queryKey: ['videos', spaceId],
-    queryFn: () => libraryApi.list(spaceId),
+    // The whole description is the key, not the space alone: two filters are two
+    // questions with two answers, and a page that is a page of one of them can
+    // never be handed to the other. The prefixes still line up — everything
+    // cached for one space is `['videos', spaceId, …]`, which is what a scan
+    // invalidates (ADR 0016).
+    queryKey: ['videos', spaceId, description, index],
+    // Non-null exactly when the query runs: 设置页 reads no listing, and a
+    // question nobody is looking at is not asked (`enabled` below).
+    queryFn: () => libraryApi.list(ask!),
+    enabled: ask !== null,
     retry: false,
   });
   const directories = useQuery({
@@ -208,7 +247,16 @@ export function useLibrary(): Library {
 
   return {
     // 视频集合
-    videos: { videos, lastPlayedId },
+    videos: {
+      videos,
+      lastPlayedId,
+      index,
+      turnTo: (next: number) => view.setPage(listingKey, next),
+      // The description and the page on it, as the one string that says which
+      // list and which page of it: what a list is mounted against, and what tells
+      // one answer from another.
+      pageKey: JSON.stringify([description, index]),
+    },
     // 扫描生命周期
     scan: {
       status: scan.data,

@@ -10,6 +10,10 @@
 // snapshot compared against, and a set of declared-gone files — and both are
 // reachable from the page now, which is the part that makes them worth having:
 // a line no walkthrough can reach is a line nobody has read on screen.
+//
+// The listing is the third of them (ADR 0016): a page of records and a count,
+// and the count has to be the list's or every walkthrough shows a pager that
+// lies about how much there is.
 
 import { invoke } from '@tauri-apps/api/core';
 import { describe, expect, it } from 'vitest';
@@ -97,5 +101,44 @@ describe('the fixture as a stand-in backend', () => {
     expect(drawn.needsRestart).toBe(true);
 
     await invoke('close_share');
+  });
+
+  it('answers one page of the list, and how many the list holds', async () => {
+    const list = (query: Record<string, unknown>) =>
+      invoke<{ items: { file_name: string }[]; total: number }>('list_videos', {
+        spaceId: 1,
+        offset: 0,
+        limit: 24,
+        ...query,
+      });
+
+    // The first page of the library, newest first — which is the page a
+    // walkthrough opens on, and the order it is read in.
+    const first = await list({ sort: 'added' });
+    expect(first.total).toBe(36);
+    expect(first.items).toHaveLength(24);
+    expect(first.items[0].file_name).toBe('video-36.mp4');
+
+    // The page after it: what is left, and the same count — the count is the
+    // list's, so it does not shrink as the pages are read.
+    const second = await list({ sort: 'added', offset: 24 });
+    expect(second.total).toBe(36);
+    expect(second.items).toHaveLength(12);
+    expect(second.items[0].file_name).toBe('video-12.mp4');
+
+    // A narrower question, answered about itself: the count follows the search
+    // rather than the library behind it.
+    const searched = await list({ search: 'video-01' });
+    expect(searched.total).toBe(1);
+    expect(searched.items.map((video) => video.file_name)).toEqual([
+      'video-01.mp4',
+    ]);
+
+    // And the mark a listing can be narrowed to, read off the space rather than
+    // off the record: this fixture declares video 1 to be the space's favorite.
+    const favorites = await list({ only: 'favorite' });
+    expect(favorites.items.map((video) => video.file_name)).toEqual([
+      'video-01.mp4',
+    ]);
   });
 });

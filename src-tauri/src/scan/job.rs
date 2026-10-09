@@ -63,7 +63,7 @@ pub fn run(
         let mut index = lock_shared(repository)?;
         progress.changes =
             index.replace_videos_controlled(space_id, &scans, || control.checkpoint())?;
-        index.list(space_id)?
+        index.records(space_id)?
     };
     progress.current_path.clear();
     progress.discovered = videos.len();
@@ -86,7 +86,7 @@ pub fn run(
         events,
         &ScanMedia { space_id, media },
     )?;
-    lock_shared(repository)?.list(space_id)
+    lock_shared(repository)?.records(space_id)
 }
 
 /// Whether the frame the record points at is still where it says it is.
