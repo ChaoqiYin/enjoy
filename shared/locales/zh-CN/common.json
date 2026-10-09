@@ -95,6 +95,7 @@
   "copied": "已复制",
   "format": "格式",
   "modifiedAt": "修改时间",
+  "path": "路径",
   "removeConfirm": "移除索引确认",
   "keepFile": "原始文件不会被删除",
   "removeShared": "它也在共享清单里，移除后清单上就没有它了",
