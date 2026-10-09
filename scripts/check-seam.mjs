@@ -28,15 +28,23 @@ import ts from 'typescript';
 //
 // Two directions, both required:
 //
-// - every exported interface in `shared/api.ts` must be named in `pairs`, so a
-//   shape added to the seam and forgotten here is a failure rather than a
-//   silence;
+// - every interface exported from the seam must be named in `pairs`, so a shape
+//   added to the seam and forgotten here is a failure rather than a silence;
 // - for each pair, the serialised field names and the declared member names
 //   must be equal — a field the backend sends and the interface does not know is
 //   a fact the user is never shown, and a member the interface reads and the
 //   backend never sends is `undefined` at the one moment it matters.
+//
+// The seam is read from a list of files rather than from one path. The shapes
+// were split into `apiTypes.ts` when the library listing needed two more of them
+// and `api.ts` reached the line limit its module keeps — and a declaration that
+// moved out from under this check would have taken the first rule above with it
+// silently, which is the one failure this check exists to make loud. A file is
+// listed here because the interface's seam declarations live in it; `api.ts` is
+// still one of them, because the answers are handed on from there.
 
-const seam = join('frontend', 'src', 'shared', 'api.ts');
+const seam = [join('frontend', 'src', 'shared', 'api.ts'), join('frontend', 'src', 'shared', 'apiTypes.ts')];
+const where = seam.join(', ');
 
 /**
  * One shape, both of its declarations. `rust` is `file` and the struct in it;
@@ -95,6 +103,9 @@ const pairs = [
     struct: 'SettingsState',
     ts: 'SettingsState',
   },
+  // The listing: what one page of the library is asked for, and what comes back.
+  { rust: 'src-tauri/src/model.rs', struct: 'VideoQuery', ts: 'VideoQuery' },
+  { rust: 'src-tauri/src/model.rs', struct: 'VideoPage', ts: 'VideoPage' },
 ];
 
 const failures = [];
@@ -162,54 +173,57 @@ function rustNames(file, struct) {
   return names;
 }
 
+/** The statements of each file the seam is read from, parsed once each. */
+function seamSources() {
+  return seam.map((path) =>
+    ts.createSourceFile(
+      path,
+      readFileSync(path, 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    ),
+  );
+}
+
 /** The members an interface declares, in the order they are declared. */
 function typescriptNames(name) {
-  const source = ts.createSourceFile(
-    seam,
-    readFileSync(seam, 'utf8'),
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS,
-  );
-  for (const statement of source.statements) {
-    if (
-      ts.isInterfaceDeclaration(statement) &&
-      statement.name.text === name
-    ) {
-      return statement.members.map((member) =>
-        member.name && ts.isIdentifier(member.name) ? member.name.text : null,
-      );
+  for (const source of seamSources()) {
+    for (const statement of source.statements) {
+      if (
+        ts.isInterfaceDeclaration(statement) &&
+        statement.name.text === name
+      ) {
+        return statement.members.map((member) =>
+          member.name && ts.isIdentifier(member.name) ? member.name.text : null,
+        );
+      }
     }
   }
-  failures.push(`${seam}: no \`export interface ${name}\``);
+  failures.push(`${where}: no \`export interface ${name}\``);
   return null;
 }
 
 /** Every interface the seam exports, which is every shape it may hand out. */
 function exportedInterfaces() {
-  const source = ts.createSourceFile(
-    seam,
-    readFileSync(seam, 'utf8'),
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS,
+  return seamSources().flatMap((source) =>
+    source.statements
+      .filter(
+        (statement) =>
+          ts.isInterfaceDeclaration(statement) &&
+          statement.modifiers?.some(
+            (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+          ),
+      )
+      .map((statement) => statement.name.text),
   );
-  return source.statements
-    .filter(
-      (statement) =>
-        ts.isInterfaceDeclaration(statement) &&
-        statement.modifiers?.some(
-          (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
-        ),
-    )
-    .map((statement) => statement.name.text);
 }
 
 const named = new Set(pairs.map((pair) => pair.ts));
 for (const exported of exportedInterfaces()) {
   if (!named.has(exported)) {
     failures.push(
-      `${seam}: ${exported} crosses the seam and is not among the pairs this check holds to each other`,
+      `${where}: ${exported} crosses the seam and is not among the pairs this check holds to each other`,
     );
   }
 }

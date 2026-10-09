@@ -5,7 +5,7 @@ import { VideoPageContent } from '../features/library/VideoPageContent';
 import { useVideoPageView } from '../features/library/useVideoPageView';
 export function FavoritesPage() {
   const { t } = useTranslation();
-  const view = useVideoPageView('/favorites');
+  const view = useVideoPageView();
 
   return (
     <PageFrame>

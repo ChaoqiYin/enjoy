@@ -14,6 +14,8 @@ pub(crate) mod fixture;
 #[cfg(test)]
 mod incremental_tests;
 #[cfg(test)]
+mod listing_tests;
+#[cfg(test)]
 mod metadata_tests;
 #[cfg(test)]
 mod migration_tests;

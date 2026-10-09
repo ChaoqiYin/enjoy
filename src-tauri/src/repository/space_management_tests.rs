@@ -23,7 +23,7 @@ fn library_with_one_record() -> (Fixture, Repository, String) {
             )],
         )
         .unwrap();
-    let path = repository.list(space).unwrap()[0].path.clone();
+    let path = repository.records(space).unwrap()[0].path.clone();
     repository.favorite(space, &path, true).unwrap();
     repository.record_play(space, &path).unwrap();
     (fixture, repository, path)
@@ -136,7 +136,7 @@ fn renaming_a_space_keeps_its_records_and_the_space_shown() {
     // A rename is not a move: the records stayed with the space under the same
     // id, favorites and history included.
     assert_eq!(repository.spaces().unwrap()[0].name, "Films");
-    let videos = repository.list(first).unwrap();
+    let videos = repository.records(first).unwrap();
     assert_eq!(videos.len(), 1);
     assert_eq!(videos[0].path, path);
     assert!(videos[0].favorite);
@@ -154,15 +154,15 @@ fn removing_a_space_clears_its_records_and_leaves_the_files_alone() {
         scanner::collect(&fixture.0).unwrap(),
     )];
     repository.replace_videos(second.id, &scanned).unwrap();
-    assert_eq!(repository.list(second.id).unwrap().len(), 1);
+    assert_eq!(repository.records(second.id).unwrap().len(), 1);
 
     repository.delete_space(second.id).unwrap();
-    assert!(repository.list(second.id).unwrap().is_empty());
+    assert!(repository.records(second.id).unwrap().is_empty());
     assert!(repository.directories(second.id).unwrap().is_empty());
 
     // The other space holds the same file as a record of its own, untouched,
     // and the file itself was never the index's to remove.
-    let kept = repository.list(first).unwrap();
+    let kept = repository.records(first).unwrap();
     assert_eq!(kept.len(), 1);
     assert_eq!(kept[0].path, path);
     assert!(kept[0].favorite);

@@ -123,7 +123,7 @@ mod tests {
         // Opened first, recorded after: the order the two facts are established
         // in is what makes a play that never started leave no history behind.
         assert!(opened.get());
-        let row = repository.lock().unwrap().list(space).unwrap().remove(0);
+        let row = repository.lock().unwrap().records(space).unwrap().remove(0);
         assert_eq!(row.play_count, 1);
         assert!(row.last_played_at.is_some());
     }

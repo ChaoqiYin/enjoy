@@ -22,7 +22,7 @@ fn refresh_metadata_does_not_overwrite_a_concurrent_scan() {
             &[(root.clone(), scanner::collect(&fixture.0).unwrap())],
         )
         .unwrap();
-    let stale = repository.list(space).unwrap().remove(0);
+    let stale = repository.records(space).unwrap().remove(0);
     // A scan in the middle of the read below changes the same pair of fields
     // the write is guarded by: the write's lock and the identity verdict are
     // one and the same comparison now (ADR 0004), and growing the file is
@@ -31,7 +31,7 @@ fn refresh_metadata_does_not_overwrite_a_concurrent_scan() {
     repository
         .replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
-    let fresh = repository.list(space).unwrap().remove(0);
+    let fresh = repository.records(space).unwrap().remove(0);
     assert_ne!(
         (stale.file_size, stale.modified_at),
         (fresh.file_size, fresh.modified_at)
@@ -58,7 +58,7 @@ fn refresh_metadata_does_not_overwrite_a_concurrent_scan() {
         )
         .unwrap();
     assert!(!written);
-    let after = repository.list(space).unwrap().remove(0);
+    let after = repository.records(space).unwrap().remove(0);
     assert_eq!(after.file_size, fresh.file_size);
     assert_eq!(after.modified_at, fresh.modified_at);
     assert!(after.width.is_none());
@@ -79,12 +79,12 @@ fn refresh_metadata_marks_media_complete_after_success() {
     repository
         .replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
-    let video = repository.list(space).unwrap().remove(0);
+    let video = repository.records(space).unwrap().remove(0);
     assert!(!video.media_complete);
     repository
         .save_thumbnail(space, &video, "cached.jpg")
         .unwrap();
-    let video = repository.list(space).unwrap().remove(0);
+    let video = repository.records(space).unwrap().remove(0);
     assert!(!video.media_complete);
     let metadata = Metadata {
         duration_ms: Some(500),
@@ -108,7 +108,7 @@ fn refresh_metadata_marks_media_complete_after_success() {
         )
         .unwrap();
     assert!(written);
-    let after = repository.list(space).unwrap().remove(0);
+    let after = repository.records(space).unwrap().remove(0);
     assert!(after.media_complete);
     assert_eq!(after.width, Some(160));
     assert_eq!(after.height, Some(90));
@@ -133,7 +133,7 @@ fn refresh_metadata_only_updates_the_target_file_without_thumbnail() {
     repository
         .replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
-    let videos = repository.list(space).unwrap();
+    let videos = repository.records(space).unwrap();
     let target = videos.iter().find(|video| video.path == path).unwrap();
     let other_before = videos.iter().find(|video| video.path != path).unwrap();
     let target_size = target.file_size;
@@ -165,7 +165,7 @@ fn refresh_metadata_only_updates_the_target_file_without_thumbnail() {
         )
         .unwrap();
     assert!(written);
-    let rows = repository.list(space).unwrap();
+    let rows = repository.records(space).unwrap();
     let after = rows.iter().find(|video| video.path == path).unwrap();
     assert!(!after.media_complete);
     assert_eq!(after.thumbnail_path, None);

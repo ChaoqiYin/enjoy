@@ -2,17 +2,24 @@ use std::sync::Arc;
 
 use crate::app::AppState;
 use crate::error::AppError;
-use crate::model::VideoFile;
+use crate::model::{VideoPage, VideoQuery};
 use crate::player;
 use crate::repository::lock_shared;
 use tauri::State;
 
+/// One page of the library, as the interface asked for it.
+///
+/// The command name is unchanged while what it takes is not, and that is the
+/// point: the listing is one thing the interface asks for, however many
+/// questions the answer to it is made of. A second command beside this one would
+/// be a second name `check-commands.mjs` has to hold, and a second way to ask for
+/// the same records (ADR 0016).
 #[tauri::command]
 pub(crate) fn list_videos(
-    space_id: i64,
+    query: VideoQuery,
     state: State<'_, AppState>,
-) -> Result<Vec<VideoFile>, AppError> {
-    lock_shared(&state.repository)?.list(space_id)
+) -> Result<VideoPage, AppError> {
+    lock_shared(&state.repository)?.list(&query)
 }
 
 #[tauri::command]

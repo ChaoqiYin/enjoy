@@ -141,7 +141,7 @@ fn verify_cancelled_metadata_resumes(parent: &Path, source: &Path) {
     assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
     assert!(events.media_error_codes().is_empty());
     drop(guard);
-    let partial = repository.lock().unwrap().list(space).unwrap().remove(0);
+    let partial = repository.lock().unwrap().records(space).unwrap().remove(0);
     assert!(partial.width.is_some());
     assert!(partial.thumbnail_path.is_none());
     assert!(!partial.media_complete);
