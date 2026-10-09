@@ -13,6 +13,14 @@ const badgeVariants = cva(
         success: 'bg-success text-success-foreground',
         warning: 'bg-warning text-warning-foreground',
         destructive: 'bg-destructive text-destructive-foreground',
+        // The 已共享 mark's business pair — `status-shared` and
+        // `status-shared-border` in the drawings — rather than a primitive's
+        // colour. The pair exists because the mark is drawn over a photograph:
+        // its fill is opaque, so the picture never reaches under it and the
+        // edge is the only thing that can separate the badge from what it
+        // covers. Both halves of the pair are therefore worn, and the base's
+        // `border-transparent` is what this variant's border overrides.
+        share: 'border-share-border bg-share text-white',
       },
       size: {
         sm: 'h-4 px-1.5 text-[10px]',

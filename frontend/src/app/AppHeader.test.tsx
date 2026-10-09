@@ -88,6 +88,18 @@ it('names the navigation for a reader that cannot see the row', () => {
   );
 });
 
+it('paints a focus ring on the entry the keyboard lands on', () => {
+  header();
+  // The strip takes the browser's own outline away (`outline-none`) and shows
+  // which entry is current with an underline, which says nothing about where
+  // the keyboard is: the current entry and the focused one are different
+  // entries. So each entry draws its own ring, the same one the buttons carry,
+  // or a keyboard user cannot see where they are.
+  const entry = navEntry(english.history);
+  expect(entry.classList.contains('focus-visible:ring-2')).toBe(true);
+  expect(entry.classList.contains('focus-visible:ring-ring')).toBe(true);
+});
+
 it('says the sharing state in words, in both states', () => {
   header();
   // Nothing is running, so the words are the ones for that.

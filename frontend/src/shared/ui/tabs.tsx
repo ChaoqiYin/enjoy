@@ -49,6 +49,11 @@ export function TabsTrigger({
         'inline-flex items-center gap-1.5 px-3 py-2 text-left',
         'text-sm font-semibold text-muted-foreground outline-none',
         'transition-colors hover:text-foreground',
+        // The strip removes the browser's outline, and the underline it draws
+        // on the current entry is about the route, not about the keyboard. So
+        // the entry has to paint its own focus marker, the same ring the
+        // buttons carry, or a keyboard user cannot see where they are.
+        'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         'data-[state=active]:text-foreground',
         'data-[state=active]:data-[orientation=horizontal]:border-b-2',
         'data-[state=active]:data-[orientation=horizontal]:border-primary',

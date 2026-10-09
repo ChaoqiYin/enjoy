@@ -11,6 +11,7 @@ const variants = [
   'success',
   'warning',
   'destructive',
+  'share',
 ] as const;
 
 const sizes = ['sm', 'default'] as const;
