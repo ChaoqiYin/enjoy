@@ -1,10 +1,16 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router';
 import { libraryApi, normalizeError } from '../../shared/api';
 import type { AppError, ScanStatus, Space, Video } from '../../shared/api';
 import { clearFilters, pageIndexOf, useLibraryView } from './libraryView';
-import { PAGE_SIZE, defaultSort, listingAt, listingQuery } from './listing';
+import {
+  PAGE_SIZE,
+  clampPage,
+  defaultSort,
+  listingAt,
+  listingQuery,
+} from './listing';
 import { useAdoptSpace, useSpace } from '../space/SpaceProvider';
 import { useNoticeState } from './notices';
 import { isScanRunning } from './scanFeedback';
@@ -86,11 +92,16 @@ export function useLibrary(): Library {
   // a search that was typed describes another list, and the user is at the start
   // of it rather than wherever they were in the last one.
   const listingKey = JSON.stringify(description);
-  const index = pageIndexOf(listingKey);
+  // Which page of the list the store holds, and the page this asks for. A list
+  // can get shorter under the user — a rescan drops records — so the page they
+  // were standing on can stop existing; the correction is `clampPage`'s, and
+  // the effect below writes it back so the request that follows asks for a page
+  // that is there rather than one that is gone.
+  const stored = pageIndexOf(listingKey);
   const ask =
     description === null
       ? null
-      : { ...description, offset: index * PAGE_SIZE, limit: PAGE_SIZE };
+      : { ...description, offset: stored * PAGE_SIZE, limit: PAGE_SIZE };
 
   const videos = useQuery({
     // The whole description is the key, not the space alone: two filters are two
@@ -98,13 +109,25 @@ export function useLibrary(): Library {
     // never be handed to the other. The prefixes still line up — everything
     // cached for one space is `['videos', spaceId, …]`, which is what a scan
     // invalidates (ADR 0016).
-    queryKey: ['videos', spaceId, description, index],
+    queryKey: ['videos', spaceId, description, stored],
     // Non-null exactly when the query runs: 设置页 reads no listing, and a
     // question nobody is looking at is not asked (`enabled` below).
     queryFn: () => libraryApi.list(ask!),
     enabled: ask !== null,
     retry: false,
   });
+  // The page being read, held inside the list's own ends. Only the backend's
+  // answer says how long the list is, so until it arrives there is nothing to
+  // clamp against and the stored page stands. This is what the interface is
+  // handed, so the footer never offers a page that is not there and the list
+  // never draws a page past its end as if it were empty (ADR 0016).
+  const index = clampPage(stored, videos.data?.total);
+  useEffect(() => {
+    // Write the correction back rather than only reading past it: the request
+    // is built from the stored page, so without this the interface would sit on
+    // a page it never asked for.
+    if (index !== stored) view.setPage(listingKey, index);
+  }, [index, stored, listingKey, view.setPage]);
   const directories = useQuery({
     queryKey: ['directories', spaceId],
     queryFn: () => libraryApi.directories(spaceId),

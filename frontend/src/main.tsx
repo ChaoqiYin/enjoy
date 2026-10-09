@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import { Toast } from './shared/Toast';
+import { Button } from './shared/ui/button';
 import { App } from './app/App';
 import { initializeLanguage } from './i18n/language';
 import { readCurrentSpace } from './shared/api';
@@ -38,14 +39,16 @@ async function start() {
       >
         <h3 className="font-bold">{messages.operationFailed}</h3>
         <p className="text-sm break-words">{messages.startupFailed}</p>
-        <button
-          className="btn btn-outline btn-sm btn-primary mt-2"
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2"
           onClick={() => {
             void start();
           }}
         >
           {messages.retry}
-        </button>
+        </Button>
       </Toast>,
     );
   }
