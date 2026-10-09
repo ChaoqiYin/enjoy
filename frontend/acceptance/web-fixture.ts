@@ -2,14 +2,18 @@ import { mockIPC, mockConvertFileSrc } from '@tauri-apps/api/mocks';
 import { emit } from '@tauri-apps/api/event';
 import { videoPage } from './videoList';
 import { videos } from './records';
+import { control, reported, rescan, setPhase } from './scan';
+import {
+  control as controlUpdate,
+  install,
+  reported as reportedCheck,
+  setCheck,
+} from './update';
 import type {
   AppError,
-  ScanStatus,
   SettingsState,
   ShareStatus,
   Space,
-  UpdateCheck,
-  UpdateProgress,
   Video,
   VideoQuery,
 } from '../src/shared/api';
@@ -21,7 +25,52 @@ import type {
 // id the command carried, not by the one the fixture thinks the interface is on.
 // Answering the wrong space is the mistake this harness exists to make visible,
 // and it cannot make it visible while it corrects for it.
-const marks = new Map<string, Set<number>>([['favorite:1', new Set([1])]]);
+//
+// A space starts with a stretch of the library marked, thirty records long and
+// shifted per mark, because 收藏, 最近播放 and 共享 are pages of this same
+// collection asked three ways (ADR 0016): a listing holding one record can be
+// shown in one shape and never turned to a second page, and three listings
+// holding the same records would be three readings of one page rather than three
+// pages a walkthrough can tell apart. Six records are left out of each, so a mark
+// is visibly a mark rather than the library.
+const marked = (first: number) =>
+  Array.from({ length: 30 }, (_, step) => first + step);
+const marks = new Map<string, Set<number>>([
+  ['favorite:1', new Set(marked(7))],
+  ['shared:1', new Set(marked(4))],
+]);
+
+/**
+ * Whether a folder has been added, which is the whole of what the 首启 screen is
+ * a screen of: no folders, and so no records.
+ *
+ * A switch rather than data, because no other state of these records reaches it
+ * — thirty-six files and two folders are what a library looks like afterwards,
+ * and a walkthrough that cannot see the screen a first run opens on cannot walk
+ * the one empty state that takes the whole page (issue #46, whose subject was a
+ * branch no walkthrough could reach).
+ *
+ * It is read off the address as well as flipped from the console, and that is
+ * not decoration: the page reads a listing once and keeps the answer, so a
+ * switch that only moved this copy left the screen showing the library it had
+ * already read. `?library=empty` is the way in — the number is read while this
+ * file loads, before the app has replaced the address with its own route — and
+ * a walkthrough that reloads lands in the library it asked for. Without it the
+ * 首启 screen is reachable only by a click no screen shows.
+ */
+const asked = new URLSearchParams(location.search).get('library');
+let indexed = asked !== 'empty';
+
+/** One record as the space being asked holds it: the files, and its own marks. */
+function recordsOf(spaceId: number | undefined): Video[] {
+  const favorites = markedOf('favorite', Number(spaceId));
+  const shared = markedOf('shared', Number(spaceId));
+  return videos.map((video) => ({
+    ...video,
+    favorite: favorites.has(video.id),
+    shared: shared.has(video.id),
+  }));
+}
 function markedOf(kind: Marker, spaceId: number) {
   const key = `${kind}:${spaceId}`;
   const held = marks.get(key) ?? new Set<number>();
@@ -175,42 +224,6 @@ function refusalFor(raw: string, ignore?: number): AppError | null {
     ? { code: 'space.name.taken', params: { name }, errorId: 'acceptance' }
     : null;
 }
-let scan: ScanStatus = {
-  phase: 'complete',
-  discovered: 36,
-  processed: 36,
-  indexed: 36,
-  metadataReady: 36,
-  thumbnailsReady: 0,
-  failures: 0,
-  unreachableDirectories: 0,
-  currentPath: '',
-  changes: { added: 0, updated: 0, removed: 0 },
-};
-let updateCheck: UpdateCheck = {
-  supported: true,
-  currentVersion: '0.1.0',
-  available: null,
-  readyToRestart: false,
-};
-
-/**
- * The transfer the acceptance page is in the middle of, if any, and how far it
- * has got.
- *
- * A real download answers only when it ends, so this holds the command's
- * promise open and lets `control_update` settle it the way the backend would.
- * Without that the pause, continue and cancel buttons could not be walked at
- * all: the section only shows them while a transfer is running, and nothing
- * short of a real 89 MB release makes one run.
- */
-let transfer: {
-  version: string;
-  downloaded: number;
-  total: number;
-  settle: (ended: UpdateProgress) => void;
-} | null = null;
-
 /**
  * A command this fixture has no answer for is not the same thing as a command
  * that failed, and a walkthrough has to be able to tell them apart.
@@ -317,47 +330,35 @@ mockIPC(
         return { ...currentSpace() };
       }
       case 'list_videos': {
-        const query = payload as unknown as VideoQuery;
-        const favorites = markedOf('favorite', query.spaceId);
-        const shared = markedOf('shared', query.spaceId);
-        return videoPage(
-          videos.map((video) => ({
-            ...video,
-            favorite: favorites.has(video.id),
-            shared: shared.has(video.id),
-          })),
-          query,
-        );
+        // The whole query travels as this command's one argument, which is the
+        // shape the interface sends (`libraryApi.list`) and the thing this
+        // stand-in got wrong: read from the argument itself rather than from the
+        // `query` inside it, every field but the space came back undefined and
+        // the answer was the count of a list with nothing on the page. Nothing
+        // caught it — this file's own tests asked in their own spelling — which
+        // is why they now ask through `libraryApi` instead.
+        const query = payload.query as VideoQuery;
+        if (!indexed) return { items: [], total: 0 };
+        return videoPage(recordsOf(query.spaceId), query);
       }
       case 'list_directories':
-        return ['/acceptance/Movies', '/acceptance/Archive'];
+        return indexed ? ['/acceptance/Movies', '/acceptance/Archive'] : [];
       case 'scan_status':
-        return scan;
-      case 'scan_action': {
+        return reported();
+      case 'scan_action':
         // Only the phase. Pausing, resuming and cancelling a scan have rules
         // behind them — the single slot, the gates, the refusals, the rule that
         // a paused phase is not overwritten by the next file's progress — and
-        // the tests holding those are Rust's. What a walkthrough needs from
-        // this command is that the three buttons move the panel to the phase
-        // they name; anything past that would be a third copy of the backend.
-        const phase =
-          payload.action === 'pause'
-            ? 'paused'
-            : payload.action === 'resume'
-              ? 'processing'
-              : 'cancelled';
-        scan = {
-          ...scan,
-          phase,
-          currentPath: phase === 'processing' ? videos[35].path : '',
-        };
-        // Not awaited: this handler is not an async function (the commands that
-        // answer with a promise return one rather than awaiting inside), and a
-        // command that has published its progress answers without waiting for
-        // the event to be delivered.
-        void emit('scan-progress', scan);
-        return;
-      }
+        // the tests holding those are Rust's. What a walkthrough needs from this
+        // command is that the three buttons move the panel to the phase they
+        // name; anything past that would be a third copy of the backend.
+        return control(String(payload.action), videos[35].path);
+      case 'rescan_directories':
+        // Answered, so that 扫描 moves the interface rather than raising the
+        // banner this fixture reserves for the commands it has no answer for.
+        // The pass is held open until it ends, like the command it stands in
+        // for — see `scan.ts`, which is where being busy comes from.
+        return rescan(recordsOf(Number(payload.spaceId)), videos[35].path);
       case 'open_video':
         throw {
           code: 'media.player.start_failed',
@@ -405,43 +406,11 @@ mockIPC(
         sharePassword = `drawn-${String(++drawnPasswords)}`;
         return share(Number(payload.spaceId));
       case 'check_for_update':
-        return { ...updateCheck };
-      case 'install_update': {
-        // Continuing a paused download is this same command, so a second press
-        // arrives here and opens a fresh transfer rather than a resumed one --
-        // close enough for a walkthrough of the buttons, which is what this
-        // entry is for.
-        const version =
-          updateCheck.available?.version ?? updateCheck.currentVersion;
-        const held = { version, downloaded: 12_000_000, total: 42_000_000 };
-        void emit('update-progress', { phase: 'downloading', ...held });
-        return new Promise<UpdateProgress>((resolve) => {
-          transfer = { ...held, settle: resolve };
-        });
-      }
-      case 'control_update': {
-        const held = transfer;
-        transfer = null;
-        // Nothing running means a paused download is being dismissed, which is
-        // exactly what the backend answers with no transfer to tell.
-        if (!held) return;
-        held.settle(
-          payload.action === 'pause'
-            ? {
-                phase: 'paused',
-                downloaded: held.downloaded,
-                total: held.total,
-                version: held.version,
-              }
-            : {
-                phase: 'cancelled',
-                downloaded: 0,
-                total: null,
-                version: held.version,
-              },
-        );
-        return;
-      }
+        return reportedCheck();
+      case 'install_update':
+        return install();
+      case 'control_update':
+        return controlUpdate(payload.action);
       case 'restart_app':
         return;
       default:
@@ -450,38 +419,32 @@ mockIPC(
   },
   { shouldMockEvents: true },
 );
-Object.assign(window, {
-  enjoyAcceptance: {
-    setScan: async (phase: string) => {
-      scan = {
-        ...scan,
-        phase,
-        processed: 18,
-        thumbnailsReady: 18,
-        currentPath: videos[35].path,
-      };
-      await emit('scan-progress', scan);
-    },
-    // Covers the four shapes the update section can render from a check.
-    // Nothing is checked at startup, so press "Check for updates" first and
-    // call this after it: the section renders from the answer that press brings
-    // back. The progress and paused shapes are not here — they belong to a
-    // transfer, so press "Download" and then "Pause" to see those.
-    setUpdate: async (
-      state: 'none' | 'available' | 'ready' | 'unsupported',
-    ) => {
-      const release = {
-        version: '0.2.0',
-        currentVersion: '0.1.0',
-        notes: 'Faster thumbnail generation.\nFixed a crash on empty folders.',
-        date: '2026-09-01T00:00:00Z',
-      };
-      updateCheck = {
-        supported: state !== 'unsupported',
-        currentVersion: '0.1.0',
-        available: state === 'available' || state === 'ready' ? release : null,
-        readyToRestart: state === 'ready',
-      };
-    },
+/**
+ * The states a walkthrough has to be put into by hand, because no walk of the
+ * interface reaches them.
+ *
+ * Exported as well as hung on the window, so that this file's own tests call the
+ * same handles the page does rather than a second spelling of them.
+ */
+export const acceptance = {
+  setScan: async (phase: string) => {
+    await setPhase(phase, videos[35].path);
   },
-});
+  setUpdate: async (state: 'none' | 'available' | 'ready' | 'unsupported') => {
+    setCheck(state);
+  },
+  // A library with no folder added yet: see `indexed`. Every listing page is
+  // then empty — the 视频库 one at the size 首启 draws, and the other three at
+  // the size a list that has nothing in it draws — which is the empty state on
+  // all four listings, from the one switch.
+  //
+  // Read by this file when it loads (`?library=empty`): the interface reads a
+  // listing once and keeps it, so reaching the empty library in a walkthrough is
+  // a page loaded with it rather than a click. This handle is the same switch
+  // moved in place, which is what these tests want and what a console session
+  // gets — a reload is what the address is for.
+  setLibrary: (state: 'full' | 'empty') => {
+    indexed = state === 'full';
+  },
+};
+Object.assign(window, { enjoyAcceptance: acceptance });
