@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::time::UNIX_EPOCH;
 
 #[derive(Debug, Serialize)]
@@ -25,6 +25,125 @@ pub struct VideoFile {
     pub last_played_at: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,
+}
+
+/// One page of a space's records, and how many the same question holds.
+///
+/// The two travel together because the interface draws them together: the
+/// records fill the page, and the count is what says how many pages there are.
+/// A count read as a second question would be a second answer to it.
+#[derive(Debug, Serialize)]
+pub struct VideoPage {
+    pub items: Vec<VideoFile>,
+    pub total: i64,
+}
+
+/// What the interface asks the library for: which of a space's records, in what
+/// order, and which page of them.
+///
+/// Every part of this was the interface's own work until a listing became a
+/// page. It cannot be any more: a search applied to the page in hand answers
+/// about that page rather than about the library, and the number of pages it
+/// would report is then wrong too. So the whole question travels, and the answer
+/// is a page (ADR 0016).
+///
+/// The three that name a condition rather than a value — [`VideoFilter`],
+/// [`VideoSort`] and [`SortDirection`] — are enums because the vocabulary is
+/// closed: a sort this backend does not know is not an order to fall back from
+/// but a request that cannot be answered, and it is refused where it arrives.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VideoQuery {
+    pub space_id: i64,
+    /// Matched against the file name — what the user reads on the card — and not
+    /// against the path, which would also match the directory names.
+    pub search: Option<String>,
+    /// One directory, by the path recorded for it. Exact, not a prefix: the
+    /// folder a record is filed under is a fact about that record, and matching
+    /// its ancestors would make one row answer to several entries at once.
+    pub folder: Option<String>,
+    /// The 页面固有条件: what makes a page the 收藏页, the 共享页 or the 最近播放页
+    /// rather than the library.
+    pub only: Option<VideoFilter>,
+    pub sort: Option<VideoSort>,
+    /// Absent means the sort's own default, which is the direction the page is
+    /// usually read in (see [`VideoSort::direction`]).
+    pub direction: Option<SortDirection>,
+    /// Where the page starts, counted in records the query matches. A negative
+    /// offset is read as the first page.
+    pub offset: i64,
+    /// How many records the page holds. Zero is a page with nothing on it, and a
+    /// negative limit is read the same way rather than as the whole library.
+    pub limit: i64,
+}
+
+/// The condition a listing page is about.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum VideoFilter {
+    Favorite,
+    Shared,
+    /// 播放历史: a record that has been played at least once.
+    Played,
+}
+
+/// The orders a listing can be read in.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum VideoSort {
+    /// 最近添加.
+    Added,
+    /// 最近播放: records that have never been played come after the ones that
+    /// have, rather than being left out — the 最近播放页 asks for them by filter,
+    /// and the library shows everything.
+    Played,
+    /// 文件名, A to Z.
+    Name,
+    /// 文件体积.
+    Size,
+}
+
+/// Which way an order is read. 最近打开（降序）and 打开时间（升序）are one field's
+/// two directions rather than two orderings, so there is one name per field and
+/// this beside it (ADR 0016).
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SortDirection {
+    Asc,
+    Desc,
+}
+
+impl VideoSort {
+    /// The direction this order is read in when the query names none: the one
+    /// the page is usually read in. A library is looked at newest first and a
+    /// large file before a small one, while a name is read from A.
+    pub fn direction(self) -> SortDirection {
+        match self {
+            Self::Name => SortDirection::Asc,
+            Self::Added | Self::Played | Self::Size => SortDirection::Desc,
+        }
+    }
+
+    /// The column this order is read by. Written here rather than sent as a
+    /// string: a column name that arrived from outside would be a column the
+    /// schema has never heard of.
+    pub fn column(self) -> &'static str {
+        match self {
+            Self::Added => "created_at",
+            Self::Played => "last_played_at",
+            Self::Name => "file_name",
+            Self::Size => "file_size",
+        }
+    }
+}
+
+impl SortDirection {
+    pub fn sql(self) -> &'static str {
+        match self {
+            Self::Asc => "ASC",
+            Self::Desc => "DESC",
+        }
+    }
 }
 
 /// One self-contained library: its own directories, records, favorites and play

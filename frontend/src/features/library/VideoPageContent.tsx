@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { FolderPlus } from 'lucide-react';
 import { ScrollViewport } from '../../shared/ScrollViewport';
+import { Pager } from './Pager';
 import { useVideos } from './useVideos';
 import type { useVideoPageView } from './useVideoPageView';
 import { useVideoBoard } from './useVideoBoard';
@@ -17,19 +18,25 @@ export function VideoPageContent({
   emptyHelp: string;
   onAdd?: () => void;
 }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { videos: collection } = useVideos();
   const { actions, busy, scan, lastPlayedId, onMenu, onScroll, overlays } =
     useVideoBoard();
-  const { collectionKey, videos, filtered, clearFilters } = view;
+  const {
+    collectionKey,
+    videos,
+    total,
+    index,
+    turnTo,
+    filtered,
+    clearFilters,
+  } = view;
   return (
     <>
-      <p className="shrink-0 opacity-60">
-        {t('videoCount', {
-          count: videos.length,
-          countText: videos.length.toLocaleString(i18n.language),
-        })}
-      </p>
+      {/* How much there is, and how to read the rest of it. It is not the number
+          of cards below — the page holds one page of a list (ADR 0016) — so the
+          count and the way to the other pages are one thing, said in one place. */}
+      <Pager index={index} total={total} onPageChange={turnTo} />
       <div className="min-h-0 flex-1 flex flex-col">
         {collection.isPending ? (
           <p>{t('loading')}</p>

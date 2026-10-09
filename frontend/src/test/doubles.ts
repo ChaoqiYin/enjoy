@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import type { UseQueryResult } from '@tanstack/react-query';
-import type { Space, Video } from '../shared/api';
+import type { Space, VideoPage } from '../shared/api';
 import type { Videos } from '../features/library/useVideos';
 import type { Scan } from '../features/library/useScan';
 import type { Notices } from '../features/library/useNotices';
@@ -40,11 +40,17 @@ function pending<T>(data: T): UseQueryResult<T> {
   return { data, isPending: false } as unknown as UseQueryResult<T>;
 }
 
-/** The collection, and the card carrying the "last played" marker. */
+/**
+ * The listing: the page of records, where the user is in it, and the card
+ * carrying the "last played" marker.
+ */
 export function videos(overrides: Partial<Videos> = {}): Videos {
   return {
-    videos: pending<Video[]>([]),
+    videos: pending<VideoPage>({ items: [], total: 0 }),
     lastPlayedId: null,
+    index: 0,
+    turnTo: vi.fn(),
+    pageKey: 'listing',
     ...overrides,
   };
 }

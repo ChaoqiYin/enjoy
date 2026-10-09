@@ -91,7 +91,7 @@ mod tests {
         .unwrap();
         assert!(wrote);
         drop(guard);
-        let row = repository.lock().unwrap().list(space).unwrap().remove(0);
+        let row = repository.lock().unwrap().records(space).unwrap().remove(0);
         assert_eq!(row.width, Some(640));
         assert_eq!(row.height, Some(360));
         assert_eq!(row.duration_ms, Some(500));
@@ -116,7 +116,7 @@ mod tests {
         assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
         drop(guard);
         assert_eq!(control.status().phase, "cancelled");
-        assert!(repository.lock().unwrap().list(space).unwrap()[0]
+        assert!(repository.lock().unwrap().records(space).unwrap()[0]
             .width
             .is_none());
     }
@@ -133,7 +133,7 @@ mod tests {
         assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
         drop(guard);
         assert_eq!(control.status().phase, "cancelled");
-        assert!(repository.lock().unwrap().list(space).unwrap()[0]
+        assert!(repository.lock().unwrap().records(space).unwrap()[0]
             .width
             .is_none());
     }
@@ -148,7 +148,7 @@ mod tests {
             .clone();
         let (other_id, other_size) = {
             let repo = repository.lock().unwrap();
-            let rows = repo.list(space).unwrap();
+            let rows = repo.records(space).unwrap();
             let target = rows.iter().find(|video| video.path == path).unwrap();
             let other = rows.iter().find(|video| video.path != path).unwrap();
             let other_id = other.id;
@@ -180,7 +180,7 @@ mod tests {
         .unwrap();
         assert!(wrote);
         drop(guard);
-        let rows = repository.lock().unwrap().list(space).unwrap();
+        let rows = repository.lock().unwrap().records(space).unwrap();
         let target = rows.iter().find(|video| video.path == path).unwrap();
         assert_eq!(target.width, Some(160));
         assert_eq!(target.height, Some(90));
@@ -213,7 +213,7 @@ mod tests {
         })
         .unwrap();
         drop(guard);
-        let before = repository.lock().unwrap().list(space).unwrap().remove(0);
+        let before = repository.lock().unwrap().records(space).unwrap().remove(0);
         let guard = control.begin().unwrap();
         let result = refresh::refresh_video(space, &path, &repository, &control, |_| {
             Err(AppError::new(
@@ -223,7 +223,7 @@ mod tests {
         });
         assert_eq!(result.unwrap_err().code, "media.metadata.failed");
         drop(guard);
-        let after = repository.lock().unwrap().list(space).unwrap().remove(0);
+        let after = repository.lock().unwrap().records(space).unwrap().remove(0);
         assert_eq!(after.file_size, before.file_size);
         assert_eq!(after.modified_at, before.modified_at);
         assert_eq!(after.width, Some(640));
@@ -264,7 +264,7 @@ mod tests {
         .unwrap();
         assert!(!wrote);
         drop(guard);
-        let row = repository.lock().unwrap().list(space).unwrap().remove(0);
+        let row = repository.lock().unwrap().records(space).unwrap().remove(0);
         assert_eq!(row.file_size, 15);
         assert!(row.width.is_none());
         assert!(row.duration_ms.is_none());
@@ -274,13 +274,13 @@ mod tests {
     #[test]
     fn successful_refresh_flips_media_complete_once_thumbnail_exists() {
         let (_fixture, path, repository, space) = setup();
-        let video = repository.lock().unwrap().list(space).unwrap().remove(0);
+        let video = repository.lock().unwrap().records(space).unwrap().remove(0);
         repository
             .lock()
             .unwrap()
             .save_thumbnail(space, &video, "cached.jpg")
             .unwrap();
-        assert!(!repository.lock().unwrap().list(space).unwrap()[0].media_complete);
+        assert!(!repository.lock().unwrap().records(space).unwrap()[0].media_complete);
         let control = Arc::new(ScanControl::default());
         let guard = control.begin().unwrap();
         let wrote = refresh::refresh_video(space, &path, &repository, &control, |_| {
@@ -294,7 +294,7 @@ mod tests {
         .unwrap();
         assert!(wrote);
         drop(guard);
-        let row = repository.lock().unwrap().list(space).unwrap().remove(0);
+        let row = repository.lock().unwrap().records(space).unwrap().remove(0);
         assert!(row.media_complete);
         assert_eq!(row.width, Some(160));
         assert_eq!(row.thumbnail_path.as_deref(), Some("cached.jpg"));
