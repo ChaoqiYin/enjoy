@@ -18,9 +18,12 @@ import { PAGE_SIZE } from './listing';
  * hidden, so the pair stays where the eye left it (the header above them keeps
  * its height when the list grows past a page).
  *
- * Deliberately plain, and deliberately not the design's form: it is the entry
- * point this ticket needs, and the shape the design draws for it arrives with
- * the ticket that draws it.
+ * Deliberately plain, and deliberately not the design's form: this ticket's job
+ * is that the list is read one page at a time, and the entry point it needs is
+ * the cheapest one that works. The design's form is a `Pagination` primitive
+ * that landed beside this (`shared/ui/Pagination`, with numbered pages and a
+ * summary line), and it is the toolbar ticket (#65) that mounts it in place of
+ * this one — which is also where the words below give way to its own.
  */
 export function Pager({
   index,
