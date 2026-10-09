@@ -69,6 +69,17 @@ vi.mock('../space/SpaceProvider', () => ({
   useSpace: () => ({ id: 7, name: 'Acceptance' }),
 }));
 
+// jsdom answers `element.matches(':modal')` by recursing through nwsapi, which
+// costs about 180ms a call and grows with the size of the page; floating-ui asks
+// every ancestor of a floating panel that one question, so opening the cards'
+// menu on a page this size spends the whole test's time in it. Nothing here is a
+// top-layer element, so answering `false` outright is both correct and instant.
+const matches = Element.prototype.matches;
+Element.prototype.matches = function (selector: string) {
+  if (selector === ':modal') return false;
+  return matches.call(this, selector);
+};
+
 const i18n = createInstance();
 
 beforeEach(async () => {
