@@ -183,6 +183,17 @@ describe('video card actions', () => {
     expect(card.classList.contains('cursor-pointer')).toBe(true);
     expect(fileName.classList.contains('cursor-pointer')).toBe(true);
   });
+  it('paints a focus ring on the card the keyboard lands on', () => {
+    mount();
+    const card = screen.getByRole('article');
+    // The card keeps a transparent outline so that the one the pointer raises on
+    // hover is a colour change rather than a size one, which means the keyboard
+    // gets no marker from it at all unless focus names its own colour. The
+    // `--ring` token is the colour the rest of the app focuses with, so the
+    // card's own outline is turned on in it while focused. jsdom computes no
+    // styles, so this pins the utility, not the ring a browser paints.
+    expect(card.classList.contains('focus-visible:outline-ring')).toBe(true);
+  });
   it('hangs the title tooltip off the file name itself', () => {
     mount();
     // The bubble belongs to the name, not to the title row: a row-wide anchor
@@ -233,10 +244,15 @@ describe('video card actions', () => {
     expect(card.contains(marker)).toBe(true);
     expect(marker.classList.contains('absolute')).toBe(true);
     expect(marker.classList.contains('end-2')).toBe(true);
-    // Green means sharing, which the design documents keep even where the pages
-    // repaint the mark red, and the fill is the one the primitive was asked for
-    // rather than a second colour written beside it.
-    expect(marker.getAttribute('data-variant')).toBe('success');
+    // Sharing wears the business token pair the design document keeps for this
+    // mark even where the pages repaint it — `status-shared` for the fill and
+    // `status-shared-border` for its edge — rather than a primitive's colour.
+    // The fill alone cannot separate the badge from the photograph it sits on
+    // (it is opaque, so the picture never reaches under it), which leaves the
+    // edge to carry the mark; both halves are pinned here, not the variant name.
+    expect(marker.getAttribute('data-variant')).toBe('share');
+    expect(marker.classList.contains('bg-share')).toBe(true);
+    expect(marker.classList.contains('border-share-border')).toBe(true);
     // A glyph and not a sentence: the card's own words are its file name and its
     // duration, and the library is read by scanning those.
     expect(marker.textContent).toBe('');

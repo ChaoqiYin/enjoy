@@ -74,10 +74,15 @@ it('marks a video on the share list with a glyph a reader can still name', () =>
   expect(marker.textContent).toBe('');
   expect(marker.querySelector('svg')).toBeTruthy();
   expect(marker.getAttribute('title')).toBe(english.sharedMarker);
-  // Green means sharing, and it is the semantics the design document keeps even
-  // where the drawing repaints it: the primitive's own success variant carries
-  // the fill, so the badge says which one it asked for.
-  expect(marker.getAttribute('data-variant')).toBe('success');
+  // Sharing wears the business token pair the design document names for this
+  // mark — `status-shared` for the fill and `status-shared-border` for its edge
+  // — rather than a primitive's colour. The fill alone cannot separate the badge
+  // from the photograph it is painted over: it is opaque, so the picture never
+  // reaches under it and only the edge is left to carry the mark. Both halves
+  // are therefore pinned, not just the name of the variant that asks for them.
+  expect(marker.getAttribute('data-variant')).toBe('share');
+  expect(marker.classList.contains('bg-share')).toBe(true);
+  expect(marker.classList.contains('border-share-border')).toBe(true);
 });
 
 it('wears both marks at once, one on each corner of the picture', () => {

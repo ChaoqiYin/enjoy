@@ -90,7 +90,13 @@ export function VideoCard({
       // dark one, and neither theme's card sits on a colour the other's does.
       // `transition-[box-shadow,outline-color]` is the clock the hover has to
       // share with the lift the library runs, which is 0.2s.
-      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm outline-2 -outline-offset-2 outline-transparent transition-[box-shadow,outline-color] duration-200 hover:outline-foreground/30 hover:shadow-[0_16px_40px_-12px_color-mix(in_oklab,var(--foreground)_35%,transparent)]"
+      //
+      // The outline is worn by the pointer and by the keyboard, on one
+      // mechanism: it is transparent at rest, the pointer raises it in a wash of
+      // the foreground, and the keyboard raises it in `--ring` — the colour the
+      // rest of the app focuses with. Its colour is what both change, so the
+      // outline's width and offset never move and the card never resizes.
+      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-sm outline-2 -outline-offset-2 outline-transparent transition-[box-shadow,outline-color] duration-200 hover:outline-foreground/30 focus-visible:outline-ring hover:shadow-[0_16px_40px_-12px_color-mix(in_oklab,var(--foreground)_35%,transparent)]"
       onClick={() => actions.details(video)}
       whileHover={hover}
       whileTap={reduceMotion ? undefined : { scale: 0.98 }}

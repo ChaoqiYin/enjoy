@@ -57,16 +57,18 @@ export function VideoBadges({
         </Badge>
       )}
       {video.shared && (
-        // Green means sharing — the semantics the design document keeps even in
-        // the pages that repaint the mark red, and the reason this is the
-        // primitive's success variant rather than a colour of our own. The
-        // daisyUI chip this replaced thinned the fill to 80% to keep a
-        // saturated block from standing on a photograph; with the fill now
-        // coming from the token the primitive was built with, that measurement
-        // no longer describes this element and is not carried over.
+        // The mark the design document keeps for sharing even in the pages that
+        // repaint it: the business token pair `--share` / `--share-border`
+        // (`status-shared` / `status-shared-border`), not a colour of our own.
+        // The pair is worn whole rather than as one fill: the badge sits on a
+        // photograph, its fill is opaque so the picture never reaches under it,
+        // and the border is what draws the mark's edge — the dark half of the
+        // pair, so the edge holds in both themes over a picture of any
+        // brightness. The daisyUI chip this replaced thinned its fill to 80%
+        // for the same reason, and that thinning is not what carries it here.
         <Badge
           className={cn(corner, 'end-2')}
-          variant="success"
+          variant="share"
           role="img"
           aria-label={shared}
           title={shared}
