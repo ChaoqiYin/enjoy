@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LibraryHeader } from '../features/library/LibraryHeader';
+import { LibraryToolbar } from '../features/library/LibraryToolbar';
 import { PageFrame } from '../features/library/PageFrame';
 import { VideoPageContent } from '../features/library/VideoPageContent';
 import { useVideoPageView } from '../features/library/useVideoPageView';
@@ -19,8 +19,8 @@ export function LibraryPage() {
   const onAdd = () => setShowAdd(true);
   return (
     <PageFrame>
-      <LibraryHeader
-        {...view.headerProps}
+      <LibraryToolbar
+        {...view.toolbarProps}
         title={t('library')}
         actions={
           <DirectoryActions

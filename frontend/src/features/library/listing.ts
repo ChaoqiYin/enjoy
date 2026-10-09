@@ -23,8 +23,38 @@ export type Listing = '/' | '/favorites' | '/history' | '/share';
  * How a list is read, in the user's words. Not the backend's `added`: the
  * interface's word is 最近添加 because that is what the control says, and the
  * translation belongs with the other one, here.
+ *
+ * 最近播放 is one entry and not two: the drawings' 「最近打开（降序）」 and
+ * 「打开时间（升序）」 are one field's two directions, and a direction is the
+ * backend's to fall back from (ADR 0016), so the control names the field.
  */
-export type SortOrder = 'newest' | 'played' | 'name';
+export type SortOrder = 'newest' | 'played' | 'name' | 'size';
+
+/**
+ * The orders the toolbar offers, in the order it offers them.
+ *
+ * The list is here rather than in the control because the control draws what
+ * this says and the query translates what this says: a fifth order added to one
+ * of the two and not the other is the fault this prevents, and it is why the
+ * dropdown cannot name an order the query would refuse.
+ */
+export const SORT_ORDERS = ['newest', 'played', 'name', 'size'] as const;
+
+/**
+ * 每个排序在语言包里叫什么。
+ *
+ * The label is a key rather than a word, so the dropdown draws the translation
+ * of the order it offers instead of the key name. 最近播放 borrows the same key
+ * the 最近播放页's own name uses — the field is one field, and saying it two ways
+ * would be saying two different things — and 文件体积 is 体积 rather than 大小
+ * because the drawing names the column that way.
+ */
+export const SORT_ORDER_LABELS: Record<SortOrder, string> = {
+  newest: 'newest',
+  played: 'history',
+  name: 'filename',
+  size: 'fileVolume',
+};
 
 /**
  * How many records one request carries.
@@ -41,6 +71,27 @@ export type ListingView = {
   folder: string;
   sort: SortOrder;
 };
+
+/**
+ * The shapes a listing can be drawn in (ADR 0017).
+ *
+ * 网格 is the drawing's shape and the one every page opens in; 列表 and 表格 are
+ * designed here rather than drawn, so nothing compares them to a prototype.
+ */
+export type ViewMode = 'grid' | 'list' | 'table';
+
+/** The shapes the switch offers, in the order it offers them. */
+export const VIEW_MODES = ['grid', 'list', 'table'] as const;
+
+/**
+ * The shape a page opens in.
+ *
+ * One answer and not one per page, because there is nothing for the pages to
+ * disagree about: the drawings only ever show 网格, so 网格 is what a page the
+ * user has not reshaped opens in — and every reshaped page remembers its own
+ * (ADR 0017).
+ */
+export const DEFAULT_VIEW_MODE: ViewMode = 'grid';
 
 /**
  * Which listing a route is, or null for a route that reads none.
@@ -107,6 +158,8 @@ export function listingQuery(
         ? 'added'
         : view.sort === 'played'
           ? 'played'
-          : 'name',
+          : view.sort === 'size'
+            ? 'size'
+            : 'name',
   };
 }

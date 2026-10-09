@@ -58,6 +58,22 @@ vi.mock('../i18n/LanguageSetting', () => ({
 // close question for the life of the interface (`ShareProvider`). The library's
 // own subscriptions are out with its provider, above.
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }));
+
+// jsdom answers `element.matches(':modal')` by recursing through nwsapi, which
+// costs about 180ms per call; floating-ui asks every ancestor of a panel whether
+// it sits in the top layer, so opening one of the toolbar's dropdowns spends
+// seconds of that and the whole file is slower for it. Nothing here is a
+// top-layer element, so answering `false` outright is both correct and instant
+// (界面迁移的已知坑 §4).
+const matches = Element.prototype.matches;
+Element.prototype.matches = function (selector: string) {
+  if (selector === ':modal') return false;
+  return matches.call(this, selector);
+};
+
+// jsdom lays nothing out and implements no scrolling, which is what Radix
+// reaches for when it brings the chosen option into view.
+Element.prototype.scrollIntoView = vi.fn();
 const i18n = createInstance();
 // Not "Library": the navigation has a tab by that name, and a page that shows
 // the space it is about is the thing being looked for here.
@@ -157,17 +173,24 @@ it('retains shared search and separate route sorting after page remounts', () =>
   fireEvent.change(screen.getByPlaceholderText(english.searchPlaceholder), {
     target: { value: 'example' },
   });
-  const sortControl = () =>
-    screen.getAllByRole('combobox')[1] as HTMLSelectElement;
-  fireEvent.change(sortControl(), { target: { value: 'name' } });
+  // The toolbar's two filters are the interface's own dropdowns, so the sort is
+  // read and moved the way a user does it: what the control says it is showing,
+  // and the entry in the list it opens.
+  const sortControl = () => screen.getAllByRole('combobox')[1];
+  const sortShownAs = () => sortControl().textContent ?? '';
+  const chooseSort = (label: string) => {
+    fireEvent.click(sortControl());
+    fireEvent.click(screen.getByRole('option', { name: label }));
+  };
+  chooseSort(english.filename);
   navigate(english.history);
-  expect(sortControl().value).toBe('played');
+  expect(sortShownAs()).toContain(english.history);
   expect(
     (screen.getByPlaceholderText(english.searchPlaceholder) as HTMLInputElement)
       .value,
   ).toBe('example');
   navigate(english.library);
-  expect(sortControl().value).toBe('name');
+  expect(sortShownAs()).toContain(english.filename);
 });
 it('supports direct page entry and redirects unknown paths to the library', () => {
   mount('/favorites');

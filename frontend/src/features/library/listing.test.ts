@@ -1,6 +1,12 @@
 import { expect, it } from 'vitest';
-import { defaultSort, listingAt, listingQuery } from './listing';
-import type { Listing } from './listing';
+import {
+  defaultSort,
+  listingAt,
+  listingQuery,
+  SORT_ORDER_LABELS,
+  SORT_ORDERS,
+} from './listing';
+import type { Listing, SortOrder } from './listing';
 
 const space = 7;
 const untouched = { search: '', folder: '', sort: 'newest' } as const;
@@ -20,7 +26,7 @@ it('names each listing by the condition that makes it that listing', () => {
 });
 
 it('orders by the word the user chose, and leaves the direction to the backend', () => {
-  const sorted = (sort: 'newest' | 'played' | 'name') =>
+  const sorted = (sort: SortOrder) =>
     listingQuery('/', space, { ...untouched, sort });
   // 最近添加 is the backend's `added`; the interface names the order and not a
   // direction, because how each order is usually read is already fixed
@@ -28,7 +34,33 @@ it('orders by the word the user chose, and leaves the direction to the backend',
   expect(sorted('newest').sort).toBe('added');
   expect(sorted('played').sort).toBe('played');
   expect(sorted('name').sort).toBe('name');
+  // 文件体积 is the fourth order the dropdown offers, largest first — the
+  // direction is the backend's, as it is for the other three.
+  expect(sorted('size').sort).toBe('size');
   expect(sorted('newest').direction).toBeUndefined();
+});
+
+it('offers the four orders the toolbar draws, and nothing else', () => {
+  // One vocabulary, read off the module that holds it, so a fifth entry cannot
+  // be added to the dropdown without the query being able to name it.
+  expect([...SORT_ORDERS]).toEqual(['newest', 'played', 'name', 'size']);
+});
+
+it('says each order in the words the dropdown shows', () => {
+  // The dropdown's words are the interface's, so they live with the rest of the
+  // vocabulary rather than with the control that draws them: the drawing's sort
+  // filter says 最近添加, and 最近播放 borrows the word the history page already
+  // has for the same field. A key that no language file holds is one reference
+  // away from a dropdown reading its own key name.
+  expect(SORT_ORDER_LABELS).toEqual({
+    newest: 'newest',
+    played: 'history',
+    name: 'filename',
+    size: 'fileVolume',
+  });
+  expect(Object.keys(SORT_ORDER_LABELS).sort()).toEqual(
+    [...SORT_ORDERS].sort(),
+  );
 });
 
 it('narrows by what was typed, and an empty box narrows nothing', () => {

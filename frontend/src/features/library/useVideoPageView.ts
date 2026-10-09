@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import { useLocation } from 'react-router';
 import { useVideos } from './useVideos';
 import { clearFilters, useLibraryView } from './libraryView';
-import type { SortOrder } from './libraryView';
-import { defaultSort, listingAt } from './listing';
+import type { SortOrder, ViewMode } from './libraryView';
+import { DEFAULT_VIEW_MODE, defaultSort, listingAt } from './listing';
 
 /**
  * A listing page, as the page draws it: the records of the page being read,
@@ -23,8 +23,16 @@ import { defaultSort, listingAt } from './listing';
 export function useVideoPageView() {
   const { videos: collection, index, turnTo, pageKey } = useVideos();
   const { pathname } = useLocation();
-  const { search, setSearch, folder, setFolder, sorts, setSort } =
-    useLibraryView();
+  const {
+    search,
+    setSearch,
+    folder,
+    setFolder,
+    sorts,
+    setSort,
+    viewModes,
+    setViewMode,
+  } = useLibraryView();
   // The order this listing is read in: the one the user last chose for it, and
   // the one it opens on otherwise. Every listing remembers its own, so changing
   // how 最近播放页 is read does not reorder the library behind it. The route is
@@ -32,10 +40,28 @@ export function useVideoPageView() {
   // a listing; 设置页 draws none, and the library is what is left over.
   const listing = listingAt(pathname) ?? '/';
   const sort = sorts[listing] ?? defaultSort(listing);
+  // And the shape it is drawn in, remembered the same way and for the same
+  // reason: reshaping one page's list is not reshaping the next one's (ADR 0017).
+  const viewMode = viewModes[listing] ?? DEFAULT_VIEW_MODE;
   const items = collection.data?.items;
+  // Which folders the list can be narrowed to: the ones its records are in, plus
+  // the one it is narrowed to. The page in hand is the only source there is —
+  // the backend is asked for records and answers with their `folder_path`, and
+  // there is no command that lists a library's folders — and the folders a
+  // library is configured with are not the same thing, since a record's
+  // `folder_path` is its own directory and the configured roots are asked for by
+  // exact equality (ADR 0016). The folder being read is added because a control
+  // that cannot show the value it is filtering by is drawing a value it does not
+  // have; it stays the first option, so the list does not reshuffle under the
+  // pointer when a page brings a folder the last one did not.
   const folders = useMemo(
-    () => [...new Set((items ?? []).map((video) => video.folder_path))],
-    [items],
+    () => [
+      ...new Set([
+        ...(folder === '' ? [] : [folder]),
+        ...(items ?? []).map((video) => video.folder_path),
+      ]),
+    ],
+    [items, folder],
   );
   // Whether anything is narrowing the list, which is the one thing the list
   // itself needs to know: it says "nothing matched" rather than "nothing here",
@@ -59,14 +85,16 @@ export function useVideoPageView() {
     turnTo,
     filtered,
     clearFilters,
-    headerProps: {
+    toolbarProps: {
       folders,
       search,
       folder,
       sort,
+      viewMode,
       onSearchChange: setSearch,
       onFolderChange: setFolder,
       onSortChange: (value: SortOrder) => setSort(listing, value),
+      onViewModeChange: (value: ViewMode) => setViewMode(listing, value),
     },
   };
 }
