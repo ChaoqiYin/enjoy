@@ -56,7 +56,7 @@ export class ErrorBoundary extends Component<
         {/* The subtree that threw took the page's own background with it. This
             is that background, so a dark theme does not fail into a white
             window; the notice portals itself to the body and draws over it. */}
-        <div className="h-dvh bg-base-100" />
+        <div className="h-dvh bg-background" />
         <ErrorNotice error={error} onClose={this.retry} />
       </>
     );

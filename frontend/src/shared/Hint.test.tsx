@@ -22,8 +22,6 @@ it('takes a container of its own along the middle of the top edge', () => {
   const hosts = document.querySelectorAll('[data-notification-host]');
   expect(hosts).toHaveLength(1);
   expect(hosts[0].getAttribute('data-notification-host')).toBe('center');
-  expect(hosts[0].className).toContain('toast-top');
-  expect(hosts[0].className).toContain('toast-center');
   expect(screen.getByText('Copied')).toBeTruthy();
 });
 
@@ -45,9 +43,14 @@ it('does not hand clicks through to whatever it covers', () => {
   expect(frame().className).not.toContain('pointer-events-none');
 });
 
-it('keeps the entrance animation daisyUI gives toast children out of it', () => {
+it('appears without an entrance of its own', () => {
   hint();
-  expect(frame().className).toContain('animate-none');
+  // The second it is up is the second a borrowed entrance animation would spend
+  // arriving, so the frame has none. jsdom runs no animation and computes no
+  // styles, so what can be pinned here is that the frame asks for none; the
+  // hint appearing as a whole rather than fading in is what a browser is
+  // watched for.
+  expect(frame().className).not.toMatch(/\banimate-/);
 });
 
 it('leaves on its own after the agreed time, and only once', () => {

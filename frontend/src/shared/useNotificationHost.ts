@@ -13,30 +13,70 @@ export type NoticePlacement = 'end' | 'center';
 
 /**
  * The container is what carries the position and the width, because that is
- * what daisyUI's `.toast` is: a fixed column, empty and transparent, that its
- * children are laid into. Which placement a notice asks for is therefore the
- * notice's own choice, and a component that reads as a different thing on
- * screen can say so without a second portal implementation here.
+ * what a placement is: a fixed column, empty and transparent, that its children
+ * are laid into. Which placement a notice asks for is therefore the notice's
+ * own choice, and a component that reads as a different thing on screen can say
+ * so without a second portal implementation here.
+ *
+ * The offset from the edge is the container's own padding-free `top-4 right-4`,
+ * so a notice is inset from the window rather than flush against it.
  *
  * The centre container is only as wide as what it holds. That matters for a
  * notice that swallows clicks rather than letting them through: the rectangle
  * it takes out of the page has to be the one the user can see, not a wider box
- * with invisible margins either side.
+ * with invisible margins either side. The end container is a column of one
+ * agreed width instead, so notices of different lengths line up along the same
+ * right edge.
  */
 const placements: Record<NoticePlacement, string> = {
-  end: 'toast toast-top toast-end z-[1000] w-[min(32rem,100vw)] max-h-dvh overflow-y-auto whitespace-normal',
+  end: 'fixed top-4 right-4 z-[1000] flex w-[min(32rem,calc(100vw-2rem))] flex-col gap-3',
   center:
-    'toast toast-top toast-center z-[1000] max-w-[min(20rem,90vw)] whitespace-normal',
+    'fixed top-4 left-1/2 z-[1000] flex max-w-[min(20rem,90vw)] -translate-x-1/2 flex-col items-center gap-3',
 };
+
+/**
+ * What counts as an overlay a notice has to be placed inside to stay reachable.
+ *
+ * A native `<dialog open>` is one: the scan-progress panel is one of those, and
+ * it takes the rest of the page out of the accessibility tree while it is up.
+ * The overlays the rest of the app uses are Radix's, and Radix portals its
+ * panel to the end of the body rather than into a `<dialog>` — so the native
+ * selector alone would leave a notice behind the panel it was raised from. The
+ * open Radix panel is matched by the role and state Radix gives it.
+ *
+ * Popper-anchored panels are excluded: a popover or a tooltip carries
+ * `role="dialog"` and the same `data-state`, but it is a small panel hung off a
+ * control, not a modal, and a notice laid into one would be clipped by it and
+ * carried around by it.
+ */
+const overlaySelector =
+  'dialog[open], [role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]';
+
+const popperWrapper = '[data-radix-popper-content-wrapper]';
 
 const hosts = new Map<NoticePlacement, HTMLDivElement>();
 const users = new Map<NoticePlacement, number>();
 let observer: MutationObserver | null = null;
 let exclusiveNotice: RegisteredNotice | null = null;
 
+/**
+ * Puts every container inside the topmost overlay that is open, and back at the
+ * root when none is.
+ *
+ * The move is what keeps a notice visible and operable while a dialog is up:
+ * a modal overlay takes everything outside itself out of the accessibility tree
+ * — which would silence a notice left at the root — and Radix withholds pointer
+ * events from all of it, which would leave one unclickable there. Inside the
+ * panel the notice is both, and is painted with it rather than behind it.
+ *
+ * The panel is found rather than declared, so a notice raised from a page knows
+ * nothing about the drawer or the dialog it has to travel with.
+ */
 function attachHosts() {
-  const dialogs = document.querySelectorAll('dialog[open]');
-  const parent = dialogs.item(dialogs.length - 1) ?? document.body;
+  const overlays = Array.from(
+    document.querySelectorAll<HTMLElement>(overlaySelector),
+  ).filter((overlay) => !overlay.closest(popperWrapper));
+  const parent = overlays[overlays.length - 1] ?? document.body;
   for (const host of hosts.values()) {
     if (host.parentElement !== parent) parent.append(host);
   }
@@ -59,7 +99,10 @@ export function useNotificationHost(placement: NoticePlacement) {
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ['open'],
+        // `open` is a native dialog's, `data-state` is Radix's. Watching the
+        // child list as well is what catches an overlay being added or taken
+        // away, which is how every portal arrives and leaves.
+        attributeFilter: ['open', 'data-state'],
       });
     }
     users.set(placement, (users.get(placement) ?? 0) + 1);

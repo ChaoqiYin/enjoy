@@ -31,8 +31,11 @@ export const HINT_MS = 1000;
  * for it; adding `pointer-events-none` would be the change, and it would hand
  * the click to whatever the hint is covering.
  *
- * The entrance animation daisyUI puts on a toast's children is switched off:
- * a quarter of a second is a quarter of this hint's life.
+ * It appears with no entrance of its own, and that is also on purpose: the
+ * carriers a hint could borrow from — a notice's alert, a library's toast —
+ * animate a quarter of a second in, which is a quarter of this hint's life. The
+ * neutral surface is drawn here rather than taken from `Alert` for the same
+ * reason, along with the role that alert would have announced.
  */
 export function Hint({ text, onClose }: { text: string; onClose: () => void }) {
   const host = useNotificationHost('center');
@@ -43,8 +46,11 @@ export function Hint({ text, onClose }: { text: string; onClose: () => void }) {
   }, [close]);
   if (!host) return null;
   return createPortal(
-    <div aria-hidden="true" className="alert animate-none shadow-lg">
-      <Check size={16} aria-hidden="true" />
+    <div
+      aria-hidden="true"
+      className="flex items-center gap-2 rounded-lg border border-border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg"
+    >
+      <Check className="size-4 shrink-0" aria-hidden="true" />
       <span>{text}</span>
     </div>,
     host,
