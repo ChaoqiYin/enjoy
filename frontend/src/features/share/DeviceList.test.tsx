@@ -61,7 +61,11 @@ it('says the list is empty when no device has asked', () => {
   block([]);
   // The wording and not just the absence: the list is drawn only while the
   // service is running, so an empty one is a fact about the last minute rather
-  // than a section that has not loaded.
+  // than a section that has not loaded. The heading is what it is filed under,
+  // and the empty answer is said in the place the rows would have been.
+  expect(
+    screen.getByRole('heading', { name: english.devicesTitle }),
+  ).toBeTruthy();
   expect(screen.getByText(english.devicesEmpty)).toBeTruthy();
   expect(screen.getByText(english.devicesHelp)).toBeTruthy();
 });

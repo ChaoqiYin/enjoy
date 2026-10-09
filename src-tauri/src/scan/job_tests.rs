@@ -27,7 +27,7 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
             &[(root.clone(), scanner::collect(&fixture.0).unwrap())],
         )
         .unwrap();
-    let video = repository.list(space).unwrap().remove(0);
+    let video = repository.records(space).unwrap().remove(0);
     repository
         .save_metadata(
             space,
@@ -62,7 +62,7 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
     assert!(events.media_error_codes().is_empty());
     drop(guard);
     assert_eq!(control.status().phase, "cancelled");
-    assert!(!repository.lock().unwrap().list(space).unwrap()[0].media_complete);
+    assert!(!repository.lock().unwrap().records(space).unwrap()[0].media_complete);
     drop(repository);
     let repository = Repository::open(&db, FIRST_SPACE).unwrap();
     let space = repository.current_space().unwrap().id;
@@ -81,7 +81,7 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
     assert!(events.media_error_codes().is_empty());
     drop(guard);
     assert_eq!(control.status().phase, "failed");
-    assert!(!repository.lock().unwrap().list(space).unwrap()[0].media_complete);
+    assert!(!repository.lock().unwrap().records(space).unwrap()[0].media_complete);
     connection
         .execute_batch("DROP TRIGGER reject_completion;")
         .unwrap();
@@ -119,7 +119,7 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
 /// to do and the counts under test come from the scan alone.
 fn complete_media(repo: &Repository) {
     let space = repo.current_space().unwrap().id;
-    for video in repo.list(space).unwrap() {
+    for video in repo.records(space).unwrap() {
         repo.save_metadata(
             space,
             &video,
@@ -411,7 +411,7 @@ fn cancellation_aborts_the_scan_and_preserves_existing_records() {
     drop(guard);
     assert_eq!(control.status().phase, "cancelled");
     assert_eq!(
-        repository.lock().unwrap().list(space).unwrap()[0].file_name,
+        repository.lock().unwrap().records(space).unwrap()[0].file_name,
         "old.mp4"
     );
 }
@@ -446,5 +446,5 @@ fn a_file_whose_size_changed_is_processed_again() {
     // video, so the probe and the thumbnail each fail and are counted. A file
     // that had been skipped would leave the count at zero.
     assert_eq!(control.status().failures, 2);
-    assert!(!repository.lock().unwrap().list(space).unwrap()[0].media_complete);
+    assert!(!repository.lock().unwrap().records(space).unwrap()[0].media_complete);
 }

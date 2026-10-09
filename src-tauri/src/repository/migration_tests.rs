@@ -115,7 +115,7 @@ fn column_present(database: &Path, table: &str, column: &str) -> bool {
 /// test puts the same question: the record itself, its use, the saved
 /// directory, and everything the media phase had already written.
 fn assert_library_survived(repository: &Repository, space_id: i64) {
-    let rows = repository.list(space_id).unwrap();
+    let rows = repository.records(space_id).unwrap();
     assert_eq!(rows.len(), 1);
     let video = &rows[0];
     assert_eq!(video.id, 1);
@@ -147,7 +147,7 @@ fn old_schema_is_reset_once_and_new_database_survives_reopen() {
     let repository = Repository::open(&db, "First").unwrap();
     let space = repository.current_space().unwrap();
     assert_eq!(space.name, "First");
-    assert!(repository.list(space.id).unwrap().is_empty());
+    assert!(repository.records(space.id).unwrap().is_empty());
     assert!(repository.directories(space.id).unwrap().is_empty());
     repository.add_directory(space.id, "saved").unwrap();
     drop(repository);
@@ -174,7 +174,7 @@ fn a_version_4_database_becomes_the_first_space_and_keeps_everything_it_held() {
     let repository = Repository::open(&database, "Ignored").unwrap();
     let space = repository.current_space().unwrap();
     assert_eq!(space.name, "默认空间");
-    assert_eq!(repository.list(space.id).unwrap()[0].play_count, 3);
+    assert_eq!(repository.records(space.id).unwrap()[0].play_count, 3);
 }
 
 #[test]
@@ -231,7 +231,7 @@ fn a_rebuilt_database_keeps_writes_made_after_the_upgrade() {
     let space = repository.current_space().unwrap();
     // The rebuild is what could have lost them; a second open must find the
     // write made after it, on the row the first open carried across.
-    let rows = repository.list(space.id).unwrap();
+    let rows = repository.records(space.id).unwrap();
     assert_eq!(rows.len(), 1);
     assert!(!rows[0].favorite);
     assert_eq!(rows[0].play_count, 3);
@@ -264,8 +264,8 @@ fn a_version_5_database_keeps_its_spaces_and_arrives_unshared() {
     // path differ exactly as they did. This is the assertion a copy that put
     // every row under the first space could not survive: it would leave the
     // archive empty and hand its play count to the other record.
-    let one = repository.list(movies).unwrap();
-    let other = repository.list(archive).unwrap();
+    let one = repository.records(movies).unwrap();
+    let other = repository.records(archive).unwrap();
     assert_eq!((one.len(), other.len()), (1, 1));
     assert_eq!(one[0].path, other[0].path);
     assert_ne!(one[0].id, other[0].id);
@@ -293,7 +293,7 @@ fn a_version_5_database_can_be_written_to_after_the_upgrade() {
     drop(repository);
 
     let repository = Repository::open(&database, "Ignored").unwrap();
-    let rows = repository.list(space).unwrap();
+    let rows = repository.records(space).unwrap();
     assert_eq!(rows.len(), 1);
     assert!(rows[0].shared);
     assert_eq!(rows[0].play_count, 1);
@@ -303,5 +303,5 @@ fn a_version_5_database_can_be_written_to_after_the_upgrade() {
     // table that is no longer there fails on this line rather than passing
     // unnoticed — which is the failure the read above cannot see.
     repository.remove(space, "/movies/kept.mp4").unwrap();
-    assert!(repository.list(space).unwrap().is_empty());
+    assert!(repository.records(space).unwrap().is_empty());
 }

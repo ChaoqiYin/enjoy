@@ -2,14 +2,18 @@ import { MotionConfig } from 'motion/react';
 import { Navigate, Route, Routes } from 'react-router';
 import { LanguageFocusSync } from '../i18n/LanguageSetting';
 import { LibraryProvider } from '../features/library/LibraryProvider';
-import { ShareProvider } from '../features/share/ShareProvider';
+import {
+  ShareProvider,
+  useShareContext,
+} from '../features/share/ShareProvider';
 import { UpdateProvider } from '../features/update/UpdateProvider';
 import { LibraryPage } from '../pages/LibraryPage';
 import { FavoritesPage } from '../pages/FavoritesPage';
 import { HistoryPage } from '../pages/HistoryPage';
 import { SharePage } from '../pages/SharePage';
 import { SettingsPage } from '../pages/SettingsPage';
-import { AppNavigation } from './AppNavigation';
+import { AppFooter } from '../shared/AppFooter';
+import { AppHeader } from './AppHeader';
 import { SettingsProvider } from '../settings/SettingsProvider';
 import { SpaceProvider } from '../features/space/SpaceProvider';
 import { ErrorBoundary } from '../shared/ErrorBoundary';
@@ -41,18 +45,7 @@ export function App({ initialSpace }: { initialSpace: Space }) {
                     space, closing the window — so it sits where it can reach
                     them. */}
                 <ShareProvider>
-                  <div className="h-dvh overflow-hidden flex flex-col bg-base-100 text-base-content">
-                    <LanguageFocusSync />
-                    <AppNavigation />
-                    <Routes>
-                      <Route path="/" element={<LibraryPage />} />
-                      <Route path="/favorites" element={<FavoritesPage />} />
-                      <Route path="/history" element={<HistoryPage />} />
-                      <Route path="/share" element={<SharePage />} />
-                      <Route path="/settings" element={<SettingsPage />} />
-                      <Route path="*" element={<Navigate to="/" replace />} />
-                    </Routes>
-                  </div>
+                  <Window />
                 </ShareProvider>
               </UpdateProvider>
             </LibraryProvider>
@@ -60,5 +53,34 @@ export function App({ initialSpace }: { initialSpace: Space }) {
         </SettingsProvider>
       </MotionConfig>
     </ErrorBoundary>
+  );
+}
+
+/**
+ * The window itself: the header, the page the route names, and the footer.
+ *
+ * Apart from `App` because the footer's port is the service's, and the service
+ * is only readable below the providers `App` composes — `App` names the
+ * providers and this names the column they are drawn in, which is the whole of
+ * the difference.
+ */
+function Window() {
+  const share = useShareContext();
+  return (
+    <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
+      <LanguageFocusSync />
+      <AppHeader />
+      <Routes>
+        <Route path="/" element={<LibraryPage />} />
+        <Route path="/favorites" element={<FavoritesPage />} />
+        <Route path="/history" element={<HistoryPage />} />
+        <Route path="/share" element={<SharePage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      {/* Nothing measured the platform's encoding for the interface yet, so
+          the footer is given what is known and says the rest is not. */}
+      <AppFooter port={share.port} hardwareAcceleration={null} />
+    </div>
   );
 }

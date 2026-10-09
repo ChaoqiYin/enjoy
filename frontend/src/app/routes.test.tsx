@@ -74,7 +74,12 @@ beforeEach(async () => {
   }));
   // A subscription that can be stopped, which is all the provider asks of it.
   vi.mocked(listen).mockResolvedValue(vi.fn() as never);
-  useLibraryView.setState({ search: '', folder: '', sorts: {} });
+  useLibraryView.setState({
+    search: '',
+    folder: '',
+    sorts: {},
+    page: { listing: '', index: 0 },
+  });
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -102,7 +107,9 @@ function mount(path = '/') {
   );
 }
 function navigate(name: string) {
-  fireEvent.click(screen.getByRole('link', { name }));
+  // The entries are the tab primitive's, so that is the role they answer to
+  // here; the element behind each of them is still the anchor the header draws.
+  fireEvent.click(screen.getByRole('tab', { name }));
 }
 it('renders independent pages with shared navigation and page-specific actions', () => {
   mount();
@@ -142,8 +149,13 @@ it('renders independent pages with shared navigation and page-specific actions',
   expect(screen.getByRole('navigation')).toBe(navigation);
   expect(headerSpace()).toBe(space.name);
 });
+// The space the rest of the screen is about is named by the header's switcher,
+// and the switcher's accessible name is that space. It used to be read off the
+// `summary` of the disclosure the switcher was built from; the switcher is a
+// Radix popover now, and a popover has no such element — the name on the
+// control is what was being read either way.
 function headerSpace() {
-  return document.querySelector('summary')?.textContent;
+  return screen.getByRole('button', { name: space.name }).textContent;
 }
 it('retains shared search and separate route sorting after page remounts', () => {
   mount();

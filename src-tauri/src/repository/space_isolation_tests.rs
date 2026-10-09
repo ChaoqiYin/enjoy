@@ -1,5 +1,6 @@
 use std::fs;
 
+use crate::model::{VideoFilter, VideoQuery};
 use crate::repository::fixture::Fixture;
 use crate::repository::Repository;
 use crate::scan::scanner;
@@ -31,8 +32,8 @@ fn two_spaces_holding_the_same_file() -> (Fixture, Repository, i64, i64) {
 #[test]
 fn the_same_path_in_two_spaces_is_two_records_with_their_own_favorite() {
     let (_fixture, repository, first, second) = two_spaces_holding_the_same_file();
-    let one = repository.list(first).unwrap();
-    let other = repository.list(second).unwrap();
+    let one = repository.records(first).unwrap();
+    let other = repository.records(second).unwrap();
     assert_eq!((one.len(), other.len()), (1, 1));
     assert_eq!(one[0].path, other[0].path);
     // Two records, not one shared between them. ADR 0011 buys this at the price
@@ -40,27 +41,27 @@ fn the_same_path_in_two_spaces_is_two_records_with_their_own_favorite() {
     assert_ne!(one[0].id, other[0].id);
 
     repository.favorite(first, &one[0].path, true).unwrap();
-    assert!(repository.list(first).unwrap()[0].favorite);
-    assert!(!repository.list(second).unwrap()[0].favorite);
-    assert_eq!(repository.list(second).unwrap()[0].play_count, 0);
+    assert!(repository.records(first).unwrap()[0].favorite);
+    assert!(!repository.records(second).unwrap()[0].favorite);
+    assert_eq!(repository.records(second).unwrap()[0].play_count, 0);
 }
 
 #[test]
 fn the_same_path_in_two_spaces_has_its_own_place_on_the_share_list() {
     let (_fixture, repository, first, second) = two_spaces_holding_the_same_file();
-    let path = repository.list(first).unwrap()[0].path.clone();
+    let path = repository.records(first).unwrap()[0].path.clone();
 
     // 共享清单 is a mark a space puts on a record it holds, so the two spaces
     // hold two lists: the one path is on the first space's list and not on the
     // second's, and the second can put it on its own without joining the first.
     repository.share(first, &path, true).unwrap();
-    assert!(repository.list(first).unwrap()[0].shared);
-    assert!(!repository.list(second).unwrap()[0].shared);
+    assert!(repository.records(first).unwrap()[0].shared);
+    assert!(!repository.records(second).unwrap()[0].shared);
 
     repository.share(second, &path, true).unwrap();
     repository.share(first, &path, false).unwrap();
-    assert!(!repository.list(first).unwrap()[0].shared);
-    assert!(repository.list(second).unwrap()[0].shared);
+    assert!(!repository.records(first).unwrap()[0].shared);
+    assert!(repository.records(second).unwrap()[0].shared);
 }
 
 #[test]
@@ -74,8 +75,8 @@ fn a_scan_of_one_space_leaves_the_other_alone() {
             &[(fixture.0.to_string_lossy().into_owned(), Vec::new())],
         )
         .unwrap();
-    assert!(repository.list(first).unwrap().is_empty());
-    assert_eq!(repository.list(second).unwrap().len(), 1);
+    assert!(repository.records(first).unwrap().is_empty());
+    assert_eq!(repository.records(second).unwrap().len(), 1);
 }
 
 #[test]
@@ -100,7 +101,7 @@ fn a_directory_can_be_configured_in_both_spaces_and_removed_from_one() {
 fn a_path_the_space_does_not_hold_reads_as_missing() {
     let (fixture, mut repository, first, second) = two_spaces_holding_the_same_file();
     // This one is in both, so it is found in both.
-    let shared = repository.list(first).unwrap()[0].path.clone();
+    let shared = repository.records(first).unwrap()[0].path.clone();
     assert!(repository.favorite(second, &shared, true).is_ok());
 
     // A file only the first space has scanned belongs to it alone: the second
@@ -115,7 +116,7 @@ fn a_path_the_space_does_not_hold_reads_as_missing() {
             )],
         )
         .unwrap();
-    let rows = repository.list(first).unwrap();
+    let rows = repository.records(first).unwrap();
     let only_first = rows
         .iter()
         .find(|video| video.path.ends_with("other.mp4"))
@@ -129,4 +130,33 @@ fn a_path_the_space_does_not_hold_reads_as_missing() {
             .code,
         "media.file.not_found"
     );
+}
+
+/// A page is a page of one space, count included: the 收藏页 of one space is not
+/// the favorites of the library as a whole (ADR 0011, and the count is what a
+/// second space leaking into the first would show up in).
+#[test]
+fn a_page_is_a_page_of_the_space_that_was_asked_for() {
+    let (_fixture, repository, first, second) = two_spaces_holding_the_same_file();
+    let path = repository.records(first).unwrap()[0].path.clone();
+    repository.favorite(first, &path, true).unwrap();
+
+    let page_of = |space_id: i64| {
+        repository
+            .list(&VideoQuery {
+                only: Some(VideoFilter::Favorite),
+                offset: 0,
+                limit: 24,
+                space_id,
+                search: None,
+                folder: None,
+                sort: None,
+                direction: None,
+            })
+            .unwrap()
+    };
+    let one = page_of(first);
+    assert_eq!((one.items.len(), one.total), (1, 1));
+    let other = page_of(second);
+    assert_eq!((other.items.len(), other.total), (0, 0));
 }

@@ -122,7 +122,7 @@ fn regenerating(
     events: &impl Events,
 ) -> Result<(), AppError> {
     let videos: Vec<VideoFile> = lock_shared(repository)?
-        .list(space_id)?
+        .records(space_id)?
         .into_iter()
         .filter(|video| path.is_none_or(|path| video.path == path))
         .collect();

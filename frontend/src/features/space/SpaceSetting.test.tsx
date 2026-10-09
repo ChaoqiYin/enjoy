@@ -9,6 +9,7 @@ import {
 } from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { libraryApi } from '../../shared/api';
 import type { Space } from '../../shared/api';
@@ -24,6 +25,16 @@ vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn().mockResolvedValue(() => {}),
 }));
 
+// jsdom answers `element.matches(':modal')` by recursing through nwsapi, which
+// costs about 180ms per call; the row confirmation Radix anchors asks every
+// ancestor of its panel whether it sits in the top layer. Nothing here is a
+// top-layer element, so answering `false` outright is both correct and instant.
+const matches = Element.prototype.matches;
+Element.prototype.matches = function (selector: string) {
+  if (selector === ':modal') return false;
+  return matches.call(this, selector);
+};
+
 const films: Space = { id: 1, name: 'Films' };
 const shows: Space = { id: 2, name: 'Shows' };
 const i18n = createInstance();
@@ -38,12 +49,9 @@ beforeEach(async () => {
   vi.mocked(listen).mockResolvedValue(() => {});
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   vi.spyOn(libraryApi, 'listSpaces').mockResolvedValue([films, shows]);
-  vi.spyOn(libraryApi, 'list').mockResolvedValue([]);
+  vi.spyOn(libraryApi, 'list').mockResolvedValue({ items: [], total: 0 });
   vi.spyOn(libraryApi, 'directories').mockResolvedValue([]);
   vi.spyOn(libraryApi, 'scanStatus').mockResolvedValue(idleScan());
-  HTMLDialogElement.prototype.showModal = function () {
-    this.setAttribute('open', '');
-  };
 });
 
 afterEach(() => {
@@ -56,13 +64,17 @@ function mount() {
   render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
-        <SpaceProvider initialSpace={films}>
-          <LibraryProvider>
-            <PageFrame>
-              <SpaceSetting />
-            </PageFrame>
-          </LibraryProvider>
-        </SpaceProvider>
+        {/* The library reads which listing is on screen from the route, so the
+            provider is mounted the way the application mounts it: inside one. */}
+        <MemoryRouter initialEntries={['/']}>
+          <SpaceProvider initialSpace={films}>
+            <LibraryProvider>
+              <PageFrame>
+                <SpaceSetting />
+              </PageFrame>
+            </LibraryProvider>
+          </SpaceProvider>
+        </MemoryRouter>
       </I18nextProvider>
     </QueryClientProvider>,
   );
@@ -95,7 +107,9 @@ it('creates a space from the name that was typed, and moves the library into it'
   // The library is read again for the space that was created: moving into it is
   // what makes the new space reachable at all.
   await waitFor(() =>
-    expect(vi.mocked(libraryApi.list)).toHaveBeenCalledWith(music.id),
+    expect(vi.mocked(libraryApi.list)).toHaveBeenCalledWith(
+      expect.objectContaining({ spaceId: music.id }),
+    ),
   );
 });
 
@@ -150,7 +164,9 @@ it('says what a deletion costs, and moves the library onto a space that is there
   fireEvent.click(screen.getByRole('button', { name: english.confirm }));
   await waitFor(() => expect(remove).toHaveBeenCalledWith(films.id));
   await waitFor(() =>
-    expect(vi.mocked(libraryApi.list)).toHaveBeenCalledWith(shows.id),
+    expect(vi.mocked(libraryApi.list)).toHaveBeenCalledWith(
+      expect.objectContaining({ spaceId: shows.id }),
+    ),
   );
 });
 
@@ -193,13 +209,14 @@ it('mounts its dialog outside the column it would otherwise push down', async ()
   mount();
   await screen.findByText(shows.name);
   fireEvent.click(screen.getByRole('button', { name: english.spaceCreate }));
-  const dialog = document.querySelector('dialog')!;
+  const dialog = await screen.findByRole('dialog');
   // `space-y` puts a bottom margin on every child that is not the last one, so a
   // dialog mounted inside the column stops the button from being last, gives it
-  // a margin, and moves everything below the section down by one gap. jsdom has
-  // no layout, so what is checked is the arrangement that avoids it — measured
-  // in a real browser at 10.5px of shift before this was fixed.
-  expect(dialog.parentElement?.className ?? '').not.toMatch(/space-y/);
+  // a margin, and moves everything below the section down by one gap. The
+  // dialog is portalled to the document root instead, so it is nobody's child
+  // in that column — measured in a real browser at 10.5px of shift before this
+  // was fixed.
+  expect(dialog.parentElement).toBe(document.body);
 });
 
 it('offers the space operations while no media task holds the scan slot', async () => {

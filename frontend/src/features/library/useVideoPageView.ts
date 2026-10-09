@@ -1,33 +1,41 @@
 import { useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router';
 import { useVideos } from './useVideos';
-import { clearFilters, selectVideos, useLibraryView } from './libraryView';
+import { clearFilters, useLibraryView } from './libraryView';
 import type { SortOrder } from './libraryView';
-import { useSpace } from '../space/SpaceProvider';
-export function useVideoPageView(page: '/' | '/favorites' | '/history') {
-  const { videos: collection } = useVideos();
-  const { i18n } = useTranslation();
-  const { id: spaceId } = useSpace();
+import { defaultSort, listingAt } from './listing';
+
+/**
+ * A listing page, as the page draws it: the records of the page being read,
+ * where the user has got to in the list, and the controls that narrow it.
+ *
+ * The filtering, the ordering and the counting are not here any more. The page
+ * holds one page of records, and a search run over them would answer about them
+ * rather than about the library — as would a page count worked out from them
+ * (ADR 0016) — so what is left is what a page can still answer for itself: which
+ * screen of the list it draws, and whether anything is narrowing it.
+ *
+ * The three things a control moves — the search, the folder, the order — are
+ * written straight into the view state the library reads its query from, so a
+ * control never has to know what the list is asked for, and a page never has to
+ * ask again by hand.
+ */
+export function useVideoPageView() {
+  const { videos: collection, index, turnTo, pageKey } = useVideos();
+  const { pathname } = useLocation();
   const { search, setSearch, folder, setFolder, sorts, setSort } =
     useLibraryView();
-  const sort = sorts[page] ?? (page === '/history' ? 'played' : 'newest');
-  const videos = useMemo(
-    () =>
-      selectVideos(
-        collection.data ?? [],
-        page,
-        search,
-        folder,
-        sort,
-        i18n.language,
-      ),
-    [collection.data, page, search, folder, sort, i18n.language],
-  );
+  // The order this listing is read in: the one the user last chose for it, and
+  // the one it opens on otherwise. Every listing remembers its own, so changing
+  // how 最近播放页 is read does not reorder the library behind it. The route is
+  // the key, and the four pages that draw a header are the four routes that are
+  // a listing; 设置页 draws none, and the library is what is left over.
+  const listing = listingAt(pathname) ?? '/';
+  const sort = sorts[listing] ?? defaultSort(listing);
+  const items = collection.data?.items;
   const folders = useMemo(
-    () => [
-      ...new Set((collection.data ?? []).map((video) => video.folder_path)),
-    ],
-    [collection.data],
+    () => [...new Set((items ?? []).map((video) => video.folder_path))],
+    [items],
   );
   // Whether anything is narrowing the list, which is the one thing the list
   // itself needs to know: it says "nothing matched" rather than "nothing here",
@@ -37,17 +45,18 @@ export function useVideoPageView(page: '/' | '/favorites' | '/history') {
   // of the list re-deriving `search || folder` for itself.
   //
   // Which of the two counts as a filter is [`clearFilters`]'s answer too, and
-  // the sort order is in neither: it says how to read a list, not which part of
-  // it to read, and a list sorted differently is not a narrowed one.
+  // the order is in neither: it says how to read a list, not which part of it to
+  // read, and a list sorted differently is not a narrowed one.
   const filtered = search !== '' || folder !== '';
   return {
-    page,
-    // The space is part of what makes a collection that collection, and the key
-    // is what the list is mounted against: leaving it out would keep the old
-    // space's scroll position when the space changes with nothing typed and
-    // nothing filtered, where the filter changes above would not.
-    collectionKey: JSON.stringify([spaceId, page, search, folder, sort]),
-    videos,
+    // The list this page is a page of, records and page together. It is what the
+    // grid is mounted against, so turning a page starts the new one at the top,
+    // and so does anything that describes another list.
+    collectionKey: pageKey,
+    videos: items ?? [],
+    total: collection.data?.total ?? 0,
+    index,
+    turnTo,
     filtered,
     clearFilters,
     headerProps: {
@@ -57,7 +66,7 @@ export function useVideoPageView(page: '/' | '/favorites' | '/history') {
       sort,
       onSearchChange: setSearch,
       onFolderChange: setFolder,
-      onSortChange: (value: SortOrder) => setSort(page, value),
+      onSortChange: (value: SortOrder) => setSort(listing, value),
     },
   };
 }

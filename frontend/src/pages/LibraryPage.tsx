@@ -11,7 +11,7 @@ import { useDirectories } from '../features/library/useDirectories';
 import { EmptyRescanConfirmation } from '../features/library/EmptyRescanConfirmation';
 export function LibraryPage() {
   const { t } = useTranslation();
-  const view = useVideoPageView('/');
+  const view = useVideoPageView();
   const { busy } = useBusy();
   const directories = useDirectories();
   const [showAdd, setShowAdd] = useState(false);

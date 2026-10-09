@@ -5,7 +5,7 @@ import { VideoPageContent } from '../features/library/VideoPageContent';
 import { useVideoPageView } from '../features/library/useVideoPageView';
 export function HistoryPage() {
   const { t } = useTranslation();
-  const view = useVideoPageView('/history');
+  const view = useVideoPageView();
 
   return (
     <PageFrame>
