@@ -32,8 +32,13 @@ final class ScrollbarCheck: NSObject, WKNavigationDelegate {
         let script = """
         (() => {
           const viewport = document.querySelector('.scroll-viewport');
-          const content = viewport?.querySelector('.relative');
-          if (!viewport || !content || !content.querySelector('article')) return null;
+          // The grid the cards sit in, reached from a card rather than from a
+          // wrapper class: the `.relative` height box belonged to the virtual
+          // grid, and that grid is gone (ADR 0017). Waiting for a card is what
+          // stands in for waiting for the list to render.
+          const card = viewport?.querySelector('article');
+          if (!viewport || !card || !card.parentElement) return null;
+          const content = card.parentElement;
           const style = getComputedStyle(viewport);
           const gutter = viewport.offsetWidth - viewport.clientWidth;
           const padding = parseFloat(style.paddingInlineEnd);
