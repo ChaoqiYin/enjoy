@@ -95,8 +95,10 @@ vi.mock('./VirtualVideos', () => ({
 beforeEach(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: english } } });
   space.id = 1;
-  collection.videos.data = [video];
+  collection.videos.data = { items: [video], total: 1 };
   collection.videos.isPending = false;
+  collection.pageKey = 'library page 1';
+  pageIndex = 0;
   scan.status = undefined;
   busy.busy = false;
   setError.mockReset();
@@ -120,10 +122,18 @@ afterEach(() => {
   delete (window.navigator as { clipboard?: unknown }).clipboard;
 });
 
+// Which page of the list the view says it is drawing, and the page identity the
+// slice is answering from: the two move together when the user turns a page, and
+// a test that turns one turns both.
+let pageIndex = 0;
+
 function page() {
   const view = {
-    collectionKey: 'all',
-    videos: collection.videos.data ?? [],
+    collectionKey: collection.pageKey,
+    videos: collection.videos.data?.items ?? [],
+    total: collection.videos.data?.total ?? 0,
+    index: pageIndex,
+    turnTo: () => {},
     filtered: false,
     clearFilters: () => {},
   } as unknown as ReturnType<typeof useVideoPageView>;
@@ -144,9 +154,10 @@ function setClipboard(writeText?: (text: string) => Promise<void>) {
 it('copies the path the panel shows, and announces it', async () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
   setClipboard(writeText);
-  collection.videos.data = [
-    { ...video, path: '\\\\?\\E:\\movies\\example.mp4' },
-  ];
+  collection.videos.data = {
+    items: [{ ...video, path: '\\\\?\\E:\\movies\\example.mp4' }],
+    total: 1,
+  };
   render(page());
   fireEvent.click(screen.getByRole('button', { name: video.file_name }));
   expect(screen.getByText('E:\\movies\\example.mp4')).toBeTruthy();
@@ -201,7 +212,9 @@ it('closes the drawer and notifies when a rescan removes the video', async () =>
   const { rerender } = render(page());
   fireEvent.click(screen.getByRole('button', { name: video.file_name }));
   expect(screen.getByRole('dialog')).toBeTruthy();
-  collection.videos.data = [];
+  // The same list, asked the same question, and now one record shorter: the one
+  // the drawer is describing.
+  collection.videos.data = { items: [], total: 0 };
   rerender(page());
   await waitFor(() =>
     expect(notices.setError).toHaveBeenCalledWith(
@@ -215,5 +228,75 @@ it('closes the drawer and notifies when a rescan removes the video', async () =>
     expect(
       document.querySelector('[role="dialog"]')?.hasAttribute('inert'),
     ).toBe(true),
+  );
+});
+
+it('leaves the open drawer alone when the user turns to the next page', async () => {
+  const { rerender } = render(page());
+  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
+  expect(screen.getByRole('dialog')).toBeTruthy();
+  // The page that follows holds other records, and holds none of this one: a
+  // drawer that read that as "the file was removed" would close every time the
+  // user turned a page.
+  pageIndex = 1;
+  collection.pageKey = 'library page 2';
+  collection.videos.data = {
+    items: [{ ...video, id: 2, file_name: 'second.mp4' }],
+    total: 1,
+  };
+  rerender(page());
+  // Effects have already run by the time `rerender` returns, so a notice that
+  // was going to be raised has been.
+  expect(notices.setError).not.toHaveBeenCalled();
+  expect(document.querySelector('[role="dialog"]')?.hasAttribute('inert')).toBe(
+    false,
+  );
+});
+
+it('does not read a shorter answer to another question as a removal', async () => {
+  // Two records here, so the list can get shorter without the drawer's record
+  // being the one that left.
+  collection.videos.data = {
+    items: [video, { ...video, id: 2, file_name: 'second.mp4' }],
+    total: 2,
+  };
+  const { rerender } = render(page());
+  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
+  // The user is now reading the second page of a list a rescan has since
+  // shortened: the answer is shorter, and this record is not in it. Neither fact
+  // is about this record — it is on the page the drawer was opened on, and the
+  // shorter list may have dropped it on any page at all.
+  pageIndex = 1;
+  collection.pageKey = 'library page 2';
+  collection.videos.data = {
+    items: [{ ...video, id: 3, file_name: 'third.mp4' }],
+    total: 1,
+  };
+  rerender(page());
+  expect(notices.setError).not.toHaveBeenCalled();
+  expect(document.querySelector('[role="dialog"]')?.hasAttribute('inert')).toBe(
+    false,
+  );
+});
+
+it('does not read a record that moved off the page as a removal', async () => {
+  collection.videos.data = {
+    items: [video, { ...video, id: 2, file_name: 'second.mp4' }],
+    total: 2,
+  };
+  const { rerender } = render(page());
+  fireEvent.click(screen.getByRole('button', { name: 'second.mp4' }));
+  // The same list, the same page, the same number of records — read in playing
+  // order, as 最近播放页 is, so opening one of them brings it to the front and
+  // pushes the last record here back to the next page. The library is no shorter
+  // than it was: this record has moved, not gone.
+  collection.videos.data = {
+    items: [video, { ...video, id: 3, file_name: 'third.mp4' }],
+    total: 2,
+  };
+  rerender(page());
+  expect(notices.setError).not.toHaveBeenCalled();
+  expect(document.querySelector('[role="dialog"]')?.hasAttribute('inert')).toBe(
+    false,
   );
 });

@@ -1,5 +1,7 @@
 import { mockIPC, mockConvertFileSrc } from '@tauri-apps/api/mocks';
 import { emit } from '@tauri-apps/api/event';
+import { videoPage } from './videoList';
+import { videos } from './records';
 import type {
   AppError,
   ScanStatus,
@@ -9,6 +11,7 @@ import type {
   UpdateCheck,
   UpdateProgress,
   Video,
+  VideoQuery,
 } from '../src/shared/api';
 
 // Every space holds the same files, because that is what spaces are: the same
@@ -43,25 +46,6 @@ function markOn(kind: Marker, payload: Record<string, unknown>) {
   // against the snapshot it read, which is how the backend notices it too.
 }
 
-const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
-  id: index + 1,
-  path: `/acceptance/${index % 2 ? 'Archive' : 'Movies'}/video-${String(index + 1).padStart(2, '0')}.mp4`,
-  file_name: `video-${String(index + 1).padStart(2, '0')}.mp4`,
-  folder_path: `/acceptance/${index % 2 ? 'Archive' : 'Movies'}`,
-  file_size: 8100 + index * 1000,
-  modified_at: 1720000000000 + index,
-  duration_ms: 65000,
-  width: 1920,
-  height: 1080,
-  codec: 'h264',
-  thumbnail_path: null,
-  favorite: index === 0,
-  shared: false,
-  play_count: 0,
-  last_played_at: null,
-  created_at: 1720000000000 + index,
-  updated_at: 1720000000000 + index,
-}));
 let language = 'en';
 let settings: SettingsState = { language: 'en', theme: 'dark' };
 let sharePort: number | null = null;
@@ -333,13 +317,17 @@ mockIPC(
         return { ...currentSpace() };
       }
       case 'list_videos': {
-        const favorites = markedOf('favorite', Number(payload.spaceId));
-        const shared = markedOf('shared', Number(payload.spaceId));
-        return videos.map((video) => ({
-          ...video,
-          favorite: favorites.has(video.id),
-          shared: shared.has(video.id),
-        }));
+        const query = payload as unknown as VideoQuery;
+        const favorites = markedOf('favorite', query.spaceId);
+        const shared = markedOf('shared', query.spaceId);
+        return videoPage(
+          videos.map((video) => ({
+            ...video,
+            favorite: favorites.has(video.id),
+            shared: shared.has(video.id),
+          })),
+          query,
+        );
       }
       case 'list_directories':
         return ['/acceptance/Movies', '/acceptance/Archive'];

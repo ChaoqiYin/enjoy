@@ -22,14 +22,14 @@ fn rescan_preserves_identity_and_playback_after_reopen() {
     repository.favorite(space, path, true).unwrap();
     repository.share(space, path, true).unwrap();
     repository.record_play(space, path).unwrap();
-    let before = repository.list(space).unwrap().remove(0);
+    let before = repository.records(space).unwrap().remove(0);
     drop(repository);
     let mut repository = Repository::open(&database, FIRST_SPACE).unwrap();
     let space = repository.current_space().unwrap().id;
     repository
         .index(space, root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
-    let rows = repository.list(space).unwrap();
+    let rows = repository.records(space).unwrap();
     assert_eq!(rows.len(), 1);
     let after = &rows[0];
     assert_eq!(before.id, after.id);
@@ -68,16 +68,16 @@ fn a_scanned_directory_clears_the_stale_records_of_files_it_no_longer_holds() {
         .index(space, root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
     assert_eq!((changes.added, changes.updated, changes.removed), (0, 0, 1));
-    assert!(repository.list(space).unwrap().is_empty());
+    assert!(repository.records(space).unwrap().is_empty());
     fs::write(&movie, b"restored").unwrap();
     repository
         .index(space, root, &scanner::collect(&fixture.0).unwrap())
         .unwrap();
-    let restored = repository.list(space).unwrap().remove(0);
+    let restored = repository.records(space).unwrap().remove(0);
     assert!(!restored.favorite);
     assert_eq!(restored.play_count, 0);
     repository.remove(space, path).unwrap();
-    assert!(repository.list(space).unwrap().is_empty());
+    assert!(repository.records(space).unwrap().is_empty());
     assert!(movie.exists());
 }
 
@@ -101,7 +101,7 @@ fn the_share_list_comes_back_in_path_order_and_holds_only_what_is_on_it() {
     // Nothing is on the list until the user puts something there.
     assert!(repository.shared_paths(space).unwrap().is_empty());
 
-    let all = repository.list(space).unwrap();
+    let all = repository.records(space).unwrap();
     let path_of = |suffix: &str| {
         all.iter()
             .find(|video| video.path.ends_with(suffix))
@@ -151,7 +151,7 @@ fn a_scan_target_that_is_not_a_directory_is_a_verdict_and_not_an_error() {
             &scanner::collect(&fixture.0).unwrap(),
         )
         .unwrap();
-    assert_eq!(repository.list(space).unwrap().len(), 1);
+    assert_eq!(repository.records(space).unwrap().len(), 1);
 }
 
 #[test]
@@ -180,7 +180,7 @@ fn failed_playback_does_not_change_history() {
     });
     assert!(result.is_err());
     assert_eq!(
-        repository.lock().unwrap().list(space).unwrap()[0].play_count,
+        repository.lock().unwrap().records(space).unwrap()[0].play_count,
         0
     );
     crate::player::play(space, &repository, path, |file| {
@@ -189,7 +189,7 @@ fn failed_playback_does_not_change_history() {
     })
     .unwrap();
     assert_eq!(
-        repository.lock().unwrap().list(space).unwrap()[0].play_count,
+        repository.lock().unwrap().records(space).unwrap()[0].play_count,
         1
     );
     fs::remove_file(&movie).unwrap();
@@ -198,7 +198,7 @@ fn failed_playback_does_not_change_history() {
     ))
     .is_err());
     assert_eq!(
-        repository.lock().unwrap().list(space).unwrap()[0].play_count,
+        repository.lock().unwrap().records(space).unwrap()[0].play_count,
         1
     );
 }
@@ -271,7 +271,7 @@ fn legacy_progress_column_does_not_affect_history_or_serialization() {
     repository
         .record_play(space, movie.to_str().unwrap())
         .unwrap();
-    let video = repository.list(space).unwrap().remove(0);
+    let video = repository.records(space).unwrap().remove(0);
     assert!(video.favorite && video.last_played_at.is_some());
     assert_eq!(video.play_count, 2);
     assert!(serde_json::to_value(video)
@@ -307,16 +307,16 @@ fn overlapping_directories_share_identity_and_keep_tracking_after_removal() {
     repository
         .record_play(space, movie.to_str().unwrap())
         .unwrap();
-    let before = repository.list(space).unwrap().remove(0);
+    let before = repository.records(space).unwrap().remove(0);
     repository
         .index(space, child, &scanner::collect(&nested).unwrap())
         .unwrap();
-    assert_eq!(repository.list(space).unwrap().len(), 1);
+    assert_eq!(repository.records(space).unwrap().len(), 1);
     repository.remove_directory(space, parent).unwrap();
     repository
         .index(space, child, &scanner::collect(&nested).unwrap())
         .unwrap();
-    let after = repository.list(space).unwrap().remove(0);
+    let after = repository.records(space).unwrap().remove(0);
     assert_eq!(before.id, after.id);
     assert!(after.favorite);
     assert_eq!(after.play_count, 1);
@@ -365,7 +365,7 @@ fn replacing_all_videos_merges_roots_and_preserves_user_state() {
             ],
         )
         .unwrap();
-    let videos = repository.list(space).unwrap();
+    let videos = repository.records(space).unwrap();
     assert_eq!(videos.len(), 2);
     let retained = videos
         .iter()
@@ -383,7 +383,7 @@ fn replacing_all_videos_merges_roots_and_preserves_user_state() {
         repository.remove_directory(space, &directory).unwrap();
     }
     repository.replace_videos(space, &[]).unwrap();
-    assert!(repository.list(space).unwrap().is_empty());
+    assert!(repository.records(space).unwrap().is_empty());
     assert!(repository.directories(space).unwrap().is_empty());
 }
 
@@ -403,7 +403,7 @@ fn replacement_write_failure_rolls_back_deletion_and_user_state() {
     repository
         .favorite(space, movie.to_str().unwrap(), true)
         .unwrap();
-    let previous_id = repository.list(space).unwrap()[0].id;
+    let previous_id = repository.records(space).unwrap()[0].id;
     repository.connection.execute_batch("CREATE TRIGGER reject_insert BEFORE INSERT ON videos BEGIN SELECT RAISE(ABORT, 'Rejected'); END;").unwrap();
     assert!(repository
         .replace_videos(
@@ -411,7 +411,7 @@ fn replacement_write_failure_rolls_back_deletion_and_user_state() {
             &[(root.into(), scanner::collect(&fixture.0).unwrap())]
         )
         .is_err());
-    let videos = repository.list(space).unwrap();
+    let videos = repository.records(space).unwrap();
     assert_eq!(videos.len(), 1);
     assert_eq!(videos[0].id, previous_id);
     assert!(videos[0].favorite);

@@ -20,40 +20,147 @@
 //! — while the three addressed by path alone report a record that is not there.
 //! That verdict has one home: [`not_indexed`].
 
-use rusqlite::{params, OptionalExtension};
+use rusqlite::types::Value;
+use rusqlite::{params, params_from_iter, OptionalExtension, Row};
 
 use crate::error::AppError;
 use crate::media::Metadata;
-use crate::model::{FileStamp, VideoFile};
+use crate::model::{FileStamp, VideoFile, VideoFilter, VideoPage, VideoQuery, VideoSort};
 
 use super::{not_indexed, now, Repository};
 
+/// The columns a record is read from, in the order [`video_row`] reads them.
+const COLUMNS: &str = "id,path,file_name,folder_path,file_size,modified_at,duration_ms,width,height,codec,thumbnail_path,favorite,shared,play_count,last_played_at,created_at,updated_at,media_complete";
+
+/// One record, off a row the [`COLUMNS`] above were selected in.
+fn video_row(row: &Row<'_>) -> rusqlite::Result<VideoFile> {
+    Ok(VideoFile {
+        id: row.get(0)?,
+        path: row.get(1)?,
+        file_name: row.get(2)?,
+        folder_path: row.get(3)?,
+        file_size: row.get(4)?,
+        modified_at: row.get(5)?,
+        duration_ms: row.get(6)?,
+        width: row.get(7)?,
+        height: row.get(8)?,
+        codec: row.get(9)?,
+        thumbnail_path: row.get(10)?,
+        favorite: row.get(11)?,
+        shared: row.get(12)?,
+        play_count: row.get(13)?,
+        last_played_at: row.get(14)?,
+        created_at: row.get(15)?,
+        updated_at: row.get(16)?,
+        media_complete: row.get(17)?,
+    })
+}
+
+/// The conditions a query reads under, and the values they are bound with, in
+/// the order the placeholders appear in the sentence.
+///
+/// One sentence for both of the two reads a page costs — the records and the
+/// count — so that the two cannot come to mean different things: a count taken
+/// under conditions of its own would report a number of pages the records then
+/// do not fill.
+fn conditions(query: &VideoQuery) -> (String, Vec<Value>) {
+    let mut clauses = vec!["space_id = ?".to_string()];
+    let mut values = vec![Value::Integer(query.space_id)];
+    if let Some(search) = &query.search {
+        clauses.push("file_name LIKE ? ESCAPE '\\'".into());
+        values.push(Value::Text(format!("%{}%", literal(search))));
+    }
+    if let Some(folder) = &query.folder {
+        clauses.push("folder_path = ?".into());
+        values.push(Value::Text(folder.clone()));
+    }
+    // The three columns a page is about, each read as the mark it is: a boolean
+    // the schema stores as 0 or 1, and the count of plays a record has. Played is
+    // read from the count rather than from the last time, because a record that
+    // was played is one that has a history, however long ago.
+    match query.only {
+        Some(VideoFilter::Favorite) => clauses.push("favorite = 1".into()),
+        Some(VideoFilter::Shared) => clauses.push("shared = 1".into()),
+        Some(VideoFilter::Played) => clauses.push("play_count > 0".into()),
+        None => {}
+    }
+    (clauses.join(" AND "), values)
+}
+
+/// What a search looks for, as the query language reads it.
+///
+/// The three characters the language gives a meaning to are given back theirs:
+/// a user typing `50%` is looking for a name with a percent sign in it, and one
+/// whose search was matched as a pattern would be shown records that are not
+/// what they asked for. The backslash goes first because it is the one that
+/// makes the other two literal.
+fn literal(search: &str) -> String {
+    search
+        .replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
+/// The order a query is read in, as the tail of an `ORDER BY`.
+///
+/// `id` is the tie-break in the same direction as the column, which is what
+/// makes the order total: without it, two records that share a stamp could be
+/// read twice on one page and never on the next. It is also what a page can
+/// carry over from the one before it.
+fn order(query: &VideoQuery) -> String {
+    let sort = query.sort.unwrap_or(VideoSort::Added);
+    let direction = query.direction.unwrap_or_else(|| sort.direction());
+    format!(
+        "{} {}, id {}",
+        sort.column(),
+        direction.sql(),
+        direction.sql()
+    )
+}
+
 impl Repository {
-    /// The library the interface shows: every record of one space, newest first.
-    pub fn list(&self, space_id: i64) -> Result<Vec<VideoFile>, AppError> {
-        let mut query = self.connection.prepare("SELECT id,path,file_name,folder_path,file_size,modified_at,duration_ms,width,height,codec,thumbnail_path,favorite,shared,play_count,last_played_at,created_at,updated_at,media_complete FROM videos WHERE space_id=?1 ORDER BY created_at DESC,id DESC")?;
-        let rows = query.query_map([space_id], |row| {
-            Ok(VideoFile {
-                id: row.get(0)?,
-                path: row.get(1)?,
-                file_name: row.get(2)?,
-                folder_path: row.get(3)?,
-                file_size: row.get(4)?,
-                modified_at: row.get(5)?,
-                duration_ms: row.get(6)?,
-                width: row.get(7)?,
-                height: row.get(8)?,
-                codec: row.get(9)?,
-                thumbnail_path: row.get(10)?,
-                favorite: row.get(11)?,
-                shared: row.get(12)?,
-                play_count: row.get(13)?,
-                last_played_at: row.get(14)?,
-                created_at: row.get(15)?,
-                updated_at: row.get(16)?,
-                media_complete: row.get(17)?,
-            })
-        })?;
+    /// One page of a space's records, and how many the same question holds.
+    ///
+    /// The count is read rather than worked out from the page, because the page
+    /// is the one thing that cannot say how many there are: it is the records
+    /// the interface does not have.
+    pub fn list(&self, query: &VideoQuery) -> Result<VideoPage, AppError> {
+        let (where_clause, values) = conditions(query);
+        let total = self.connection.query_row(
+            &format!("SELECT COUNT(*) FROM videos WHERE {where_clause}"),
+            params_from_iter(values.iter()),
+            |row| row.get(0),
+        )?;
+        let sql = format!(
+            "SELECT {COLUMNS} FROM videos WHERE {where_clause} ORDER BY {} LIMIT ? OFFSET ?",
+            order(query)
+        );
+        let mut statement = self.connection.prepare(&sql)?;
+        // Both are clamped rather than handed over as they came. A negative
+        // limit is not an empty page to the query language — it is the whole
+        // library — so a number that arrived out of range has to be read as the
+        // page it was nearest to instead of as the one thing nobody asked for.
+        let page = values
+            .iter()
+            .cloned()
+            .chain([query.limit, query.offset].map(|bound| Value::Integer(bound.max(0))));
+        let rows = statement.query_map(params_from_iter(page), video_row)?;
+        let items = rows.collect::<Result<Vec<_>, _>>()?;
+        Ok(VideoPage { items, total })
+    }
+
+    /// Every record of one space, newest first.
+    ///
+    /// Not a page and not the interface's: it is what a pass walks — the media
+    /// pass is handed every record that is not 媒体处理完成, and a list of what it
+    /// has still to do cannot be asked for one page at a time. The interface
+    /// reads the library through [`Repository::list`], which is the question a
+    /// user asks; this is the question the application asks about its own work.
+    pub fn records(&self, space_id: i64) -> Result<Vec<VideoFile>, AppError> {
+        let mut query = self.connection.prepare(&format!(
+            "SELECT {COLUMNS} FROM videos WHERE space_id=?1 ORDER BY created_at DESC, id DESC"
+        ))?;
+        let rows = query.query_map([space_id], video_row)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 

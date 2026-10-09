@@ -15,7 +15,7 @@ use crate::scan::scanner;
 /// can move it.
 fn complete(repository: &Repository) -> VideoFile {
     let space = repository.current_space().unwrap().id;
-    let video = repository.list(space).unwrap().remove(0);
+    let video = repository.records(space).unwrap().remove(0);
     repository
         .save_metadata(
             space,
@@ -32,7 +32,7 @@ fn complete(repository: &Repository) -> VideoFile {
         .save_thumbnail(space, &video, "cached.jpg")
         .unwrap();
     repository.complete_media(space, &video).unwrap();
-    repository.list(space).unwrap().remove(0)
+    repository.records(space).unwrap().remove(0)
 }
 
 /// Puts a file's modification time back to the millisecond the record holds,
@@ -60,7 +60,7 @@ fn a_changed_modification_time_resets_the_media_and_keeps_the_record_and_its_use
     let completed = complete(&repository);
     repository.favorite(space, &completed.path, true).unwrap();
     repository.record_play(space, &completed.path).unwrap();
-    let before = repository.list(space).unwrap().remove(0);
+    let before = repository.records(space).unwrap().remove(0);
     assert!(before.media_complete && before.favorite);
     drop(repository);
     let mut repository = Repository::open(&database, FIRST_SPACE).unwrap();
@@ -74,7 +74,7 @@ fn a_changed_modification_time_resets_the_media_and_keeps_the_record_and_its_use
         .replace_videos(space, &[(root, touched)])
         .unwrap();
     assert_eq!((changes.added, changes.updated, changes.removed), (0, 1, 0));
-    let after = repository.list(space).unwrap().remove(0);
+    let after = repository.records(space).unwrap().remove(0);
     assert_eq!(after.id, before.id);
     assert_eq!(after.created_at, before.created_at);
     assert!(!after.media_complete);
@@ -87,7 +87,7 @@ fn a_changed_modification_time_resets_the_media_and_keeps_the_record_and_its_use
     // The completion write is guarded by the same pair of fields the identity
     // is decided from, so a stale writer cannot mark the new file as done.
     repository.complete_media(space, &before).unwrap();
-    assert!(!repository.list(space).unwrap()[0].media_complete);
+    assert!(!repository.records(space).unwrap()[0].media_complete);
 }
 
 #[test]
@@ -118,7 +118,7 @@ fn a_rewrite_that_keeps_the_size_and_the_modification_time_is_not_noticed() {
         .replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
     assert_eq!((changes.added, changes.updated, changes.removed), (0, 0, 0));
-    let after = repository.list(space).unwrap().remove(0);
+    let after = repository.records(space).unwrap().remove(0);
     assert!(after.media_complete);
     assert_eq!(after.duration_ms, Some(500));
     assert_eq!(after.thumbnail_path.as_deref(), Some("cached.jpg"));
@@ -140,7 +140,7 @@ fn a_changed_file_identity_restarts_media_processing_and_keeps_usage_history() {
             &[(root.clone(), scanner::collect(&fixture.0).unwrap())],
         )
         .unwrap();
-    let video = repository.list(space).unwrap().remove(0);
+    let video = repository.records(space).unwrap().remove(0);
     repository
         .save_metadata(
             space,
@@ -159,7 +159,7 @@ fn a_changed_file_identity_restarts_media_processing_and_keeps_usage_history() {
     repository.complete_media(space, &video).unwrap();
     repository.favorite(space, &path, true).unwrap();
     repository.record_play(space, &path).unwrap();
-    let before = repository.list(space).unwrap().remove(0);
+    let before = repository.records(space).unwrap().remove(0);
     assert!(before.media_complete);
     // The same path now holds longer content, so the file's size differs and
     // its identity changed -- file size and modification time are what the
@@ -170,7 +170,7 @@ fn a_changed_file_identity_restarts_media_processing_and_keeps_usage_history() {
         .replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
     assert_eq!((changes.added, changes.updated, changes.removed), (0, 1, 0));
-    let after = repository.list(space).unwrap().remove(0);
+    let after = repository.records(space).unwrap().remove(0);
     assert_eq!(after.id, before.id);
     assert_eq!(after.created_at, before.created_at);
     // Processed media belong to the identity that produced them, so they go.
@@ -225,11 +225,11 @@ fn cancellation_before_commit_rolls_back_insertions_and_deletions() {
         },
     );
     assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
-    assert_eq!(repository.list(space).unwrap()[0].file_name, "old.mp4");
+    assert_eq!(repository.records(space).unwrap()[0].file_name, "old.mp4");
     repository
         .replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
-    let rows = repository.list(space).unwrap();
+    let rows = repository.records(space).unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].file_name, "new.mp4");
 }
@@ -263,7 +263,7 @@ fn full_sync_reports_records_it_removes() {
         .replace_videos(space, &[(root, scanner::collect(&fixture.0).unwrap())])
         .unwrap();
     assert_eq!((pruned.added, pruned.updated, pruned.removed), (0, 0, 1));
-    let rows = repository.list(space).unwrap();
+    let rows = repository.records(space).unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].file_name, "kept.mp4");
 }
@@ -292,18 +292,18 @@ fn a_removed_configured_directory_keeps_its_records_until_the_next_scan() {
             ],
         )
         .unwrap();
-    assert_eq!(repository.list(space).unwrap().len(), 2);
+    assert_eq!(repository.records(space).unwrap().len(), 2);
     // Removing a saved directory only drops the configuration: it triggers no
     // scan, and its records leave the library on the next one, because their
     // directory is no longer part of the scan universe.
     repository.remove_directory(space, &dropped_root).unwrap();
-    assert_eq!(repository.list(space).unwrap().len(), 2);
+    assert_eq!(repository.records(space).unwrap().len(), 2);
     let removed = repository
         .replace_videos(space, &[(kept_root, scanner::collect(&kept).unwrap())])
         .unwrap()
         .removed;
     assert_eq!(removed, 1);
-    let rows = repository.list(space).unwrap();
+    let rows = repository.records(space).unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].file_name, "kept.mp4");
 }
@@ -355,7 +355,7 @@ fn unreadable_directories_keep_their_records_while_scanned_ones_are_cleaned() {
         )
         .unwrap();
     assert_eq!((changes.added, changes.updated, changes.removed), (0, 0, 1));
-    let rows = repository.list(space).unwrap();
+    let rows = repository.records(space).unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].file_name, "stranded.mp4");
 }
@@ -381,7 +381,7 @@ fn a_path_that_is_still_there_but_could_not_be_read_keeps_its_record() {
             &[(root.clone(), scanner::collect(&fixture.0).unwrap())],
         )
         .unwrap();
-    assert_eq!(repository.list(space).unwrap().len(), 3);
+    assert_eq!(repository.records(space).unwrap().len(), 3);
     // The pass found only the file it could read, and reports the paths that
     // failed although they are still there: a subtree that could not be listed
     // and a file that could not be opened. Neither of them is in `files`.
@@ -408,7 +408,7 @@ fn a_path_that_is_still_there_but_could_not_be_read_keeps_its_record() {
         .unwrap();
     assert_eq!((changes.added, changes.updated, changes.removed), (0, 0, 0));
     let names: Vec<_> = repository
-        .list(space)
+        .records(space)
         .unwrap()
         .into_iter()
         .map(|video| video.file_name)
@@ -434,7 +434,7 @@ fn a_path_that_is_still_there_but_could_not_be_read_keeps_its_record() {
         .unwrap();
     assert_eq!((changes.added, changes.updated, changes.removed), (0, 0, 2));
     let names: Vec<_> = repository
-        .list(space)
+        .records(space)
         .unwrap()
         .into_iter()
         .map(|video| video.file_name)

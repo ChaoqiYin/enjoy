@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { Alert, AlertDescription } from '../../shared/ui/alert';
 
 /**
  * The two things worth saying about a 共享清单 that a running service is
@@ -28,18 +29,22 @@ export function ListWarnings({
       {missingFiles > 0 && (
         // The count and not the names: what the user needs to know is that the
         // television will show fewer than they picked.
-        <p className="text-sm text-warning">
-          {t('shareMissingFiles', {
-            count: missingFiles,
-            countText: missingFiles.toLocaleString(i18n.language),
-          })}
-        </p>
+        <Alert variant="warning">
+          <AlertDescription>
+            {t('shareMissingFiles', {
+              count: missingFiles,
+              countText: missingFiles.toLocaleString(i18n.language),
+            })}
+          </AlertDescription>
+        </Alert>
       )}
       {listChanged && (
         // The service keeps offering what it started with, so a change is only
         // a change after a restart — and a user who just added a video would
         // otherwise conclude the change did not work.
-        <p className="text-sm text-warning">{t('shareListChanged')}</p>
+        <Alert variant="warning">
+          <AlertDescription>{t('shareListChanged')}</AlertDescription>
+        </Alert>
       )}
     </>
   );

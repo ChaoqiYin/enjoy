@@ -20,6 +20,13 @@ function clientError(code: string): AppError {
 }
 
 /**
+ * What the details drawer is describing, and the answer it was read from: the
+ * list and the page of it ({@link Videos.pageKey}) and how many records the list
+ * held then. The video alone is not enough to say what has become of it later.
+ */
+type Opened = { video: Video; pageKey: string; total: number };
+
+/**
  * What every page of cards needs beyond the cards themselves: the menu a
  * right-click opens, the details drawer, the confirmation that stands between
  * the menu and a removal, and the actions all three reach for.
@@ -36,25 +43,27 @@ function clientError(code: string): AppError {
  */
 export function useVideoBoard() {
   const { t } = useTranslation();
-  const { videos: collection, lastPlayedId } = useVideos();
+  const { videos: collection, lastPlayedId, pageKey } = useVideos();
   const { status } = useScan();
   const { busy } = useBusy();
   const notices = useNotices();
   const videoActions = useVideoActions();
   const { id: spaceId } = useSpace();
-  // `detailVideo` is the panel's contents, not a mount gate: the drawer shell
-  // is always mounted and only `detailsOpen` moves it, so the video stays put
-  // through the closing slide and is replaced the next time one is opened.
-  const [detailVideo, setDetailVideo] = useState<Video | null>(null);
+  // What the open drawer is describing, together with the answer it was read
+  // from: the list, the page of it, and how long it was then. The panel needs
+  // the video; the removal rule below needs the other two, and neither is
+  // recoverable afterwards — the list may since have been asked something else
+  // entirely, and a record that is not in the newest answer is not therefore
+  // gone. Whatever was opened here was opened onto a video of the space that was
+  // on screen: another space has its own records, so the panel and the menu are
+  // closed rather than left describing a video that is no longer in the list.
+  // The list itself needs nothing: it is mounted against the collection key,
+  // which names the space, so the change reaches it on its own.
+  const [detail, setDetail] = useState<Opened | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   const [remove, setRemove] = useState<Video | null>(null);
-  // Whatever was opened here was opened onto a video of the space that was on
-  // screen. Another space has its own records, so the panel and the menu are
-  // closed rather than left describing a video that is no longer in the list.
-  // The list itself needs nothing: it is mounted against the collection key,
-  // which names the space, so the change reaches it on its own.
   useEffect(() => {
     setDetailsOpen(false);
     setMenu(null);
@@ -65,16 +74,29 @@ export function useVideoBoard() {
     // now, so without this every later rescan would repeat the same notice. It
     // also keeps a deliberate removal, which closes the drawer before removing,
     // from announcing itself a second time.
-    if (!detailsOpen || !detailVideo || collection.isPending) return;
-    if (!collection.data) return;
-    if (collection.data.some((video) => video.id === detailVideo.id)) return;
+    if (!detailsOpen || !detail || collection.isPending) return;
+    const answer = collection.data;
+    if (!answer) return;
+    // Two other answers can arrive while a drawer is open, and neither says
+    // anything about the video in it. Turning a page, or asking the list
+    // something else, is a question this record was never read from; the page
+    // the drawer was opened on holds it, a hundred pages may not. So the answer
+    // has to be the answer to that question before its silence means anything.
+    if (pageKey !== detail.pageKey) return;
+    // And only a list that has got shorter says a record was removed from it.
+    // A record that has left this page for another one — played, while 最近播放
+    // 页 is read in playing order, and pushed back here — is still in the
+    // library, and so is one that slid back on.
+    if (answer.total >= detail.total) return;
+    if (answer.items.some((video) => video.id === detail.video.id)) return;
     setDetailsOpen(false);
     notices.setError(clientError('media.file.removed'));
   }, [
     detailsOpen,
-    detailVideo,
+    detail,
     collection.isPending,
     collection.data,
+    pageKey,
     notices.setError,
   ]);
   const copyPath = async (video: Video) => {
@@ -102,7 +124,11 @@ export function useVideoBoard() {
       setRemove(video);
     },
     details: (video: Video) => {
-      setDetailVideo(video);
+      setDetail({
+        video,
+        pageKey,
+        total: collection.data?.total ?? 0,
+      });
       setDetailsOpen(true);
     },
     copyPath,
@@ -117,10 +143,10 @@ export function useVideoBoard() {
         closeLabel={t('closeDetails')}
         onClose={() => setDetailsOpen(false)}
       >
-        {detailVideo && (
+        {detail && (
           <VideoDetails
             scan={status}
-            video={detailVideo}
+            video={detail.video}
             busy={busy}
             actions={actions}
           />

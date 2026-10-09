@@ -74,7 +74,12 @@ beforeEach(async () => {
   }));
   // A subscription that can be stopped, which is all the provider asks of it.
   vi.mocked(listen).mockResolvedValue(vi.fn() as never);
-  useLibraryView.setState({ search: '', folder: '', sorts: {} });
+  useLibraryView.setState({
+    search: '',
+    folder: '',
+    sorts: {},
+    page: { listing: '', index: 0 },
+  });
   vi.stubGlobal(
     'ResizeObserver',
     class {
