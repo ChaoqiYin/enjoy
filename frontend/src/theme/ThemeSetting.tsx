@@ -1,6 +1,9 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { MonitorSmartphone, Moon, Sun } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { ErrorNotice } from '../shared/ErrorNotice';
+import { RadioGroup, RadioGroupItem } from '../shared/ui/radio-group';
 import { useCommand } from '../shared/useCommand';
 import { useSettings } from '../settings/SettingsProvider';
 
@@ -18,6 +21,13 @@ export function initializeTheme() {
   const saved = localStorage.getItem(key) as ThemePreference | null;
   applyTheme(saved === 'light' || saved === 'dark' ? saved : 'system');
 }
+
+/** The three choices, in the order the drawings put them. */
+const options: { value: ThemePreference; label: string; icon: LucideIcon }[] = [
+  { value: 'system', label: 'system', icon: MonitorSmartphone },
+  { value: 'light', label: 'lightTheme', icon: Sun },
+  { value: 'dark', label: 'darkTheme', icon: Moon },
+];
 
 export function ThemeSetting() {
   const { t } = useTranslation();
@@ -48,24 +58,32 @@ export function ThemeSetting() {
     });
   }
   return (
-    <section className="border-b border-base-300 pb-5 space-y-3">
-      <div className="flex w-full items-center justify-between gap-8 max-md:flex-col max-md:items-start max-md:items-start">
-        <div>
-          <h3 className="font-medium">{t('theme')}</h3>
-          <p className="text-sm opacity-65">{t('themeHelp')}</p>
-        </div>
-        <select
-          className="select"
-          disabled={saving}
-          aria-label={t('theme')}
-          value={preference}
-          onChange={(e) => void change(e.target.value as ThemePreference)}
-        >
-          <option value="system">{t('system')}</option>
-          <option value="light">{t('lightTheme')}</option>
-          <option value="dark">{t('darkTheme')}</option>
-        </select>
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <h3 className="text-sm font-medium">{t('theme')}</h3>
+        <p className="text-sm text-muted-foreground">{t('themeHelp')}</p>
       </div>
+      {/* Three cards rather than a list: which theme is on is a choice of one
+          out of three, which is what a radio group is, and drawing each choice
+          as a card that can be pressed whole is what the drawing does. */}
+      <RadioGroup
+        aria-label={t('theme')}
+        value={preference}
+        disabled={saving}
+        onValueChange={(value) => void change(value as ThemePreference)}
+        className="grid gap-3 sm:grid-cols-3"
+      >
+        {options.map(({ value, label, icon: Icon }) => (
+          <label
+            key={value}
+            className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground transition-colors has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:text-foreground hover:bg-accent"
+          >
+            <RadioGroupItem value={value} />
+            <Icon size={18} aria-hidden="true" />
+            <span>{t(label)}</span>
+          </label>
+        ))}
+      </RadioGroup>
       {failure && (
         <ErrorNotice
           error={failure.error}
@@ -73,6 +91,6 @@ export function ThemeSetting() {
           onClose={dismissFailure}
         />
       )}
-    </section>
+    </div>
   );
 }

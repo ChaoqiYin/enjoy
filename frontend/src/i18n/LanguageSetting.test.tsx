@@ -20,7 +20,19 @@ vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (path: string) => path,
 }));
 
-// The preference lives in the settings store now, so what the select shows and
+// jsdom lays nothing out and implements no scrolling, which is what Radix
+// reaches for when it brings the chosen option into view.
+Element.prototype.scrollIntoView = vi.fn();
+// jsdom answers `element.matches(':modal')` by recursing through nwsapi, which
+// costs about 180ms per call; the select's popper asks every ancestor of its
+// list whether it sits in the top layer. Nothing here is a top-layer element.
+const matches = Element.prototype.matches;
+Element.prototype.matches = function (selector: string) {
+  if (selector === ':modal') return false;
+  return matches.call(this, selector);
+};
+
+// The preference lives in the settings store now, so what the control shows and
 // what a change sends are two answers of the same `invoke`.
 function answers(save: () => Promise<unknown>) {
   vi.mocked(invoke).mockImplementation((command: string) => {
@@ -43,6 +55,13 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
+/** The two languages are named in themselves, so the option is looked up by the
+ *  word a reader would be looking for rather than by a translation of it. */
+function choose(label: string) {
+  fireEvent.click(screen.getByRole('combobox'));
+  fireEvent.click(screen.getByRole('option', { name: label }));
+}
+
 it('keeps the saved preference on failure and retries the requested language', async () => {
   answers(() =>
     Promise.reject({
@@ -58,15 +77,18 @@ it('keeps the saved preference on failure and retries the requested language', a
       </SettingsProvider>
     </I18nextProvider>,
   );
-  const select = screen.getByRole('combobox') as HTMLSelectElement;
   await waitFor(() => expect(invoke).toHaveBeenCalledWith('get_settings'));
-  fireEvent.change(select, { target: { value: 'zh-CN' } });
+  choose('简体中文');
   await screen.findByRole('alert');
-  expect(select.value).toBe('system');
+  // The stored preference did not move, so the control still shows what is
+  // stored rather than the choice that was refused.
+  expect(screen.getByRole('combobox').textContent).toContain(english.system);
   expect(screen.getByRole('alert').textContent).toContain('err_save');
 
   answers(() => Promise.resolve({ language: 'zh-CN', theme: 'system' }));
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-  await waitFor(() => expect(select.value).toBe('zh-CN'));
+  await waitFor(() =>
+    expect(screen.getByRole('combobox').textContent).toContain('简体中文'),
+  );
   expect(screen.queryByRole('alert')).toBeNull();
 });

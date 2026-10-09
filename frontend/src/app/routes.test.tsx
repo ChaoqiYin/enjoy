@@ -137,6 +137,9 @@ it('renders independent pages with shared navigation and page-specific actions',
     english.settings,
   );
   expect(screen.queryByPlaceholderText(english.searchPlaceholder)).toBeNull();
+  // Folder management is its own section of the settings page now, so it is
+  // reached by choosing it from the rail rather than by scrolling to it.
+  openSettingsSection(english.settingsFolders);
   expect(screen.getByRole('button', { name: english.add })).toBeTruthy();
   // The folder list is named after the space it belongs to, because each space
   // keeps its own and this is the list of one of them.
@@ -156,6 +159,11 @@ it('renders independent pages with shared navigation and page-specific actions',
 // control is what was being read either way.
 function headerSpace() {
   return screen.getByRole('button', { name: space.name }).textContent;
+}
+function openSettingsSection(name: string) {
+  // The rail is the tabs primitive's, and Radix picks a tab on pointerdown, as
+  // a browser delivers it before the click.
+  fireEvent.mouseDown(screen.getByRole('tab', { name }), { button: 0 });
 }
 it('retains shared search and separate route sorting after page remounts', () => {
   mount();
@@ -193,6 +201,7 @@ it.each(['/', '/settings'])(
       this.setAttribute('open', '');
     };
     mount(path);
+    if (path === '/settings') openSettingsSection(english.settingsFolders);
     fireEvent.click(screen.getByRole('button', { name: english.rescan }));
     expect(screen.getByText(english.noFoldersRescan)).toBeTruthy();
     expect(
