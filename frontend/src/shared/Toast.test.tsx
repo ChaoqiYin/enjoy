@@ -10,6 +10,7 @@ import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Toast } from './Toast';
 import type { ToastType } from './Toast';
+import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 
 // The countdown is the first thing in this repo to need fake timers, so the
 // pairing is stated once here: unmount everything first, because React Testing
@@ -22,6 +23,17 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
 });
+
+/** Which `Alert` variant each notice type wears. The table is written out here
+ *  rather than read from `Toast` so that a notice that lost its colour — the
+ *  failure the full-literal rule exists to prevent — is a failing test rather
+ *  than a test that agrees with whatever the component happens to say. */
+const variants: Record<ToastType, string> = {
+  success: 'success',
+  error: 'destructive',
+  info: 'info',
+  warning: 'warning',
+};
 
 function renderToast(type: ToastType, children?: ReactNode) {
   return render(
@@ -45,8 +57,12 @@ it('renders outside the page layout and preserves the close action', () => {
   expect(
     screen.getByRole('heading', { name: 'Operation failed' }),
   ).toBeTruthy();
-  const host = screen.getByRole('alert').parentElement!;
-  expect(host.classList.contains('toast')).toBe(true);
+  // The notice goes into the shared host for notices at the end of the top
+  // edge, which is what places it and what holds several of them together.
+  const host = document.querySelector<HTMLElement>(
+    '[data-notification-host="end"]',
+  )!;
+  expect(host.contains(screen.getByRole('alert'))).toBe(true);
   expect(host.parentElement).toBe(document.body);
   fireEvent.click(screen.getByRole('button', { name: 'Close' }));
   expect(onClose).toHaveBeenCalledOnce();
@@ -63,16 +79,16 @@ it('announces errors assertively and the other types politely', () => {
   expect(screen.getAllByRole('alert')).toHaveLength(1);
 });
 
-it('takes its colours from the native alert type', () => {
+it('takes its colours from the alert variant its type names', () => {
   for (const type of ['success', 'error', 'info', 'warning'] as ToastType[]) {
     const { unmount } = renderToast(type);
     const notice = screen.getByRole(type === 'error' ? 'alert' : 'status');
-    // Solid by default; the soft frame layers back on in the dark theme, where
-    // its tint sits on a dark base instead of the near-white one that made the
-    // light-theme text unreadable.
-    expect(notice.classList.contains('alert')).toBe(true);
-    expect(notice.classList.contains(`alert-${type}`)).toBe(true);
-    expect(notice.classList.contains('dark:alert-soft')).toBe(true);
+    // The colour is the carrier's, not a class built from the type: a written
+    // out variant per type is what keeps Tailwind generating it, and reading it
+    // back off `data-variant` is reading the contract rather than the rule that
+    // happens to paint it today.
+    expect(notice.getAttribute('data-slot')).toBe('alert');
+    expect(notice.getAttribute('data-variant')).toBe(variants[type]);
     unmount();
   }
 });
@@ -109,20 +125,81 @@ it('stacks simultaneous errors in one shared notification container', () => {
   expect(document.querySelector('[data-notification-host]')).toBeNull();
 });
 
-it('keeps notices above an open dialog and restores their host after closing', async () => {
-  const { container } = render(
-    <>
-      <dialog open />
-      <Toast type="error" closeLabel="Close" onClose={vi.fn()}>
-        <p>Operation failed</p>
-      </Toast>
-    </>,
-  );
-  const dialog = container.querySelector('dialog')!;
-  const host = screen.getByRole('alert').parentElement!;
-  expect(host.parentElement).toBe(dialog);
-  dialog.removeAttribute('open');
+it('keeps notices above a modal dialog that is not a native `<dialog>`', async () => {
+  // The scan-progress panel is a native `<dialog open>`; every other overlay in
+  // the application is Radix's, and Radix portals its panel to `body` rather
+  // than to a `<dialog>` element. Both kinds have to be found, or a notice
+  // raised while a drawer is open lands behind it.
+  function view({ open }: { open: boolean }) {
+    return (
+      <>
+        <Dialog open={open}>
+          <DialogContent closeLabel="Close">
+            <DialogTitle>Question</DialogTitle>
+          </DialogContent>
+        </Dialog>
+        <Toast type="error" closeLabel="Close" onClose={vi.fn()}>
+          <p>Operation failed</p>
+        </Toast>
+      </>
+    );
+  }
+  const { rerender } = render(view({ open: true }));
+  const host = document.querySelector<HTMLElement>('[data-notification-host]')!;
+  const panel = await screen.findByRole('dialog');
+  await waitFor(() => expect(host.parentElement).toBe(panel));
+  rerender(view({ open: false }));
+  // The panel and the host inside it leave the document together, so the host
+  // is put back at the root rather than left detached with the portal.
   await waitFor(() => expect(host.parentElement).toBe(document.body));
+});
+
+it('moves into a native dialog while it is open and back out when it closes', async () => {
+  function view({ open }: { open: boolean }) {
+    return (
+      <>
+        {open && <dialog open />}
+        <Toast type="error" closeLabel="Close" onClose={vi.fn()}>
+          <p>Operation failed</p>
+        </Toast>
+      </>
+    );
+  }
+  const { rerender } = render(view({ open: true }));
+  const host = document.querySelector<HTMLElement>('[data-notification-host]')!;
+  const dialog = document.querySelector('dialog')!;
+  await waitFor(() => expect(host.parentElement).toBe(dialog));
+  rerender(view({ open: false }));
+  await waitFor(() => expect(host.parentElement).toBe(document.body));
+});
+
+it('turns to the dialog the drawer opens, not the one behind it', async () => {
+  // The last opened overlay is the last one in the document, and a notice
+  // belongs to the one on top of the stack rather than to the page.
+  function View({ drawer }: { drawer: boolean }) {
+    return (
+      <>
+        <dialog open data-name="behind" />
+        {drawer && (
+          <div>
+            <dialog open data-name="front" />
+          </div>
+        )}
+        <Toast type="info" closeLabel="Close" onClose={vi.fn()}>
+          <p>Copied</p>
+        </Toast>
+      </>
+    );
+  }
+  const { rerender } = render(<View drawer={false} />);
+  const host = document.querySelector<HTMLElement>('[data-notification-host]')!;
+  await waitFor(() =>
+    expect(host.parentElement?.getAttribute('data-name')).toBe('behind'),
+  );
+  rerender(<View drawer={true} />);
+  await waitFor(() =>
+    expect(host.parentElement?.getAttribute('data-name')).toBe('front'),
+  );
 });
 
 function renderCountdown(
@@ -171,10 +248,10 @@ it('drains a countdown along the frame without announcing itself', () => {
   // every step of a timer the user never asked to hear.
   expect(drain.closest('[aria-hidden="true"]')).toBeTruthy();
   // It draws itself in the frame's own foreground rather than a tone class. A
-  // `progress-{type}` fill would take the very tone the solid frame is already
-  // made of and disappear into it.
+  // tone-coloured fill would take the very colour the frame is already made of
+  // and disappear into it.
   expect(drain.classList.contains('bg-current')).toBe(true);
-  expect(drain.classList.contains('progress')).toBe(false);
+  expect(drain.closest('[role="progressbar"]')).toBeNull();
   // The line is drawn at its full width and scaled down over the notice's
   // remaining time, so it never steps: nothing rewrites it between the start
   // and the end. jsdom runs no animation, so what is pinned here is the

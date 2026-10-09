@@ -1,20 +1,44 @@
-import { useEffect, useId, useRef } from 'react';
-import { X } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { Sheet, SheetContent, SheetTitle } from './ui/sheet';
 
 /** A right-hand panel that slides in and out. The caller owns whether it is
- *  open and what goes inside; everything else — the daisyUI shell, the
- *  animation, the backdrop, focus and the dialog semantics — lives here so
- *  that every drawer in the app behaves the same way.
+ *  open and what goes inside; everything else — the shell, the slide, the
+ *  backdrop, focus and the dialog semantics — lives here so that every drawer
+ *  in the app behaves the same way.
  *
- *  The slide is daisyUI's own: its `translate` transition on the panel, run by
- *  the `:checked` state of the toggle. That is the only thing that moves the
- *  panel, which is why the shell must stay mounted for as long as the caller is
- *  on screen — a transition needs a previous value to move away from, so a
- *  shell that mounted already-open would pop in with no animation. `open` only
- *  ever flips that toggle. daisyUI's `.drawer-side` rules carry the rest of the
- *  open state with it: the backdrop's opacity, and the `visibility` and
- *  `pointer-events` that decide whether the closed drawer can be reached. */
+ *  The panel is a Radix `Sheet`, which is a dialog anchored to an edge: the
+ *  portal, the backdrop, the focus trap, Escape, the scroll lock and the
+ *  presence that holds the panel through its exit are all the library's. What
+ *  is here is the contract the app puts on top of it.
+ *
+ *  The shell outlives the close. It is a frame the panel is drawn inside, it
+ *  carries the drawer's modality, and `open` only flips what it says: the same
+ *  element is in the document from the first render to the last, and `inert` is
+ *  what takes it out of the tab order, the accessibility tree and hit testing
+ *  while it is closed. Reaching for the drawer is therefore never a change of
+ *  what exists, only of what the frame says.
+ *
+ *  The panel itself is Radix's, and so is its dialog role. That means two
+ *  elements here are dialog-shaped while the drawer is open: this frame, and
+ *  the panel the library portals to the end of the body. They never both count:
+ *  a modal Radix panel marks everything outside itself — this frame included,
+ *  since the portal puts the panel outside it — as `aria-hidden`, so what a
+ *  screen reader is given is the panel, named by the heading inside it. The
+ *  frame is what is left once the panel is gone.
+ *
+ *  Movement comes from exactly one place: the sheet's `animate-in`/`animate-out`
+ *  with `slide-in-from-right`/`slide-out-to-right`, which is a keyframe
+ *  animation of `transform`. daisyUI moved the panel with a `transition` of the
+ *  `translate` property, and the two sum — an element mid-transition can be
+ *  displaced twice, which is what played back as sliding too far and snapping
+ *  back. daisyUI is gone from this app and its transition with it, so there is
+ *  no second source to add to this one.
+ *
+ *  What Radix adds to how the drawer behaves, besides the movement: the focus
+ *  trap, which the daisyUI shell never had (Tab used to walk out of the open
+ *  drawer and onto the page behind it), and the scroll lock, which used to be a
+ *  rule patched around the macOS title bar and is now the library's own. */
 export function Drawer({
   open,
   title,
@@ -29,93 +53,72 @@ export function Drawer({
   children: ReactNode;
 }) {
   const panel = useRef<HTMLDivElement>(null);
-  const titleId = useId();
-  // Captured when the drawer opens rather than when it mounts: the shell now
-  // mounts with the page, so on the first render the active element is whatever
-  // the user was on before they ever reached for the drawer.
+  // Captured when the drawer opens rather than when it mounts: the shell mounts
+  // with the page, so on the first render the active element is whatever the
+  // user was on before they ever reached for the drawer.
   const previousFocus = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (open) {
       previousFocus.current = document.activeElement as HTMLElement;
-      panel.current?.focus();
       return;
     }
     // Hand focus back as soon as the close starts rather than when the panel
     // finishes sliding away, so the keyboard never sits on a fading dialog.
+    // Radix does not do this for a drawer: its own return targets the trigger
+    // it was opened from, and this one is opened from state.
     previousFocus.current?.focus();
   }, [open]);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
   return (
-    // The shell is a full-viewport overlay now that it outlives the close, so it
-    // has to opt out of hit testing: daisyUI only clears `pointer-events` on
-    // `.drawer-side`, and that rule hands it back while the drawer is open.
+    // The shell is the full-viewport layer the drawer is drawn in, and it is
+    // `inert` rather than `pointer-events-none` when closed: being unreachable
+    // is what a closed drawer is, and `inert` holds for the keyboard and the
+    // accessibility tree as well as for the mouse.
     <div
-      className="drawer drawer-end fixed inset-0 z-40 pointer-events-none"
       role="dialog"
       aria-modal="true"
-      aria-labelledby={titleId}
-      // The shell stays mounted once closed, so `inert` is what takes it out of
-      // the tab order and the accessibility tree until it is opened again.
       inert={!open}
+      className="fixed inset-0 z-40"
     >
-      {/* daisyUI hides the toggle itself (fixed, zero-sized, transparent), but
-          hidden is not the same as unfocusable; `tabIndex` keeps it from
-          becoming a stop the keyboard can land on. */}
-      <input
-        type="checkbox"
-        className="drawer-toggle"
-        checked={open}
-        readOnly
-        tabIndex={-1}
-        aria-hidden="true"
-      />
-      <div className="drawer-content" />
-      <div className="drawer-side">
-        {/* A button only so that a click anywhere on it closes the drawer; it
-            is not a control the user aims at. daisyUI marks every
-            `.drawer-overlay` with a pointer cursor, which would put a hand over
-            most of the screen and drown out the same hand on the things the
-            user does aim at — the panel's own buttons, a video card. daisyUI's
-            own `.modal-backdrop` carries no such rule, so clearing it here is
-            also what keeps the two backdrops in this app reading alike.
-            The utility wins over the component class because daisyUI nests its
-            rules in a sublayer of `utilities`, where this one lands directly. */}
-        <button
-          className="drawer-overlay cursor-default"
-          aria-label={closeLabel}
-          onClick={onClose}
-        />
-        {/* The shade along the panel's top edge is an inset shadow rather than
-            a cast one: that edge sits on `.drawer-side`'s own top, and that
-            container clips its overflow, so anything cast upwards would be cut
-            away before it could show under the title bar. */}
-        <div
+      <Sheet
+        open={open}
+        modal
+        onOpenChange={(next) => {
+          // Escape and a press on the backdrop both arrive here as a close.
+          if (!next) onClose();
+        }}
+      >
+        <SheetContent
           ref={panel}
+          closeLabel={closeLabel}
+          // Focusable so that opening the drawer can put focus on the panel
+          // itself — the heading is read first, and Tab goes on from here.
           tabIndex={-1}
-          className="bg-base-100 h-full w-full max-w-[440px] overflow-y-auto p-6 space-y-5 outline-none shadow-[inset_0_10px_14px_-10px_rgb(0_0_0_/_0.18)]"
+          // The focus that arrives with the panel is taken here rather than
+          // left to the library: Radix would land on the first tabbable thing
+          // inside the panel, which is its close button, and a drawer that
+          // opens by reading out a dismiss control before its own heading is
+          // the wrong way round. The panel has no autofocus when a drawer
+          // mounts already open, either — the effect above only runs on the
+          // flip — so this is also what makes the first render behave like
+          // every later one.
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            panel.current?.focus();
+          }}
+          // The panel takes the width the drawer is allowed: the frame fills
+          // the window and the sheet's own width is a fraction of it.
+          className="block w-full max-w-[440px] space-y-5 overflow-y-auto p-6 outline-none"
         >
-          <div className="flex items-center justify-between">
-            <h2 id={titleId} className="text-2xl font-bold">
-              {title}
-            </h2>
-            <button
-              className="btn btn-outline btn-sm btn-square btn-neutral"
-              aria-label={closeLabel}
-              onClick={onClose}
-            >
-              <X size={16} aria-hidden="true" />
-            </button>
-          </div>
+          {/* Named here rather than on the frame: this is what assistive
+              technology is left with while the drawer is open, and Radix points
+              the panel's own `aria-labelledby` at this heading. The padding
+              clears the close button the sheet hangs in the corner. */}
+          <SheetTitle className="pr-10 text-2xl leading-normal font-bold">
+            {title}
+          </SheetTitle>
           {children}
-        </div>
-      </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
