@@ -100,6 +100,7 @@
   "copied": "Copied",
   "format": "Format",
   "modifiedAt": "Modified",
+  "path": "Path",
   "removeConfirm": "Confirm index removal",
   "keepFile": "The original file will not be deleted",
   "removeShared": "It is also on the share list, and removing the index takes it off that list too",

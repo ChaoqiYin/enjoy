@@ -1,7 +1,19 @@
-import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Video } from '../../shared/api';
+import { Button } from '../../shared/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from '../../shared/ui/dialog';
 
+/**
+ * The question asked before a video leaves the index, and the one cost it
+ * states. It is modal because the answer is the only thing to reach while it is
+ * up, and Escape therefore counts as "cancel" — the answer that does nothing.
+ */
 export function RemoveConfirmation({
   video,
   onCancel,
@@ -12,42 +24,34 @@ export function RemoveConfirmation({
   onConfirm: () => void;
 }) {
   const { t } = useTranslation();
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    dialog.current?.showModal();
-  }, []);
   return (
-    <dialog
-      ref={dialog}
-      className="modal"
-      aria-labelledby="remove-title"
-      aria-describedby="remove-description"
-      onClose={onCancel}
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onCancel();
+      }}
     >
-      <div className="modal-box space-y-4">
-        <h2 id="remove-title" className="text-xl break-all">
+      <DialogContent closeLabel={t('close')} className="max-w-md">
+        <DialogTitle className="text-base break-all">
           {t('removeQuestion', { name: video.file_name })}
-        </h2>
-        <p id="remove-description">{t('keepFile')}</p>
+        </DialogTitle>
+        <DialogDescription>{t('keepFile')}</DialogDescription>
         {/* The record carries the 共享清单 mark, so removing it takes the video
             off that list as well. Said only when it is true: a warning on every
             removal is one the user learns to read past, and this one is the
             answer to "why did the television stop seeing it". */}
-        {video.shared && <p>{t('removeShared')}</p>}
-        <div className="modal-action items-center gap-3">
-          <form method="dialog">
-            <button autoFocus className="btn btn-soft btn-md btn-neutral">
-              {t('cancel')}
-            </button>
-          </form>
-          <button className="btn btn-soft btn-md btn-error" onClick={onConfirm}>
+        {video.shared && (
+          <p className="text-sm text-muted-foreground">{t('removeShared')}</p>
+        )}
+        <DialogFooter className="items-center gap-3">
+          <Button autoFocus variant="secondary" size="lg" onClick={onCancel}>
+            {t('cancel')}
+          </Button>
+          <Button variant="destructive" size="lg" onClick={onConfirm}>
             {t('remove')}
-          </button>
-        </div>
-      </div>
-      <form method="dialog" className="modal-backdrop">
-        <button>{t('cancel')}</button>
-      </form>
-    </dialog>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

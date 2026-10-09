@@ -25,6 +25,16 @@ vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn().mockResolvedValue(() => {}),
 }));
 
+// jsdom answers `element.matches(':modal')` by recursing through nwsapi, which
+// costs about 180ms per call; the row confirmation Radix anchors asks every
+// ancestor of its panel whether it sits in the top layer. Nothing here is a
+// top-layer element, so answering `false` outright is both correct and instant.
+const matches = Element.prototype.matches;
+Element.prototype.matches = function (selector: string) {
+  if (selector === ':modal') return false;
+  return matches.call(this, selector);
+};
+
 const films: Space = { id: 1, name: 'Films' };
 const shows: Space = { id: 2, name: 'Shows' };
 const i18n = createInstance();
@@ -42,9 +52,6 @@ beforeEach(async () => {
   vi.spyOn(libraryApi, 'list').mockResolvedValue({ items: [], total: 0 });
   vi.spyOn(libraryApi, 'directories').mockResolvedValue([]);
   vi.spyOn(libraryApi, 'scanStatus').mockResolvedValue(idleScan());
-  HTMLDialogElement.prototype.showModal = function () {
-    this.setAttribute('open', '');
-  };
 });
 
 afterEach(() => {
@@ -202,13 +209,14 @@ it('mounts its dialog outside the column it would otherwise push down', async ()
   mount();
   await screen.findByText(shows.name);
   fireEvent.click(screen.getByRole('button', { name: english.spaceCreate }));
-  const dialog = document.querySelector('dialog')!;
+  const dialog = await screen.findByRole('dialog');
   // `space-y` puts a bottom margin on every child that is not the last one, so a
   // dialog mounted inside the column stops the button from being last, gives it
-  // a margin, and moves everything below the section down by one gap. jsdom has
-  // no layout, so what is checked is the arrangement that avoids it — measured
-  // in a real browser at 10.5px of shift before this was fixed.
-  expect(dialog.parentElement?.className ?? '').not.toMatch(/space-y/);
+  // a margin, and moves everything below the section down by one gap. The
+  // dialog is portalled to the document root instead, so it is nobody's child
+  // in that column — measured in a real browser at 10.5px of shift before this
+  // was fixed.
+  expect(dialog.parentElement).toBe(document.body);
 });
 
 it('offers the space operations while no media task holds the scan slot', async () => {

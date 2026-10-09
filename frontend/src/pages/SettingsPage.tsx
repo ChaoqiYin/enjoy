@@ -1,15 +1,13 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FolderMinus } from 'lucide-react';
 import { LanguageSetting } from '../i18n/LanguageSetting';
 import { ThemeSetting } from '../theme/ThemeSetting';
-import { ConfirmTooltip } from '../shared/ConfirmTooltip';
 import { ScrollViewport } from '../shared/ScrollViewport';
-import { displayPath } from '../shared/format';
 import { useBusy } from '../features/library/useBusy';
 import { useDirectories } from '../features/library/useDirectories';
 import { DirectoryActions } from '../features/library/DirectoryActions';
 import { DirectoryDialog } from '../features/library/DirectoryDialog';
+import { DirectoryRow } from '../features/library/DirectoryRow';
 import { EmptyRescanConfirmation } from '../features/library/EmptyRescanConfirmation';
 import { PageFrame } from '../features/library/PageFrame';
 import { SpaceSetting } from '../features/space/SpaceSetting';
@@ -42,27 +40,12 @@ export function SettingsPage() {
             list of one of them. */}
         <h2 className="text-xl">{t('foldersInSpace', { name: space.name })}</h2>
         {(directories.directories.data ?? []).map((path) => (
-          <div
+          <DirectoryRow
             key={path}
-            className="flex items-center gap-4 bg-base-200 p-4 rounded-box"
-          >
-            <span className="break-all flex-1">{displayPath(path)}</span>
-            <ConfirmTooltip
-              message={t('removeQuestion', { name: displayPath(path) })}
-              confirmLabel={t('confirm')}
-              cancelLabel={t('cancel')}
-              disabled={busy}
-              onConfirm={() => directories.removeDirectory(path)}
-            >
-              <button
-                className="btn btn-outline btn-xs btn-square btn-error"
-                aria-label={t('removeFolder')}
-                disabled={busy}
-              >
-                <FolderMinus size={14} aria-hidden="true" />
-              </button>
-            </ConfirmTooltip>
-          </div>
+            path={path}
+            disabled={busy}
+            onRemove={() => directories.removeDirectory(path)}
+          />
         ))}
         <DirectoryActions
           busy={busy}

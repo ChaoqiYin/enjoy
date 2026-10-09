@@ -11,7 +11,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { Thumbnail } from '../features/library/Thumbnail';
 import { VideoCard } from '../features/library/VideoCard';
-import { pictureClass } from '../features/library/videoCardBox';
 import type { ScanStatus, Video } from '../shared/api';
 import english from '../../../shared/locales/en/common.json';
 import chinese from '../../../shared/locales/zh-CN/common.json';
@@ -204,26 +203,19 @@ describe('video card actions', () => {
     mount(video.id);
     const card = screen.getByRole('article');
     // The marker is written over the thumbnail's corner rather than into one of
-    // the card's rows, so that no body row has to make room for it. jsdom lays
-    // nothing out, so this proves where the element is put, not where it lands:
-    // the corner it paints on is measured in the browser.
+    // the card's rows, so that no row has to make room for it and every card in
+    // a row keeps the height its own picture gives it. jsdom lays nothing out,
+    // so this proves where the element is put, not where it lands: the corner it
+    // paints on is measured in the browser.
     const marker = screen.getByText('Last played');
     expect(card.contains(marker)).toBe(true);
     expect(marker.classList.contains('absolute')).toBe(true);
-    expect(card.querySelector('.card-body')?.contains(marker)).toBe(false);
-    // And it has to be the card's last child, which is the invariant this whole
-    // block hangs on rather than a detail of where the marker was written:
-    // daisyUI hands `.card figure:first-child` the picture area's clipping and
-    // its inherited corner radius, and `:first-child` counts an absolutely
-    // positioned child. Anything placed ahead of the picture area takes the
-    // clipping away with it, and a thumbnail whose own ratio is not 16:9 then
-    // sets the figure's height — a played card measuring more than twice its
-    // neighbours, dragging its whole row with it (issue #46). The name comes
-    // from `videoCardBox`, which is where that rule and its numbers live, so
-    // renaming the picture area's hook renames it here too; what this cannot
-    // show is the geometry that goes wrong without it, which jsdom cannot lay
-    // out at all.
-    expect(card.firstElementChild?.classList.contains(pictureClass)).toBe(true);
+    // The row that carries the duration is the card's body, and the mark is not
+    // written into it — that is the whole of what "over the picture" means
+    // here, and it is what keeps the body's height a fact about the text in it.
+    expect(screen.getByText('00:01:05').parentElement?.contains(marker)).toBe(
+      false,
+    );
   });
   it('leaves a video that is not on the 共享清单 unmarked', () => {
     mount();
@@ -241,14 +233,10 @@ describe('video card actions', () => {
     expect(card.contains(marker)).toBe(true);
     expect(marker.classList.contains('absolute')).toBe(true);
     expect(marker.classList.contains('end-2')).toBe(true);
-    // The fill is daisyUI's mint at 80%, and this pins the 80%: the two
-    // utilities both write `background-color` and it is the one that comes
-    // second in the stylesheet which lands, so which one is written here is the
-    // whole of which colour is drawn. Measured over dark, mid and light
-    // thumbnails, the pair reads 3.47 / 4.37 / 5.42 to one, where an unbounded
-    // thinning drops under the 3:1 a graphic needs — the numbers are in the
-    // card's own comment.
-    expect(marker.classList.contains('bg-success/80')).toBe(true);
+    // Green means sharing, which the design documents keep even where the pages
+    // repaint the mark red, and the fill is the one the primitive was asked for
+    // rather than a second colour written beside it.
+    expect(marker.getAttribute('data-variant')).toBe('success');
     // A glyph and not a sentence: the card's own words are its file name and its
     // duration, and the library is read by scanning those.
     expect(marker.textContent).toBe('');
@@ -259,11 +247,26 @@ describe('video card actions', () => {
     expect(screen.getByText('Last played').classList.contains('start-2')).toBe(
       true,
     );
-    // Written over the thumbnail rather than into a body row, and trailing the
-    // picture for the same reason the played marker does: the picture area is
-    // what daisyUI hangs its clipping on through `:first-child`.
-    expect(card.querySelector('.card-body')?.contains(marker)).toBe(false);
-    expect(card.firstElementChild?.classList.contains(pictureClass)).toBe(true);
+    // Written over the picture, not into the card's body, so the two marks never
+    // make a row taller than the text in it.
+    expect(screen.getByText('00:01:05').parentElement?.contains(marker)).toBe(
+      false,
+    );
+  });
+  it('offers the play that starts the video exactly once', () => {
+    mount();
+    // The picture carries the play affordance and the action row does not, so a
+    // reader hears one control named Play rather than two that do the same
+    // thing. Both are the same action, and both are the card's own: nothing
+    // here is a hidden duplicate of the other.
+    expect(screen.getAllByRole('button', { name: 'Play' })).toHaveLength(1);
+    // The card the play sits on is still the thing a click opens the details
+    // panel with, so the play button must be inside it rather than beside it.
+    expect(
+      screen
+        .getByRole('article')
+        .contains(screen.getByRole('button', { name: 'Play' })),
+    ).toBe(true);
   });
   it('does not gate play on any per-record availability state', () => {
     const actions = mount();

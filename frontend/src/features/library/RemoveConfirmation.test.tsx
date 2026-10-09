@@ -8,13 +8,18 @@ import english from '../../../../shared/locales/en/common.json';
 
 const i18n = createInstance();
 
+// jsdom answers `element.matches(':modal')` by recursing through nwsapi, which
+// costs about 180ms per call; Radix asks the page behind the dialog whether it
+// sits in the top layer when it hides it. Nothing here is a top-layer element,
+// so answering `false` outright is both correct and instant.
+const matches = Element.prototype.matches;
+Element.prototype.matches = function (selector: string) {
+  if (selector === ':modal') return false;
+  return matches.call(this, selector);
+};
+
 beforeEach(async () => {
   await i18n.init({ lng: 'en', resources: { en: { translation: english } } });
-  // jsdom has the element but not the method that shows it, so a modal is
-  // opened by setting what the browser would have set.
-  HTMLDialogElement.prototype.showModal = function () {
-    this.setAttribute('open', '');
-  };
 });
 
 afterEach(cleanup);
