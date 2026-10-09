@@ -127,19 +127,33 @@ afterEach(() => {
 // a test that turns one turns both.
 let pageIndex = 0;
 
-function page() {
+function page(
+  options: {
+    turnTo?: (index: number) => void;
+    emptyTitle?: string;
+    emptyHelp?: string;
+    onAdd?: () => void;
+    filtered?: boolean;
+    clearFilters?: () => void;
+  } = {},
+) {
   const view = {
     collectionKey: collection.pageKey,
     videos: collection.videos.data?.items ?? [],
     total: collection.videos.data?.total ?? 0,
     index: pageIndex,
-    turnTo: () => {},
-    filtered: false,
-    clearFilters: () => {},
+    turnTo: options.turnTo ?? (() => {}),
+    filtered: options.filtered ?? false,
+    clearFilters: options.clearFilters ?? (() => {}),
   } as unknown as ReturnType<typeof useVideoPageView>;
   return (
     <I18nextProvider i18n={i18n}>
-      <VideoPageContent view={view} emptyTitle="" emptyHelp="" />
+      <VideoPageContent
+        view={view}
+        emptyTitle={options.emptyTitle ?? ''}
+        emptyHelp={options.emptyHelp ?? ''}
+        onAdd={options.onAdd}
+      />
     </I18nextProvider>
   );
 }
@@ -299,4 +313,73 @@ it('does not read a record that moved off the page as a removal', async () => {
   expect(document.querySelector('[role="dialog"]')?.hasAttribute('inert')).toBe(
     false,
   );
+});
+
+it('says how much the library holds, not how much this page holds', () => {
+  collection.videos.data = { items: [video, { ...video, id: 2 }], total: 36 };
+  render(page());
+  // The page holds one page of a list (ADR 0016), so the count over it is about
+  // the whole library — the backend's answer, and the drawing `_2`'s 「共 36 个视频」.
+  // It is drawn whether or not there is another page, because it is a statement
+  // about the list rather than a control.
+  expect(screen.getByText('36 items in this library')).toBeTruthy();
+});
+
+it('says nothing about a count it has not been told yet', () => {
+  collection.videos.isPending = true;
+  render(page());
+  expect(screen.getByText(english.loading)).toBeTruthy();
+  expect(screen.queryByText(/items in this library/)).toBeNull();
+});
+
+it('offers the rest of the list when it runs past this page', () => {
+  const turnTo = vi.fn();
+  collection.videos.data = { items: [video], total: 60 };
+  render(page({ turnTo }));
+  expect(screen.getByText('Showing 1–24 of 60')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+  // The footer asks in pages and the library counts in indices (see
+  // `features/library/Pagination`), so the second page is index 1.
+  expect(turnTo).toHaveBeenCalledWith(1);
+});
+
+it('offers nowhere to go in a list that fits on one page', () => {
+  collection.videos.data = { items: [video], total: 24 };
+  render(page());
+  // A footer with one page in it is furniture, and the count above already says
+  // how much there is.
+  expect(screen.queryByText(/^Showing/)).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
+});
+
+it('says a filter found nothing, and offers the way back to everything', () => {
+  const clearFilters = vi.fn();
+  collection.videos.data = { items: [], total: 0 };
+  render(page({ filtered: true, clearFilters }));
+  // "Nothing matched" rather than "nothing here": the difference between the two
+  // is the difference between the user narrowing the list and the library being
+  // empty, and it is the one thing the list needs the filters for.
+  expect(screen.getByRole('heading', { name: english.noMatch })).toBeTruthy();
+  expect(screen.getByText(english.noMatchHelp)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: english.clear }));
+  expect(clearFilters).toHaveBeenCalledOnce();
+});
+
+it('welcomes an empty library and says how to start it', () => {
+  const onAdd = vi.fn();
+  collection.videos.data = { items: [], total: 0 };
+  render(
+    page({
+      emptyTitle: english.empty,
+      emptyHelp: english.welcome,
+      onAdd,
+    }),
+  );
+  expect(screen.getByRole('heading', { name: english.empty })).toBeTruthy();
+  expect(screen.getByText(english.welcome)).toBeTruthy();
+  // The formats are worth saying here and only here: this is the moment the user
+  // is wondering whether their files count as videos at all (drawing `_7`).
+  expect(screen.getByText(english.welcomeFormats)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: english.add }));
+  expect(onAdd).toHaveBeenCalledOnce();
 });

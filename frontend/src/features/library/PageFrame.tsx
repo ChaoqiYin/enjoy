@@ -60,8 +60,16 @@ export function PageFrame({ children }: { children: ReactNode }) {
         <Hint text={t('copied')} onClose={notices.dismissCopyHint} />
       )}
       {isRunning && status && (
-        <dialog open className="modal" aria-labelledby="scan-progress-title">
-          <div className="modal-box max-w-lg">
+        // A native `<dialog>` rather than the interface's own overlay: a scan
+        // cannot be dismissed, so this needs `open` and nothing else — no
+        // focus trap to argue with, no `onOpenChange` to refuse, and the panel's
+        // own controls are what ever closes it.
+        <dialog
+          open
+          aria-labelledby="scan-progress-title"
+          className="fixed inset-0 z-50 m-0 flex size-full max-w-none items-center justify-center bg-background/80 backdrop-blur-sm"
+        >
+          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-lg">
             <h2 id="scan-progress-title" className="sr-only">
               {t('scanning')}
             </h2>

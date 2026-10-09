@@ -10,7 +10,7 @@ import { ConnectionDetails } from '../features/share/ConnectionDetails';
 import { DeviceList } from '../features/share/DeviceList';
 import { ListWarnings } from '../features/share/ListWarnings';
 import { PasswordDetails } from '../features/share/PasswordDetails';
-import { Pager } from '../features/library/Pager';
+import { Pagination } from '../features/library/Pagination';
 import { useShareContext } from '../features/share/ShareProvider';
 import { Button } from '../shared/ui/button';
 import { ScrollViewport } from '../shared/ScrollViewport';
@@ -38,7 +38,7 @@ function clientError(code: string): AppError {
  * what sits where.
  */
 export function SharePage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const share = useShareContext();
   const notices = useNotices();
   // The 共享清单, read the way every page reads the videos: the page of records
@@ -129,10 +129,16 @@ export function SharePage() {
             </p>
           ) : (
             <>
-              {/* How much is on offer, and how to read the rest of it: the
-                  count is the list's, not the cards', exactly as on every
-                  listing page. */}
-              <Pager index={index} total={total} onPageChange={turnTo} />
+              {/* How much is on offer, then the cards, then the way to the rest
+                  of the list: the count is the 清单's, not the cards', exactly as
+                  on every listing page (`VideoPageContent` says it the same way
+                  and for the same reason), and the range under the cards is the
+                  page's. */}
+              <p className="text-sm text-muted-foreground tabular-nums">
+                {t('videoCount', {
+                  countText: total.toLocaleString(i18n.language),
+                })}
+              </p>
               <VideoGrid
                 videos={videos}
                 scan={board.scan}
@@ -141,6 +147,7 @@ export function SharePage() {
                 actions={board.actions}
                 lastPlayedId={board.lastPlayedId}
               />
+              <Pagination index={index} total={total} onPageChange={turnTo} />
             </>
           )}
         </div>

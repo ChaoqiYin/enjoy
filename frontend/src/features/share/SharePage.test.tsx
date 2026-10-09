@@ -279,12 +279,15 @@ it('offers the rest of the 共享清单 when there is more of it than this page'
   page();
   expect(
     await screen.findByText(
-      english.videoRange
-        .replace('{{fromText}}', '1')
-        .replace('{{toText}}', '24'),
+      english.paginationSummary
+        .replace('{{from}}', '1')
+        .replace('{{to}}', '24')
+        .replace('{{total}}', '48'),
     ),
   ).toBeTruthy();
-  expect(screen.getByRole('button', { name: english.nextPage })).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: english.paginationNext }),
+  ).toBeTruthy();
 });
 
 it('gives the room a hover needs to the viewport that clips, not to the grid', async () => {

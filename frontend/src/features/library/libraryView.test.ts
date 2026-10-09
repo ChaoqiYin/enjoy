@@ -1,5 +1,15 @@
-import { expect, it } from 'vitest';
+import { beforeEach, expect, it } from 'vitest';
 import { pageIndexOf, useLibraryView } from './libraryView';
+
+beforeEach(() => {
+  useLibraryView.setState({
+    search: '',
+    folder: '',
+    sorts: {},
+    viewModes: {},
+    page: { listing: '', index: 0 },
+  });
+});
 
 it('keeps page sorting separate while retaining filters', () => {
   useLibraryView.getState().setSearch('query');
@@ -26,4 +36,27 @@ it('a place in a list belongs to the list it was taken in', () => {
 
   // And the list they left is still where they left it.
   expect(pageIndexOf('one')).toBe(2);
+});
+
+it('a view mode is remembered per page, as the order is', () => {
+  // The other half of the same约定: 视频库 read as rows does not read 收藏 as rows.
+  // Which shape a page opens in when it has not been reshaped is not this
+  // module's answer — `useVideoPageView` reads that off the vocabulary — so what
+  // is asserted here is only the keying: a page that has been reshaped has an
+  // entry, and another page does not.
+  const reshaped = (listing: string) =>
+    useLibraryView.getState().viewModes[listing];
+  expect(reshaped('/')).toBeUndefined();
+  useLibraryView.getState().setViewMode('/', 'table');
+  expect(reshaped('/')).toBe('table');
+  expect(reshaped('/favorites')).toBeUndefined();
+  // Reading another page in another shape does not disturb the first.
+  useLibraryView.getState().setViewMode('/favorites', 'list');
+  expect(reshaped('/')).toBe('table');
+  expect(reshaped('/favorites')).toBe('list');
+
+  // The order and the shape are two answers about one page, and moving one
+  // leaves the other alone.
+  useLibraryView.getState().setSort('/', 'name');
+  expect(reshaped('/')).toBe('table');
 });

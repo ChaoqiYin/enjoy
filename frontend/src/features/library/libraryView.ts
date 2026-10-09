@@ -1,16 +1,19 @@
 import { create } from 'zustand';
-import type { SortOrder } from './listing';
+import type { SortOrder, ViewMode } from './listing';
 
 // The words a list is read in are the listing's, not this store's; they are
 // handed on from here because every control that names one already imports this
 // module, and a second path to the same vocabulary would be a second place it
 // could change.
-export type { SortOrder } from './listing';
+export type { SortOrder, ViewMode } from './listing';
 
 interface LibraryView {
   search: string;
   folder: string;
   sorts: Record<string, SortOrder>;
+  /** The shape each listing is drawn in, by route, for the pages that have
+   *  been reshaped. Absent is [`DEFAULT_VIEW_MODE`]. */
+  viewModes: Record<string, ViewMode>;
   /**
    * Which page of which listing the user is reading.
    *
@@ -24,6 +27,7 @@ interface LibraryView {
   setSearch: (value: string) => void;
   setFolder: (value: string) => void;
   setSort: (listing: string, value: SortOrder) => void;
+  setViewMode: (listing: string, value: ViewMode) => void;
   setPage: (listing: string, index: number) => void;
 }
 
@@ -31,6 +35,7 @@ export const useLibraryView = create<LibraryView>((set) => ({
   search: '',
   folder: '',
   sorts: {},
+  viewModes: {},
   // A listing nothing matches, which is the first page of every listing: no
   // description is this one, so every list starts at its beginning.
   page: { listing: '', index: 0 },
@@ -38,6 +43,8 @@ export const useLibraryView = create<LibraryView>((set) => ({
   setFolder: (folder) => set({ folder }),
   setSort: (listing, value) =>
     set((state) => ({ sorts: { ...state.sorts, [listing]: value } })),
+  setViewMode: (listing, value) =>
+    set((state) => ({ viewModes: { ...state.viewModes, [listing]: value } })),
   setPage: (listing, index) => set({ page: { listing, index } }),
 }));
 
