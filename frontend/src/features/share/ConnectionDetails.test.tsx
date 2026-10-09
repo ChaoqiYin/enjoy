@@ -56,9 +56,14 @@ it('shows the address the service is really on, and copies it', () => {
   // machine with a virtual adapter.
   expect(screen.getByText('Wi-Fi')).toBeTruthy();
 
-  fireEvent.click(
-    screen.getByRole('button', { name: `${english.copyAddress}: ${url}` }),
-  );
+  const copy = screen.getByRole('button', {
+    name: `${english.copyAddress}: ${url}`,
+  });
+  // Copying is beside the thing being copied, and it is not one of the page's
+  // emphatic actions: the address is what the user reads, and this is the
+  // shortcut past writing it down.
+  expect(copy.getAttribute('data-variant')).toBe('ghost');
+  fireEvent.click(copy);
   // What goes on the clipboard is the whole address, not the row's label: a
   // block that copied what it drew would be copying "Copy" to a television.
   expect(onCopy).toHaveBeenCalledWith(url);
@@ -84,7 +89,12 @@ it('marks the address that cannot reach a television', () => {
   expect(rows[0].textContent).toContain('192.168.1.5');
   expect(rows[0].textContent).not.toContain(english.addressLoopback);
   expect(rows[1].textContent).toContain('http://127.0.0.1:4918/');
-  expect(rows[1].textContent).toContain(english.addressLoopback);
+  // The mark is the warning one and it is a mark rather than a fact of the row:
+  // the interface name is drawn like the address, and this one is set apart
+  // from it, which is what the one row that works here and nowhere else needs.
+  const mark = rows[1].querySelector('[data-variant="warning"]');
+  expect(mark?.textContent).toBe(english.addressLoopback);
+  expect(rows[0].querySelector('[data-variant="warning"]')).toBeNull();
 });
 
 it('says what to do instead of showing addresses while nothing is running', () => {

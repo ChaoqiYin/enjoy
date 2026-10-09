@@ -12,6 +12,7 @@ import { ListWarnings } from '../features/share/ListWarnings';
 import { PasswordDetails } from '../features/share/PasswordDetails';
 import { Pager } from '../features/library/Pager';
 import { useShareContext } from '../features/share/ShareProvider';
+import { Button } from '../shared/ui/button';
 import { ScrollViewport } from '../shared/ScrollViewport';
 import type { AppError } from '../shared/api';
 
@@ -77,21 +78,18 @@ export function SharePage() {
         <h1 className="text-3xl font-bold">{t('sharing')}</h1>
         {/* The port is named here and not only in the addresses below, because
             the port is the fact that can be surprising: 4918 is what the
-            service asks for, and what it ends up on is whatever was free. */}
+            service asks for, and what it ends up on is whatever was free. It
+            reads at the page's own weight rather than muted for that reason. */}
         <p>
           {running ? t('sharingOn', { port: share.port }) : t('sharingOff')}
         </p>
         {/* One button rather than two, as the favorite is one menu entry: the
             service is either running or it is not, and the label says which
             way this one moves it. Starting is the application's own primary
-            action; ending is a close, and carries the neutral colour closes
-            carry — nothing is being undone or thrown away by stopping. */}
-        <button
-          className={
-            running
-              ? 'btn btn-soft btn-md btn-neutral'
-              : 'btn btn-soft btn-md btn-primary'
-          }
+            action; ending is a close, and takes the secondary variant closes
+            take — nothing is being undone or thrown away by stopping. */}
+        <Button
+          variant={running ? 'secondary' : 'primary'}
           // A service over an empty list is a port a device can connect to and
           // find nothing on, which reads as a service that is broken. The
           // backend would serve it happily; this is the interface saying what
@@ -101,7 +99,7 @@ export function SharePage() {
           onClick={() => void (running ? share.stop() : share.start())}
         >
           {running ? t('stopSharing') : t('startSharing')}
-        </button>
+        </Button>
         {/* The list itself, drawn as cards so that what is being offered can be
             seen rather than remembered: the same cards and the same right-click
             menu as every other page (the baseline allows no list view anywhere),
@@ -120,11 +118,14 @@ export function SharePage() {
             // service that is broken, so the button above will not start over an
             // empty list. The reason is said rather than left to the greyed-out
             // button to explain, and it comes with the way out.
-            <p className="text-sm opacity-70">
+            <p className="text-sm text-muted-foreground">
               {t('shareListEmpty')}{' '}
-              <Link className="link" to="/">
-                {t('shareListEmptyAction')}
-              </Link>
+              {/* The way out of the state above, kept a link because that is
+                  what it is — the button's link variant is the one that is a
+                  link in everything but its name. */}
+              <Button asChild variant="link" size="sm">
+                <Link to="/">{t('shareListEmptyAction')}</Link>
+              </Button>
             </p>
           ) : (
             <>
