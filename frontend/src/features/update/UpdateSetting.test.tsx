@@ -112,8 +112,59 @@ it('offers the download once a newer version is known', () => {
   update.check = { ...update.check!, available: release };
   render(view());
   expect(screen.getByText('Version 0.2.0 is available')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: english.updateDownload }));
+  const download = screen.getByRole('button', { name: english.updateDownload });
+  // The one emphatic action of this section, and nothing is said to get it.
+  expect(download.getAttribute('data-variant')).toBe('primary');
+  fireEvent.click(download);
   expect(update.install).toHaveBeenCalled();
+});
+
+it('gives each control the variant its meaning asks for', () => {
+  // The variant and size names are the contract the interface picks controls by
+  // meaning with; a class name would only say how the meaning is drawn today.
+  update.check = { ...update.check!, available: release, readyToRestart: true };
+  render(view());
+  const check = screen.getByRole('button', { name: english.updateCheck });
+  // Asking is not the section's one emphatic move — the download or restart it
+  // leads to is — so it sits at the neutral end and at the page's text size.
+  expect(check.getAttribute('data-variant')).toBe('secondary');
+  expect(check.getAttribute('data-size')).toBe('sm');
+  expect(
+    screen
+      .getByRole('button', { name: english.updateRestart })
+      .getAttribute('data-variant'),
+  ).toBe('primary');
+  cleanup();
+
+  update.check = { ...update.check!, available: release };
+  update.downloading = true;
+  render(view());
+  expect(
+    screen
+      .getByRole('button', { name: english.updatePause })
+      .getAttribute('data-variant'),
+  ).toBe('warning');
+  expect(
+    screen
+      .getByRole('button', { name: english.updateCancel })
+      .getAttribute('data-variant'),
+  ).toBe('secondary');
+  cleanup();
+
+  update.downloading = false;
+  update.paused = true;
+  update.progress = {
+    phase: 'paused',
+    downloaded: 512,
+    total: 1024,
+    version: '0.2.0',
+  };
+  render(view());
+  expect(
+    screen
+      .getByRole('button', { name: english.updateResume })
+      .getAttribute('data-variant'),
+  ).toBe('success');
 });
 
 it('shows what the release contains before the download is offered', () => {

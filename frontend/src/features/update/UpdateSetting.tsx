@@ -1,7 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import { Download, RefreshCw, RotateCw } from 'lucide-react';
+import { Download, Loader2, RefreshCw, RotateCw } from 'lucide-react';
 import packageInfo from '../../../../package.json';
 import type { AvailableUpdate, UpdateProgress } from '../../shared/api';
+import { Button } from '../../shared/ui/button';
+import { Progress } from '../../shared/ui/progress';
 import { useScan } from '../library/useScan';
 import { useUpdateContext } from './UpdateProvider';
 import { formatBytes, formatReleaseDate, progressRatio } from './updateFormat';
@@ -27,30 +29,28 @@ export function UpdateSetting() {
     else update.install();
   };
   return (
-    <section className="border-b border-base-300 pb-5 space-y-3">
-      <div className="flex w-full items-center justify-between gap-8 max-md:flex-col max-md:items-start">
-        <div>
-          <h3 className="font-medium">{t('updateTitle')}</h3>
-          <p className="text-sm opacity-65">
-            {t('updateCurrent', {
-              // The backend compares the version it is built with; the bundled
-              // one only stands in until the first check answers.
-              version: check?.currentVersion ?? packageInfo.version,
-            })}
-          </p>
-        </div>
+    <div className="space-y-3">
+      <div className="flex w-full flex-wrap items-center justify-between gap-4">
+        <p className="text-sm text-muted-foreground">
+          {t('updateCurrent', {
+            // The backend compares the version it is built with; the bundled
+            // one only stands in until the first check answers.
+            version: check?.currentVersion ?? packageInfo.version,
+          })}
+        </p>
         {/* Always offered. Only this button starts a check, so whether the
             platform has published updates is unknown until it is pressed, and
             an answer of "none" arrives as a notice rather than by taking away
             the button the user just pressed. */}
-        <button
-          className="btn btn-primary btn-soft btn-md gap-3"
+        <Button
+          variant="secondary"
+          size="sm"
           disabled={busy}
           onClick={update.checkNow}
         >
-          <RefreshCw size={18} aria-hidden="true" />
+          <RefreshCw size={14} aria-hidden="true" />
           {update.checking ? t('updateChecking') : t('updateCheck')}
-        </button>
+        </Button>
       </div>
 
       {(update.downloading || update.paused) && (
@@ -77,31 +77,30 @@ export function UpdateSetting() {
                 : t('updateAvailable', { version: available.version })}
             </p>
             {ready ? (
-              <button
-                className="btn btn-primary btn-soft btn-md gap-3"
+              <Button
+                size="sm"
                 disabled={scanning || update.restarting}
                 onClick={update.restart}
               >
-                <RotateCw size={18} aria-hidden="true" />
+                <RotateCw size={14} aria-hidden="true" />
                 {update.restarting ? t('updateRestarting') : t('updateRestart')}
-              </button>
+              </Button>
             ) : (
-              <button
-                className="btn btn-primary btn-soft btn-md gap-3"
-                onClick={update.install}
-              >
-                <Download size={18} aria-hidden="true" />
+              <Button size="sm" onClick={update.install}>
+                <Download size={14} aria-hidden="true" />
                 {t('updateDownload')}
-              </button>
+              </Button>
             )}
             {ready && scanning && (
-              <p className="text-sm opacity-65">{t('updateRestartBlocked')}</p>
+              <p className="text-sm text-muted-foreground">
+                {t('updateRestartBlocked')}
+              </p>
             )}
           </div>
           <ReleaseNotes available={available} />
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -121,13 +120,13 @@ function ReleaseNotes({ available }: { available: AvailableUpdate }) {
   return (
     <div className="space-y-2">
       {released && (
-        <p className="text-sm opacity-65">
+        <p className="text-sm text-muted-foreground">
           {t('updateReleasedAt', { date: released })}
         </p>
       )}
       {available.notes && (
         <>
-          <h4 className="font-medium">{t('updateNotes')}</h4>
+          <h4 className="text-sm font-medium">{t('updateNotes')}</h4>
           {/* Release notes come from our own release manifest, but they are
               still text fetched over the network: rendered as plain text,
               never as markup. No height cap: this section already scrolls
@@ -160,18 +159,22 @@ function UpdateProgressBlock({
     <div
       role="status"
       aria-live="polite"
-      className="rounded-box bg-base-200 p-4 space-y-3"
+      className="space-y-3 rounded-lg border border-border bg-muted/40 p-4"
     >
       <p>{label}</p>
       {ratio === null ? (
-        <span
-          className="loading loading-spinner loading-sm"
+        // Decorative rather than the `Spinner` primitive: this block already
+        // announces itself, and a second live region inside it would report the
+        // wait twice.
+        <Loader2
+          size={16}
           aria-hidden="true"
+          className="animate-spin text-muted-foreground"
         />
       ) : (
         <div className="flex items-center gap-3">
-          <progress
-            className="progress flex-1"
+          <Progress
+            className="flex-1"
             value={downloaded}
             max={total ?? undefined}
             aria-label={label}
@@ -195,25 +198,23 @@ function UpdateProgressBlock({
             })}
       </p>
       <div className="flex flex-wrap items-center gap-3">
-        <button
-          className={
-            paused
-              ? 'btn btn-soft btn-md btn-success'
-              : 'btn btn-soft btn-md btn-warning'
-          }
+        <Button
+          variant={paused ? 'success' : 'warning'}
+          size="sm"
           onClick={() => onAction(paused ? 'resume' : 'pause')}
         >
           {paused ? t('updateResume') : t('updatePause')}
-        </button>
+        </Button>
         {/* Neutral rather than the scan's error red: cancelling a download
             throws away a transfer, not anything the user has to be warned
             about, and the bytes can be fetched again. */}
-        <button
-          className="btn btn-soft btn-md btn-neutral"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => onAction('cancel')}
         >
           {t('updateCancel')}
-        </button>
+        </Button>
       </div>
     </div>
   );

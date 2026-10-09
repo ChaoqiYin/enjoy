@@ -4,6 +4,13 @@ import { synchronizeLanguage } from './language';
 import { readLanguage } from '../shared/api';
 import type { LanguageSettings } from '../shared/api';
 import { ErrorNotice } from '../shared/ErrorNotice';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../shared/ui/select';
 import { useCommand } from '../shared/useCommand';
 import { useSettings } from '../settings/SettingsProvider';
 
@@ -27,25 +34,30 @@ export function LanguageSetting() {
     return run(value, () => update({ language: value }));
   }
   return (
-    <section className="border-b border-base-300 pb-5 space-y-3">
-      <div className="flex w-full items-center justify-between gap-8 max-md:flex-col max-md:items-start max-md:items-start">
-        <div>
-          <h3 className="font-medium">{t('language')}</h3>
-          <p className="text-sm opacity-65">{t('languageHelp')}</p>
-        </div>
-        <select
-          className="select"
-          disabled={saving}
-          value={preference}
-          onChange={(event) =>
-            change(event.target.value as LanguageSettings['preference'])
-          }
-        >
-          <option value="system">{t('system')}</option>
-          <option value="zh-CN">简体中文</option>
-          <option value="en">English</option>
-        </select>
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <h3 className="text-sm font-medium">{t('language')}</h3>
+        <p className="text-sm text-muted-foreground">{t('languageHelp')}</p>
       </div>
+      <Select
+        value={preference}
+        disabled={saving}
+        onValueChange={(value) =>
+          void change(value as LanguageSettings['preference'])
+        }
+      >
+        <SelectTrigger aria-label={t('language')} className="w-full sm:w-64">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="system">{t('system')}</SelectItem>
+          {/* The two languages are named in themselves rather than in the
+              language the interface is currently in: a reader looking for their
+              own has to be able to read the entry for it. */}
+          <SelectItem value="zh-CN">简体中文</SelectItem>
+          <SelectItem value="en">English</SelectItem>
+        </SelectContent>
+      </Select>
       {failure && (
         <ErrorNotice
           error={failure.error}
@@ -57,7 +69,7 @@ export function LanguageSetting() {
           onClose={dismissFailure}
         />
       )}
-    </section>
+    </div>
   );
 }
 
