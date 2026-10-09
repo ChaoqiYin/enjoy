@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Toast } from './Toast';
+import { Button } from './ui/button';
 import { errorMessage } from './errorMessage';
 import type { AppError } from './api';
 
@@ -21,12 +22,9 @@ export function ErrorNotice({
       <p className="text-sm break-words">{message}</p>
       <p className="text-xs break-all">{t('errorId', { id: error.errorId })}</p>
       {onRetry && (
-        <button
-          className="btn btn-outline btn-sm btn-primary mt-2"
-          onClick={onRetry}
-        >
+        <Button variant="outline" size="sm" className="mt-2" onClick={onRetry}>
           {t('retry')}
-        </button>
+        </Button>
       )}
     </Toast>
   );
