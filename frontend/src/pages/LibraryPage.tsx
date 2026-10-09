@@ -38,6 +38,7 @@ export function LibraryPage() {
       />
       <VideoPageContent
         view={view}
+        listLabel={t('library')}
         emptyTitle={t('empty')}
         emptyHelp={t('welcome')}
         onAdd={onAdd}
