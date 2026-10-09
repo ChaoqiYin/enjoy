@@ -8,6 +8,7 @@ export interface VideoActionHandlers {
   details: (video: Video) => void;
   play: (video: Video) => void;
   favorite: (video: Video) => void;
+  share: (video: Video) => void;
   reveal: (video: Video) => void;
   remove: (video: Video) => void;
   copyPath: (video: Video) => Promise<void>;

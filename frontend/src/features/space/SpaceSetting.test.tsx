@@ -111,7 +111,7 @@ it('reports a refused name beside the field and keeps what was typed', async () 
   fireEvent.change(nameField(), { target: { value: 'Shows' } });
   fireEvent.click(screen.getByRole('button', { name: english.confirm }));
   expect(
-    await screen.findByText('Another space is already called “Shows”.'),
+    await screen.findByText('Another space is already called “Shows”'),
   ).toBeTruthy();
   // The dialog is still there with the text in it, so a fix costs a keystroke
   // rather than the whole name again.
@@ -142,7 +142,7 @@ it('says what a deletion costs, and moves the library onto a space that is there
   fireEvent.click(rows[0]);
   expect(
     screen.getByText(
-      'Delete “Films”? Its favorites and play history will be erased. The video files on disk are not touched.',
+      'Delete “Films”? Its favorites and play history will be erased. The video files on disk are not touched',
     ),
   ).toBeTruthy();
   // Nothing has gone yet: the question is a question.
@@ -245,7 +245,7 @@ it('carries a refused deletion out to the notice, where its reason can be read',
   fireEvent.click(screen.getByRole('button', { name: english.confirm }));
   expect(
     await screen.findByText(
-      'Enjoy always keeps at least one space, so the last one cannot be removed.',
+      'Enjoy always keeps at least one space, so the last one cannot be removed',
     ),
   ).toBeTruthy();
 });

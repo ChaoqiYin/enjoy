@@ -1,7 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Main window event and folder selection access",
+  "description": "What the main window's interface reaches for: the core defaults, the listener it follows the library and a held close on, the folder picker, and showing a file in its folder",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:allow-open", "opener:default"]
+  "permissions": [
+    "core:default",
+    "core:event:allow-listen",
+    "dialog:allow-open",
+    "opener:allow-reveal-item-in-dir"
+  ]
 }

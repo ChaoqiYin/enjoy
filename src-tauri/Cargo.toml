@@ -1,6 +1,6 @@
 [package]
 name="enjoy"
-version="0.1.11"
+version="0.2.3"
 edition="2021"
 [dependencies]
 tracing="0.1"
@@ -28,12 +28,47 @@ minisign-verify="0.2"
 # both use this one reqwest build — a default elsewhere is not a dependency of
 # ours. `default-tls`/`charset`/`http2` are deliberately left off: the updater
 # picks the TLS backend, and a release payload is not text to decode.
-reqwest= {version="0.13",default-features=false,features= ["stream","rustls-no-provider","system-proxy"] }
+reqwest= {version="0.13",default-features=false,features= ["stream", "rustls-no-provider", "system-proxy"] }
 rustls= {version="0.23",default-features=false,features= ["ring"] }
 # `macros` for the select that lets a stop interrupt a read, `sync` for the
 # notification that makes it felt before the next byte rather than after it, and
-# `time` for the retry waits.
-tokio= {version="1",features= ["macros","sync","time"] }
+# `time` for the retry waits. The last three are the 共享服务's: `net` for the
+# listener it accepts on, `rt-multi-thread` so that two devices pulling two
+# videos are not queued behind each other, and `io-util` for the adapter that
+# hands a tokio socket to hyper.
+tokio= {version="1",features= ["macros", "sync", "time", "net", "rt-multi-thread", "io-util"] }
+# The WebDAV server the 共享服务 is built on, and the HTTP server it runs on.
+# hyper and hyper-util are already in the tree through the update client's own
+# stack -- and `http`, which both of them speak -- so this adds no new version
+# line, only makes them ours to name.
+#
+# `default-features` is off because the crate's defaults are its two
+# filesystems, the local one and the in-memory one, and this application uses
+# neither: the service serves from a virtual filesystem built out of the 共享清单
+# rather than out of a directory (see `share::fs`). The one backend it does use
+# -- the placeholder lock system that answers Finder's and Explorer's LOCK
+# probes -- has no feature to turn off and always arrives.
+dav-server= {version="0.11",default-features=false }
+hyper= {version="1",features= ["http1", "server"] }
+hyper-util= {version="0.1",features= ["tokio"] }
+# The request and response types the two of them and the WebDAV handler all
+# speak, and the buffer a file is read into. Declared for the same reason as
+# hyper: already in the tree, now ours to name.
+http="1"
+bytes="1"
+# The bytes the 共享服务's password is drawn from. The operating system is the
+# only thing in this application that produces a number nobody can predict --
+# the clock and the hash functions are things a reader of this source can work
+# out -- and this is the one string where that matters. It arrives through
+# `tauri`, so declaring it adds no new version line either.
+getrandom="0.3"
+# The machine's own addresses, for the page that tells the user what to type
+# into the television. New here rather than already in the tree, and there is
+# nothing to derive them from: the operating system is the only thing that knows
+# which interfaces exist, and asking it means `GetAdaptersAddresses` on Windows
+# and `getifaddrs` elsewhere -- the two platform branches this crate is, in a
+# hundred lines, with the unsafe in its own code rather than ours.
+if-addrs="0.15"
 
 [dev-dependencies]
 # Only for the signature tests, which have to bring a key of their own: a valid

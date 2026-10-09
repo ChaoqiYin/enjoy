@@ -60,6 +60,16 @@ pub(crate) fn set_favorite(
     lock_shared(&state.repository)?.favorite(space_id, &path, favorite)
 }
 
+#[tauri::command]
+pub(crate) fn set_shared(
+    space_id: i64,
+    path: String,
+    shared: bool,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    lock_shared(&state.repository)?.share(space_id, &path, shared)
+}
+
 /// Hands the file to the system's own player.
 ///
 /// The work is on a blocking thread because launching a process is not, and the

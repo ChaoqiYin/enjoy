@@ -1,5 +1,6 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { useContentWidth } from './useContentWidth';
 
 type VirtualCollectionOptions<T> = {
   items: readonly T[];
@@ -20,27 +21,7 @@ export function useVirtualCollection<T>({
   overscan = 3,
   measurementKey,
 }: VirtualCollectionOptions<T>) {
-  const viewport = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
-  useLayoutEffect(() => {
-    const element = viewport.current;
-    if (!element) return;
-    const update = () => {
-      const style = getComputedStyle(element);
-      setWidth(
-        Math.max(
-          0,
-          element.clientWidth -
-            (parseFloat(style.paddingLeft) || 0) -
-            (parseFloat(style.paddingRight) || 0),
-        ),
-      );
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+  const [viewport, width] = useContentWidth<HTMLDivElement>();
   const columns = Math.max(1, Math.floor(getColumnCount(width)));
   const virtualizer = useVirtualizer({
     count: Math.ceil(items.length / columns),

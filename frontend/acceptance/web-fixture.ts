@@ -4,6 +4,7 @@ import type {
   AppError,
   ScanStatus,
   SettingsState,
+  ShareStatus,
   Space,
   UpdateCheck,
   UpdateProgress,
@@ -12,15 +13,34 @@ import type {
 
 // Every space holds the same files, because that is what spaces are: the same
 // path is a different record in each of them (ADR 0011). What a space keeps for
-// itself is which of them the user favourited, and that is what this holds --
-// keyed by the space id the command carried, not by the one the fixture thinks
-// the interface is on. Answering the wrong space is the mistake this harness
-// exists to make visible, and it cannot make it visible while it corrects for it.
-const favorites = new Map<number, Set<number>>([[1, new Set([1])]]);
-function favoritesOf(spaceId: number) {
-  const held = favorites.get(spaceId) ?? new Set<number>();
-  favorites.set(spaceId, held);
+// itself is which of them the user marked, and it keeps two marks: a favorite,
+// and an entry on the 共享清单. Both are held the same way -- keyed by the space
+// id the command carried, not by the one the fixture thinks the interface is on.
+// Answering the wrong space is the mistake this harness exists to make visible,
+// and it cannot make it visible while it corrects for it.
+const marks = new Map<string, Set<number>>([['favorite:1', new Set([1])]]);
+function markedOf(kind: Marker, spaceId: number) {
+  const key = `${kind}:${spaceId}`;
+  const held = marks.get(key) ?? new Set<number>();
+  marks.set(key, held);
   return held;
+}
+
+/**
+ * The two marks a space can put on a record, named by the field the command
+ * carries them in, so one handler can serve both.
+ */
+type Marker = 'favorite' | 'shared';
+
+function markOn(kind: Marker, payload: Record<string, unknown>) {
+  const video = videos.find((video) => video.path === payload.path);
+  if (!video) return;
+  const held = markedOf(kind, Number(payload.spaceId));
+  if (Boolean(payload[kind])) held.add(video.id);
+  else held.delete(video.id);
+  // Nothing is recorded here about the service being out of step: a share mark
+  // moved while one is running is noticed by the status comparing the list
+  // against the snapshot it read, which is how the backend notices it too.
 }
 
 const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
@@ -36,6 +56,7 @@ const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
   codec: 'h264',
   thumbnail_path: null,
   favorite: index === 0,
+  shared: false,
   play_count: 0,
   last_played_at: null,
   created_at: 1720000000000 + index,
@@ -43,6 +64,105 @@ const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
 }));
 let language = 'en';
 let settings: SettingsState = { language: 'en', theme: 'dark' };
+let sharePort: number | null = null;
+// Four digits, like the one the backend draws: what a client is told to type, and
+// what this copy is for is letting someone see the screen the way a user sees it.
+let sharePassword = '7315';
+/// What a running service is checking against, which is the password it started
+/// with and not the one stored now.
+let served = sharePassword;
+let drawnPasswords = 0;
+/**
+ * The 共享清单 as the running service read it: the ids of the space it was
+ * started over, sorted the way the backend's own list is ordered, or `null`
+ * when nothing is running.
+ *
+ * This is the snapshot the real service takes at start, and holding it is what
+ * lets this copy answer the two questions the status carries about the list —
+ * whether it has moved since, and how many of its files are gone — by comparing
+ * rather than by being told. A flag set when a mark is toggled would answer the
+ * same for the one change a walkthrough can make and nothing else; the backend's
+ * rule is a comparison, so this is one too.
+ */
+let servedList: { spaceId: number; ids: number[] } | null = null;
+/**
+ * The videos whose file this copy declares to be gone.
+ *
+ * The real service finds these by looking at the disk when it starts, which is
+ * the one thing a fixture cannot do. Declaring one is what makes the page's
+ * "some files are gone" line reachable at all: it appears when one of these is
+ * on the 共享清单, and a line no walkthrough can reach is a line nobody has
+ * read on screen. Video 1 is the one the space starts with marked as a favorite,
+ * so it is the one nearest to hand.
+ */
+const missingFromDisk = new Set([1]);
+
+/** One space's 共享清单, in the order the backend would serve it. */
+function sharedIds(spaceId: number): number[] {
+  return [...markedOf('shared', spaceId)].sort((left, right) => left - right);
+}
+
+/**
+ * The status, composed the way the backend composes it: the port and the
+ * password on one side, and on the other the two facts about the service that
+ * is running — whether it is still behind that password, and whether it is
+ * still offering the list it read.
+ *
+ * `spaceId` is the space the interface is asking about, because that is what the
+ * backend compares its snapshot against (ADR 0012): a service started over one
+ * space's list is out of step with the list of the space now on screen.
+ */
+function share(spaceId?: number): ShareStatus {
+  return {
+    port: sharePort,
+    missingFiles:
+      servedList === null
+        ? 0
+        : servedList.ids.filter((id) => missingFromDisk.has(id)).length,
+    username: 'enjoy',
+    password: sharePassword,
+    needsRestart: sharePort !== null && served !== sharePassword,
+    listChanged:
+      servedList !== null &&
+      spaceId !== undefined &&
+      servedList.ids.join(',') !== sharedIds(spaceId).join(','),
+    devices: sharePort === null ? [] : listedDevices,
+    addresses: sharePort === null ? [] : machineAddresses,
+  };
+}
+/**
+ * The clients a walkthrough is shown while the service is running.
+ *
+ * Dated from the moment the fixture loaded, so that the ages start from whenever
+ * the walkthrough began rather than from the epoch. Two of them, one quiet for
+ * long enough to be on its way out, and one that never gave a name — which is
+ * the row the page has to render without a blank. Nothing here ages anything
+ * out: the minute-long window is the backend's rule, and it is held by the
+ * backend's own tests.
+ */
+const startedAt = Date.now();
+const listedDevices = [
+  { address: '192.168.1.24', name: 'Infuse/7.6.4', lastSeen: startedAt },
+  { address: '192.168.1.31', name: null, lastSeen: startedAt - 42_000 },
+];
+
+/**
+ * The addresses this machine would be reached at, in the order the backend puts
+ * them in: the one a router handed out first, the machine talking to itself
+ * last and marked. Three of them, so that a walkthrough sees a list rather than
+ * a line — including one that looks like a local network and is a virtual
+ * adapter, which is the case the interface name is there for.
+ */
+const machineAddresses = [
+  { interface: '以太网', address: '192.168.50.91', loopback: false },
+  { interface: 'vEthernet (WSL)', address: '172.20.0.1', loopback: false },
+  {
+    interface: 'Loopback Pseudo-Interface 1',
+    address: '127.0.0.1',
+    loopback: true,
+  },
+];
+
 // The acceptance fixture stands in for the backend, so the space rules are
 // repeated here rather than shared with it: they are the backend's, and the
 // tests that hold them are Rust's. What they are for here is letting someone
@@ -158,13 +278,14 @@ mockIPC(
     switch (command) {
       case 'get_language':
         return { preference: language, language };
-      case 'set_language':
-        language = String(payload.preference);
-        return { preference: language, language };
       case 'get_settings':
         return { ...settings };
       case 'save_settings':
+        // The language and the theme together, in one write, the way the
+        // preferences keep them: changing the language is this command now, and
+        // what the interface is drawn in follows from the same answer.
         settings = { ...(payload.settings as SettingsState) };
+        language = settings.language;
         return { ...settings };
       case 'current_space':
         return { ...currentSpace() };
@@ -212,10 +333,12 @@ mockIPC(
         return { ...currentSpace() };
       }
       case 'list_videos': {
-        const held = favoritesOf(Number(payload.spaceId));
+        const favorites = markedOf('favorite', Number(payload.spaceId));
+        const shared = markedOf('shared', Number(payload.spaceId));
         return videos.map((video) => ({
           ...video,
-          favorite: held.has(video.id),
+          favorite: favorites.has(video.id),
+          shared: shared.has(video.id),
         }));
       }
       case 'list_directories':
@@ -253,14 +376,46 @@ mockIPC(
           params: {},
           errorId: 'acceptance-open-failure',
         };
-      case 'set_favorite': {
-        const video = videos.find((video) => video.path === payload.path);
-        if (!video) return;
-        const held = favoritesOf(Number(payload.spaceId));
-        if (Boolean(payload.favorite)) held.add(video.id);
-        else held.delete(video.id);
+      case 'set_favorite':
+        return markOn('favorite', payload);
+      case 'set_shared':
+        return markOn('shared', payload);
+      // The service itself is not here: what a walkthrough can check is that
+      // the button moves the interface between its two states, and the port it
+      // names is the one the interface would have to show. The credentials are
+      // repeated here the way the space rules are — the backend's own tests hold
+      // them — and what this copy is for is letting someone see the password
+      // change under their hands, and the warning that follows it.
+      case 'share_status':
+        return share(Number(payload.spaceId));
+      case 'open_share':
+        sharePort = 4918;
+        // Started under whatever is stored now, so the warning goes away: the
+        // service is behind the password on screen again. The same for the list:
+        // a service started now is offering the list as it stands now, which is
+        // the snapshot it takes here.
+        served = sharePassword;
+        servedList = {
+          spaceId: Number(payload.spaceId),
+          ids: sharedIds(Number(payload.spaceId)),
+        };
+        return share(Number(payload.spaceId));
+      case 'close_share':
+        sharePort = null;
+        servedList = null;
+        // No space: nothing is running, and the answer says so in every field
+        // the space was only ever needed for.
+        return share();
+      case 'close_window':
+        // The window going away is the one answer a page cannot be shown: in
+        // the application the backend ends the service and closes the window,
+        // and here there is nothing left to do. Answered rather than left
+        // unimplemented so that a walkthrough past the close question reads the
+        // application rather than a banner about the fixture.
         return;
-      }
+      case 'regenerate_share_password':
+        sharePassword = `drawn-${String(++drawnPasswords)}`;
+        return share(Number(payload.spaceId));
       case 'check_for_update':
         return { ...updateCheck };
       case 'install_update': {

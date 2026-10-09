@@ -7,6 +7,13 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    // `acceptance/` is in the run for the fixture's own sake: it is a second
+    // backend, and what it answers is worth holding to the rule it stands in
+    // for (see `acceptance/web-fixture.test.ts`).
+    include: [
+      'src/**/*.test.ts',
+      'src/**/*.test.tsx',
+      'acceptance/**/*.test.ts',
+    ],
   },
 });

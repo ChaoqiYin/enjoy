@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react';
+import { Share2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ScanStatus, Video } from '../../shared/api';
 import { Tooltip } from '../../shared/Tooltip';
@@ -35,6 +36,8 @@ export function VideoCard({
   // the card stays put.
   const reduceMotion = useReducedMotion();
   const { t } = useTranslation();
+  // What the 共享清单 glyph means, in the two places it has to be said.
+  const shared = t('sharedMarker');
   const hover = reduceMotion ? undefined : { y: -4, scale: 1.02 };
   return (
     <motion.article
@@ -168,6 +171,50 @@ export function VideoCard({
       {video.id === lastPlayedId && (
         <span className="badge badge-sm badge-neutral absolute top-2 start-2">
           {t('lastPlayedMarker')}
+        </span>
+      )}
+      {/* The 共享清单 mark, worn by the card the same way: over the thumbnail's
+          other corner, so that the two never have to share a place — a video
+          can be both the one just played and one of the ones being shared.
+
+          A glyph rather than words, unlike the marker beside it: 「上次播放」 is a
+          fact about this session that a user meets once, while being on the
+          share list is a state the card wears until it is taken off, and a row
+          of chips with a sentence in each is one the library can no longer be
+          read at a glance. What the glyph means is still written down, in the
+          two places a glyph that carries meaning has to be: `title` for the
+          pointer, and the accessible name for a reader that has none.
+
+          The colour is the one the navigation's lamp uses for a running
+          service, because it is the same fact seen from a different place:
+          green means sharing, and the pair — mint on the deep green it sits
+          on — is daisyUI's rather than a green of our own.
+
+          The fill is thinned to 80%, which is what keeps a saturated block of
+          green from standing on a photograph it has nothing to do with; at full
+          strength it read as pasted on. Thinned and no further, measured over
+          three thumbnail tones (a near-black frame, a mid-grey one, a near-white
+          one) in both themes: the glyph holds 3.47:1 / 4.37:1 / 5.42:1 there,
+          where 70% falls to 2.73:1 over the darkest and 60% to 2.19:1 — under
+          the 3:1 a graphic needs. The solid chip this replaced was 5.12:1 over
+          every one of them, so what the thinning buys is the chip agreeing with
+          the picture behind it, and what it spends is headroom on dark ones.
+          `bg-success/80` rather than a hand-mixed colour because the utilities
+          layer is what comes after the component class daisyUI sets the fill
+          in; the numbers above are measured on the pair as it lands, not on the
+          two colours as declared.
+
+          It is the card's last child like the marker above it, and for the same
+          reason (`:first-child` counts an absolutely positioned child — see
+          that block). */}
+      {video.shared && (
+        <span
+          className="badge badge-sm badge-success bg-success/80 absolute top-2 end-2"
+          role="img"
+          aria-label={shared}
+          title={shared}
+        >
+          <Share2 size={12} aria-hidden="true" />
         </span>
       )}
     </motion.article>

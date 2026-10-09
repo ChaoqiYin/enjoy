@@ -4,6 +4,7 @@ use super::control::UpdateControl;
 use super::fixture::{body, key, public_key_field, serve, serve_slowly, signature_field, stand_in};
 use super::transfer::{run, ProgressThrottle};
 use crate::events::Recorded;
+use crate::ports::the_machine_ports;
 use crate::scan::control::ScanControl;
 
 /// What the command hands the transfer for a user agent. Nothing reads it.
@@ -34,6 +35,8 @@ fn a_download_nobody_offered_is_refused_before_a_byte_is_fetched() {
 
 #[test]
 fn a_signed_release_downloads_reports_where_it_got_to_and_is_ready() {
+    // One of the machine's ports: this test takes one, and so does every other.
+    let _ports = the_machine_ports();
     // The whole of what the download button does, walked on the loopback: the
     // offer is remembered, the bytes arrive, the signature is checked against
     // the key, and the result is ready for the restart.
@@ -95,6 +98,8 @@ fn a_signed_release_downloads_reports_where_it_got_to_and_is_ready() {
 
 #[test]
 fn a_pause_while_bytes_are_arriving_ends_as_paused_and_keeps_them() {
+    // One of the machine's ports: this test takes one, and so does every other.
+    let _ports = the_machine_ports();
     // A pause is pressed while the transfer is running, which is when the
     // button is there to be pressed. The payload is sent in small pieces over
     // long enough that the press always lands in the middle of it — before the
@@ -156,6 +161,8 @@ fn a_pause_while_bytes_are_arriving_ends_as_paused_and_keeps_them() {
 
 #[test]
 fn a_payload_that_is_not_the_signed_one_is_refused_and_nothing_is_kept() {
+    // One of the machine's ports: this test takes one, and so does every other.
+    let _ports = the_machine_ports();
     // The bytes arrive whole and are not the ones that were signed — a
     // substituted payload, or a transfer that was tampered with. Its own code,
     // not the download's: the connection finished, and what arrived is wrong.

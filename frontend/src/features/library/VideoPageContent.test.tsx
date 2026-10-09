@@ -32,6 +32,7 @@ const video: Video = {
   codec: 'h264',
   thumbnail_path: null,
   favorite: false,
+  shared: false,
   play_count: 3,
   last_played_at: 10,
   created_at: 0,
@@ -53,6 +54,7 @@ const showCopyHint = vi.fn();
 const actionMocks = {
   play: vi.fn(),
   toggleFavorite: vi.fn(),
+  toggleShared: vi.fn(),
   reveal: vi.fn(),
   removeVideo: vi.fn(),
   regenerateThumbnail: vi.fn(),

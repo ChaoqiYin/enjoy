@@ -29,6 +29,11 @@ export function RemoveConfirmation({
           {t('removeQuestion', { name: video.file_name })}
         </h2>
         <p id="remove-description">{t('keepFile')}</p>
+        {/* The record carries the 共享清单 mark, so removing it takes the video
+            off that list as well. Said only when it is true: a warning on every
+            removal is one the user learns to read past, and this one is the
+            answer to "why did the television stop seeing it". */}
+        {video.shared && <p>{t('removeShared')}</p>}
         <div className="modal-action items-center gap-3">
           <form method="dialog">
             <button autoFocus className="btn btn-soft btn-md btn-neutral">

@@ -7,6 +7,7 @@ use super::control::{Stop, StopFlag};
 use super::download::{fetch, next_attempt, Asked, Transfer, FIRST_BACKOFF, MAX_BACKOFF};
 use super::fixture::{body, read_head, serve_cut, Server};
 use super::verify::verify;
+use crate::ports::the_machine_ports;
 
 fn fetch_from(server: &Server) -> Result<Vec<u8>, super::download::FetchError> {
     match fetch_whole(&server.address, &[], &StopFlag::default()) {
@@ -51,6 +52,8 @@ fn stop_after(address: &str, wanted: u64, ask: Stop) -> Transfer {
 
 #[test]
 fn a_cut_connection_is_resumed_rather_than_restarted() {
+    // One of the machine's ports: this test takes one, and so does every other.
+    let _ports = the_machine_ports();
     let expected = body(200_000);
     let server = serve_cut(expected.clone(), 60_000);
     let bytes = fetch_from(&server).expect("the payload arrives across two connections");
@@ -67,6 +70,8 @@ fn a_cut_connection_is_resumed_rather_than_restarted() {
 
 #[test]
 fn a_server_that_never_continues_what_is_held_gives_up() {
+    // One of the machine's ports: this test takes one, and so does every other.
+    let _ports = the_machine_ports();
     // Every answer claims to start at the beginning, whatever was asked for, so
     // nothing that arrives can be kept. That is a loss rather than a lack of
     // progress — worse, in fact — and it has to end the loop rather than have
@@ -109,6 +114,8 @@ fn a_server_that_never_continues_what_is_held_gives_up() {
 
 #[test]
 fn a_server_that_answers_nothing_at_all_gives_up() {
+    // One of the machine's ports: this test takes one, and so does every other.
+    let _ports = the_machine_ports();
     // A listener that accepts and closes without a byte: the connections run
     // out rather than the loop running forever.
     let listener = TcpListener::bind("127.0.0.1:0").expect("a port on the loopback");
@@ -142,6 +149,8 @@ fn another_connection_is_offered_while_the_last_one_brought_bytes() {
 
 #[test]
 fn a_run_of_empty_connections_is_what_ends_it() {
+    // One of the machine's ports: this test takes one, and so does every other.
+    let _ports = the_machine_ports();
     // One drop is this network's normal state; a run of them is a server that
     // has stopped answering. The wait grows with the run and stops growing at
     // the ceiling, and the run ends the download rather than the loop
@@ -160,6 +169,8 @@ fn a_run_of_empty_connections_is_what_ends_it() {
 
 #[test]
 fn too_many_connections_end_it_even_with_progress() {
+    // One of the machine's ports: this test takes one, and so does every other.
+    let _ports = the_machine_ports();
     // The other end: a server handing over a byte per connection converges in
     // theory and never in practice, so the count stops it too.
     assert!(next_attempt(999, 0).is_some());
@@ -174,6 +185,8 @@ fn a_ceiling_end_is_reported_as_its_own_thing() {
 
 #[test]
 fn a_pause_ends_the_transfer_where_it_stands() {
+    // One of the machine's ports: this test takes one, and so does every other.
+    let _ports = the_machine_ports();
     let expected = body(200_000);
     let server = serve_cut(expected.clone(), 60_000);
     match stop_after(&server.address, 1, Stop::Pause) {
@@ -200,6 +213,8 @@ fn a_pause_ends_the_transfer_where_it_stands() {
 
 #[test]
 fn a_cancel_ends_the_transfer_the_same_way_and_says_so() {
+    // One of the machine's ports: this test takes one, and so does every other.
+    let _ports = the_machine_ports();
     // The transfer reports which ask stopped it; keeping or dropping the bytes
     // is the caller's decision, and this is the value it decides on.
     let server = serve_cut(body(200_000), 60_000);
@@ -217,6 +232,8 @@ fn a_cancel_ends_the_transfer_the_same_way_and_says_so() {
 
 #[test]
 fn a_paused_transfer_continues_from_what_it_kept() {
+    // One of the machine's ports: this test takes one, and so does every other.
+    let _ports = the_machine_ports();
     let expected = body(200_000);
     let server = serve_cut(expected.clone(), 60_000);
     let kept = match stop_after(&server.address, 1, Stop::Pause) {
@@ -239,6 +256,8 @@ fn a_paused_transfer_continues_from_what_it_kept() {
 
 #[test]
 fn a_stop_asked_for_before_the_first_connection_opens_none() {
+    // One of the machine's ports: this test takes one, and so does every other.
+    let _ports = the_machine_ports();
     // The moment between pressing download and pressing pause is short; a
     // transfer that has been told to stop before it starts must not spend a
     // connection finding that out.

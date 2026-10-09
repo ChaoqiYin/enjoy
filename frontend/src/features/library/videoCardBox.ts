@@ -69,6 +69,26 @@ export const bodyHeight = 64.53;
 export const hoverRoom = 10;
 
 /**
+ * That room, put on the element that clips — and on no other.
+ *
+ * The room is the clip's to give, so it goes on the scroll container itself:
+ * its own `padding` carries the clip edge outwards, and the matching negative
+ * `margin` pulls the box back so that nothing on the page moves. Nothing inside
+ * can do it instead: a descendant's padding is inside the clip either way, and
+ * a descendant's negative margin on the start edge is the one thing an
+ * `overflow` box cannot scroll to, so it is cut flat there — which is how the
+ * 共享清单's first column came to have its hover shadow sliced off
+ * (the grid had the padding and the margin, and the room ended up outside the
+ * glass). One writer per edge, and it is the clipper.
+ */
+export const hoverRoomStyle = {
+  paddingTop: hoverRoom,
+  paddingInlineStart: hoverRoom,
+  marginTop: -hoverRoom,
+  marginInlineStart: -hoverRoom,
+};
+
+/**
  * The height of one row of `columns` cards inside `contentWidth`, as the
  * virtual grid has to lay it out before anything is measured.
  *

@@ -17,8 +17,8 @@
 //!
 //! Two of the writes cannot fail for want of a record — they update one no scan
 //! will have taken away underneath them, because the identity guard fails first
-//! — while the two the interface drives report a record that is not there. That
-//! verdict has one home: [`not_indexed`].
+//! — while the three addressed by path alone report a record that is not there.
+//! That verdict has one home: [`not_indexed`].
 
 use rusqlite::{params, OptionalExtension};
 
@@ -31,7 +31,7 @@ use super::{not_indexed, now, Repository};
 impl Repository {
     /// The library the interface shows: every record of one space, newest first.
     pub fn list(&self, space_id: i64) -> Result<Vec<VideoFile>, AppError> {
-        let mut query = self.connection.prepare("SELECT id,path,file_name,folder_path,file_size,modified_at,duration_ms,width,height,codec,thumbnail_path,favorite,play_count,last_played_at,created_at,updated_at,media_complete FROM videos WHERE space_id=?1 ORDER BY created_at DESC,id DESC")?;
+        let mut query = self.connection.prepare("SELECT id,path,file_name,folder_path,file_size,modified_at,duration_ms,width,height,codec,thumbnail_path,favorite,shared,play_count,last_played_at,created_at,updated_at,media_complete FROM videos WHERE space_id=?1 ORDER BY created_at DESC,id DESC")?;
         let rows = query.query_map([space_id], |row| {
             Ok(VideoFile {
                 id: row.get(0)?,
@@ -46,13 +46,31 @@ impl Repository {
                 codec: row.get(9)?,
                 thumbnail_path: row.get(10)?,
                 favorite: row.get(11)?,
-                play_count: row.get(12)?,
-                last_played_at: row.get(13)?,
-                created_at: row.get(14)?,
-                updated_at: row.get(15)?,
-                media_complete: row.get(16)?,
+                shared: row.get(12)?,
+                play_count: row.get(13)?,
+                last_played_at: row.get(14)?,
+                created_at: row.get(15)?,
+                updated_at: row.get(16)?,
+                media_complete: row.get(17)?,
             })
         })?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    /// One space's 共享清单: the paths of the records on it, in path order.
+    ///
+    /// Ordered by path because the 虚拟文件名 are handed out in this order — the
+    /// first file to want a name gets it, and the next one to want the same name
+    /// gets a number. A list order that was not the list's own would make the
+    /// names depend on something the user cannot see: numbering by when each
+    /// video was added would shift every later number the moment one was
+    /// inserted in the middle, and the television would show a different set of
+    /// names for no reason.
+    pub fn shared_paths(&self, space_id: i64) -> Result<Vec<String>, AppError> {
+        let mut query = self
+            .connection
+            .prepare("SELECT path FROM videos WHERE space_id=?1 AND shared=1 ORDER BY path")?;
+        let rows = query.query_map([space_id], |row| row.get(0))?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
@@ -202,6 +220,23 @@ impl Repository {
         let count = self.connection.execute(
             "UPDATE videos SET favorite=?3,updated_at=?4 WHERE space_id=?1 AND path=?2",
             params![space_id, path, favorite, now()],
+        )?;
+        self.require_row(count)
+    }
+
+    /// Puts a record on the space's 共享清单, or takes it off.
+    ///
+    /// The same statement as [`Repository::favorite`] against the column beside
+    /// it, down to the verdict: a path this space holds no record for is refused
+    /// rather than silently done nothing about. The two are kept apart rather
+    /// than folded into one write that takes a column name, because the columns
+    /// mean different things — one is a mark the user leaves on a video, the
+    /// other is what the share service offers to other devices — and a caller
+    /// that could pass either name could pass the wrong one.
+    pub fn share(&self, space_id: i64, path: &str, shared: bool) -> Result<(), AppError> {
+        let count = self.connection.execute(
+            "UPDATE videos SET shared=?3,updated_at=?4 WHERE space_id=?1 AND path=?2",
+            params![space_id, path, shared, now()],
         )?;
         self.require_row(count)
     }

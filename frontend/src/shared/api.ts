@@ -17,6 +17,8 @@ export interface Video {
   codec: string | null;
   thumbnail_path: string | null;
   favorite: boolean;
+  /** 共享清单: one of the videos this space offers over the share service. */
+  shared: boolean;
   play_count: number;
   last_played_at: number | null;
   created_at: number;
@@ -39,9 +41,21 @@ export interface AppError {
   errorId: string;
 }
 
+/**
+ * What one pass changed, counted by kind. Named here rather than written out
+ * inline in `ScanStatus`, so that the shape the backend sends and the shape the
+ * interface reads can be held to each other by name (see
+ * `scripts/check-seam.mjs`).
+ */
+export interface IndexChanges {
+  added: number;
+  updated: number;
+  removed: number;
+}
+
 export interface ScanStatus {
   operation?: 'scan' | 'thumbnails';
-  changes: { added: number; updated: number; removed: number };
+  changes: IndexChanges;
   failures: number;
   unreachableDirectories: number;
   phase: string;
@@ -93,6 +107,86 @@ export interface UpdateProgress {
 export interface LanguageSettings {
   preference: 'system' | 'zh-CN' | 'en';
   language: 'zh-CN' | 'en';
+}
+
+/**
+ * The 共享服务 as the interface sees it: the port it is listening on, or null
+ * when it is not running.
+ *
+ * `port` is the whole of the first fact. Whether the service is running *is*
+ * whether it has a port, and a flag beside a port would be two answers to one
+ * question with nothing keeping them in step.
+ *
+ * `missingFiles` is the second fact, and it is about the list rather than the
+ * service: videos the user picked whose file is not on disk any more, counted
+ * when the service starts because that is when the list is read. It is zero
+ * when nothing is running.
+ *
+ * `username` and `password` are what a device is told to connect with, and they
+ * come in the same answer because they are read off the same page: a page that
+ * asked twice could show a password beside a port it does not go with.
+ * `needsRestart` is the one thing that cannot be worked out from them — whether
+ * the service that is running is still behind the password shown above it, which
+ * it stops being the moment the user regenerates one.
+ *
+ * `listChanged` is the same shape of fact about the list: a service offers the
+ * 共享清单 it was started over, and the 共享清单 can be picked at while it runs.
+ * The backend compares the two lists rather than being told that something was
+ * toggled, so a record that a rescan deleted counts as a change too.
+ *
+ * `devices` is the one part of this that changes without the user doing
+ * anything, which is why the page reads the whole status again on a timer while
+ * the service is running.
+ *
+ * `addresses` is where this machine can be reached, which the backend reads
+ * from the operating system: an address and a port are two halves of the one
+ * thing a user types into a television, and they are read together so that they
+ * cannot be shown as a pair that does not go together.
+ */
+export interface ShareStatus {
+  port: number | null;
+  missingFiles: number;
+  username: string;
+  password: string;
+  needsRestart: boolean;
+  listChanged: boolean;
+  devices: Device[];
+  addresses: Address[];
+}
+
+/**
+ * One address this machine can be reached at, in the order to try them: the
+ * ones a router handed out first, the machine talking to itself last.
+ */
+export interface Address {
+  /** The interface, as the operating system names it: `Wi-Fi`, `以太网`. */
+  interface: string;
+  /** The IPv4 address, on its own: the port is the service's, not the machine's. */
+  address: string;
+  /** Whether this is the machine talking to itself — the one that cannot reach
+   * a television. */
+  loopback: boolean;
+}
+
+/**
+ * A client that has talked to the service recently.
+ *
+ * There is no `online` here to go with it, and that is the protocol's own
+ * answer: a WebDAV client opens a connection, takes what it asked for and
+ * closes it, so "connected" is a word this service has nothing to be. What it
+ * has is the last request and when it arrived.
+ */
+export interface Device {
+  /** The address the request came from, as the socket had it. */
+  address: string;
+  /**
+   * What the client calls itself — the first product of its `User-Agent` — or
+   * null when it sent nothing this could be read from. Null is not a reason to
+   * leave the row out: the address and the time are the row.
+   */
+  name: string | null;
+  /** When it was last heard from, in milliseconds since the epoch. */
+  lastSeen: number;
 }
 
 /**
@@ -155,6 +249,11 @@ export const libraryApi = {
     invoke<void>('scan_action', { action }),
   favorite: (spaceId: number, path: string, favorite: boolean) =>
     invoke<void>('set_favorite', { spaceId, path, favorite }),
+  // A mark on a record, as a favorite is, so it is addressed and answered the
+  // same way. Which videos it marks is the space's business; what it means is
+  // the share service's.
+  shared: (spaceId: number, path: string, shared: boolean) =>
+    invoke<void>('set_shared', { spaceId, path, shared }),
   remove: (spaceId: number, path: string) =>
     invoke<void>('remove_video', { spaceId, path }),
   removeDirectory: (spaceId: number, path: string) =>
@@ -184,6 +283,54 @@ export const libraryApi = {
 };
 
 /**
+ * The 共享服务, which belongs to no space of its own: it is one service for the
+ * application, started by the user and ended when they say so or when the
+ * application exits.
+ *
+ * Each of the three answers with the status that follows it, so a caller never
+ * has to work out where it now stands: opening answers with the port that was
+ * taken — which is not always the one asked for — and ending answers with the
+ * one that says nothing is running. Reading is its own command because the
+ * status is asked from every page, and a question that had to open a port to be
+ * answered would turn looking at the interface into starting a service.
+ */
+export const shareApi = {
+  // The space is named by every one of these that reads a list, because what the
+  // service offers is that space's 共享清单: "the one on screen" is not an answer
+  // the backend can give, since it is the interface that decides which space is
+  // being shown. Reading names it too: part of what reading answers is whether a
+  // running service is still offering the list that space holds now.
+  status: (spaceId: number) => invoke<ShareStatus>('share_status', { spaceId }),
+  open: (spaceId: number) => invoke<ShareStatus>('open_share', { spaceId }),
+  close: () => invoke<ShareStatus>('close_share'),
+  // Answers with the whole status rather than the password alone: regenerating
+  // it also decides whether a service that is running is still behind it, and a
+  // caller that had to ask again for the second fact could draw the two
+  // contradicting each other.
+  regeneratePassword: (spaceId: number) =>
+    invoke<ShareStatus>('regenerate_share_password', { spaceId }),
+};
+
+/**
+ * The window this interface is drawn in, asked for the one thing the 共享服务
+ * needs of it: to go away once the user has said so.
+ *
+ * Whether a close is held — and if so, that the user is asked first — is the
+ * backend's decision, taken where the fact it rests on lives: only the backend
+ * knows a service is running (`crate::closing`). It holds the close and tells
+ * this side a question is due; the answer comes back here as a command, and the
+ * window is closed by the side that decided it should wait. Nothing here
+ * subscribes to the window or destroys it, and the interface needs no permission
+ * over its own window at all.
+ *
+ * The command ends the service before the window goes, which is why the answer
+ * to a yes is one call rather than two.
+ */
+export const windowApi = {
+  close: (): Promise<void> => invoke<void>('close_window'),
+};
+
+/**
  * What the user chose about the application itself. Answers with what was
  * stored, so the caller is told what became of the patch rather than what it
  * asked for.
@@ -197,14 +344,18 @@ export const settingsApi = {
 /**
  * The language, and the preference behind it.
  *
- * `set` answers with the language the preference resolves to right now, which
- * is not the preference itself in follow-system mode — so the caller applies
- * what came back rather than what it sent.
+ * Reading answers with the language the preference resolves to right now, which
+ * is not the preference itself in follow-system mode.
+ *
+ * Changing it is not here. The settings page is where a language is chosen, and
+ * it goes through `settingsApi.save` with the theme beside it, because the two
+ * are one file and one write (`crate::preferences`). A second command that
+ * wrote the same key is how the application came to have two answers to which
+ * language it was in: one the interface was drawn with, and one the native
+ * menus and the 共享服务's landing page were written in, until the next run.
  */
 export const languageApi = {
   read: () => invoke<LanguageSettings>('get_language'),
-  save: (preference: LanguageSettings['preference']) =>
-    invoke<LanguageSettings>('set_language', { preference }),
 };
 
 /**
@@ -232,6 +383,16 @@ export const backendEvents = {
     listen<UpdateProgress>('update-progress', ({ payload }) =>
       handler(payload),
     ),
+  /**
+   * The window was asked to close while a 共享服务 is running, and is being held
+   * while the user is asked about it.
+   *
+   * Carries nothing: what is being asked is a question this side already has the
+   * words for, and what would close is the window it is drawn in. The answer
+   * goes back as `windowApi.close`.
+   */
+  onCloseRequested: (handler: () => void): Promise<UnlistenFn> =>
+    listen('close-requested', handler),
 };
 
 /** Asks the user for folders, through the platform's own picker. */

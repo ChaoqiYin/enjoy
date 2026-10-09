@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import i18n from 'i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { saveLanguage, synchronizeLanguage } from './language';
+import { applyLanguage, synchronizeLanguage } from './language';
 import type { LanguageSettings } from '../shared/api';
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -48,47 +48,20 @@ it('does not apply an older focus response after a newer response', async () => 
   expect(document.documentElement.lang).toBe('zh-CN');
 });
 
-it('does not overwrite a manual language change with an older system response', async () => {
+// The preference has one owner now, so a read issued *after* a change answers
+// with the change. What this holds is the other half: a read issued *before* it
+// and answered after must not put the interface back to the language it was.
+it('does not let a read in flight undo a language just applied', async () => {
   const first = deferred();
-  vi.mocked(invoke)
-    .mockReturnValueOnce(first.promise)
-    .mockResolvedValueOnce({ preference: 'zh-CN', language: 'zh-CN' });
+  vi.mocked(invoke).mockReturnValueOnce(first.promise);
   const older = synchronizeLanguage();
-  await saveLanguage('zh-CN');
+  // The user picks a language on the settings page: the save has landed, and
+  // what is on screen is the language they picked.
+  await applyLanguage({ preference: 'zh-CN', language: 'zh-CN' });
   first.resolve({ preference: 'system', language: 'en' });
   await older;
   expect(i18n.language).toBe('zh-CN');
   expect(document.documentElement.lang).toBe('zh-CN');
-});
-
-it('defers focus reads while a manual preference is being saved', async () => {
-  const saving = deferred();
-  vi.mocked(invoke).mockReturnValueOnce(saving.promise);
-  const saved = saveLanguage('zh-CN');
-  await synchronizeLanguage();
-  expect(invoke).toHaveBeenCalledTimes(1);
-  expect(i18n.language).toBe('en');
-  saving.resolve({ preference: 'zh-CN', language: 'zh-CN' });
-  await saved;
-  expect(i18n.language).toBe('zh-CN');
-  vi.mocked(invoke).mockResolvedValueOnce({
-    preference: 'zh-CN',
-    language: 'zh-CN',
-  });
-  await synchronizeLanguage();
-  expect(invoke).toHaveBeenLastCalledWith('get_language');
-});
-
-it('restores focus synchronization after a failed preference save', async () => {
-  vi.mocked(invoke).mockRejectedValueOnce(new Error('Save failed'));
-  await expect(saveLanguage('zh-CN')).rejects.toThrow('Save failed');
-  expect(i18n.language).toBe('en');
-  vi.mocked(invoke).mockResolvedValueOnce({
-    preference: 'system',
-    language: 'zh-CN',
-  });
-  await synchronizeLanguage();
-  expect(i18n.language).toBe('zh-CN');
 });
 
 // The baseline (§10.1) has follow-system mode resolve the system language

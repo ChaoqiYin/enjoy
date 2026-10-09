@@ -1,4 +1,6 @@
 {
   "startupFailed": "Enjoy could not start. Reference: {{id}}",
-  "defaultSpace": "Default"
+  "defaultSpace": "Default",
+  "shareLandingTitle": "Enjoy share service",
+  "shareLandingBody": "This is the video share service of Enjoy. It offers the videos you picked from this computer, read-only, to other devices on the local network. Connect with a WebDAV client — a player on a TV or phone, or your file manager. There is nothing to see in a browser."
 }

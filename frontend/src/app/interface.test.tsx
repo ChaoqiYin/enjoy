@@ -32,6 +32,7 @@ const video: Video = {
   codec: 'h264',
   thumbnail_path: null,
   favorite: false,
+  shared: false,
   play_count: 0,
   last_played_at: null,
   created_at: 0,
@@ -102,10 +103,14 @@ describe('localized errors', () => {
 });
 
 describe('video card actions', () => {
-  function mount(lastPlayedId: number | null = null) {
+  function mount(
+    lastPlayedId: number | null = null,
+    overrides: Partial<Video> = {},
+  ) {
     const actions = {
       play: vi.fn(),
       favorite: vi.fn(),
+      share: vi.fn(),
       reveal: vi.fn(),
       remove: vi.fn(),
       copyPath: vi.fn(),
@@ -116,7 +121,7 @@ describe('video card actions', () => {
     render(
       <I18nextProvider i18n={i18n}>
         <VideoCard
-          video={video}
+          video={{ ...video, ...overrides }}
           onMenu={vi.fn()}
           busy={false}
           actions={actions}
@@ -224,6 +229,46 @@ describe('video card actions', () => {
     // renaming the picture area's hook renames it here too; what this cannot
     // show is the geometry that goes wrong without it, which jsdom cannot lay
     // out at all.
+    expect(card.firstElementChild?.classList.contains(pictureClass)).toBe(true);
+  });
+  it('leaves a video that is not on the 共享清单 unmarked', () => {
+    mount();
+    // Asked for by the words the glyph stands for, which is how a reader without
+    // the picture meets it too.
+    expect(screen.queryByRole('img', { name: 'Shared' })).toBeNull();
+  });
+  it('marks the card of a video that is on the 共享清单', () => {
+    // Both marks at once, because they are the two a card can wear and they have
+    // to be readable together: the played one over the thumbnail's start corner
+    // and this one over its end corner, so neither covers the other.
+    mount(video.id, { shared: true });
+    const card = screen.getByRole('article');
+    const marker = screen.getByRole('img', { name: 'Shared' });
+    expect(card.contains(marker)).toBe(true);
+    expect(marker.classList.contains('absolute')).toBe(true);
+    expect(marker.classList.contains('end-2')).toBe(true);
+    // The fill is daisyUI's mint at 80%, and this pins the 80%: the two
+    // utilities both write `background-color` and it is the one that comes
+    // second in the stylesheet which lands, so which one is written here is the
+    // whole of which colour is drawn. Measured over dark, mid and light
+    // thumbnails, the pair reads 3.47 / 4.37 / 5.42 to one, where an unbounded
+    // thinning drops under the 3:1 a graphic needs — the numbers are in the
+    // card's own comment.
+    expect(marker.classList.contains('bg-success/80')).toBe(true);
+    // A glyph and not a sentence: the card's own words are its file name and its
+    // duration, and the library is read by scanning those.
+    expect(marker.textContent).toBe('');
+    expect(marker.querySelector('svg')).toBeTruthy();
+    // The meaning is not in the glyph alone: it is written on the element the
+    // pointer lands on, as well as in the name a reader hears.
+    expect(marker.getAttribute('title')).toBe('Shared');
+    expect(screen.getByText('Last played').classList.contains('start-2')).toBe(
+      true,
+    );
+    // Written over the thumbnail rather than into a body row, and trailing the
+    // picture for the same reason the played marker does: the picture area is
+    // what daisyUI hangs its clipping on through `:first-child`.
+    expect(card.querySelector('.card-body')?.contains(marker)).toBe(false);
     expect(card.firstElementChild?.classList.contains(pictureClass)).toBe(true);
   });
   it('does not gate play on any per-record availability state', () => {
