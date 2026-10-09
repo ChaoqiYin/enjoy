@@ -1,39 +1,172 @@
 @import 'tailwindcss';
-@plugin 'daisyui';
+@import 'tw-animate-css';
+
+/* Space Grotesk, self-hosted — the drawings ask for the whole family and the
+   alternatives in the prototype (Manrope, JetBrains Mono) were CDN links we do
+   not take. Only the latin subsets are imported: the family carries no CJK
+   coverage, so Chinese text falls through to the system stack either way and
+   the other subsets would ship glyphs this UI never renders. */
+@import '@fontsource/space-grotesk/latin-400.css';
+@import '@fontsource/space-grotesk/latin-500.css';
+@import '@fontsource/space-grotesk/latin-600.css';
+@import '@fontsource/space-grotesk/latin-700.css';
+
+/* The dark variant follows the document attribute `ThemeSetting` writes. It is
+   not shadcn's default `.dark` class: nothing in this app sets that class, and
+   adopting it would mean rewriting `theme/ThemeSetting` and both HTML entries. */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
-html {
-  font-size: 14px;
+@theme inline {
+  --font-sans:
+    'Space Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* One radius for both themes. The drawings disagree — Vermilion bases at
+     .25rem, Crimson at .5rem — and a per-theme value would resize every
+     component the moment the theme flips. */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Extended slots: shadcn ships none of these three and the app draws a
+     green "indexed / hardware ready", an amber star and a blue info action. */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  /* Business tokens the drawings name directly. */
+  --color-glow: var(--glow);
+  --color-share: var(--share);
+  --color-share-border: var(--share-border);
+  --color-last-played: var(--last-played);
 }
 
-/* An open drawer must not re-tint the root background. daisyUI's
-   `rootscrolllock` module darkens `:root` by 40% through `--page-scroll-bg`
-   whenever a `.drawer-toggle` is checked. Page content covers that with its own
-   `bg-base-100`, but the root background still fills the WKWebView
-   `contentInset` strip at the very top, which the macOS title bar shows through
-   — so the title bar turned from white to grey (255 -> 153) as the drawer
-   opened, while the native title bar is not ours to restyle. Clearing the
-   variable here takes the drawer out of that mechanism; the modals are
-   unaffected because they key off `.modal[open]` and friends. Note the
-   `.drawer-overlay` is not the culprit and cannot fix this: it starts at the
-   content area's top edge and never reaches that strip, so its shade is free to
-   keep daisyUI's default. */
-:root:has(.drawer-toggle:checked) {
-  --page-scroll-lock: initial;
+/* Light theme — prototype-drawing/vermilion_studio/DESIGN.md.
+   `--radius` lives only here: it is deliberately the same value in both themes. */
+:root {
+  --radius: 0.5rem;
+
+  --background: #faf8ff; /* background */
+  --foreground: #0f172a; /* on-surface */
+  --card: #fcfcfd; /* surface */
+  --card-foreground: #0f172a; /* on-surface */
+  --popover: #ffffff; /* surface-container-lowest */
+  --popover-foreground: #0f172a; /* on-surface */
+
+  /* The compiled block's brand red, not the front-matter block's `#b80035`
+     (the M3 light tint). Same rule on the dark side. */
+  --primary: #e11d48; /* primary */
+  --primary-foreground: #ffffff; /* on-primary */
+  --secondary: #fecdd3; /* surface-container-high */
+  --secondary-foreground: #0f172a; /* on-surface */
+  --muted: #fff1f2; /* surface-container-low */
+  --muted-foreground: #64748b; /* on-surface-variant */
+  --accent: #ffe4e6; /* surface-container, near surface-elevated */
+  --accent-foreground: #0f172a; /* on-surface */
+  --destructive: #ba1a1a; /* error */
+  --destructive-foreground: #ffffff; /* on-error */
+  --border: #e2e8f0; /* outline */
+  --input: #cbd5e1; /* outline-variant */
+
+  /* One focus hue for the whole app. The drawings carry a cyan glow and a red
+     one side by side, which is a draft that never converged; the primary wins. */
+  --ring: #e11d48; /* primary */
+
+  /* Semantics beat the drawings where they disagree: Crimson repaints its
+     green as red, and success stays green anyway. */
+  --success: #006855; /* tertiary */
+  --success-foreground: #ffffff; /* on-tertiary */
+  --warning: #f59e0b; /* amber-gold */
+  --warning-foreground: #472a00; /* dark amber text for either theme */
+  --info: #0369a1; /* no drawing slot; the blue `btn-info` stood for */
+  --info-foreground: #ffffff;
+
+  --glow: rgba(225, 29, 72, 0.2); /* accent-glow */
+  --share: #e11d48; /* status-shared */
+  --share-border: #9f1239; /* status-shared-border */
+  --last-played: #e11d48; /* last-played */
 }
 
-/* The drawer's slide and its backdrop fade are daisyUI's own transitions, and
-   daisyUI leaves them running under `prefers-reduced-motion`. They are
-   decoration — nothing is learned from the panel having travelled — so the
-   preference turns them into an instant state change. Written unlayered here,
-   which outranks anything inside daisyUI's cascade layers. */
-@media (prefers-reduced-motion: reduce) {
-  .drawer-side,
-  .drawer-side > :not(.drawer-overlay) {
-    transition: none;
+/* Dark theme — prototype-drawing/crimson_cinema/DESIGN.md. */
+[data-theme='dark'] {
+  --background: #111317; /* background/surface */
+  --foreground: #edeef2; /* on-surface */
+  --card: #14171d; /* surface-card; a step above `surface` so cards lift */
+  --card-foreground: #edeef2; /* on-surface */
+  --popover: #1e232d; /* toast-neutral */
+  --popover-foreground: #edeef2; /* on-surface */
+
+  --primary: #ff334b; /* primary, compiled block */
+  --primary-foreground: #ffffff; /* on-primary */
+  --secondary: #2a2d33; /* surface-container-high */
+  --secondary-foreground: #edeef2; /* on-surface */
+  --muted: #1a1c20; /* surface-container-low */
+  --muted-foreground: #9aa0aa; /* on-surface-variant */
+  --accent: #1a1e26; /* surface-elevated */
+  --accent-foreground: #edeef2; /* on-surface */
+  --destructive: #ffb4ab; /* error */
+  --destructive-foreground: #690005; /* on-error */
+  --border: #383b42; /* outline */
+  --input: #25282f; /* outline-variant */
+
+  --ring: #ff334b; /* primary */
+
+  --success: #66dabf; /* tertiary */
+  --success-foreground: #00382e; /* on-tertiary */
+  --warning: #f59e0b; /* amber-gold */
+  --warning-foreground: #472a00; /* dark amber text for either theme */
+  --info: #38bdf8; /* no drawing slot; the blue `btn-info` stood for */
+  --info-foreground: #082f49;
+
+  --glow: rgba(255, 51, 75, 0.35); /* accent-glow */
+  --share: #ff4d6d; /* status-shared */
+  --share-border: #991b32; /* status-shared-border */
+  --last-played: #ff334b; /* last-played */
+}
+
+@layer base {
+  html {
+    font-size: 14px;
+  }
+
+  * {
+    border-color: var(--border);
+    outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
   }
 }
 
+/* Kept as-is: the scrollbar contract, not a daisyUI artifact. Radix's
+   `ScrollArea` draws its own scrollbar and would fight `scrollbar-gutter`. */
 .scroll-viewport {
   overflow: auto;
   scrollbar-gutter: stable;
@@ -43,50 +176,6 @@ html {
 @supports not (scrollbar-gutter: stable) {
   .scroll-viewport {
     overflow-y: scroll;
-  }
-}
-
-/* The hover shadow has to live here rather than with the animation library:
-   that library interpolates literal values only, so `var()` and the semantic
-   colour tokens are out of its reach — which is why the card used to carry a
-   fixed `rgb(0 0 0 / 0.18)`, a black shadow with nowhere to darken against a
-   near-black background. `base-content` flips with the theme, so in dark themes
-   the shadow below paints a light halo instead, which is how a dark UI usually
-   reads as "lifted"; the outline already varies with the theme for the same
-   reason. The measurements behind the 18% mix, and every alternative weighed
-   against it, are in ADR 0008.
-
-   The cost, accepted: `transition-property` takes a single value, so keeping
-   daisyUI's `transition: outline .2s ease-in-out` on `.card` means restating
-   that declaration here, beside `box-shadow` — the vendor's declaration copied
-   into a second place that a vendor upgrade will not carry along. The
-   alternative, Tailwind's `transition-shadow`, is worse: it would replace the
-   whole property and turn the outline into an instant change. */
-.video-card {
-  /* The geometry, kept in one place so the fallback below restates only the
-     colour that it exists to replace. */
-  --video-card-shadow: 0 8px 16px -4px;
-  transition:
-    outline 0.2s ease-in-out,
-    box-shadow 0.2s ease-out;
-}
-
-.video-card:hover {
-  box-shadow: var(--video-card-shadow)
-    color-mix(in oklab, var(--color-base-content) 18%, transparent);
-}
-
-/* Where `color-mix` is unavailable the mix above does not apply, and the
-   pipeline's own fallback would paint an opaque band instead of a shadow. This
-   states the fallback by hand, the way the `scrollbar-gutter` block above does,
-   with the fixed black the card carried before the shadow moved here — the
-   alpha is the point, and light themes want that black anyway. The two
-   `@supports` conditions are mutually exclusive, so this one's order against
-   the pipeline's does not matter. Not an unreachable corner: WKWebView only
-   took `color-mix` in Safari 16.2, while macOS 12 ships 15.4. */
-@supports not (color: color-mix(in lab, red, red)) {
-  .video-card:hover {
-    box-shadow: var(--video-card-shadow) rgb(0 0 0 / 0.18);
   }
 }
 
