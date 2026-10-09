@@ -49,8 +49,17 @@ const marks = new Map<string, Set<number>>([
  * and a walkthrough that cannot see the screen a first run opens on cannot walk
  * the one empty state that takes the whole page (issue #46, whose subject was a
  * branch no walkthrough could reach).
+ *
+ * It is read off the address as well as flipped from the console, and that is
+ * not decoration: the page reads a listing once and keeps the answer, so a
+ * switch that only moved this copy left the screen showing the library it had
+ * already read. `?library=empty` is the way in — the number is read while this
+ * file loads, before the app has replaced the address with its own route — and
+ * a walkthrough that reloads lands in the library it asked for. Without it the
+ * 首启 screen is reachable only by a click no screen shows.
  */
-let indexed = true;
+const asked = new URLSearchParams(location.search).get('library');
+let indexed = asked !== 'empty';
 
 /** One record as the space being asked holds it: the files, and its own marks. */
 function recordsOf(spaceId: number | undefined): Video[] {
@@ -428,6 +437,12 @@ export const acceptance = {
   // then empty — the 视频库 one at the size 首启 draws, and the other three at
   // the size a list that has nothing in it draws — which is the empty state on
   // all four listings, from the one switch.
+  //
+  // Read by this file when it loads (`?library=empty`): the interface reads a
+  // listing once and keeps it, so reaching the empty library in a walkthrough is
+  // a page loaded with it rather than a click. This handle is the same switch
+  // moved in place, which is what these tests want and what a console session
+  // gets — a reload is what the address is for.
   setLibrary: (state: 'full' | 'empty') => {
     indexed = state === 'full';
   },
