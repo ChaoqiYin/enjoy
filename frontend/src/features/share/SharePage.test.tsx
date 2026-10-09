@@ -305,9 +305,9 @@ it('gives the room a hover needs to the viewport that clips, not to the grid', a
   const viewport = container.querySelector<HTMLElement>('.scroll-viewport')!;
   expect(viewport.style.paddingInlineStart).toBe('10px');
   expect(viewport.style.marginInlineStart).toBe('-10px');
-  expect(container.querySelector('.grid')?.getAttribute('style')).not.toContain(
-    'padding',
-  );
+  expect(
+    container.querySelector('.grid')?.getAttribute('style') ?? '',
+  ).not.toContain('padding');
 });
 
 it('offers 移出共享清单 from the cards it draws', async () => {

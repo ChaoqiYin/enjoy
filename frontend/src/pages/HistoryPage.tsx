@@ -12,6 +12,7 @@ export function HistoryPage() {
       <LibraryToolbar {...view.toolbarProps} title={t('history')} />
       <VideoPageContent
         view={view}
+        listLabel={t('history')}
         emptyTitle={t('emptyHistory')}
         emptyHelp={t('historyHelp')}
       />
