@@ -86,3 +86,29 @@ it('announces a copied path once it was copied, and not before', () => {
   rerender(page());
   expect(screen.getByText(english.copied)).toBeTruthy();
 });
+
+// The scan panel is a native `<dialog>`, and a native dialog is painted with the
+// UA stylesheet's `color: canvastext` — a keyword resolved from `color-scheme`,
+// which this app never sets (it themes with `data-theme` and CSS variables, so
+// `color-scheme` computes to `normal`). In the dark theme `canvastext` is black,
+// and because a UA declaration beats inheritance, `body`'s `color` never reaches
+// the panel: the text came out black on the dark card until the panel's surface
+// named its own foreground.
+//
+// What this test holds is that pairing — the surface that paints `bg-card` also
+// names `text-card-foreground`, as every other card in this app does. What it
+// cannot hold is the rendering: jsdom applies no UA stylesheet and resolves no
+// `canvastext`, so it can neither reproduce the black text nor prove the fix
+// renders readable. The colour itself was checked in a real browser.
+it('gives the scan panel a foreground of its own rather than inheriting one', () => {
+  scan.isRunning = true;
+  // `discovered: 0` is the spinner branch — the second place the black text
+  // showed, a `text-current` spinner taking the panel's colour. It is covered by
+  // the same token, because `currentColor` reads what the card now declares.
+  scan.status = idleScan({ phase: 'scanning', discovered: 0, processed: 0 });
+  render(page());
+  const dialog = document.querySelector('dialog');
+  const card = dialog?.firstElementChild;
+  expect(card?.className).toContain('bg-card');
+  expect(card?.className).toContain('text-card-foreground');
+});

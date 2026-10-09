@@ -69,7 +69,7 @@ export function PageFrame({ children }: { children: ReactNode }) {
           aria-labelledby="scan-progress-title"
           className="fixed inset-0 z-50 m-0 flex size-full max-w-none items-center justify-center bg-background/80 backdrop-blur-sm"
         >
-          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-lg">
+          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 text-card-foreground shadow-lg">
             <h2 id="scan-progress-title" className="sr-only">
               {t('scanning')}
             </h2>
