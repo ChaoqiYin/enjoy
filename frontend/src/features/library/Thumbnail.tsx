@@ -13,8 +13,8 @@ import { pictureClass } from './videoCardBox';
  * `overflow-hidden`), and it is told how wide to be by the caller rather than
  * insisting on a width of its own — which is what lets the row draw a 96-pixel
  * sliver of the same component the card draws full width, with no second
- * picture area to keep in step. The ratio comes from `videoCardBox`, the same
- * fact the grid's estimate was built on.
+ * picture area to keep in step. The ratio comes from `videoCardBox`, which is
+ * where the picture area's class is declared.
  *
  * Three states, in the order they are worth telling apart: the file being
  * prepared right now (which is the only one the user can act on), a picture
