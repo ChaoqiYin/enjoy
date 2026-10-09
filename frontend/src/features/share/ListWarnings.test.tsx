@@ -36,11 +36,13 @@ it('says how many videos on the list a client will not be offered', () => {
   // The count and not the names: what the user needs to know is that the
   // television will show fewer than they picked.
   block({ running: true, missingFiles: 2 });
-  expect(
-    screen.getByText(
-      english.shareMissingFiles_other.replace('{{countText}}', '2'),
-    ),
-  ).toBeTruthy();
+  const message = screen.getByText(
+    english.shareMissingFiles_other.replace('{{countText}}', '2'),
+  );
+  // Said as a warning rather than as another line of the page: it is something
+  // to act on, and it says so to assistive technology as it appears.
+  const warning = message.closest('[role="alert"]');
+  expect(warning?.getAttribute('data-variant')).toBe('warning');
 });
 
 it('says a running service is offering the list it was started with, after a change', () => {
@@ -48,7 +50,8 @@ it('says a running service is offering the list it was started with, after a cha
   // since is not what a client is being offered — and a user who just added a
   // video would otherwise conclude the change did not work.
   block({ running: true, listChanged: true });
-  expect(screen.getByText(english.shareListChanged)).toBeTruthy();
+  const message = screen.getByText(english.shareListChanged);
+  expect(message.closest('[role="alert"]')).toBeTruthy();
 });
 
 it('says nothing about the list while it is the one being offered', () => {
@@ -57,11 +60,7 @@ it('says nothing about the list while it is the one being offered', () => {
   // on.
   block({ running: true });
   expect(screen.queryByText(english.shareListChanged)).toBeNull();
-  expect(
-    screen.queryByText(
-      english.shareMissingFiles_other.replace('{{countText}}', '2'),
-    ),
-  ).toBeNull();
+  expect(screen.queryAllByRole('alert')).toHaveLength(0);
 });
 
 it('says nothing at all while nothing is serving', () => {
@@ -70,9 +69,5 @@ it('says nothing at all while nothing is serving', () => {
   // for files a client will not be offered by a service that is not there.
   block({ running: false, missingFiles: 3, listChanged: true });
   expect(screen.queryByText(english.shareListChanged)).toBeNull();
-  expect(
-    screen.queryByText(
-      english.shareMissingFiles_other.replace('{{countText}}', '3'),
-    ),
-  ).toBeNull();
+  expect(screen.queryAllByRole('alert')).toHaveLength(0);
 });

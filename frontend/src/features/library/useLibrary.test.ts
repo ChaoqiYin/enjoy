@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { createElement } from 'react';
 import type { ReactNode } from 'react';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { libraryApi } from '../../shared/api';
 import type { ScanStatus, Video } from '../../shared/api';
@@ -43,9 +44,14 @@ beforeEach(() => {
   vi.mocked(listen).mockResolvedValue(() => {});
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   vi.spyOn(libraryApi, 'listSpaces').mockResolvedValue([space, other]);
-  vi.spyOn(libraryApi, 'list').mockResolvedValue([]);
+  vi.spyOn(libraryApi, 'list').mockResolvedValue({ items: [], total: 0 });
   vi.spyOn(libraryApi, 'directories').mockResolvedValue([]);
-  useLibraryView.setState({ search: '', folder: '', sorts: {} });
+  useLibraryView.setState({
+    search: '',
+    folder: '',
+    sorts: {},
+    page: { listing: '', index: 0 },
+  });
   vi.spyOn(libraryApi, 'rescan').mockResolvedValue([]);
   vi.spyOn(libraryApi, 'scanStatus').mockResolvedValue(idleScan());
 });
@@ -57,16 +63,77 @@ afterEach(() => {
 const space = { id: 1, name: 'Library' };
 const other = { id: 2, name: 'Other' };
 
-function mount() {
+function mount(path = '/') {
   return renderHook(useLibrary, {
     wrapper: ({ children }: { children: ReactNode }) =>
       createElement(
         QueryClientProvider,
         { client },
-        createElement(SpaceProvider, { initialSpace: space, children }),
+        // Which page of the library is on screen is the route's answer, and the
+        // library reads it there because the question it asks depends on it.
+        createElement(
+          MemoryRouter,
+          { initialEntries: [path] },
+          createElement(SpaceProvider, { initialSpace: space, children }),
+        ),
       ),
   });
 }
+
+it('asks the backend for one page of the list the page is a page of', async () => {
+  mount('/favorites');
+  await waitFor(() =>
+    expect(vi.mocked(libraryApi.list)).toHaveBeenCalledWith({
+      spaceId: space.id,
+      // Nothing typed and nothing picked: the two filters say nothing rather
+      // than saying "empty".
+      search: undefined,
+      folder: undefined,
+      // 收藏页 is the library holding one condition, and 最近添加 is how it opens.
+      only: 'favorite',
+      sort: 'added',
+      offset: 0,
+      limit: 24,
+    }),
+  );
+});
+
+it('turns to another page of the same list', async () => {
+  vi.mocked(libraryApi.list).mockResolvedValue({ items: [], total: 60 });
+  const { result } = mount();
+  await waitFor(() =>
+    expect(vi.mocked(libraryApi.list)).toHaveBeenCalledTimes(1),
+  );
+  await act(() => result.current.videos.turnTo(1));
+  await waitFor(() =>
+    expect(vi.mocked(libraryApi.list)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ offset: 24, limit: 24, spaceId: space.id }),
+    ),
+  );
+  expect(result.current.videos.index).toBe(1);
+});
+
+it('narrows to what was typed, from the first page of the narrower list', async () => {
+  vi.mocked(libraryApi.list).mockResolvedValue({ items: [], total: 60 });
+  const { result } = mount();
+  await waitFor(() =>
+    expect(vi.mocked(libraryApi.list)).toHaveBeenCalledTimes(1),
+  );
+  await act(() => result.current.videos.turnTo(2));
+  await waitFor(() => expect(result.current.videos.index).toBe(2));
+
+  // What the user types describes another list. The third page of the library is
+  // not the third page of the matches: read as one, it would ask for a page of
+  // matches that is not there, and page past the end of what they are looking
+  // at.
+  act(() => useLibraryView.getState().setSearch('holiday'));
+  await waitFor(() =>
+    expect(vi.mocked(libraryApi.list)).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: 'holiday', offset: 0 }),
+    ),
+  );
+  expect(result.current.videos.index).toBe(0);
+});
 it('retries the failed action and clears its error after success', async () => {
   const rescan = vi.mocked(libraryApi.rescan);
   rescan.mockRejectedValueOnce(failure).mockResolvedValueOnce([]);

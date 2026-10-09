@@ -10,7 +10,9 @@ import { ConnectionDetails } from '../features/share/ConnectionDetails';
 import { DeviceList } from '../features/share/DeviceList';
 import { ListWarnings } from '../features/share/ListWarnings';
 import { PasswordDetails } from '../features/share/PasswordDetails';
+import { Pager } from '../features/library/Pager';
 import { useShareContext } from '../features/share/ShareProvider';
+import { Button } from '../shared/ui/button';
 import { ScrollViewport } from '../shared/ScrollViewport';
 import type { AppError } from '../shared/api';
 
@@ -25,24 +27,29 @@ function clientError(code: string): AppError {
  * been asking.
  *
  * It places the blocks and owns the two things none of them can: what the
- * 共享清单 is (the records, read the way every page reads them, filtered by a mark
- * that travels on the record — the backend has no command for the list), and what
- * a press on copy means here. Everything a block draws is handed to it as a fact,
- * so each of the four is a module of its own with its own test, and this file is
- * read for what sits where.
+ * 共享清单 is, and what a press on copy means here. The 清单 is the listing this
+ * route is a page of — the same query every listing page is read through, asked
+ * for the records marked as shared (`only: 'shared'`), so which records are on it
+ * is the backend's answer rather than a mark this page filters by hand: a page of
+ * records cannot be filtered (a record the filter drops is one of the ones this
+ * page never saw) and cannot be counted either. The heading above the cards names
+ * the same fact. Everything a block draws is handed to it as a fact, so each of
+ * the four is a module of its own with its own test, and this file is read for
+ * what sits where.
  */
 export function SharePage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const share = useShareContext();
   const notices = useNotices();
-  // What is on the 共享清单, read the way every page reads the videos: the mark
-  // travels on the record, so the list is the collection with a filter over it
-  // and no command of its own (the backend has none). The same records are drawn
-  // as cards below, so the list is read once here and handed to both.
-  const { videos: collection } = useVideos();
+  // The 共享清单, read the way every page reads the videos: the page of records
+  // the backend answered the /share listing with, and how many the list holds.
+  // The same records are drawn as cards below, so the list is read once here and
+  // handed to both.
+  const { videos: collection, index, turnTo } = useVideos();
   const board = useVideoBoard();
-  const videos = (collection.data ?? []).filter((video) => video.shared);
-  const offline = videos.length === 0;
+  const videos = collection.data?.items ?? [];
+  const total = collection.data?.total ?? 0;
+  const offline = total === 0;
   const running = share.port !== null;
   // The one thing every block can ask for, and the one thing it is not told: what
   // a copy that did not work is reported as. Two blocks can copy, and neither
@@ -71,21 +78,18 @@ export function SharePage() {
         <h1 className="text-3xl font-bold">{t('sharing')}</h1>
         {/* The port is named here and not only in the addresses below, because
             the port is the fact that can be surprising: 4918 is what the
-            service asks for, and what it ends up on is whatever was free. */}
+            service asks for, and what it ends up on is whatever was free. It
+            reads at the page's own weight rather than muted for that reason. */}
         <p>
           {running ? t('sharingOn', { port: share.port }) : t('sharingOff')}
         </p>
         {/* One button rather than two, as the favorite is one menu entry: the
             service is either running or it is not, and the label says which
             way this one moves it. Starting is the application's own primary
-            action; ending is a close, and carries the neutral colour closes
-            carry — nothing is being undone or thrown away by stopping. */}
-        <button
-          className={
-            running
-              ? 'btn btn-soft btn-md btn-neutral'
-              : 'btn btn-soft btn-md btn-primary'
-          }
+            action; ending is a close, and takes the secondary variant closes
+            take — nothing is being undone or thrown away by stopping. */}
+        <Button
+          variant={running ? 'secondary' : 'primary'}
           // A service over an empty list is a port a device can connect to and
           // find nothing on, which reads as a service that is broken. The
           // backend would serve it happily; this is the interface saying what
@@ -95,7 +99,7 @@ export function SharePage() {
           onClick={() => void (running ? share.stop() : share.start())}
         >
           {running ? t('stopSharing') : t('startSharing')}
-        </button>
+        </Button>
         {/* The list itself, drawn as cards so that what is being offered can be
             seen rather than remembered: the same cards and the same right-click
             menu as every other page (the baseline allows no list view anywhere),
@@ -114,20 +118,21 @@ export function SharePage() {
             // service that is broken, so the button above will not start over an
             // empty list. The reason is said rather than left to the greyed-out
             // button to explain, and it comes with the way out.
-            <p className="text-sm opacity-70">
+            <p className="text-sm text-muted-foreground">
               {t('shareListEmpty')}{' '}
-              <Link className="link" to="/">
-                {t('shareListEmptyAction')}
-              </Link>
+              {/* The way out of the state above, kept a link because that is
+                  what it is — the button's link variant is the one that is a
+                  link in everything but its name. */}
+              <Button asChild variant="link" size="sm">
+                <Link to="/">{t('shareListEmptyAction')}</Link>
+              </Button>
             </p>
           ) : (
             <>
-              <p className="opacity-60">
-                {t('videoCount', {
-                  count: videos.length,
-                  countText: videos.length.toLocaleString(i18n.language),
-                })}
-              </p>
+              {/* How much is on offer, and how to read the rest of it: the
+                  count is the list's, not the cards', exactly as on every
+                  listing page. */}
+              <Pager index={index} total={total} onPageChange={turnTo} />
               <VideoGrid
                 videos={videos}
                 scan={board.scan}

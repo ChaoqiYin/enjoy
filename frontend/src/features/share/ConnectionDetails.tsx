@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Badge } from '../../shared/ui/badge';
+import { Button } from '../../shared/ui/button';
 import type { Address } from '../../shared/api';
 
 /**
@@ -45,13 +47,17 @@ export function ConnectionDetails({
       <h2 className="text-xl font-semibold">{t('connectionTitle')}</h2>
       {running ? (
         <>
-          <p className="text-sm opacity-70">{t('connectionRunning')}</p>
+          <p className="text-sm text-muted-foreground">
+            {t('connectionRunning')}
+          </p>
           {/* An address is the machine's, so this is the one case where the
               block has nothing to show: every network adapter is down, and
               there is nothing to type. Said in as many words rather than
               left as an empty list. */}
           {addresses.length === 0 ? (
-            <p className="text-sm opacity-70">{t('connectionNoAddress')}</p>
+            <p className="text-sm text-muted-foreground">
+              {t('connectionNoAddress')}
+            </p>
           ) : (
             <ul className="space-y-1">
               {addresses.map((address) => (
@@ -60,8 +66,12 @@ export function ConnectionDetails({
                   className="flex items-center gap-3"
                 >
                   <code className="select-all">{url(address.address)}</code>
-                  <button
-                    className="btn btn-ghost btn-sm"
+                  {/* Beside the address being copied and not in the page's own
+                      colour: reading the address is the thing, and this is the
+                      shortcut past writing it down. */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     // The label of the button is the same on every row; its
                     // accessible name is not, so that a screen reader — and
                     // a test — can tell one row's copy from another's.
@@ -69,18 +79,17 @@ export function ConnectionDetails({
                     onClick={() => onCopy(url(address.address))}
                   >
                     {t('copyAddress')}
-                  </button>
-                  <span className="text-sm opacity-70">
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
                     {address.interface}
                   </span>
                   {/* The one address on the list that works here and
                       nowhere else. Marked for the same reason it is sorted
                       last: it is the one most likely to be tried by
-                      mistake. */}
+                      mistake, and the mark is what sets the row apart from
+                      the ones that can reach a television. */}
                   {address.loopback && (
-                    <span className="text-sm text-warning">
-                      {t('addressLoopback')}
-                    </span>
+                    <Badge variant="warning">{t('addressLoopback')}</Badge>
                   )}
                 </li>
               ))}
@@ -88,10 +97,12 @@ export function ConnectionDetails({
           )}
         </>
       ) : (
-        <p className="text-sm opacity-70">{t('connectionIdle')}</p>
+        <p className="text-sm text-muted-foreground">{t('connectionIdle')}</p>
       )}
       <div className="flex items-center gap-3">
-        <span className="w-24 text-sm opacity-70">{t('username')}</span>
+        <span className="w-24 text-sm text-muted-foreground">
+          {t('username')}
+        </span>
         <code className="select-all">{username}</code>
       </div>
       {children}

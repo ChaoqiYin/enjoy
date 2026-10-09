@@ -106,7 +106,11 @@ export function setClipboard(writeText?: (text: string) => Promise<void>) {
  */
 export function resetSharePage(backend: Backend, subscriptions: Subscriptions) {
   vi.mocked(backend).mockReset();
-  library.videos.data = [video({ shared: true })];
+  // One page of the 共享清单: the records on it and how many the list holds. A page
+  // that fits on one page is what every test that is not about paging starts
+  // from, so the count and the records agree.
+  library.videos.data = { items: [video({ shared: true })], total: 1 };
+  library.pageKey = 'share page 1';
   // Every subscription this surface makes, answered with one that can be
   // stopped: the sharing state follows the close question for the life of the
   // interface, and a test file that mocked the module but left `listen`

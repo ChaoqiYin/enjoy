@@ -62,7 +62,12 @@ it('copies the password and not the mask', () => {
   const { onCopy } = block();
   // The button is there precisely for the user who has not asked to see the
   // password, so what it copies is the secret rather than what is on screen.
-  fireEvent.click(screen.getByRole('button', { name: english.copyPassword }));
+  const copy = screen.getByRole('button', { name: english.copyPassword });
+  // Copying is the lesser of the row's three actions, and it is not given a
+  // colour of its own for the same reason the mask is not: nothing here is the
+  // page's one emphatic action.
+  expect(copy.getAttribute('data-variant')).toBe('ghost');
+  fireEvent.click(copy);
   expect(onCopy).toHaveBeenCalledWith('clipper12345');
 });
 
@@ -74,6 +79,23 @@ it('will not ask for a new password while a command is in flight', () => {
   expect(button.hasAttribute('disabled')).toBe(true);
   fireEvent.click(button);
   expect(onRegenerate).not.toHaveBeenCalled();
+});
+
+it('draws drawing the password out as the lesser of the two things it can do to it', () => {
+  // Showing and copying are ways of reading what is already there; replacing it
+  // is the only one that changes the secret a television has to be given, so it
+  // is the one drawn apart from them rather than beside them in the same cut.
+  block();
+  expect(
+    screen
+      .getByRole('button', { name: english.showPassword })
+      .getAttribute('data-variant'),
+  ).toBe('ghost');
+  expect(
+    screen
+      .getByRole('button', { name: english.regeneratePassword })
+      .getAttribute('data-variant'),
+  ).toBe('outline');
 });
 
 it('says a running service is behind a password that has been replaced', () => {

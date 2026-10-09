@@ -9,6 +9,7 @@ import {
 } from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { libraryApi } from '../../shared/api';
 import type { Space } from '../../shared/api';
@@ -48,7 +49,7 @@ beforeEach(async () => {
   vi.mocked(listen).mockResolvedValue(() => {});
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   vi.spyOn(libraryApi, 'listSpaces').mockResolvedValue([films, shows]);
-  vi.spyOn(libraryApi, 'list').mockResolvedValue([]);
+  vi.spyOn(libraryApi, 'list').mockResolvedValue({ items: [], total: 0 });
   vi.spyOn(libraryApi, 'directories').mockResolvedValue([]);
   vi.spyOn(libraryApi, 'scanStatus').mockResolvedValue(idleScan());
 });
@@ -63,13 +64,17 @@ function mount() {
   render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
-        <SpaceProvider initialSpace={films}>
-          <LibraryProvider>
-            <PageFrame>
-              <SpaceSetting />
-            </PageFrame>
-          </LibraryProvider>
-        </SpaceProvider>
+        {/* The library reads which listing is on screen from the route, so the
+            provider is mounted the way the application mounts it: inside one. */}
+        <MemoryRouter initialEntries={['/']}>
+          <SpaceProvider initialSpace={films}>
+            <LibraryProvider>
+              <PageFrame>
+                <SpaceSetting />
+              </PageFrame>
+            </LibraryProvider>
+          </SpaceProvider>
+        </MemoryRouter>
       </I18nextProvider>
     </QueryClientProvider>,
   );
@@ -102,7 +107,9 @@ it('creates a space from the name that was typed, and moves the library into it'
   // The library is read again for the space that was created: moving into it is
   // what makes the new space reachable at all.
   await waitFor(() =>
-    expect(vi.mocked(libraryApi.list)).toHaveBeenCalledWith(music.id),
+    expect(vi.mocked(libraryApi.list)).toHaveBeenCalledWith(
+      expect.objectContaining({ spaceId: music.id }),
+    ),
   );
 });
 
@@ -157,7 +164,9 @@ it('says what a deletion costs, and moves the library onto a space that is there
   fireEvent.click(screen.getByRole('button', { name: english.confirm }));
   await waitFor(() => expect(remove).toHaveBeenCalledWith(films.id));
   await waitFor(() =>
-    expect(vi.mocked(libraryApi.list)).toHaveBeenCalledWith(shows.id),
+    expect(vi.mocked(libraryApi.list)).toHaveBeenCalledWith(
+      expect.objectContaining({ spaceId: shows.id }),
+    ),
   );
 });
 

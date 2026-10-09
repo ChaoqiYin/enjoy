@@ -54,7 +54,7 @@ beforeEach(async () => {
   Object.assign(share, doubles.share());
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   vi.spyOn(libraryApi, 'listSpaces').mockResolvedValue([films, shows]);
-  vi.spyOn(libraryApi, 'list').mockResolvedValue([]);
+  vi.spyOn(libraryApi, 'list').mockResolvedValue({ items: [], total: 0 });
   vi.spyOn(libraryApi, 'directories').mockResolvedValue([]);
   vi.spyOn(libraryApi, 'scanStatus').mockResolvedValue(idleScan());
 });
@@ -140,7 +140,9 @@ it('moves the library to the space that was chosen', async () => {
   // Everything the pages read is addressed to the space being shown, so the
   // library asking for the new one is what "the pages followed" means.
   await waitFor(() =>
-    expect(vi.mocked(libraryApi.list)).toHaveBeenCalledWith(shows.id),
+    expect(vi.mocked(libraryApi.list)).toHaveBeenCalledWith(
+      expect.objectContaining({ spaceId: shows.id }),
+    ),
   );
   // And the list went away with the choice.
   expect(control.getAttribute('aria-expanded')).toBe('false');
