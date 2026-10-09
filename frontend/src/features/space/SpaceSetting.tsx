@@ -1,14 +1,79 @@
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ConfirmTooltip } from '../../shared/ConfirmTooltip';
+import type { Space } from '../../shared/api';
 import { Tooltip } from '../../shared/Tooltip';
+import { Badge } from '../../shared/ui/badge';
+import { Button } from '../../shared/ui/button';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../../shared/ui/popover';
 import { useBusy } from '../library/useBusy';
 import { useScan } from '../library/useScan';
 import { useSpaceCommands } from '../library/useSpaceCommands';
 import { useSpaces } from './SpaceProvider';
 import { SpaceDialog } from './SpaceDialog';
-import type { Space } from '../../shared/api';
+
+/**
+ * The one destructive control on a row, and the question it asks in place
+ * rather than in a window: deleting a space is not a path to walk through, so
+ * the answer belongs beside the row it is about. Radix owns the anchoring, the
+ * Escape and outside-press dismissal and the return of focus, which is what the
+ * inline confirmation had to spell out for itself before.
+ *
+ * There is no tooltip on it. The name is on the control for assistive
+ * technology, and opening the question is one click either way — the same
+ * bargain the space list's rows already make.
+ */
+function SpaceRemove({
+  name,
+  disabled,
+  onConfirm,
+}: {
+  name: string;
+  disabled: boolean;
+  onConfirm: () => void | Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="text-destructive"
+          aria-label={t('spaceRemove')}
+          disabled={disabled}
+        >
+          <Trash2 size={14} aria-hidden="true" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72">
+        <p className="text-sm break-all">
+          {t('spaceRemoveQuestion', { name })}
+        </p>
+        <div className="flex items-center justify-end gap-3 pt-3">
+          <Button variant="secondary" size="sm" onClick={() => setOpen(false)}>
+            {t('cancel')}
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => {
+              setOpen(false);
+              void onConfirm();
+            }}
+          >
+            {t('confirm')}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 /**
  * The spaces the application holds: the list, which one the interface is
@@ -45,68 +110,53 @@ export function SpaceSetting() {
           operations are refused together, so the answer to "why can't I?" is
           the same sentence wherever it is asked. */}
         {scanning && (
-          <p className="text-sm opacity-65">{t('spaceBlockedScanning')}</p>
+          <p className="text-sm text-muted-foreground">
+            {t('spaceBlockedScanning')}
+          </p>
         )}
-        <ul className="divide-y divide-base-300 rounded-box border border-base-300">
+        <ul className="divide-y divide-border rounded-xl border border-border">
           {(spaces.data ?? []).map((item) => (
             <li
               key={item.id}
               className="flex items-center gap-2 px-3 py-1.5 text-sm"
             >
-              <span className="break-all flex-1">{item.name}</span>
+              <span className="flex-1 break-all">{item.name}</span>
               {item.id === space.id && (
-                <span className="badge badge-sm badge-primary">
-                  {t('spaceCurrent')}
-                </span>
+                <Badge size="sm">{t('spaceCurrent')}</Badge>
               )}
               <div className="flex shrink-0 items-center gap-1">
                 <Tooltip text={t('spaceRename')}>
-                  <button
-                    className="btn btn-ghost btn-xs btn-square"
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
                     aria-label={t('spaceRename')}
                     disabled={blocked}
                     onClick={() => setRenaming(item)}
                   >
                     <Pencil size={14} aria-hidden="true" />
-                  </button>
+                  </Button>
                 </Tooltip>
-                <ConfirmTooltip
-                  message={t('spaceRemoveQuestion', { name: item.name })}
-                  confirmLabel={t('confirm')}
-                  cancelLabel={t('cancel')}
+                <SpaceRemove
+                  name={item.name}
                   disabled={blocked}
-                  onConfirm={() => void commands.removeSpace(item.id)}
-                >
-                  <button
-                    className="btn btn-ghost btn-xs btn-square text-error"
-                    aria-label={t('spaceRemove')}
-                    disabled={blocked}
-                  >
-                    <Trash2 size={14} aria-hidden="true" />
-                  </button>
-                </ConfirmTooltip>
+                  onConfirm={() => commands.removeSpace(item.id)}
+                />
               </div>
             </li>
           ))}
         </ul>
-        <button
-          className="btn btn-soft btn-sm btn-primary"
-          disabled={blocked}
-          onClick={() => setCreating(true)}
-        >
+        <Button size="sm" disabled={blocked} onClick={() => setCreating(true)}>
           <Plus size={14} aria-hidden="true" />
           {t('spaceCreate')}
-        </button>
+        </Button>
       </div>
       {/* Outside the spaced column, and outside it deliberately. `space-y` puts a
           bottom margin on every child that is not the last one, so a dialog
           mounted among them stops the button from being last: the button gains a
           margin it did not have, the section grows by it, and everything below
           the section — the heading for this space's folders — moves down by that
-          much each time a dialog opens. The dialog being `position: fixed` does
-          not save it, because what moves is the sibling's margin, not the
-          dialog. Every other dialog in the application is mounted outside its
-          section for the same reason. */}
+          much each time a dialog opens. Radix portals the panel to the document
+          root, so it is nobody's child here at all. */}
       {creating && (
         <SpaceDialog
           title={t('spaceCreate')}

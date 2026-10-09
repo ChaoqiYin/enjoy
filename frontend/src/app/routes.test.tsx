@@ -142,8 +142,13 @@ it('renders independent pages with shared navigation and page-specific actions',
   expect(screen.getByRole('navigation')).toBe(navigation);
   expect(headerSpace()).toBe(space.name);
 });
+// The space the rest of the screen is about is named by the header's switcher,
+// and the switcher's accessible name is that space. It used to be read off the
+// `summary` of the disclosure the switcher was built from; the switcher is a
+// Radix popover now, and a popover has no such element — the name on the
+// control is what was being read either way.
 function headerSpace() {
-  return document.querySelector('summary')?.textContent;
+  return screen.getByRole('button', { name: space.name }).textContent;
 }
 it('retains shared search and separate route sorting after page remounts', () => {
   mount();

@@ -1,7 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { errorMessage } from '../../shared/errorMessage';
 import { useCommand } from '../../shared/useCommand';
+import { Alert } from '../../shared/ui/alert';
+import { Button } from '../../shared/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../../shared/ui/dialog';
+import { Input } from '../../shared/ui/input';
+import { Label } from '../../shared/ui/label';
 
 /**
  * Names a space, for both creating one and renaming one, so that the two paths
@@ -27,10 +38,8 @@ export function SpaceDialog({
 }) {
   const translator = useTranslation();
   const { t } = translator;
-  const dialog = useRef<HTMLDialogElement>(null);
   const [name, setName] = useState(initialName);
   const { busy, failure, run } = useCommand();
-  useEffect(() => dialog.current?.showModal(), []);
   function submit(event: React.FormEvent) {
     event.preventDefault();
     // Closing is inside the action, and the failure is left here rather than
@@ -42,49 +51,48 @@ export function SpaceDialog({
     });
   }
   return (
-    <dialog
-      ref={dialog}
-      className="modal"
-      aria-labelledby="space-dialog-title"
-      // Escape closes a modal on its own; this is what brings the interface
-      // back in step with it.
-      onClose={onClose}
+    <Dialog
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
     >
-      <form className="modal-box space-y-4" onSubmit={submit}>
-        <h2 id="space-dialog-title" className="text-2xl font-bold">
-          {title}
-        </h2>
-        <label className="block space-y-2">
-          <span>{t('spaceName')}</span>
-          <input
-            className="input w-full"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            autoFocus
-          />
-        </label>
-        {failure && (
-          <p className="text-error" role="alert">
-            {errorMessage(translator, failure.error)}
-          </p>
-        )}
-        <div className="modal-action items-center gap-3">
-          <button
-            type="button"
-            className="btn btn-soft btn-md btn-neutral"
-            onClick={onClose}
-          >
-            {t('cancel')}
-          </button>
-          <button
-            type="submit"
-            className="btn btn-soft btn-md btn-primary"
-            disabled={busy}
-          >
-            {t('confirm')}
-          </button>
-        </div>
-      </form>
-    </dialog>
+      {/* Escape closes the modal on its own, and this is what brings the caller
+          back in step with it. */}
+      <DialogContent closeLabel={t('close')} className="max-w-md">
+        <form className="flex flex-col gap-4" onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="space-name">{t('spaceName')}</Label>
+            <Input
+              id="space-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              autoFocus
+            />
+          </div>
+          {failure && (
+            <Alert variant="destructive">
+              {errorMessage(translator, failure.error)}
+            </Alert>
+          )}
+          <DialogFooter className="items-center gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              onClick={onClose}
+            >
+              {t('cancel')}
+            </Button>
+            <Button type="submit" size="lg" disabled={busy}>
+              {t('confirm')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
