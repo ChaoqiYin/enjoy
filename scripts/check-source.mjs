@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import ts from 'typescript';
 
-const excludedDirectories = new Set(['.git', 'node_modules', 'target', 'dist', 'gen']);
+const excludedDirectories = new Set(['.git', 'node_modules', 'target', 'dist', 'gen', 'prototype-drawing']);
 const generatedFiles = new Set(['package-lock.json', 'Cargo.lock']);
 const textExtensions = new Set(['.ts', '.tsx', '.js', '.mjs', '.rs', '.json', '.md', '.css', '.html', '.toml', '.yml', '.yaml']);
 const failures = [];

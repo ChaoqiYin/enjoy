@@ -1,0 +1,282 @@
+<!DOCTYPE html><html class="dark" lang="zh-CN" style=""><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><meta content="web_standard" name="shell-type"><title>Enjoy - 交互走查与确认对话框</title><style id="crimson-cinema-styles">:root{--primary-crimson:#ff334b;--primary-crimson-glow:rgba(255,51,75,0.45);--primary-crimson-border:rgba(255,51,75,0.3);--crimson-soft:rgba(255,51,75,0.15);}</style><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&amp;family=Manrope:wght@400;500;600;700&amp;family=Space+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-background":"#e2e2e8","tertiary-fixed-dim":"#ffb95f","surface-elevated":"#1A1E26","surface-container-highest":"#333539","toast-neutral":"#1E232D","tertiary-container":"#ffd19c","primary":"#dbfcff","inverse-surface":"#e2e2e8","surface-bright":"#37393e","text-muted":"#64748B","outline":"#849495","on-secondary-fixed":"#002113","inverse-primary":"#006970","on-tertiary-container":"#855300","text-primary":"#F1F5F9","tertiary-fixed":"#ffddb8","mint-stroke-deep":"#064E3B","error":"#ffb4ab","on-error":"#690005","on-error-container":"#ffdad6","outline-variant":"#3b494b","on-tertiary-fixed-variant":"#653e00","on-secondary-container":"#00311f","surface-container-high":"#282a2e","secondary-container":"#00a572","primary-container":"#00f0ff","amber-gold":"#F59E0B","on-primary-container":"#006970","on-surface-variant":"#b9cacb","tertiary":"#fff3ea","on-primary":"#00363a","error-container":"#93000a","surface-container-low":"#1a1c20","on-primary-fixed":"#002022","on-tertiary-fixed":"#2a1700","surface":"#111317","secondary":"#4edea3","on-surface":"#e2e2e8","surface-card":"#14171D","surface-canvas":"#0B0D10","border-subtle":"rgba(255, 255, 255, 0.08)","primary-fixed-dim":"#00dbe9","border-highlight":"rgba(0, 240, 255, 0.35)","on-tertiary":"#472a00","inverse-on-surface":"#2f3035","surface-tint":"#00dbe9","surface-container-lowest":"#0c0e12","background":"#111317","surface-dim":"#111317","surface-variant":"#333539","primary-fixed":"#7df4ff","surface-container":"#1e2024","mint-running":"#10B981","on-secondary":"#003824","on-primary-fixed-variant":"#004f54","secondary-fixed":"#6ffbbe","on-secondary-fixed-variant":"#005236","secondary-fixed-dim":"#4edea3"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"space-xs":"0.25rem","space-lg":"1.25rem","gutter":"1rem","space-xl":"2rem","margin":"1.5rem","space-sm":"0.5rem","space-md":"0.75rem"},"fontFamily":{"headline-md":["Space Grotesk"],"body-lg":["Manrope"],"label-sm":["JetBrains Mono"],"mono-data":["JetBrains Mono"],"body-md":["Manrope"],"body-sm":["Manrope"],"headline-lg":["Space Grotesk"],"label-md":["JetBrains Mono"],"headline-xl":["Space Grotesk"]},"fontSize":{"headline-md":["18px",{"lineHeight":"26px","letterSpacing":"-0.01em","fontWeight":"600"}],"body-lg":["15px",{"lineHeight":"22px","fontWeight":"400"}],"label-sm":["10px",{"lineHeight":"14px","letterSpacing":"0.03em","fontWeight":"500"}],"mono-data":["12px",{"lineHeight":"18px","fontWeight":"400"}],"body-md":["13px",{"lineHeight":"18px","fontWeight":"400"}],"body-sm":["11px",{"lineHeight":"16px","fontWeight":"400"}],"headline-lg":["24px",{"lineHeight":"32px","letterSpacing":"-0.015em","fontWeight":"600"}],"label-md":["12px",{"lineHeight":"16px","letterSpacing":"0.02em","fontWeight":"500"}],"headline-xl":["32px",{"lineHeight":"40px","letterSpacing":"-0.02em","fontWeight":"700"}]}}}};</script></head><body class="bg-surface-canvas font-body-md text-on-surface select-none antialiased min-h-screen"><header class="fixed top-0 left-0 right-0 z-50 h-14 bg-surface-canvas/90 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_4px_24px_rgba(0,0,0,0.6)]"><div class="h-14 w-full px-gutter flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-lg shrink-0"><div class="flex items-center gap-space-sm"><img alt="Enjoy Brand Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1XjrTZl2yeKdtJ_2qMvYdmjWkmfOR2WGHUYn7AH2eKiT1IYtzNdTnGSRTRjrmRG9asv_Yai9VL0sx3xdxlliCJ_BD88HfD2ul_164iys3h3eaMr8VdyCY5BgbwKXiOypPPNscMp2EZ0NgmAKU3db2R-kLbmcBJS0P49DMXJBjqjzuX6vuNV3Y31G8M4DmbqqdCo0zZyQX_pG-qSRK1M21VUgJEcyrPgb4FdLe1dZ2oaItGKKaKqx55bOBMA"><span class="font-headline-md text-headline-md tracking-tight text-text-primary lowercase">enjoy</span><span class="font-label-sm text-label-sm px-space-xs py-0.5 rounded bg-surface-container-high text-text-muted uppercase ml-space-xs">v2.4</span></div><div class="h-5 w-px bg-white/[0.08]"></div><div class="w-36 shrink-0"><button class="w-full h-8 px-space-sm rounded bg-surface-elevated border border-white/[0.08] hover:border-primary-container/40 text-left flex items-center justify-between text-text-primary transition-all group" type="button"><span class="font-body-md text-body-md truncate pr-space-xs">Films</span><span class="font-mono-data text-mono-data text-text-muted group-hover:text-primary-container transition-colors">▾</span></button></div></div><nav class="flex items-center gap-space-lg h-full" data-active-classes="text-text-primary border-b-2 border-[#ff334b] shadow-[0_2px_12px_rgba(255,51,75,0.35)]"><a class="h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="video-library" href="#" style="color: rgb(255, 255, 255); border-bottom: 2px solid rgb(255, 51, 75); text-shadow: rgba(255, 51, 75, 0.4) 0px 0px 12px;">视频库</a><a class="h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="favorites" href="#">收藏</a><a class="h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="recent-plays" href="#">最近播放</a><a class="relative h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="sharing" href="#"><span class="relative">共享<span class="absolute -top-1 -right-2.5 w-[7px] h-[7px] rounded-full bg-error ring-1 ring-error/25 shadow-[0_0_8px_rgba(255,51,75,0.7)]"></span></span></a><a class="h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="settings" href="#">设置</a></nav><div class="flex items-center gap-space-md shrink-0"><div class="flex items-center gap-space-xs px-space-sm py-1 rounded bg-surface-elevated/70 border border-white/[0.06]"><span class="w-1.5 h-1.5 rounded-full bg-error shadow-[0_0_6px_rgba(255,51,75,0.8)]"></span><span class="font-label-sm text-label-sm text-text-muted">LAN 局域网在线</span></div><div class="h-4 w-px bg-white/[0.08]"></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center" style="background-color: rgb(255, 51, 75); box-shadow: rgba(255, 51, 75, 0.5) 0px 0px 12px;"><span class="material-symbols-outlined text-on-primary text-[18px]" style="color: rgb(255, 255, 255);">person</span></div><div class="flex items-center gap-1.5 ml-space-xs text-text-muted"><button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated hover:text-text-primary transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">remove</span></button><button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated hover:text-text-primary transition-colors" type="button"><span class="material-symbols-outlined text-[14px]">crop_square</span></button><button class="w-6 h-6 rounded flex items-center justify-center hover:bg-error-container hover:text-error transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">close</span></button></div></div></div></header><main class="w-full pt-14 bg-surface-canvas min-h-screen"><div class="flex flex-col w-full relative">
+<!-- Interactive Toast Notification Layers -->
+<div class="fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-300" id="toast-center" style="opacity: 0; transform: translate(-50%, -12px); display: none;">
+<div class="pointer-events-auto flex items-center gap-space-sm px-space-md py-1.5 rounded-full bg-toast-neutral shadow-[0_4px_20px_rgba(0,0,0,0.65)] ring-1 ring-white/10 backdrop-blur-md">
+<span class="material-symbols-outlined text-secondary text-[16px]">check_circle</span>
+<span class="font-body-md text-body-md text-text-primary tracking-wide">已复制</span>
+<span class="font-mono-data text-label-sm text-text-muted">· 局域网播放串流地址</span>
+</div>
+</div>
+<div class="fixed top-4 right-6 z-50 w-96 max-w-[calc(100vw-3rem)] pointer-events-auto transition-all duration-300" id="banner-error" style="opacity: 0; transform: translateY(-10px); display: none;">
+<div class="relative overflow-hidden rounded-lg bg-surface-elevated/95 shadow-[0_12px_36px_rgba(0,0,0,0.7)] backdrop-blur-xl ring-1 ring-error/25 p-space-md">
+<div class="flex items-start gap-space-sm">
+<div class="w-7 h-7 rounded-md bg-error-container/30 flex items-center justify-center shrink-0 mt-0.5">
+<span class="material-symbols-outlined text-error text-[18px]">error</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between gap-space-xs">
+<span class="font-headline-md text-body-lg text-text-primary">操作失败</span>
+<span class="font-mono-data text-label-sm text-error/90 bg-error-container/20 px-1.5 py-0.5 rounded">err_123</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1 leading-relaxed">
+            无法访问“/Volumes/Archive”，请检查 macOS 文件访问权限或外置磁盘挂载状态。
+          </p>
+<div class="flex items-center justify-between mt-3 pt-2 border-t border-white/5">
+<span class="font-mono-data text-label-sm text-text-muted">系统排查代码: I/O_DENIED</span>
+<div class="flex items-center gap-space-xs">
+<button class="px-2.5 py-1 rounded bg-surface-container-high hover:bg-surface-bright text-text-primary font-mono-data text-label-sm transition-colors" type="button">重试</button>
+<button class="p-1 rounded text-text-muted hover:text-text-primary transition-colors" onclick="document.getElementById('banner-error').style.display='none'" type="button">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="absolute bottom-0 left-0 right-0 h-[2px] bg-white/5">
+<div class="h-full bg-error transition-all duration-100 ease-linear" id="toast-progress" style="width: 0%;"></div>
+</div>
+</div>
+</div>
+<!-- Background Application Canvas: Simulated Active Grid behind inspection scrim -->
+<div class="relative w-full overflow-hidden select-none">
+<div class="absolute inset-0 bg-surface-canvas/80 backdrop-blur-sm z-10 pointer-events-none"></div>
+<!-- Background Simulated UI Rows (Dimmed Library Canvas) -->
+<div class="p-gutter opacity-35 filter blur-[0.6px] pointer-events-none grid grid-cols-4 gap-gutter">
+<div class="rounded-lg bg-surface-card overflow-hidden">
+<div class="relative aspect-video bg-surface-elevated">
+<div class="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-surface-canvas/80 font-mono-data text-label-sm text-text-primary">上次播放 01:14:22</div>
+<div class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-mint-running/85 text-surface-canvas font-mono-data text-label-sm">已共享</div>
+</div>
+<div class="p-space-sm flex items-center justify-between">
+<div>
+<div class="font-body-md text-body-md text-text-primary truncate">Dune.Part.Two.2024.2160p.DV.HDR.mkv</div>
+<div class="font-mono-data text-label-sm text-text-muted">166 分钟 · 4K HEVC</div>
+</div>
+<span class="material-symbols-outlined text-text-muted">more_vert</span>
+</div>
+</div>
+<div class="rounded-lg bg-surface-card overflow-hidden">
+<div class="relative aspect-video bg-surface-elevated">
+<div class="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-surface-canvas/80 font-mono-data text-label-sm text-text-primary">上次播放 00:32:05</div>
+</div>
+<div class="p-space-sm flex items-center justify-between">
+<div>
+<div class="font-body-md text-body-md text-text-primary truncate">Oppenheimer.2023.IMAX.1080p.mkv</div>
+<div class="font-mono-data text-label-sm text-text-muted">180 分钟 · FHD AVC</div>
+</div>
+<span class="material-symbols-outlined text-text-muted">more_vert</span>
+</div>
+</div>
+<div class="rounded-lg bg-surface-card overflow-hidden">
+<div class="relative aspect-video bg-surface-elevated">
+<div class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-mint-running/85 text-surface-canvas font-mono-data text-label-sm">已共享</div>
+</div>
+<div class="p-space-sm flex items-center justify-between">
+<div>
+<div class="font-body-md text-body-md text-text-primary truncate">旅行记录.mp4</div>
+<div class="font-mono-data text-label-sm text-text-muted">45 分钟 · 1080p AAC</div>
+</div>
+<span class="material-symbols-outlined text-amber-gold" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+</div>
+<div class="rounded-lg bg-surface-card overflow-hidden">
+<div class="relative aspect-video bg-surface-elevated">
+<div class="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-surface-canvas/80 font-mono-data text-label-sm text-text-primary">上次播放 00:08:12</div>
+</div>
+<div class="p-space-sm flex items-center justify-between">
+<div>
+<div class="font-body-md text-body-md text-text-primary truncate">Blade.Runner.2049.FinalCut.mkv</div>
+<div class="font-mono-data text-label-sm text-text-muted">164 分钟 · 4K HDR</div>
+</div>
+<span class="material-symbols-outlined text-text-muted">more_vert</span>
+</div>
+</div>
+</div>
+<!-- Inspector Stage Overlay: Focus on Modals & Spec Alignment -->
+<div class="relative z-20 w-full px-gutter py-space-xl flex flex-col items-center justify-center">
+<!-- Section Meta Tag Strip -->
+<div class="w-full max-w-6xl mb-space-lg flex flex-wrap items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-sm">
+<span class="w-2.5 h-2.5 rounded-full bg-error shadow-[0_0_10px_rgba(255,51,75,0.8)]"></span>
+<h1 class="font-headline-lg text-headline-lg text-text-primary tracking-tight">交互走查与确认对话框</h1>
+<span class="font-label-sm text-label-sm uppercase bg-surface-elevated text-error px-2 py-0.5 rounded border border-error/20">Specs 11.1 - 11.8</span>
+</div>
+<div class="flex items-center gap-space-sm font-mono-data text-label-md text-text-muted"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background-color: #ff334b; box-shadow: 0 0 6px rgba(255,51,75,0.8);"></span> 中断/阻断态</span><span class="">·</span><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background-color: #ac0037; box-shadow: 0 0 6px rgba(172,0,55,0.8);"></span> 破坏性操作</span><span class="">·</span><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background-color: #ffb2b8;"></span> 局域网通知</span></div>
+</div>
+<!-- Modals Comparison Side-by-Side Bento Grid -->
+<div class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-space-xl items-start">
+<!-- MODAL A: 共享运行中切换空间/退出确认 (Section 11.7 & 11.8) -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between px-space-xs">
+<span class="font-mono-data text-label-sm text-error tracking-wider uppercase" style="color: rgb(255, 51, 75); font-weight: 600; letter-spacing: 0.05em;">Section 11.7 / 11.8 · 共享运行阻断</span>
+<span class="font-mono-data text-label-sm text-text-muted">Elevation Level 5</span>
+</div>
+<div class="relative w-full rounded-xl bg-surface-elevated shadow-[0_24px_50px_rgba(0,0,0,0.85)] ring-1 ring-white/10 overflow-hidden backdrop-blur-2xl">
+<!-- Modal Accent Top Lighting -->
+<div class="h-1 w-full bg-gradient-to-r from-error via-error/40 to-transparent" style="background: linear-gradient(90deg, rgb(255, 51, 75) 0%, rgba(255, 51, 75, 0.4) 60%, transparent 100%);"></div>
+<div class="p-space-lg flex flex-col gap-space-md">
+<!-- Warning Header Badge & Title -->
+<div class="flex items-start gap-space-md">
+<div class="w-11 h-11 rounded-xl bg-amber-gold/15 flex items-center justify-center shrink-0 shadow-[inset_0_0_12px_rgba(245,158,11,0.2)]">
+<span class="material-symbols-outlined text-amber-gold text-[26px]">wifi_tethering_error</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-space-xs">
+<span class="font-headline-md text-headline-md text-text-primary">共享服务正在运行</span>
+<span class="font-mono-data text-label-sm px-1.5 py-0.5 rounded bg-error/15 text-error ring-1 ring-error/25 shadow-[0_0_8px_rgba(255,51,75,0.2)]">局域网端口: 24892</span>
+</div>
+<p class="font-body-md text-body-md text-amber-gold/90 font-medium mt-1">
+                    切换到「Shows」会结束它，正在传输的文件会中断。
+                  </p>
+</div>
+</div>
+<!-- Context Explanatory Container -->
+<div class="rounded-lg bg-surface-card p-space-md ring-1 ring-white/5 space-y-2">
+<div class="flex items-center justify-between text-text-muted font-mono-data text-label-sm">
+<span class="">活动连接探测</span>
+<span class="text-error flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-error animate-pulse shadow-[0_0_8px_rgba(255,51,75,0.8)]"></span>2 台终端实时串流</span>
+</div>
+<div class="grid grid-cols-2 gap-space-sm pt-1">
+<div class="flex items-center gap-space-xs p-2 rounded bg-surface-elevated">
+<span class="material-symbols-outlined text-error text-[18px]">tv</span>
+<div class="min-w-0">
+<div class="font-body-sm text-body-sm text-text-primary truncate">客厅电视</div>
+<div class="font-mono-data text-label-sm text-text-muted">192.168.1.104</div>
+</div>
+</div>
+<div class="flex items-center gap-space-xs p-2 rounded bg-surface-elevated">
+<span class="material-symbols-outlined text-error text-[18px]">cast</span>
+<div class="min-w-0">
+<div class="font-body-sm text-body-sm text-text-primary truncate">卧室 Apple TV</div>
+<div class="font-mono-data text-label-sm text-text-muted">192.168.1.188</div>
+</div>
+</div>
+</div>
+<div class="text-text-muted font-body-sm text-body-sm pt-1 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px]">info</span>
+<span class="">中断后客户端将立即失去索引与媒体解码流。</span>
+</div>
+</div>
+<!-- Action Footer Buttons -->
+<div class="flex items-center justify-end gap-space-md pt-space-xs">
+<button class="h-9 px-space-md rounded-lg bg-surface-card hover:bg-surface-bright text-text-primary font-headline-md text-body-md transition-all ring-1 ring-white/10" type="button">
+                  取消
+                </button>
+<button class="h-9 px-space-md rounded-lg bg-error hover:bg-error/90 text-on-error font-headline-md text-body-md flex items-center gap-1.5 transition-all shadow-[0_0_16px_rgba(255,51,75,0.45)] ring-1 ring-error/30 active:scale-95" type="button" style="background-color: rgb(255, 51, 75); color: rgb(255, 255, 255); box-shadow: rgba(255, 51, 75, 0.55) 0px 0px 16px; border: 1px solid rgba(255, 178, 184, 0.3);"><span class="material-symbols-outlined text-[18px]">stop_circle</span><span class="">确定中断并切换</span></button>
+</div>
+</div>
+</div>
+</div>
+<!-- MODAL B: 移除索引确认 (Section 11.3) -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between px-space-xs">
+<span class="font-mono-data text-label-sm text-error tracking-wider uppercase" style="color: rgb(255, 51, 75); font-weight: 600; letter-spacing: 0.05em;">Section 11.3 · 破坏性移除安全确认</span>
+<span class="font-mono-data text-label-sm text-text-muted">Strict Zero-File-Loss</span>
+</div>
+<div class="relative w-full rounded-xl bg-surface-elevated shadow-[0_24px_50px_rgba(0,0,0,0.85)] ring-1 ring-white/10 overflow-hidden backdrop-blur-2xl">
+<!-- Modal Accent Top Lighting -->
+<div class="h-1 w-full bg-gradient-to-r from-error via-error/40 to-transparent" style="background: linear-gradient(90deg, rgb(255, 51, 75) 0%, rgba(255, 51, 75, 0.4) 60%, transparent 100%);"></div>
+<div class="p-space-lg flex flex-col gap-space-md">
+<!-- Warning Header Badge & Title -->
+<div class="flex items-start gap-space-md">
+<div class="w-11 h-11 rounded-xl bg-error/15 flex items-center justify-center shrink-0 shadow-[inset_0_0_12px_rgba(255,180,171,0.2)]">
+<span class="material-symbols-outlined text-error text-[26px]">folder_delete</span>
+</div>
+<div class="flex-1 min-w-0">
+<h2 class="font-headline-md text-headline-md text-text-primary truncate">
+                    移除“旅行记录.mp4”的索引？
+                  </h2>
+<div class="flex items-center gap-2 mt-1">
+<span class="font-mono-data text-label-sm text-text-muted">体积: 4.8 GB</span>
+<span class="text-text-muted">·</span>
+<span class="font-mono-data text-label-sm text-text-muted">路径: /Movies/2024/Travel</span>
+</div>
+</div>
+</div>
+<!-- Critical Clarification Notice Box -->
+<div class="rounded-lg bg-surface-card p-space-md ring-1 ring-white/5 flex flex-col gap-space-sm">
+<!-- Reassurance Paragraph -->
+<div class="flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-secondary text-[20px] shrink-0 mt-0.5">verified_user</span>
+<div class="font-body-md text-body-md text-text-primary">
+<span class="font-semibold text-secondary">原始文件不会被删除。</span>
+<span class="text-on-surface-variant block mt-0.5">Enjoy 仅从当前视频库数据库中抹除索引缓存与播放记录。物理硬盘文件完好无损。</span>
+</div>
+</div>
+<!-- Sharing Constraint Notice (Key spec requirement) -->
+<div class="flex items-start gap-space-sm pt-2 border-t border-white/5">
+<span class="material-symbols-outlined text-amber-gold text-[20px] shrink-0 mt-0.5">share_off</span>
+<div class="font-body-md text-body-md text-on-surface-variant">
+                    它也在当前<span class="text-text-primary font-medium">共享清单</span>里，移除后局域网各播放终端将<span class="text-amber-gold font-medium">立刻下线该视频</span>。
+                  </div>
+</div>
+</div>
+<!-- Action Footer Buttons -->
+<div class="flex items-center justify-end gap-space-md pt-space-xs">
+<button class="h-9 px-space-md rounded-lg bg-surface-card hover:bg-surface-bright text-text-primary font-headline-md text-body-md transition-all ring-1 ring-white/10" type="button">
+                  取消
+                </button>
+<button class="h-9 px-space-md rounded-lg bg-error hover:bg-error/90 text-on-error font-headline-md text-body-md flex items-center gap-1.5 transition-all shadow-[0_0_16px_rgba(255,180,171,0.25)] active:scale-95" type="button" style="background-color: rgb(255, 51, 75); color: rgb(255, 255, 255); box-shadow: rgba(255, 51, 75, 0.45) 0px 0px 16px; border: 1px solid rgba(255, 178, 184, 0.3);">
+<span class="material-symbols-outlined text-[18px]">delete_sweep</span>
+<span class="">确认移除</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Interaction Specification Inspection Matrix -->
+<div class="w-full max-w-6xl mt-space-xl p-space-md rounded-xl bg-surface-card/60 ring-1 ring-white/5">
+<div class="flex items-center justify-between pb-space-sm border-b border-white/5">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary-container text-[18px]" style="color: rgb(255, 51, 75);">rule_folder</span>
+<span class="font-headline-md text-body-lg text-text-primary">交互响应规则一览 (Behavioral Verification)</span>
+</div>
+<span class="font-mono-data text-label-sm text-text-muted">Enjoy Desktop UX Standard v2.4</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-space-md mt-space-md"><div class="space-y-1"><div class="font-mono-data text-label-sm font-semibold" style="color: #ff334b;">11.1 错误通知</div><p class="font-body-sm text-body-sm text-text-muted">常驻右上角，带 3s 倒计时条。鼠标悬停时自动暂停倒计时，支持就地重试与错误代码复制。</p></div><div class="space-y-1"><div class="font-mono-data text-label-sm font-semibold" style="color: #ffb2b8;">11.2 轻量吐司 (Toast)</div><p class="font-body-sm text-body-sm text-text-muted">屏幕顶部居中胶囊，紧凑宽度包裹文字。展示 1.0 秒后平滑上滑淡出，不阻断主窗口点击。</p></div><div class="space-y-1"><div class="font-mono-data text-label-sm font-semibold" style="color: #ff334b;">11.3 索引移除</div><p class="font-body-sm text-body-sm text-text-muted">明确提示「原始文件不会被删除」，若处于共享清单则同步说明局域网可见性影响。</p></div><div class="space-y-1"><div class="font-mono-data text-label-sm font-semibold" style="color: #ff8093;">11.7/11.8 空间切换阻断</div><p class="font-body-sm text-body-sm text-text-muted">若共享服务运作中，阻止静默切断。列出活动客户端数量及 IP，确认后安全关停服务。</p></div></div>
+</div>
+</div>
+</div>
+<script>
+    // Toast countdown micro-interaction
+    (function () {
+      const progressBar = document.getElementById('toast-progress');
+      const banner = document.getElementById('banner-error');
+      let progress = 100;
+      let paused = false;
+
+      banner.addEventListener('mouseenter', () => paused = true);
+      banner.addEventListener('mouseleave', () => paused = false);
+
+      const interval = setInterval(() => {
+        if (!paused && progressBar) {
+          progress -= 1.6;
+          progressBar.style.width = Math.max(0, progress) + '%';
+          if (progress <= 0) {
+            clearInterval(interval);
+            banner.style.opacity = '0';
+            banner.style.transform = 'translateY(-10px)';
+            setTimeout(() => banner.style.display = 'none', 300);
+          }
+        }
+      }, 50);
+
+      // Auto dismiss center toast after 1s
+      setTimeout(() => {
+        const centerToast = document.getElementById('toast-center');
+        if (centerToast) {
+          centerToast.style.opacity = '0';
+          centerToast.style.transform = 'translate(-50%, -12px)';
+          setTimeout(() => centerToast.style.display = 'none', 300);
+        }
+      }, 1000);
+    })();
+  </script>
+</div></main><footer class="w-full bg-surface-canvas border-t border-white/[0.06] py-space-sm px-gutter text-center"><div class="flex items-center justify-between text-text-muted font-mono-data text-mono-data"><span class="">Enjoy Unified Media Launcher</span><span class="flex items-center gap-space-sm"><span class="" style="color: #e2e2e8;">端口: <span style="color: #ff334b; font-weight: 500;" class="">24892</span></span><span class="">•</span><span class="" style="color: #e2e2e8;">编码加速: <span style="color: #ff334b; font-weight: 500;" class="">已激活</span></span></span></div></footer>
+
+
+
+</body></html>

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="zh-CN"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_standard" name="shell-type"/><title>Enjoy - 本地视频统一启动器</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&amp;family=Manrope:wght@400;500;600;700&amp;family=Space+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-background":"#e2e2e8","tertiary-fixed-dim":"#ffb95f","surface-elevated":"#1A1E26","surface-container-highest":"#333539","toast-neutral":"#1E232D","tertiary-container":"#ffd19c","primary":"#ffdad9","inverse-surface":"#e2e2e8","surface-bright":"#37393e","text-muted":"#64748B","outline":"#849495","on-secondary-fixed":"#40000f","inverse-primary":"#bf002b","on-tertiary-container":"#855300","text-primary":"#F1F5F9","tertiary-fixed":"#ffddb8","mint-stroke-deep":"#680013","error":"#ffb4ab","on-error":"#690005","on-error-container":"#ffdad6","outline-variant":"#5d3f3f","on-tertiary-fixed-variant":"#653e00","on-secondary-container":"#ffb7bc","surface-container-high":"#282a2e","secondary-container":"#ac0037","primary-container":"#ff334b","amber-gold":"#F59E0B","on-primary-container":"#ffccd1","on-surface-variant":"#e6bdbb","tertiary":"#fff3ea","on-primary":"#680013","error-container":"#93000a","surface-container-low":"#1a1c20","on-primary-fixed":"#410008","on-tertiary-fixed":"#2a1700","surface":"#111317","secondary":"#ff4d6d","on-surface":"#e2e2e8","surface-card":"#14171D","surface-canvas":"#0B0D10","border-subtle":"rgba(255, 255, 255, 0.08)","primary-fixed-dim":"#ff525d","border-highlight":"rgba(255, 51, 75, 0.35)","on-tertiary":"#472a00","inverse-on-surface":"#2f3035","surface-tint":"#ff334b","surface-container-lowest":"#0c0e12","background":"#111317","surface-dim":"#111317","surface-variant":"#333539","primary-fixed":"#ffb3b2","surface-container":"#1e2024","mint-running":"#ff334b","on-secondary":"#67001e","on-primary-fixed-variant":"#92001f","secondary-fixed":"#ffdadb","on-secondary-fixed-variant":"#91002d","secondary-fixed-dim":"#ffb2b8"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"space-xs":"0.25rem","space-lg":"1.25rem","gutter":"1rem","space-xl":"2rem","margin":"1.5rem","space-sm":"0.5rem","space-md":"0.75rem"},"fontFamily":{"headline-md":["Space Grotesk"],"body-lg":["Manrope"],"label-sm":["JetBrains Mono"],"mono-data":["JetBrains Mono"],"body-md":["Manrope"],"body-sm":["Manrope"],"headline-lg":["Space Grotesk"],"label-md":["JetBrains Mono"],"headline-xl":["Space Grotesk"]},"fontSize":{"headline-md":["18px",{"lineHeight":"26px","letterSpacing":"-0.01em","fontWeight":"600"}],"body-lg":["15px",{"lineHeight":"22px","fontWeight":"400"}],"label-sm":["10px",{"lineHeight":"14px","letterSpacing":"0.03em","fontWeight":"500"}],"mono-data":["12px",{"lineHeight":"18px","fontWeight":"400"}],"body-md":["13px",{"lineHeight":"18px","fontWeight":"400"}],"body-sm":["11px",{"lineHeight":"16px","fontWeight":"400"}],"headline-lg":["24px",{"lineHeight":"32px","letterSpacing":"-0.015em","fontWeight":"600"}],"label-md":["12px",{"lineHeight":"16px","letterSpacing":"0.02em","fontWeight":"500"}],"headline-xl":["32px",{"lineHeight":"40px","letterSpacing":"-0.02em","fontWeight":"700"}]}}}};</script></head><body class="bg-surface-canvas font-body-md text-on-surface select-none antialiased min-h-screen"><header class="fixed top-0 left-0 right-0 z-50 h-14 bg-surface-canvas/90 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_4px_24px_rgba(0,0,0,0.6)]"><div class="h-14 w-full px-gutter flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-lg shrink-0"><div class="flex items-center gap-space-sm"><img alt="Enjoy Brand Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1XjrTZl2yeKdtJ_2qMvYdmjWkmfOR2WGHUYn7AH2eKiT1IYtzNdTnGSRTRjrmRG9asv_Yai9VL0sx3xdxlliCJ_BD88HfD2ul_164iys3h3eaMr8VdyCY5BgbwKXiOypPPNscMp2EZ0NgmAKU3db2R-kLbmcBJS0P49DMXJBjqjzuX6vuNV3Y31G8M4DmbqqdCo0zZyQX_pG-qSRK1M21VUgJEcyrPgb4FdLe1dZ2oaItGKKaKqx55bOBMA"/><span class="font-headline-md text-headline-md tracking-tight text-text-primary lowercase">enjoy</span><span class="font-label-sm text-label-sm px-space-xs py-0.5 rounded bg-surface-container-high text-text-muted uppercase ml-space-xs">v2.4</span></div><div class="h-5 w-px bg-white/[0.08]"></div><div class="w-36 shrink-0"><button class="w-full h-8 px-space-sm rounded bg-surface-elevated border border-white/[0.08] hover:border-primary-container/40 text-left flex items-center justify-between text-text-primary transition-all group" type="button"><span class="font-body-md text-body-md truncate pr-space-xs">Films</span><span class="font-mono-data text-mono-data text-text-muted group-hover:text-primary-container transition-colors">▾</span></button></div></div><nav class="flex items-center gap-space-lg h-full" data-active-classes="text-text-primary border-b-2 border-primary-container shadow-[0_2px_12px_rgba(255,51,75,0.35)]"><a class="h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="video-library" href="#">视频库</a><a class="h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="favorites" href="#">收藏</a><a class="h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="recent-plays" href="#">最近播放</a><a class="relative h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="sharing" href="#"><span class="relative">共享<span class="absolute -top-1 -right-2.5 w-[7px] h-[7px] rounded-full bg-[#ff334b] ring-1 ring-[#680013] shadow-[0_0_8px_#ff334b]"></span></span></a><a aria-current="page" class="h-full flex items-center font-headline-md transition-colors px-space-xs text-text-primary border-b-2 border-[#ff334b] shadow-[0_2px_12px_rgba(255,51,75,0.35)]" data-path="settings" href="#">设置</a></nav><div class="flex items-center gap-space-md shrink-0"><div class="flex items-center gap-space-xs px-space-sm py-1 rounded bg-surface-elevated/70 border border-white/[0.06]"><span class="w-1.5 h-1.5 rounded-full bg-[#ff334b]"></span><span class="font-label-sm text-label-sm text-text-muted">LAN 局域网在线</span></div><div class="h-4 w-px bg-white/[0.08]"></div><div class="w-8 h-8 rounded-full bg-[#ff334b] flex items-center justify-center"><span class="material-symbols-outlined text-white text-[18px]">person</span></div><div class="flex items-center gap-1.5 ml-space-xs text-text-muted"><button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated hover:text-text-primary transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">remove</span></button><button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated hover:text-text-primary transition-colors" type="button"><span class="material-symbols-outlined text-[14px]">crop_square</span></button><button class="w-6 h-6 rounded flex items-center justify-center hover:bg-error-container hover:text-error transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">close</span></button></div></div></div></header><main class="w-full pt-14 bg-surface-canvas min-h-screen"><div class="flex flex-col w-full">
+<div class="px-margin py-space-xl max-w-7xl mx-auto w-full flex flex-col gap-space-xl">
+<!-- Header Block -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-lg bg-surface-elevated flex items-center justify-center text-[#ff334b] shadow-md">
+<span class="material-symbols-outlined text-[24px]">settings</span>
+</div>
+<div>
+<h1 class="font-headline-lg text-headline-lg text-text-primary tracking-tight">设置</h1>
+<p class="font-mono-data text-mono-data text-text-muted mt-0.5">本地偏好设置、媒体空间挂载与存储库索引管理</p>
+</div>
+</div>
+<div class="flex items-center gap-space-sm bg-surface-elevated px-space-md py-space-xs rounded-lg shadow-sm">
+<span class="w-2 h-2 rounded-full bg-[#ff334b] animate-pulse"></span>
+<span class="font-label-sm text-label-sm text-[#ff4d6d]">系统引擎正常运行</span>
+</div>
+</div>
+</div>
+<!-- Main Content Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+<!-- Left Column: Preferences & Spaces -->
+<div class="lg:col-span-5 flex flex-col gap-space-lg">
+<!-- Language & Display Section -->
+<section class="bg-surface-card rounded-xl p-space-lg flex flex-col gap-space-md shadow-md">
+<div class="flex items-center gap-space-sm text-text-primary">
+<span class="material-symbols-outlined text-[#ff334b] text-[20px]">translate</span>
+<span class="font-headline-md text-headline-md">显示语言</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<div class="relative">
+<select class="w-full bg-surface-canvas text-text-primary font-body-md text-body-md px-space-md py-2.5 rounded-lg appearance-none cursor-pointer focus:outline-none focus:bg-surface-elevated transition-colors">
+<option selected="" value="system">跟随系统 (System Default)</option>
+<option value="zh">简体中文 (Simplified Chinese)</option>
+<option value="en">English (US)</option>
+</select>
+<span class="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-[18px]">expand_more</span>
+</div>
+<p class="font-body-sm text-body-sm text-text-muted">切换后立即生效，不会重新扫描视频。</p>
+</div>
+</section>
+<!-- Theme Section -->
+<section class="bg-surface-card rounded-xl p-space-lg flex flex-col gap-space-md shadow-md">
+<div class="flex items-center gap-space-sm text-text-primary">
+<span class="material-symbols-outlined text-[#ff334b] text-[20px]">dark_mode</span>
+<span class="font-headline-md text-headline-md">主题外观</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<div class="relative">
+<select class="w-full bg-surface-canvas text-text-primary font-body-md text-body-md px-space-md py-2.5 rounded-lg appearance-none cursor-pointer focus:outline-none focus:bg-surface-elevated transition-colors">
+<option selected="" value="system">跟随系统 (System Sync)</option>
+<option value="dark">暗色高对比度 (Dark Luxury)</option>
+<option value="light">亮色日间 (Light Modern)</option>
+</select>
+<span class="material-symbols-outlined pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-[18px]">expand_more</span>
+</div>
+<p class="font-body-sm text-body-sm text-text-muted">选择亮色、暗色或跟随系统主题。</p>
+</div>
+</section>
+<!-- Spaces Section -->
+<section class="bg-surface-card rounded-xl p-space-lg flex flex-col gap-space-md shadow-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm text-text-primary">
+<span class="material-symbols-outlined text-[#ff334b] text-[20px]">folder_special</span>
+<span class="font-headline-md text-headline-md">空间 (Spaces)</span>
+</div>
+<span class="font-label-sm text-label-sm text-text-muted">2 个空间已载入</span>
+</div>
+<div class="flex flex-col rounded-lg overflow-hidden bg-surface-canvas">
+<!-- Space Item 1: Films -->
+<div class="flex items-center justify-between p-space-md bg-surface-elevated/40">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-[18px] text-[#ff334b]">movie</span>
+<span class="font-body-lg text-body-lg text-text-primary font-medium">Films</span>
+<span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-[#ff334b]/15 text-[#ff334b] font-semibold">当前</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<button class="w-8 h-8 rounded bg-surface-elevated flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-container transition-all" title="重命名空间" type="button">
+<span class="material-symbols-outlined text-[16px]">edit</span>
+</button>
+<button class="w-8 h-8 rounded bg-surface-elevated flex items-center justify-center text-text-muted hover:text-error hover:bg-error-container/40 transition-all" title="删除空间" type="button">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+</button>
+</div>
+</div>
+<!-- Space Item 2: Shows -->
+<div class="flex items-center justify-between p-space-md bg-surface-canvas hover:bg-surface-elevated/20 transition-colors">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-[18px] text-text-muted">tv</span>
+<span class="font-body-lg text-body-lg text-text-muted">Shows</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<button class="w-8 h-8 rounded bg-surface-elevated flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-container transition-all" title="重命名空间" type="button">
+<span class="material-symbols-outlined text-[16px]">edit</span>
+</button>
+<button class="w-8 h-8 rounded bg-surface-elevated flex items-center justify-center text-text-muted hover:text-error hover:bg-error-container/40 transition-all" title="删除空间" type="button">
+<span class="material-symbols-outlined text-[16px]">delete</span>
+</button>
+</div>
+</div>
+</div>
+<button class="w-full py-2.5 rounded-lg bg-surface-elevated hover:bg-surface-container text-text-primary font-body-md text-body-md flex items-center justify-center gap-space-xs transition-colors shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">add</span>
+<span>新建空间</span>
+</button>
+</section>
+</div>
+<!-- Right Column: Current Space Directories & Update -->
+<div class="lg:col-span-7 flex flex-col gap-space-lg">
+<!-- Video Directories Section for Films -->
+<section class="bg-surface-card rounded-xl p-space-lg flex flex-col gap-space-lg shadow-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm text-text-primary">
+<span class="material-symbols-outlined text-[#ff334b] text-[20px]">video_library</span>
+<span class="font-headline-md text-headline-md">「Films」的视频目录</span>
+</div>
+<span class="font-label-sm text-label-sm text-[#ff334b] bg-[#ff334b]/10 px-2 py-0.5 rounded">活跃空间目录库</span>
+</div>
+<div class="flex flex-col gap-space-sm">
+<!-- Directory 1 -->
+<div class="flex items-center justify-between p-space-md rounded-lg bg-surface-canvas group hover:bg-surface-elevated/40 transition-all">
+<div class="flex items-center gap-space-sm min-w-0 pr-space-sm">
+<span class="material-symbols-outlined text-amber-gold text-[20px] shrink-0">folder_open</span>
+<span class="font-mono-data text-mono-data text-text-primary truncate">/Users/me/Movies</span>
+</div>
+<button class="w-8 h-8 rounded bg-surface-elevated flex items-center justify-center text-text-muted hover:text-error hover:bg-error-container/40 transition-all shrink-0" title="移除此目录" type="button">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</button>
+</div>
+<!-- Directory 2 -->
+<div class="flex items-center justify-between p-space-md rounded-lg bg-surface-canvas group hover:bg-surface-elevated/40 transition-all">
+<div class="flex items-center gap-space-sm min-w-0 pr-space-sm">
+<span class="material-symbols-outlined text-amber-gold text-[20px] shrink-0">folder_open</span>
+<span class="font-mono-data text-mono-data text-text-primary truncate">/Volumes/Archive/Anime</span>
+</div>
+<button class="w-8 h-8 rounded bg-surface-elevated flex items-center justify-center text-text-muted hover:text-error hover:bg-error-container/40 transition-all shrink-0" title="移除此目录" type="button">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</button>
+</div>
+</div>
+<!-- Directory Action Bar -->
+<div class="flex items-center justify-between pt-space-xs flex-wrap gap-space-sm">
+<button class="px-space-md py-2 rounded-lg bg-surface-elevated hover:bg-surface-container text-text-primary font-body-md text-body-md flex items-center gap-space-xs transition-colors shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">create_new_folder</span>
+<span>添加目录</span>
+</button>
+<div class="flex items-center gap-space-sm">
+<button class="px-space-md py-2 rounded-lg bg-surface-elevated hover:bg-surface-container text-text-primary font-body-md text-body-md flex items-center gap-space-xs transition-colors shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">photo_library</span>
+<span>建缩略图</span>
+</button>
+<button class="px-space-lg py-2 rounded-lg bg-[#ff334b] text-white font-headline-md text-body-md font-semibold flex items-center gap-space-xs hover:bg-[#e11d48] transition-all shadow-[0_2px_12px_rgba(255,51,75,0.4)]" id="triggerScanModal" type="button">
+<span class="material-symbols-outlined text-[18px]">sync</span>
+<span>扫描</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Software Updates Section -->
+<section class="bg-surface-card rounded-xl p-space-lg flex flex-col gap-space-md shadow-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm text-text-primary">
+<span class="material-symbols-outlined text-[#ff334b] text-[20px]">system_update</span>
+<span class="font-headline-md text-headline-md">软件更新</span>
+</div>
+<span class="font-mono-data text-mono-data text-text-muted">Channel: Stable</span>
+</div>
+<div class="flex items-center justify-between p-space-md rounded-lg bg-surface-canvas flex-wrap gap-space-md">
+<div class="flex flex-col gap-0.5">
+<div class="flex items-center gap-space-sm">
+<span class="font-headline-md text-body-lg text-text-primary">当前版本 v0.1.0</span>
+<span class="w-1.5 h-1.5 rounded-full bg-[#ff334b]"></span>
+</div>
+<span class="font-body-sm text-body-sm text-[#ff4d6d]">已是最新版本。</span>
+</div>
+<button class="px-space-md py-2 rounded-lg bg-surface-elevated hover:bg-surface-container text-text-primary font-body-md text-body-md flex items-center gap-space-xs transition-colors shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">refresh</span>
+<span>检查更新</span>
+</button>
+</div>
+</section>
+<!-- Storage & Index Diagnostics Mini Panel -->
+<div class="p-space-lg rounded-xl bg-surface-canvas flex items-center justify-between shadow-sm">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-lg bg-surface-elevated flex items-center justify-center text-[#ff334b]">
+<span class="material-symbols-outlined text-[22px]">database</span>
+</div>
+<div>
+<div class="font-headline-md text-body-lg text-text-primary">本地 SQLite 数据库索引</div>
+<div class="font-mono-data text-mono-data text-text-muted">占用 142.6 MB · 缩略图缓存 1.84 GB</div>
+</div>
+</div>
+<button class="px-space-md py-1.5 rounded bg-surface-elevated hover:bg-surface-container text-text-muted hover:text-text-primary font-label-md text-label-md transition-colors" type="button">
+            清理解析缓存
+          </button>
+</div>
+</div>
+</div>
+</div>
+<!-- In-page Modal: Scanning Modal Dialog (Section 6.1) -->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-gutter bg-surface-canvas/80 backdrop-blur-md transition-opacity duration-200" id="scanModal">
+<div class="relative w-full max-w-xl bg-surface-elevated rounded-xl shadow-[0_8px_36px_rgba(0,0,0,0.8)] p-space-xl flex flex-col gap-space-lg">
+<!-- Modal Top Title & Status Header -->
+<div class="flex items-start justify-between gap-space-md">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-[#ff334b] text-[24px] animate-spin">autorenew</span>
+<h2 class="font-headline-lg text-headline-md text-text-primary tracking-tight">正在扫描 · 已发现 128 个，已处理 54 个</h2>
+</div>
+<p class="font-mono-data text-mono-data text-text-muted pl-8">
+            基础信息 128/128 · 元数据 103/128 · 缩略图 54/128
+          </p>
+</div>
+<button class="w-7 h-7 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-container transition-colors" id="closeModalCross" type="button">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<!-- Main Progress Bar -->
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between font-mono-data text-mono-data">
+<span class="text-text-muted">索引进度</span>
+<span class="text-[#ff334b] font-semibold">42%</span>
+</div>
+<div class="w-full h-2.5 rounded-full bg-surface-canvas overflow-hidden p-0.5">
+<div class="h-full bg-gradient-to-r from-[#e11d48] to-[#ff334b] rounded-full shadow-[0_0_12px_rgba(255,51,75,0.7)] transition-all duration-300" style="width: 42%;"></div>
+</div>
+</div>
+<!-- Processing Status Detail Card -->
+<div class="bg-surface-canvas rounded-lg p-space-md flex flex-col gap-space-xs">
+<span class="font-label-sm text-label-sm text-text-muted uppercase">当前正在处理文件</span>
+<div class="flex items-center gap-space-sm min-w-0">
+<span class="material-symbols-outlined text-[#ff334b] text-[16px] shrink-0">movie</span>
+<span class="font-mono-data text-mono-data text-text-primary truncate">/Users/me/Movies/旅行记录.mp4</span>
+</div>
+</div>
+<!-- Action Buttons Footer -->
+<div class="flex items-center justify-end gap-space-sm pt-space-xs">
+<button class="px-space-lg py-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-text-primary font-body-md text-body-md transition-colors shadow-sm flex items-center gap-space-xs" id="pauseScanBtn" type="button">
+<span class="material-symbols-outlined text-[16px]">pause</span>
+<span>暂停</span>
+</button>
+<button class="px-space-lg py-2 rounded-lg bg-error-container/20 text-error hover:bg-error-container/40 font-body-md text-body-md transition-colors shadow-sm flex items-center gap-space-xs" id="cancelScanBtn" type="button">
+<span class="material-symbols-outlined text-[16px]">stop</span>
+<span>取消扫描</span>
+</button>
+</div>
+</div>
+</div>
+<script>
+    (function() {
+      const modal = document.getElementById('scanModal');
+      const trigger = document.getElementById('triggerScanModal');
+      const closeBtn = document.getElementById('closeModalCross');
+      const cancelBtn = document.getElementById('cancelScanBtn');
+      const pauseBtn = document.getElementById('pauseScanBtn');
+
+      function closeModal() {
+        if (modal) modal.classList.add('hidden');
+      }
+
+      function openModal() {
+        if (modal) modal.classList.remove('hidden');
+      }
+
+      if (trigger) trigger.addEventListener('click', openModal);
+      if (closeBtn) closeBtn.addEventListener('click', closeModal);
+      if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+      let isPaused = false;
+      if (pauseBtn) {
+        pauseBtn.addEventListener('click', function() {
+          isPaused = !isPaused;
+          const textSpan = pauseBtn.querySelector('span:last-child');
+          const iconSpan = pauseBtn.querySelector('span:first-child');
+          if (isPaused) {
+            if (textSpan) textSpan.textContent = '继续';
+            if (iconSpan) iconSpan.textContent = 'play_arrow';
+          } else {
+            if (textSpan) textSpan.textContent = '暂停';
+            if (iconSpan) iconSpan.textContent = 'pause';
+          }
+        });
+      }
+    })();
+  </script>
+</div></main><footer class="w-full bg-surface-canvas border-t border-white/[0.06] py-space-sm px-gutter text-center"><div class="flex items-center justify-between text-text-muted font-mono-data text-mono-data"><span>Enjoy Unified Media Launcher</span><span class="flex items-center gap-space-sm"><span>端口: 24892</span><span>•</span><span>编码加速: 已激活</span></span></div></footer></body></html>

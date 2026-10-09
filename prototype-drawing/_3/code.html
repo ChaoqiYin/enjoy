@@ -1,0 +1,516 @@
+<!DOCTYPE html><html class="dark" lang="zh-CN" style=""><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><meta content="web_standard" name="shell-type"><title>详情抽屉与右键菜单</title><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&amp;family=Manrope:wght@400;500;600;700&amp;family=Space+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-background":"#e2e2e8","tertiary-fixed-dim":"#ffb95f","surface-elevated":"#1A1E26","surface-container-highest":"#333539","toast-neutral":"#1E232D","tertiary-container":"#ffd19c","primary":"#dbfcff","inverse-surface":"#e2e2e8","surface-bright":"#37393e","text-muted":"#64748B","outline":"#849495","on-secondary-fixed":"#002113","inverse-primary":"#006970","on-tertiary-container":"#855300","text-primary":"#F1F5F9","tertiary-fixed":"#ffddb8","mint-stroke-deep":"#064E3B","error":"#ffb4ab","on-error":"#690005","on-error-container":"#ffdad6","outline-variant":"#3b494b","on-tertiary-fixed-variant":"#653e00","on-secondary-container":"#00311f","surface-container-high":"#282a2e","secondary-container":"#00a572","primary-container":"#00f0ff","amber-gold":"#F59E0B","on-primary-container":"#006970","on-surface-variant":"#b9cacb","tertiary":"#fff3ea","on-primary":"#00363a","error-container":"#93000a","surface-container-low":"#1a1c20","on-primary-fixed":"#002022","on-tertiary-fixed":"#2a1700","surface":"#111317","secondary":"#4edea3","on-surface":"#e2e2e8","surface-card":"#14171D","surface-canvas":"#0B0D10","border-subtle":"rgba(255, 255, 255, 0.08)","primary-fixed-dim":"#00dbe9","border-highlight":"rgba(0, 240, 255, 0.35)","on-tertiary":"#472a00","inverse-on-surface":"#2f3035","surface-tint":"#00dbe9","surface-container-lowest":"#0c0e12","background":"#111317","surface-dim":"#111317","surface-variant":"#333539","primary-fixed":"#7df4ff","surface-container":"#1e2024","mint-running":"#10B981","on-secondary":"#003824","on-primary-fixed-variant":"#004f54","secondary-fixed":"#6ffbbe","on-secondary-fixed-variant":"#005236","secondary-fixed-dim":"#4edea3"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"space-xs":"0.25rem","space-lg":"1.25rem","gutter":"1rem","space-xl":"2rem","margin":"1.5rem","space-sm":"0.5rem","space-md":"0.75rem"},"fontFamily":{"headline-md":["Space Grotesk"],"body-lg":["Manrope"],"label-sm":["JetBrains Mono"],"mono-data":["JetBrains Mono"],"body-md":["Manrope"],"body-sm":["Manrope"],"headline-lg":["Space Grotesk"],"label-md":["JetBrains Mono"],"headline-xl":["Space Grotesk"]},"fontSize":{"headline-md":["18px",{"lineHeight":"26px","letterSpacing":"-0.01em","fontWeight":"600"}],"body-lg":["15px",{"lineHeight":"22px","fontWeight":"400"}],"label-sm":["10px",{"lineHeight":"14px","letterSpacing":"0.03em","fontWeight":"500"}],"mono-data":["12px",{"lineHeight":"18px","fontWeight":"400"}],"body-md":["13px",{"lineHeight":"18px","fontWeight":"400"}],"body-sm":["11px",{"lineHeight":"16px","fontWeight":"400"}],"headline-lg":["24px",{"lineHeight":"32px","letterSpacing":"-0.015em","fontWeight":"600"}],"label-md":["12px",{"lineHeight":"16px","letterSpacing":"0.02em","fontWeight":"500"}],"headline-xl":["32px",{"lineHeight":"40px","letterSpacing":"-0.02em","fontWeight":"700"}]}}}};</script></head><body class="bg-surface-canvas font-body-md text-on-surface select-none antialiased min-h-screen"><header class="fixed top-0 left-0 right-0 z-50 h-14 bg-surface-canvas/90 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_4px_24px_rgba(0,0,0,0.6)]"><div class="h-14 w-full px-gutter flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-lg shrink-0"><div class="flex items-center gap-space-sm"><img alt="Enjoy Brand Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1XjrTZl2yeKdtJ_2qMvYdmjWkmfOR2WGHUYn7AH2eKiT1IYtzNdTnGSRTRjrmRG9asv_Yai9VL0sx3xdxlliCJ_BD88HfD2ul_164iys3h3eaMr8VdyCY5BgbwKXiOypPPNscMp2EZ0NgmAKU3db2R-kLbmcBJS0P49DMXJBjqjzuX6vuNV3Y31G8M4DmbqqdCo0zZyQX_pG-qSRK1M21VUgJEcyrPgb4FdLe1dZ2oaItGKKaKqx55bOBMA"><span class="font-headline-md text-headline-md tracking-tight text-text-primary lowercase">enjoy</span><span class="font-label-sm text-label-sm px-space-xs py-0.5 rounded bg-surface-container-high text-text-muted uppercase ml-space-xs">v2.4</span></div><div class="h-5 w-px bg-white/[0.08]"></div><div class="w-36 shrink-0"><button class="w-full h-8 px-space-sm rounded bg-surface-elevated border border-white/[0.08] hover:border-primary-container/40 text-left flex items-center justify-between text-text-primary transition-all group" type="button"><span class="font-body-md text-body-md truncate pr-space-xs">Films</span><span class="font-mono-data text-mono-data text-text-muted group-hover:text-primary-container transition-colors">▾</span></button></div></div><nav class="flex items-center gap-space-lg h-full" data-active-classes="text-text-primary border-b-2 border-primary-container shadow-[0_2px_12px_rgba(0,240,255,0.25)]"><a aria-current="page" class="h-full flex items-center font-headline-md transition-colors px-space-xs text-text-primary border-b-2 border-primary-container shadow-[0_2px_12px_rgba(0,240,255,0.25)]" data-path="video-library" href="#">视频库</a><a class="h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="favorites" href="#">收藏</a><a class="h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="recent-plays" href="#">最近播放</a><a class="relative h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="sharing" href="#"><span class="relative">共享<span class="absolute -top-1 -right-2.5 w-[7px] h-[7px] rounded-full bg-mint-running ring-1 ring-mint-stroke-deep shadow-[0_0_8px_#10B981]"></span></span></a><a class="h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="settings" href="#">设置</a></nav><div class="flex items-center gap-space-md shrink-0"><div class="flex items-center gap-space-xs px-space-sm py-1 rounded bg-surface-elevated/70 border border-white/[0.06]"><span class="w-1.5 h-1.5 rounded-full bg-mint-running"></span><span class="font-label-sm text-label-sm text-text-muted">LAN 局域网在线</span></div><div class="h-4 w-px bg-white/[0.08]"></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><div class="flex items-center gap-1.5 ml-space-xs text-text-muted"><button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated hover:text-text-primary transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">remove</span></button><button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated hover:text-text-primary transition-colors" type="button"><span class="material-symbols-outlined text-[14px]">crop_square</span></button><button class="w-6 h-6 rounded flex items-center justify-center hover:bg-error-container hover:text-error transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">close</span></button></div></div></div></header><main class="w-full pt-14 bg-surface-canvas min-h-screen"><div class="flex flex-col w-full relative select-none">
+<!-- Top Center Toast (Section 11.2) -->
+<div class="fixed top-4 left-1/2 -translate-x-1/2 z-[70] transition-all duration-300 ease-out opacity-100 translate-y-0 pointer-events-none" id="copyToast">
+<div class="flex items-center gap-space-xs px-space-md py-1.5 rounded-full bg-toast-neutral/95 backdrop-blur-xl shadow-xl border-subtle">
+<span class="material-symbols-outlined text-[#ff334b] text-[15px]">check_circle</span>
+<span class="font-body-md text-body-md text-text-primary tracking-wide">已复制到剪贴板</span>
+<span class="font-mono-data text-label-sm text-text-muted ml-space-xs">0.4s</span>
+</div>
+</div>
+<!-- Operational Countdown Toast Banner (Section 11.2 - Top Right) -->
+<aside class="fixed top-4 right-6 z-[65] w-80 rounded-xl bg-surface-elevated/95 backdrop-blur-2xl shadow-2xl overflow-hidden group transition-all duration-200" id="actionBanner">
+<div class="p-space-md flex items-start gap-space-md">
+<div class="w-8 h-8 rounded-lg bg-mint-running/15 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-mint-running text-[18px]">cloud_sync</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-text-primary font-semibold">局域网共享已同步</span>
+<span class="font-mono-data text-label-sm text-text-muted">LIVE</span>
+</div>
+<p class="font-body-sm text-body-sm text-text-muted mt-0.5 truncate">8 个局域网客户端已拉取该目录索引</p>
+</div>
+<button class="text-text-muted hover:text-text-primary transition-colors p-0.5" onclick="document.getElementById('actionBanner').style.display='none'">
+<span class="material-symbols-outlined text-[16px]">close</span>
+</button>
+</div>
+<!-- 3-second continuous progress bar pausing on hover -->
+<div class="w-full bg-surface-container-highest/60 h-0.5 relative overflow-hidden">
+<div class="h-full bg-primary-container animate-[progress_3.5s_linear_infinite] group-hover:[animation-play-state:paused] w-full origin-left"></div>
+</div>
+</aside>
+<!-- Video Library Sub-Header Toolstrip -->
+<section class="w-full px-gutter py-space-md bg-surface-canvas flex flex-wrap items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-lg">
+<div class="flex items-center gap-space-sm">
+<span class="font-label-md text-label-md text-text-muted uppercase">目录空间</span>
+<div class="flex items-center gap-space-xs px-space-sm py-1 rounded bg-surface-card shadow-sm">
+<span class="material-symbols-outlined text-primary-container text-[16px]">folder_open</span>
+<span class="font-headline-md text-body-md text-text-primary">/Volumes/Media/Vault_01</span>
+<span class="font-label-sm text-label-sm text-mint-running ml-space-xs">240 部</span>
+</div>
+</div>
+<div class="h-4 w-px bg-surface-container-high hidden md:block"></div>
+<div class="flex items-center gap-space-xs">
+<button class="px-space-sm py-1 rounded bg-surface-elevated text-primary font-label-md text-label-md hover:bg-surface-container-highest transition-colors">全部格式</button>
+<button class="px-space-sm py-1 rounded bg-surface-card text-text-muted font-label-md text-label-md hover:text-text-primary transition-colors">4K 超清</button>
+<button class="px-space-sm py-1 rounded bg-surface-card text-text-muted font-label-md text-label-md hover:text-text-primary transition-colors">未看完</button>
+</div>
+</div>
+<!-- Filter & Sort Controls -->
+<div class="flex items-center gap-space-md">
+<div class="relative w-52 md:w-64">
+<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted text-[16px]">search</span>
+<input class="w-full h-8 pl-8 pr- space-xs bg-surface-card text-text-primary font-body-sm text-body-sm rounded focus:outline-none focus:bg-surface-elevated placeholder-text-muted transition-all" placeholder="按文件名、演员、标签检索..." type="text" value="旅行记录">
+</div>
+<div class="flex items-center rounded bg-surface-card p-0.5">
+<button class="p-1 rounded bg-surface-elevated text-primary-container" title="网格视图">
+<span class="material-symbols-outlined text-[16px]">grid_view</span>
+</button>
+<button class="p-1 rounded text-text-muted hover:text-text-primary" title="列表视图">
+<span class="material-symbols-outlined text-[16px]">format_list_bulleted</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Video Grid Container (Dimmed under overlay) -->
+<div class="relative w-full px-gutter py-space-md">
+<!-- Fluid Media Gallery Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-gutter opacity-45 pointer-events-none filter blur-[1px] transition-all duration-300"><!-- Video Card 1 (Active/Focused Item) -->
+<article class="flex flex-col bg-surface-card rounded-xl overflow-hidden border border-white/[0.08] shadow-lg group hover:border-primary-container/40 transition-all">
+  <div class="relative w-full aspect-video bg-surface-container-highest overflow-hidden cursor-pointer">
+    <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="Cinematic drone shot of turquoise coastline" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDrvy-GceBXWalkFYDS0afTgHq1AG7_-S5rihdIizLgUjy3Lq7Rrqe_2Jco5jcvkzm4GbTQ7hgbfJqZjLFDCjNra7Twbosw1nSF67DYh_7V0utpqTZx3Q94PAARJ1me2Im3dXFUjmBSpDyPNIg9ZjoModyz9fqdv2loRcjWtNC_Ug2Yukdh7JuvBmXeWGKCluFKJpmksaPKjBUSsSXMWJY-hu3RwuWnZv8NuNk6K2gAAXFHZSTNHxyheg">
+    <div class="absolute inset-0 bg-gradient-to-t from-surface-canvas/90 via-transparent to-black/40"></div>
+    <div class="absolute inset-0 flex items-center justify-center opacity-95 group-hover:scale-110 transition-transform">
+      <div class="w-11 h-11 rounded-full bg-surface-canvas/70 backdrop-blur-md border border-[#ff334b]/30 flex items-center justify-center shadow-[0_0_16px_rgba(255,51,75,0.4)] text-[#ff334b]"><span class="material-symbols-outlined text-[20px] ml-0.5">play_arrow</span></div>
+    </div>
+    <div class="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-surface-canvas/85 backdrop-blur-md font-mono-data text-label-sm text-primary border border-white/[0.06]">
+      上次播放 00:42:15
+    </div>
+    <div class="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-mint-running/85 backdrop-blur-md flex items-center gap-1 font-mono-data text-label-sm text-on-secondary-fixed shadow-[0_0_8px_#10B981]">
+      <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+      已共享
+    </div>
+    <div class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 font-mono-data text-label-sm text-text-primary">
+      01:24:10
+    </div>
+  </div>
+  <div class="p-space-sm flex flex-col gap-1.5 bg-surface-card border-t border-white/[0.06]">
+    <div class="flex items-center justify-between gap-space-xs">
+      <h4 class="font-headline-md text-body-md text-text-primary truncate font-semibold">旅行记录.mp4</h4>
+      <span class="px-1.5 py-0.5 rounded bg-surface-container-high font-mono-data text-label-sm text-primary-container shrink-0">1080P FHD</span>
+    </div>
+    <div class="flex items-center justify-between text-text-muted">
+      <span class="font-mono-data text-body-sm text-text-muted">1.2 GB • H.264</span>
+      <div class="flex items-center gap-1">
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated text-amber-gold hover:text-amber-gold transition-colors" title="收藏">
+          <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">star</span>
+        </button>
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated hover:text-text-primary transition-colors" title="打开所在目录">
+          <span class="material-symbols-outlined text-[15px]">folder</span>
+        </button>
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-error-container hover:text-error transition-colors" title="移除索引">
+          <span class="material-symbols-outlined text-[15px]">delete_sweep</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</article>
+<!-- Video Card 2 -->
+<article class="flex flex-col bg-surface-card rounded-xl overflow-hidden border border-white/[0.08] shadow-sm group hover:border-primary-container/40 transition-all">
+  <div class="relative w-full aspect-video bg-surface-container-highest overflow-hidden cursor-pointer">
+    <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="Futuristic cyberpunk city street" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDaqEpyXh_6GUOwUq-D55V92dDTbie065CsBC1MiE-lgw6AtrSNVVsMNne-L6312Y38QQwP1Gr4WT2k3IaNuk06PhCElcL2LMOgwHkjnKBEZvlfMP1nJv2dzbL0k5-dmYwWLfMn8Xz9EHsmdKtS5RtJoFSkXmYO-XwMMjgZ9-LYqfPMELWI1E1lDLkUUyFXxBl68KR50f5DRiWTivRoHN8bbN0EjI7u5seW0Ri9X0cQyKyEMN5Wr_yyFw">
+    <div class="absolute inset-0 bg-gradient-to-t from-surface-canvas/90 via-transparent to-black/40"></div>
+    <div class="absolute inset-0 flex items-center justify-center opacity-95 group-hover:scale-110 transition-transform">
+      <div class="w-11 h-11 rounded-full bg-surface-canvas/70 backdrop-blur-md border border-white/[0.08] flex items-center justify-center shadow-[0_0_16px_rgba(0,240,255,0.3)] text-primary-container">
+        <span class="material-symbols-outlined text-[20px] ml-0.5">play_arrow</span>
+      </div>
+    </div>
+    <div class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 font-mono-data text-label-sm text-text-primary">
+      02:18:44
+    </div>
+  </div>
+  <div class="p-space-sm flex flex-col gap-1.5 bg-surface-card border-t border-white/[0.06]">
+    <div class="flex items-center justify-between gap-space-xs">
+      <h4 class="font-headline-md text-body-md text-text-primary truncate font-semibold">Cyberpunk_2077_B-Roll_4K.mov</h4>
+      <span class="px-1.5 py-0.5 rounded bg-surface-container-high font-mono-data text-label-sm text-primary-container shrink-0">4K ProRes</span>
+    </div>
+    <div class="flex items-center justify-between text-text-muted">
+      <span class="font-mono-data text-body-sm text-text-muted">8.4 GB • ProRes</span>
+      <div class="flex items-center gap-1">
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated text-text-muted hover:text-amber-gold transition-colors" title="收藏">
+          <span class="material-symbols-outlined text-[15px]">star</span>
+        </button>
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated hover:text-text-primary transition-colors" title="打开所在目录">
+          <span class="material-symbols-outlined text-[15px]">folder</span>
+        </button>
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-error-container hover:text-error transition-colors" title="移除索引">
+          <span class="material-symbols-outlined text-[15px]">delete_sweep</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</article>
+<!-- Video Card 3 -->
+<article class="flex flex-col bg-surface-card rounded-xl overflow-hidden border border-white/[0.08] shadow-sm group hover:border-primary-container/40 transition-all">
+  <div class="relative w-full aspect-video bg-surface-container-highest overflow-hidden cursor-pointer">
+    <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="Moody deep sea bioluminescent underwater landscape" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCdqHTVnvaGnfLYZi2NA2lQq5u3ZTeplIewdxHYQQg3uBfvpayGje061rtIyXWGRV4MzK5lGqziGDj0Gt3D9a6_pIDQFpfqLakb7orj4dGxM9jDD-QARQ1ak8ynRTDbQKUqvLFuHzJEnsxd3sWxRxJSPhWJ2LxWbkL1SxVQOiAebGeTDNYbA1r1BVoyYHZVZNbARi-StmmPyl7Qu2ma6vF-GCVoydO9h0zBpuKZQaTo-ghlu45jzBVO2g">
+    <div class="absolute inset-0 bg-gradient-to-t from-surface-canvas/90 via-transparent to-black/40"></div>
+    <div class="absolute inset-0 flex items-center justify-center opacity-95 group-hover:scale-110 transition-transform">
+      <div class="w-11 h-11 rounded-full bg-surface-canvas/70 backdrop-blur-md border border-white/[0.08] flex items-center justify-center shadow-[0_0_16px_rgba(0,240,255,0.3)] text-primary-container">
+        <span class="material-symbols-outlined text-[20px] ml-0.5">play_arrow</span>
+      </div>
+    </div>
+    <div class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 font-mono-data text-label-sm text-text-primary">
+      00:45:00
+    </div>
+  </div>
+  <div class="p-space-sm flex flex-col gap-1.5 bg-surface-card border-t border-white/[0.06]">
+    <div class="flex items-center justify-between gap-space-xs">
+      <h4 class="font-headline-md text-body-md text-text-primary truncate font-semibold">深海纪录片_EP03.mkv</h4>
+      <span class="px-1.5 py-0.5 rounded bg-surface-container-high font-mono-data text-label-sm text-primary-container shrink-0">1080P HEVC</span>
+    </div>
+    <div class="flex items-center justify-between text-text-muted">
+      <span class="font-mono-data text-body-sm text-text-muted">3.1 GB • HEVC</span>
+      <div class="flex items-center gap-1">
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated text-text-muted hover:text-amber-gold transition-colors" title="收藏">
+          <span class="material-symbols-outlined text-[15px]">star</span>
+        </button>
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated hover:text-text-primary transition-colors" title="打开所在目录">
+          <span class="material-symbols-outlined text-[15px]">folder</span>
+        </button>
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-error-container hover:text-error transition-colors" title="移除索引">
+          <span class="material-symbols-outlined text-[15px]">delete_sweep</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</article>
+<!-- Video Card 4 -->
+<article class="flex flex-col bg-surface-card rounded-xl overflow-hidden border border-white/[0.08] shadow-sm group hover:border-primary-container/40 transition-all">
+  <div class="relative w-full aspect-video bg-surface-container-highest overflow-hidden cursor-pointer">
+    <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="Architectural modern concrete villa" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBXXmVMjM38itosYPznKkoLRsbDOD9sgDvjO_eiJ2aIBIQ7QEy8D5or_SuzUoV42cjMszbANXISz38HoXerxBn4bMSO9fYnB9rIZqQG4dPUEca0OQX3oU7EKNrvb9g6i5MV-Bt3zsAcKpnQjOstE-SNF6ihYlFL2A1aZorCvosDtrnAyVQfHTodWwWNSWNT_YT7ngBjA6XrB4pnQNsmp1S1V1gR6uU2VaGxjr_sM8dcsOoE8gEnF5Iy7A">
+    <div class="absolute inset-0 bg-gradient-to-t from-surface-canvas/90 via-transparent to-black/40"></div>
+    <div class="absolute inset-0 flex items-center justify-center opacity-95 group-hover:scale-110 transition-transform">
+      <div class="w-11 h-11 rounded-full bg-surface-canvas/70 backdrop-blur-md border border-white/[0.08] flex items-center justify-center shadow-[0_0_16px_rgba(0,240,255,0.3)] text-primary-container">
+        <span class="material-symbols-outlined text-[20px] ml-0.5">play_arrow</span>
+      </div>
+    </div>
+    <div class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 font-mono-data text-label-sm text-text-primary">
+      01:05:12
+    </div>
+  </div>
+  <div class="p-space-sm flex flex-col gap-1.5 bg-surface-card border-t border-white/[0.06]">
+    <div class="flex items-center justify-between gap-space-xs">
+      <h4 class="font-headline-md text-body-md text-text-primary truncate font-semibold">建筑漫游_Tokyo_House.mp4</h4>
+      <span class="px-1.5 py-0.5 rounded bg-surface-container-high font-mono-data text-label-sm text-primary-container shrink-0">1440P QHD</span>
+    </div>
+    <div class="flex items-center justify-between text-text-muted">
+      <span class="font-mono-data text-body-sm text-text-muted">2.4 GB • H.264</span>
+      <div class="flex items-center gap-1">
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated text-text-muted hover:text-amber-gold transition-colors" title="收藏">
+          <span class="material-symbols-outlined text-[15px]">star</span>
+        </button>
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated hover:text-text-primary transition-colors" title="打开所在目录">
+          <span class="material-symbols-outlined text-[15px]">folder</span>
+        </button>
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-error-container hover:text-error transition-colors" title="移除索引">
+          <span class="material-symbols-outlined text-[15px]">delete_sweep</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</article>
+<!-- Video Card 5 -->
+<article class="flex flex-col bg-surface-card rounded-xl overflow-hidden border border-white/[0.08] shadow-sm group hover:border-primary-container/40 transition-all">
+  <div class="relative w-full aspect-video bg-surface-container-highest overflow-hidden cursor-pointer">
+    <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="Industrial robotic arm workshop" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHBaUOVWpUl2hym0tBjZqFEO-MjsP9bQuPt_APeNwWY8ayc7b1aTYF0ugqqPYTX3tNTF40OX9LrmjciM_tCPNwZsoYMjh-Ml8CfGNWv6ESu0D8BsFfGZrYo-YJW4emy5E2LrcLM4kCK6Xlj8PZAIPWPTuQd4vyI_KZ2crdlWWA1Hfj9ipJz5M9YrXh_2skO8qAYf_WcX2RrbQ9S1SkfZq3HUwLwHaijp-eCL9OAKQ0WbaRqKDQbeWVDA">
+    <div class="absolute inset-0 bg-gradient-to-t from-surface-canvas/90 via-transparent to-black/40"></div>
+    <div class="absolute inset-0 flex items-center justify-center opacity-95 group-hover:scale-110 transition-transform">
+      <div class="w-11 h-11 rounded-full bg-surface-canvas/70 backdrop-blur-md border border-white/[0.08] flex items-center justify-center shadow-[0_0_16px_rgba(0,240,255,0.3)] text-primary-container">
+        <span class="material-symbols-outlined text-[20px] ml-0.5">play_arrow</span>
+      </div>
+    </div>
+    <div class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 font-mono-data text-label-sm text-text-primary">
+      00:18:29
+    </div>
+  </div>
+  <div class="p-space-sm flex flex-col gap-1.5 bg-surface-card border-t border-white/[0.06]">
+    <div class="flex items-center justify-between gap-space-xs">
+      <h4 class="font-headline-md text-body-md text-text-primary truncate font-semibold">机械装配演示.mp4</h4>
+      <span class="px-1.5 py-0.5 rounded bg-surface-container-high font-mono-data text-label-sm text-primary-container shrink-0">1080P FHD</span>
+    </div>
+    <div class="flex items-center justify-between text-text-muted">
+      <span class="font-mono-data text-body-sm text-text-muted">820 MB • H.264</span>
+      <div class="flex items-center gap-1">
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated text-text-muted hover:text-amber-gold transition-colors" title="收藏">
+          <span class="material-symbols-outlined text-[15px]">star</span>
+        </button>
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated hover:text-text-primary transition-colors" title="打开所在目录">
+          <span class="material-symbols-outlined text-[15px]">folder</span>
+        </button>
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-error-container hover:text-error transition-colors" title="移除索引">
+          <span class="material-symbols-outlined text-[15px]">delete_sweep</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</article>
+<!-- Video Card 6 -->
+<article class="flex flex-col bg-surface-card rounded-xl overflow-hidden border border-white/[0.08] shadow-sm group hover:border-primary-container/40 transition-all">
+  <div class="relative w-full aspect-video bg-surface-container-highest overflow-hidden cursor-pointer">
+    <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="Alpine snowy mountain peaks under starry sky" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCV5fzUFM6x3VLzt-QpsZT6ArWzFm1u6syXT6xOjRb4T5mshS1qATYmVrW05h8xQ_6rO8Z02GRkLSr3Y284Q9ox-P0wDKH8vhfYADYvNrWBUXNwTjhpEJnunhcxRb1a7NZYcgFrZklWO_jFN-5BU6fdARHJ0W4vPBR1-T3D8kcm1JIE9pJcSmz0PzjM31Vkz8zQunmVsuaEIP0T6fULelTXYj72HxV86n1sP_X79-FMl6B6SCAf1ZU40Q">
+    <div class="absolute inset-0 bg-gradient-to-t from-surface-canvas/90 via-transparent to-black/40"></div>
+    <div class="absolute inset-0 flex items-center justify-center opacity-95 group-hover:scale-110 transition-transform">
+      <div class="w-11 h-11 rounded-full bg-surface-canvas/70 backdrop-blur-md border border-white/[0.08] flex items-center justify-center shadow-[0_0_16px_rgba(0,240,255,0.3)] text-primary-container">
+        <span class="material-symbols-outlined text-[20px] ml-0.5">play_arrow</span>
+      </div>
+    </div>
+    <div class="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-black/80 font-mono-data text-label-sm text-text-primary">
+      03:12:00
+    </div>
+  </div>
+  <div class="p-space-sm flex flex-col gap-1.5 bg-surface-card border-t border-white/[0.06]">
+    <div class="flex items-center justify-between gap-space-xs">
+      <h4 class="font-headline-md text-body-md text-text-primary truncate font-semibold">星空延时摄影_4K.mov</h4>
+      <span class="px-1.5 py-0.5 rounded bg-surface-container-high font-mono-data text-label-sm text-primary-container shrink-0">4K ProRes</span>
+    </div>
+    <div class="flex items-center justify-between text-text-muted">
+      <span class="font-mono-data text-body-sm text-text-muted">14.2 GB • ProRes</span>
+      <div class="flex items-center gap-1">
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated text-text-muted hover:text-amber-gold transition-colors" title="收藏">
+          <span class="material-symbols-outlined text-[15px]">star</span>
+        </button>
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated hover:text-text-primary transition-colors" title="打开所在目录">
+          <span class="material-symbols-outlined text-[15px]">folder</span>
+        </button>
+        <button class="w-6 h-6 rounded flex items-center justify-center hover:bg-error-container hover:text-error transition-colors" title="移除索引">
+          <span class="material-symbols-outlined text-[15px]">delete_sweep</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</article></div>
+<!-- Scrim Mask Behind Drawer -->
+<div class="fixed inset-0 top-14 bg-surface-canvas/70 backdrop-blur-[2px] z-40 transition-opacity duration-300" onclick="toggleDrawer(false)"></div>
+<!-- Right-click Context Menu Preview (Section 7.1) -->
+<div class="absolute top-28 left-64 z-50 w-56 rounded-xl bg-surface-elevated/95 backdrop-blur-2xl p-1.5 shadow-2xl border border-[#ff334b]/30 ring-1 ring-white/[0.06]"><div class="px-2.5 py-1.5 flex items-center justify-between"><span class="font-mono-data text-label-sm text-text-muted uppercase tracking-wider">快捷交互菜单</span><span class="w-1.5 h-1.5 rounded-full bg-[#ff334b] shadow-[0_0_8px_rgba(255,51,75,0.7)]"></span></div><div class="my-1 h-px bg-surface-container-highest"></div><button class="w-full flex items-center gap-space-sm px-2.5 py-1.5 rounded-lg text-left font-body-sm text-body-sm text-text-primary hover:bg-surface-container-highest hover:text-[#ff334b] transition-colors" onclick="toggleDrawer(true)"><span class="material-symbols-outlined text-[16px] text-[#ff334b]">info</span><span class="">视频详情</span><span class="ml-auto font-mono-data text-label-sm text-text-muted">↵</span></button><button class="w-full flex items-center gap-space-sm px-2.5 py-1.5 rounded-lg text-left font-body-sm text-body-sm text-text-primary hover:bg-surface-container-highest hover:text-[#ff334b] transition-colors"><span class="material-symbols-outlined text-[16px] text-[#ff334b]">play_circle</span><span class="">播放</span><span class="ml-auto font-mono-data text-label-sm text-text-muted">Space</span></button><button class="w-full flex items-center gap-space-sm px-2.5 py-1.5 rounded-lg text-left font-body-sm text-body-sm text-text-primary hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined text-[16px] text-amber-gold" style="font-variation-settings: 'FILL' 1;">star</span><span class="">收藏</span></button><button class="w-full flex items-center gap-space-sm px-2.5 py-1.5 rounded-lg text-left font-body-sm text-body-sm text-[#ff334b] bg-[#ff334b]/10 hover:bg-[#ff334b]/20 transition-colors"><span class="material-symbols-outlined text-[16px] text-[#ff334b]">share</span><span class="">移出共享清单</span></button><button class="w-full flex items-center gap-space-sm px-2.5 py-1.5 rounded-lg text-left font-body-sm text-body-sm text-text-primary hover:bg-surface-container-highest transition-colors" onclick="triggerCopy('/Users/me/Movies/旅行记录.mp4')"><span class="material-symbols-outlined text-[16px] text-text-muted">folder</span><span class="">打开所在目录</span></button><div class="my-1 h-px bg-surface-container-highest"></div><button class="w-full flex items-center gap-space-sm px-2.5 py-1.5 rounded-lg text-left font-body-sm text-body-sm text-text-primary hover:bg-surface-container-highest transition-colors"><span class="material-symbols-outlined text-[16px] text-[#ff334b]">refresh</span><span class="">重新生成缩略图</span></button><button class="w-full flex items-center gap-space-sm px-2.5 py-1.5 rounded-lg text-left font-body-sm text-body-sm text-error hover:bg-error-container/40 transition-colors"><span class="material-symbols-outlined text-[16px]">delete_sweep</span><span class="">移除索引</span></button></div>
+</div>
+<!-- RIGHT SLIDING DRAWER: 视频详情抽屉 (Section 7.2) -->
+<aside class="fixed top-14 bottom-0 right-0 z-50 w-full max-w-[440px] bg-surface-canvas/95 backdrop-blur-2xl flex flex-col shadow-[-12px_0_48px_rgba(0,0,0,0.8)] border-l border-primary-container/20 transition-transform duration-300 translate-x-0" id="videoDetailDrawer">
+  <!-- Top Bar: 视频详情 / [关闭详情] -->
+  <header class="h-14 px-gutter shrink-0 flex items-center justify-between bg-surface-card/60 border-b border-white/[0.08]">
+    <div class="flex items-center gap-space-sm">
+      <span class="material-symbols-outlined text-[#ff334b] text-[20px]">movie_edit</span>
+      <h3 class="font-headline-md text-headline-md text-text-primary tracking-tight font-semibold">视频详情</h3>
+      <span class="font-mono-data text-label-sm px-1.5 py-0.5 rounded bg-surface-container-high text-mint-running border border-mint-stroke-deep">INDEXED</span>
+    </div>
+    <button class="w-8 h-8 rounded-lg bg-surface-container-high hover:bg-surface-container-highest text-text-muted hover:text-text-primary flex items-center justify-center transition-colors" onclick="toggleDrawer(false)" title="关闭详情 (Esc)">
+      <span class="material-symbols-outlined text-[#ff334b] text-[20px]">movie_edit</span>
+    </button>
+  </header>
+  <!-- Drawer Scrollable Content Body -->
+  <div class="flex-1 overflow-y-auto px-gutter py-space-lg flex flex-col gap-space-lg">
+    <!-- Video Preview Card (16:9 Aspect Ratio with Next-gen Centered Play Watermark Overlay) -->
+    <div class="relative w-full aspect-video rounded-xl overflow-hidden bg-surface-canvas shadow-lg group border border-white/[0.08]">
+      <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="High quality shot of turquoise tropical beach cove" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB0SO06fuzooIn2o8EJlI7QPmXEbWqg4EWaiiHBr8RZ_zLJwYjg37QNKjiSRP9sIlWtVmkDMHSmbXSYYuCsIluAVXohOsmwx2efGcWqB-2BZcxd7ICfAcJVx7LCnWZfIP7rGVvZbVmXaYtlUONmdqUlv4NjpKYwN2lwyuw7uy5Ji5AILW0W02_0CmywZ5zOfzCSIqLU0F5HIkh_S84Fkd_vEdjkdZ6L7F0oRI7gXn-WFyAwWiHYe3h9fQ">
+      <!-- Gradient Overlay -->
+      <div class="absolute inset-0 bg-gradient-to-t from-surface-canvas via-black/20 to-black/40"></div>
+      <!-- Center Play Watermark / Launch Overlay -->
+      <div class="absolute inset-0 flex items-center justify-center">
+        <button class="w-14 h-14 rounded-full bg-surface-canvas/80 backdrop-blur-xl border border-[#ff334b]/40 text-[#ff334b] flex items-center justify-center shadow-[0_0_24px_rgba(255,51,75,0.45)] transition-transform hover:scale-110 active:scale-95 group-hover:bg-[#ff334b] group-hover:text-white duration-200"><span class="material-symbols-outlined text-[32px] ml-1">play_arrow</span></button>
+      </div>
+      <div class="absolute top-2.5 left-2.5 px-2 py-0.5 rounded bg-black/75 backdrop-blur-md font-mono-data text-label-sm text-text-primary flex items-center gap-1.5 border border-white/[0.06]">
+        <span class="w-1.5 h-1.5 rounded-full bg-mint-running"></span>
+        <span class="">上次播放 00:42:15</span>
+      </div>
+      <div class="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded bg-black/80 font-mono-data text-label-sm text-text-primary">
+        01:24:10
+      </div>
+    </div>
+    <!-- Title & Filename Section -->
+    <div class="flex flex-col gap-space-xs">
+      <div class="flex items-center gap-space-sm">
+        <span class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-surface-container-high text-[#ff334b] font-semibold">LOCAL FILE</span>
+        <span class="font-mono-data text-label-sm text-text-muted">ID: 8F2A-0194</span>
+      </div>
+      <h2 class="font-headline-lg text-headline-lg text-text-primary font-bold tracking-tight select-text">
+        旅行记录.mp4
+      </h2>
+      <!-- Path Line & Inline Copy Button -->
+      <div class="mt-space-xs p-space-sm rounded-lg bg-surface-card border border-white/[0.06] flex items-center justify-between gap-space-sm">
+        <div class="min-w-0 flex items-center gap-1.5 text-text-muted">
+          <span class="material-symbols-outlined text-[15px] shrink-0 text-text-muted">folder_open</span>
+          <span class="font-mono-data text-body-sm text-on-surface-variant truncate select-text">/Users/me/Movies/旅行记录.mp4</span>
+        </div>
+        <button class="shrink-0 px-2 py-1 rounded bg-surface-elevated hover:bg-surface-container-highest text-[#ff334b] font-label-md text-label-md flex items-center gap-1 transition-colors border border-white/[0.08]" onclick="triggerCopy('/Users/me/Movies/旅行记录.mp4')"><span class="material-symbols-outlined text-[13px]">content_copy</span><span class="">复制路径</span></button>
+      </div>
+    </div>
+    <!-- Primary Action Buttons Row (Solid Cyan Play + Favorite + Open Directory) -->
+    <div class="grid grid-cols-3 gap-space-sm">
+      <!-- 1. Play Button -->
+      <button class="h-11 rounded-lg bg-[#ff334b] hover:bg-[#e11d48] text-white font-headline-md text-body-lg font-bold flex items-center justify-center gap-1.5 shadow-[0_0_16px_rgba(255,51,75,0.4)] active:scale-[0.98] transition-all"><span class="material-symbols-outlined text-[20px]">play_arrow</span><span class="">播放</span></button>
+      <!-- 2. Favorite Toggle Button -->
+      <button class="h-11 rounded-lg bg-surface-card hover:bg-surface-container-highest text-text-primary font-body-md text-body-md flex items-center justify-center gap-1.5 transition-colors border border-white/[0.06]" id="favoriteBtn" onclick="toggleFavorite()">
+        <span class="material-symbols-outlined text-[20px] text-amber-gold" id="favoriteIcon" style="font-variation-settings: 'FILL' 1;">star</span>
+        <span id="favoriteText" class="">已收藏</span>
+      </button>
+      <!-- 3. Open Directory Button -->
+      <button class="h-11 rounded-lg bg-surface-card hover:bg-surface-container-highest text-text-primary font-body-md text-body-md flex items-center justify-center gap-1.5 transition-colors border border-white/[0.06]" onclick="triggerCopy('/Users/me/Movies/')">
+        <span class="material-symbols-outlined text-[20px] text-text-muted">folder</span>
+        <span class="">打开目录</span>
+      </button>
+    </div>
+    <!-- Clean Key-Value Metadata Table -->
+    <div class="flex flex-col rounded-xl bg-surface-card border border-white/[0.06] overflow-hidden">
+      <div class="px-space-md py-space-sm bg-surface-container-high/40 flex items-center justify-between border-b border-white/[0.06]">
+        <span class="font-label-md text-label-md text-text-muted uppercase tracking-wider">媒体元数据</span>
+        <span class="font-mono-data text-label-sm text-mint-running">FFprobe 解析就绪</span>
+      </div>
+      <div class="divide-y divide-surface-container-high/40 text-body-sm">
+        <!-- 时长 -->
+        <div class="px-space-md py-2.5 flex items-center justify-between hover:bg-surface-elevated/40 transition-colors">
+          <span class="font-body-md text-text-muted flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[15px]">schedule</span> 时长
+          </span>
+          <span class="font-mono-data text-body-md text-text-primary font-medium">01:24:10</span>
+        </div>
+        <!-- 分辨率 -->
+        <div class="px-space-md py-2.5 flex items-center justify-between hover:bg-surface-elevated/40 transition-colors">
+          <span class="font-body-md text-text-muted flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[15px]">aspect_ratio</span> 分辨率
+          </span>
+          <div class="flex items-center gap-1.5">
+            <span class="font-mono-data text-body-md text-text-primary font-medium">1920 × 1080</span>
+            <span class="px-1.5 py-0.5 rounded bg-[#ff334b]/15 text-[#ff334b] border border-[#ff334b]/30 font-mono-data text-label-sm">FHD</span>
+          </div>
+        </div>
+        <!-- 编码 -->
+        <div class="px-space-md py-2.5 flex items-center justify-between hover:bg-surface-elevated/40 transition-colors">
+          <span class="font-body-md text-text-muted flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[15px]">developer_board</span> 编码
+          </span>
+          <span class="font-mono-data text-body-md text-text-primary font-medium">H.264 / AVC (High@L4.1)</span>
+        </div>
+        <!-- 格式 -->
+        <div class="px-space-md py-2.5 flex items-center justify-between hover:bg-surface-elevated/40 transition-colors">
+          <span class="font-body-md text-text-muted flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[15px]">description</span> 格式
+          </span>
+          <span class="font-mono-data text-body-md text-text-primary font-medium">MP4 (MPEG-4 Part 14)</span>
+        </div>
+        <!-- 大小 -->
+        <div class="px-space-md py-2.5 flex items-center justify-between hover:bg-surface-elevated/40 transition-colors">
+          <span class="font-body-md text-text-muted flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[15px]">hard_drive</span> 大小
+          </span>
+          <span class="font-mono-data text-body-md text-text-primary font-medium">1.2 GB (1,288,490,188 bytes)</span>
+        </div>
+        <!-- 修改时间 -->
+        <div class="px-space-md py-2.5 flex items-center justify-between hover:bg-surface-elevated/40 transition-colors">
+          <span class="font-body-md text-text-muted flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[15px]">calendar_today</span> 修改时间
+          </span>
+          <span class="font-mono-data text-body-md text-text-primary font-medium">2026年9月16日 14:30</span>
+        </div>
+      </div>
+    </div>
+    <!-- Section: 文件维护 -->
+    <section class="flex flex-col gap-space-sm pt-space-xs">
+      <div class="flex items-center justify-between">
+        <span class="font-label-md text-label-md text-text-muted uppercase tracking-wider">文件维护</span>
+        <span class="font-mono-data text-label-sm text-text-muted">本地安全保护</span>
+      </div>
+      <div class="grid grid-cols-2 gap-space-sm">
+        <!-- 重新生成缩略图 -->
+        <button class="h-10 px-space-sm rounded-lg bg-surface-card hover:bg-surface-container-highest text-text-primary font-body-sm text-body-sm flex items-center justify-center gap-1.5 transition-colors border border-white/[0.06]" onclick="triggerMaintenance('缩略图重新捕获已启动')">
+          <span class="material-symbols-outlined text-[16px] text-[#ff334b]">image</span>
+          <span class="">重新生成缩略图</span>
+        </button>
+        <!-- 刷新信息 -->
+        <button class="h-10 px-space-sm rounded-lg bg-surface-card hover:bg-surface-container-highest text-text-primary font-body-sm text-body-sm flex items-center justify-center gap-1.5 transition-colors border border-white/[0.06]" onclick="triggerMaintenance('元数据信息已同步至最新')">
+          <span class="material-symbols-outlined text-[16px] text-mint-running">sync</span>
+          <span class="">刷新信息</span>
+        </button>
+      </div>
+    </section>
+    <!-- Codec Hardware Status Card -->
+    <div class="p-space-sm rounded-xl bg-surface-card border border-white/[0.06] flex items-center gap-space-sm">
+      <span class="material-symbols-outlined text-mint-running text-[20px]">bolt</span>
+      <div class="flex-1 min-w-0">
+        <p class="font-body-sm text-body-sm text-text-primary font-medium truncate">硬件解码加速器处于就绪状态</p>
+        <p class="font-mono-data text-label-sm text-text-muted truncate">Apple VideoToolbox / NVDEC Direct Pipeline</p>
+      </div>
+    </div>
+  </div>
+</aside>
+</div>
+<script>
+  // Dynamic interaction handles for the drawer, favorites, and copy toasts
+  function toggleDrawer(open) {
+    const drawer = document.getElementById('videoDetailDrawer');
+    if (!drawer) return;
+    if (open) {
+      drawer.classList.remove('translate-x-full');
+      drawer.classList.add('translate-x-0');
+    } else {
+      drawer.classList.remove('translate-x-0');
+      drawer.classList.add('translate-x-full');
+    }
+  }
+
+  function triggerCopy(text) {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+    showToast('✓ 已复制到剪贴板');
+  }
+
+  function triggerMaintenance(msg) {
+    showToast('✓ ' + msg);
+  }
+
+  let toastTimeout;
+  function showToast(message) {
+    const toast = document.getElementById('copyToast');
+    if (!toast) return;
+    
+    // Update message text
+    const textSpan = toast.querySelector('span:nth-child(2)');
+    if (textSpan) textSpan.innerText = message;
+
+    // Show toast
+    toast.classList.remove('opacity-0', '-translate-y-4');
+    toast.classList.add('opacity-100', 'translate-y-0');
+
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => {
+      toast.classList.remove('opacity-100', 'translate-y-0');
+      toast.classList.add('opacity-0', '-translate-y-4');
+    }, 1200);
+  }
+
+  let isFavorited = true;
+  function toggleFavorite() {
+    isFavorited = !isFavorited;
+    const icon = document.getElementById('favoriteIcon');
+    const text = document.getElementById('favoriteText');
+    if (isFavorited) {
+      icon.style.fontVariationSettings = "'FILL' 1";
+      icon.classList.add('text-amber-gold');
+      icon.classList.remove('text-text-muted');
+      text.innerText = '已收藏';
+      showToast('✓ 已添加至收藏列表');
+    } else {
+      icon.style.fontVariationSettings = "'FILL' 0";
+      icon.classList.remove('text-amber-gold');
+      icon.classList.add('text-text-muted');
+      text.innerText = '收藏';
+      showToast('已取消收藏');
+    }
+  }
+
+  // Keyboard escape shortcut to close drawer
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      toggleDrawer(false);
+    }
+  });
+</script></main><footer class="w-full bg-surface-canvas border-t border-white/[0.06] py-space-sm px-gutter text-center"><div class="flex items-center justify-between text-text-muted font-mono-data text-mono-data"><span class="">Enjoy Unified Media Launcher</span><span class="flex items-center gap-space-sm"><span class="">端口: 24892</span><span class="">•</span><span class="">编码加速: 已激活</span></span></div></footer>
+
+
+
+
+
+</body></html>

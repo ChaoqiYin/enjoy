@@ -1,0 +1,582 @@
+<!DOCTYPE html><html class="dark" lang="zh-CN" style=""><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><meta content="web_standard" name="shell-type"><title>Enjoy - 本地视频统一启动器</title><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&amp;family=Manrope:wght@400;500;600;700&amp;family=Space+Grotesk:wght@600;700&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-background":"#e2e2e8","tertiary-fixed-dim":"#ffb95f","surface-elevated":"#1A1E26","surface-container-highest":"#333539","toast-neutral":"#1E232D","tertiary-container":"#ffd19c","primary":"#dbfcff","inverse-surface":"#e2e2e8","surface-bright":"#37393e","text-muted":"#64748B","outline":"#849495","on-secondary-fixed":"#002113","inverse-primary":"#006970","on-tertiary-container":"#855300","text-primary":"#F1F5F9","tertiary-fixed":"#ffddb8","mint-stroke-deep":"#064E3B","error":"#ffb4ab","on-error":"#690005","on-error-container":"#ffdad6","outline-variant":"#3b494b","on-tertiary-fixed-variant":"#653e00","on-secondary-container":"#00311f","surface-container-high":"#282a2e","secondary-container":"#00a572","primary-container":"#00f0ff","amber-gold":"#F59E0B","on-primary-container":"#006970","on-surface-variant":"#b9cacb","tertiary":"#fff3ea","on-primary":"#00363a","error-container":"#93000a","surface-container-low":"#1a1c20","on-primary-fixed":"#002022","on-tertiary-fixed":"#2a1700","surface":"#111317","secondary":"#4edea3","on-surface":"#e2e2e8","surface-card":"#14171D","surface-canvas":"#0B0D10","border-subtle":"rgba(255, 255, 255, 0.08)","primary-fixed-dim":"#00dbe9","border-highlight":"rgba(0, 240, 255, 0.35)","on-tertiary":"#472a00","inverse-on-surface":"#2f3035","surface-tint":"#00dbe9","surface-container-lowest":"#0c0e12","background":"#111317","surface-dim":"#111317","surface-variant":"#333539","primary-fixed":"#7df4ff","surface-container":"#1e2024","mint-running":"#10B981","on-secondary":"#003824","on-primary-fixed-variant":"#004f54","secondary-fixed":"#6ffbbe","on-secondary-fixed-variant":"#005236","secondary-fixed-dim":"#4edea3"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"space-xs":"0.25rem","space-lg":"1.25rem","gutter":"1rem","space-xl":"2rem","margin":"1.5rem","space-sm":"0.5rem","space-md":"0.75rem"},"fontFamily":{"headline-md":["Space Grotesk"],"body-lg":["Manrope"],"label-sm":["JetBrains Mono"],"mono-data":["JetBrains Mono"],"body-md":["Manrope"],"body-sm":["Manrope"],"headline-lg":["Space Grotesk"],"label-md":["JetBrains Mono"],"headline-xl":["Space Grotesk"]},"fontSize":{"headline-md":["18px",{"lineHeight":"26px","letterSpacing":"-0.01em","fontWeight":"600"}],"body-lg":["15px",{"lineHeight":"22px","fontWeight":"400"}],"label-sm":["10px",{"lineHeight":"14px","letterSpacing":"0.03em","fontWeight":"500"}],"mono-data":["12px",{"lineHeight":"18px","fontWeight":"400"}],"body-md":["13px",{"lineHeight":"18px","fontWeight":"400"}],"body-sm":["11px",{"lineHeight":"16px","fontWeight":"400"}],"headline-lg":["24px",{"lineHeight":"32px","letterSpacing":"-0.015em","fontWeight":"600"}],"label-md":["12px",{"lineHeight":"16px","letterSpacing":"0.02em","fontWeight":"500"}],"headline-xl":["32px",{"lineHeight":"40px","letterSpacing":"-0.02em","fontWeight":"700"}]}}}};</script></head><body class="bg-surface-canvas font-body-md text-on-surface select-none antialiased min-h-screen"><style id="crimson-cinema-overrides" class="">
+  :root {
+    --crimson-primary: #ff334b;
+    --crimson-secondary: #e11d48;
+    --crimson-glow: rgba(255, 51, 75, 0.45);
+  }
+  /* 1. Header active navigation tab */
+  nav a[aria-current="page"] {
+    color: #ff334b !important;
+    border-bottom-color: #ff334b !important;
+    box-shadow: 0 2px 14px rgba(255, 51, 75, 0.35) !important;
+  }
+  /* 2. Timeline badge, counter, pulses */
+  .text-primary-container,
+  .text-primary-container\/80 {
+    color: #ff334b !important;
+  }
+  .bg-mint-running {
+    background-color: #ff334b !important;
+    box-shadow: 0 0 8px rgba(255, 51, 75, 0.6) !important;
+  }
+  .bg-primary-container {
+    background-color: #ff334b !important;
+  }
+  .border-primary-container {
+    border-color: #ff334b !important;
+  }
+  .text-primary {
+    color: #ffb3b2 !important;
+  }
+  /* Focus ring & borders */
+  .focus\:ring-primary-container:focus {
+    --tw-ring-color: #ff334b !important;
+  }
+  .hover\:border-primary-container\/40:hover {
+    border-color: rgba(255, 51, 75, 0.4) !important;
+  }
+  .hover\:text-primary-container:hover,
+  .group:hover .group-hover\:text-primary-container {
+    color: #ff334b !important;
+  }
+  /* 3. Play buttons & card glow */
+  .group-hover\:shadow-\[0_0_24px_rgba\(0\,240\,255\,0\.7\)\]:hover,
+  .group:hover .group-hover\:shadow-\[0_0_24px_rgba\(0\,240\,255\,0\.7\)\] {
+    box-shadow: 0 0 26px rgba(255, 51, 75, 0.75) !important;
+  }
+  .group-hover\:bg-primary-container:hover,
+  .group:hover .group-hover\:bg-primary-container {
+    background-color: #ff334b !important;
+    color: #ffffff !important;
+  }
+  .hover\:shadow-\[0_0_24px_rgba\(0\,240\,255\,0\.12\)\]:hover {
+    box-shadow: 0 0 26px rgba(255, 51, 75, 0.22) !important;
+  }
+  .shadow-\[0_0_20px_rgba\(0\,240\,255\,0\.25\)\] {
+    box-shadow: 0 0 20px rgba(255, 51, 75, 0.35) !important;
+  }
+  /* 4. Active Pagination button */
+  button.bg-primary-container {
+    background-color: #ff334b !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 12px rgba(255, 51, 75, 0.4) !important;
+  }
+</style><header class="fixed top-0 left-0 right-0 z-50 h-14 bg-surface-canvas/90 backdrop-blur-xl border-b border-white/[0.08] shadow-[0_4px_24px_rgba(0,0,0,0.6)]"><div class="h-14 w-full px-gutter flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-lg shrink-0"><div class="flex items-center gap-space-sm"><img alt="Enjoy Brand Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1XjrTZl2yeKdtJ_2qMvYdmjWkmfOR2WGHUYn7AH2eKiT1IYtzNdTnGSRTRjrmRG9asv_Yai9VL0sx3xdxlliCJ_BD88HfD2ul_164iys3h3eaMr8VdyCY5BgbwKXiOypPPNscMp2EZ0NgmAKU3db2R-kLbmcBJS0P49DMXJBjqjzuX6vuNV3Y31G8M4DmbqqdCo0zZyQX_pG-qSRK1M21VUgJEcyrPgb4FdLe1dZ2oaItGKKaKqx55bOBMA"><span class="font-headline-md text-headline-md tracking-tight text-text-primary lowercase">enjoy</span><span class="font-label-sm text-label-sm px-space-xs py-0.5 rounded bg-surface-container-high text-text-muted uppercase ml-space-xs">v2.4</span></div><div class="h-5 w-px bg-white/[0.08]"></div><div class="w-36 shrink-0"><button class="w-full h-8 px-space-sm rounded bg-surface-elevated border border-white/[0.08] hover:border-primary-container/40 text-left flex items-center justify-between text-text-primary transition-all group" type="button"><span class="font-body-md text-body-md truncate pr-space-xs">Films</span><span class="font-mono-data text-mono-data text-text-muted group-hover:text-primary-container transition-colors">▾</span></button></div></div><nav class="flex items-center gap-space-lg h-full" data-active-classes="text-text-primary border-b-2 border-primary-container shadow-[0_2px_12px_rgba(0,240,255,0.25)]"><a class="h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="video-library" href="#">视频库</a><a class="h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="favorites" href="#">收藏</a><a aria-current="page" class="h-full flex items-center font-headline-md transition-colors px-space-xs text-text-primary border-b-2 border-primary-container shadow-[0_2px_12px_rgba(0,240,255,0.25)]" data-path="recent-plays" href="#" style="color: rgb(255, 51, 75); border-bottom-color: rgb(255, 51, 75); box-shadow: rgba(255, 51, 75, 0.4) 0px 2px 14px;">最近播放</a><a class="relative h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="sharing" href="#"><span class="relative">共享<span class="absolute -top-1 -right-2.5 w-[7px] h-[7px] rounded-full bg-mint-running ring-1 ring-mint-stroke-deep shadow-[0_0_8px_#10B981]"></span></span></a><a class="h-full flex items-center font-headline-md text-body-lg text-text-muted hover:text-text-primary transition-colors border-b-2 border-transparent px-space-xs" data-path="settings" href="#">设置</a></nav><div class="flex items-center gap-space-md shrink-0"><div class="flex items-center gap-space-xs px-space-sm py-1 rounded bg-surface-elevated/70 border border-white/[0.06]"><span class="w-1.5 h-1.5 rounded-full bg-mint-running"></span><span class="font-label-sm text-label-sm text-text-muted">LAN 局域网在线</span></div><div class="h-4 w-px bg-white/[0.08]"></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div><div class="flex items-center gap-1.5 ml-space-xs text-text-muted"><button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated hover:text-text-primary transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">remove</span></button><button class="w-6 h-6 rounded flex items-center justify-center hover:bg-surface-elevated hover:text-text-primary transition-colors" type="button"><span class="material-symbols-outlined text-[14px]">crop_square</span></button><button class="w-6 h-6 rounded flex items-center justify-center hover:bg-error-container hover:text-error transition-colors" type="button"><span class="material-symbols-outlined text-[16px]">close</span></button></div></div></div></header><main class="w-full pt-14 bg-surface-canvas min-h-screen"><div class="flex flex-col w-full">
+<!-- Interactive Toast Notification (Screen Top Fixed Container) -->
+<div class="fixed top-4 left-1/2 -translate-x-1/2 z-[70] hidden items-center gap-space-sm px-space-md py-1.5 rounded-full bg-toast-neutral/95 backdrop-blur-md shadow-2xl text-text-primary transition-all duration-300" id="toast-banner">
+<span class="material-symbols-outlined text-primary-container text-[18px]">check_circle</span>
+<span class="font-mono-data text-mono-data" id="toast-text">路径已复制至剪贴板</span>
+</div>
+<!-- Operational Undo Notification (Top Right Persistent Stacking Card) -->
+<div class="fixed top-16 right-gutter z-[70] hidden flex-col w-80 rounded-lg bg-surface-elevated/95 backdrop-blur-xl shadow-2xl overflow-hidden" id="operation-banner">
+<div class="p-space-md flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-primary-container text-[20px] mt-0.5">history_toggle_off</span>
+<div class="flex flex-col">
+<span class="font-headline-md text-body-md text-text-primary">已从播放历史移除</span>
+<span class="font-mono-data text-body-sm text-text-muted truncate max-w-[170px]" id="banner-video-title">视频文件</span>
+</div>
+</div>
+<button class="font-mono-data text-label-md text-primary-container hover:underline px-space-xs py-0.5" onclick="undoRemove()" type="button">撤销</button>
+</div>
+<div class="w-full h-1 bg-surface-container-high">
+<div class="h-full bg-primary-container w-full transition-all duration-100 ease-linear" id="banner-progress"></div>
+</div>
+</div>
+<!-- Main Viewport Canvas Container -->
+<div class="w-full px-gutter py-space-xl flex flex-col gap-space-xl max-w-[1760px] mx-auto">
+<!-- Header Block: Cinematic Typographic Header & Metadata Badges -->
+<section class="flex flex-col md:flex-row md:items-end justify-between gap-space-md pb-space-sm">
+<div class="flex flex-col gap-space-xs">
+
+<div class="flex items-baseline gap-space-md">
+<h1 class="font-headline-xl text-headline-xl tracking-tight text-text-primary">最近播放</h1>
+
+</div>
+</div>
+<!-- Quick Storage & Playback Telemetry Bar -->
+<div class="flex items-center gap-space-lg text-text-muted font-mono-data text-body-sm bg-surface-card/60 backdrop-blur-md px-space-lg py-space-sm rounded-lg shadow-sm">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-[16px] text-primary-container">hard_drive</span>
+<span class="">已追踪空间: <strong class="text-text-primary font-mono-data">142.8 GB</strong></span>
+</div>
+<div class="w-px h-3.5 bg-surface-variant"></div>
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-[16px] text-secondary">update</span>
+<span class="">最近会话: <strong class="text-text-primary font-mono-data">12分钟前</strong></span>
+</div>
+</div>
+</section>
+<!-- Filter Control Toolbar -->
+<section class="w-full bg-surface-card/80 backdrop-blur-md rounded-xl p-space-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-space-md shadow-sm">
+<!-- Search Input -->
+<div class="relative flex-1 min-w-[280px]">
+<span class="material-symbols-outlined absolute left-space-md top-1/2 -translate-y-1/2 text-text-muted text-[18px]">search</span>
+<input class="w-full h-10 pl-10 pr-space-md rounded bg-surface-canvas/90 text-text-primary placeholder:text-text-muted font-body-md text-body-md transition-all focus:outline-none focus:ring-1 focus:ring-primary-container" placeholder="搜索本地视频、分类或格式标签..." type="text">
+<div class="absolute right-space-md top-1/2 -translate-y-1/2 flex items-center gap-1">
+<kbd class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-surface-container-high text-text-muted">⌘</kbd>
+<kbd class="font-label-sm text-label-sm px-1.5 py-0.5 rounded bg-surface-container-high text-text-muted">K</kbd>
+</div>
+</div>
+<!-- Filters & Sorting Selectors -->
+<div class="flex items-center gap-space-sm shrink-0 flex-wrap">
+<!-- Directory Dropdown -->
+<div class="relative">
+<select class="appearance-none h-10 pl-space-md pr-9 rounded bg-surface-elevated text-text-primary font-body-md text-body-md cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary-container transition-all">
+<option>全部目录</option>
+<option>/Volumes/MediaVault/Films</option>
+<option>/Volumes/Storage2/Personal_Captures</option>
+<option>/Users/Studio/Videos/Exports</option>
+<option>/Volumes/RAID_01/Documentaries</option>
+</select>
+<span class="material-symbols-outlined absolute right-space-sm top-1/2 -translate-y-1/2 text-text-muted text-[18px] pointer-events-none">expand_more</span>
+</div>
+<!-- Sort Criteria Dropdown -->
+<div class="relative">
+<select class="appearance-none h-10 pl-space-md pr-9 rounded bg-surface-elevated text-text-primary font-body-md text-body-md cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary-container transition-all"><option selected="" class="">最近打开 (降序)</option>
+<option class="">打开时间 (升序)</option>
+<option class="">文件体积 (从大到小)</option>
+<option class="">视频标题 (A-Z)</option></select>
+<span class="material-symbols-outlined absolute right-space-sm top-1/2 -translate-y-1/2 text-text-muted text-[18px] pointer-events-none">swap_vert</span>
+</div>
+<div class="w-px h-6 bg-surface-variant mx-space-xs hidden md:block"></div>
+<!-- Layout Mode Toggles -->
+<div class="flex items-center rounded bg-surface-canvas p-0.5">
+<button class="w-8 h-8 rounded flex items-center justify-center bg-surface-elevated text-primary-container shadow-sm" title="网格视图" type="button">
+<span class="material-symbols-outlined text-[18px]">grid_view</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-text-primary transition-colors" title="列表视图" type="button">
+<span class="material-symbols-outlined text-[18px]">view_list</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Cards Grid: Adaptive Multi-column Grid Layout (Min 280px - Max 340px) -->
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6 gap-space-lg w-full">
+<!-- Card 1: 旅行记录.mp4 -->
+<article class="group relative flex flex-col rounded-xl bg-surface-card overflow-hidden shadow-md transition-all duration-300 hover:shadow-[0_0_24px_rgba(0,240,255,0.12)] hover:-translate-y-1">
+<div class="relative w-full aspect-video overflow-hidden bg-surface-container-lowest">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 opacity-90 group-hover:opacity-100" data-alt="A cinematic 4K still frame of a sunlit Mediterranean coastal road with golden sunlight beaming across the azure sea, vibrant summer travel memory aesthetic, vivid natural colors, razor sharp resolution." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD1yY7wjEYpJQ5dIxTXaO49mHTx2IWp51UtO2wchvnEO0ZOYmNyu0telk4Qj_3bqs-SanWoDHmFVJ1q4rkzCoomSdSakE5z-1kPNEjB-Ld3xcM25GF_W6UCGhPfFsIlNwVOovIFfHJO_Wu7v0BUa7tA70c-5-UCxrcGmCxEjiijmSqivqjRBcZap74j55tAKLr0jfkzoQ3OXiz-q-Jo-hcfcUjvuPH_35jHnWdBkvq4C9VncPlNglGHRQ">
+<div class="absolute inset-0 bg-gradient-to-t from-surface-canvas/90 via-transparent to-black/40 pointer-events-none"></div>
+<div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-toast-neutral/90 backdrop-blur-md shadow-lg">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container animate-pulse"></span>
+<span class="font-mono-data text-label-sm text-primary tracking-tight">12分钟前打开</span>
+</div>
+<div class="absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-0.5 rounded bg-surface-canvas/90 backdrop-blur-md shadow-md">
+<span class="w-1.5 h-1.5 rounded-full bg-mint-running shadow-[0_0_6px_#10B981]"></span>
+<span class="font-mono-data text-label-sm text-secondary font-medium">已共享</span>
+</div>
+<div class="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-surface-canvas/80 backdrop-blur font-mono-data text-label-sm text-text-muted">
+H.265 · 10-BIT
+</div>
+<button aria-label="播放 旅行记录.mp4" class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 backdrop-blur-[2px] transition-all duration-200" onclick="triggerPlay('旅行记录.mp4')" type="button">
+<div class="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center shadow-[0_0_20px_rgba(0,240,255,0.6)] transform group-hover:scale-105 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-on-primary text-[28px] pl-0.5">play_arrow</span>
+</div>
+</button>
+</div>
+<div class="p-space-md flex flex-col gap-space-sm bg-surface-card">
+<div class="flex flex-col gap-0.5 min-w-0">
+<h3 class="font-headline-md text-body-lg text-text-primary truncate group-hover:text-primary-container transition-colors" title="旅行记录.mp4">
+旅行记录.mp4
+</h3>
+<div class="flex items-center gap-space-sm font-mono-data text-label-md text-text-muted">
+<span class="">01:24:10</span>
+<span class="w-1 h-1 rounded-full bg-surface-variant"></span>
+<span class="">4.82 GB</span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-space-xs mt-space-xs bg-surface-elevated/40 px-space-xs py-1 rounded-lg">
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors" onclick="triggerPlay('旅行记录.mp4')" title="立即播放" type="button">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-amber-gold hover:bg-surface-elevated transition-colors" onclick="toggleFavorite(this, '旅行记录.mp4')" title="收藏" type="button">
+<span class="material-symbols-outlined text-[18px]">star</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-primary-container hover:bg-surface-elevated transition-colors" onclick="openDirectory('/Volumes/MediaVault/Films/旅行记录.mp4')" title="在访达/文件夹中显示" type="button">
+<span class="material-symbols-outlined text-[18px]">folder_open</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-error hover:bg-error-container/40 transition-colors" onclick="removeVideo(this, '旅行记录.mp4')" title="从最近播放移除" type="button">
+<span class="material-symbols-outlined text-[18px]">delete_sweep</span>
+</button>
+</div>
+</div>
+</article>
+<!-- Card 2: 电影_星际探索_导演剪辑版.mov -->
+<article class="group relative flex flex-col rounded-xl bg-surface-card overflow-hidden shadow-md transition-all duration-300 hover:shadow-[0_0_24px_rgba(0,240,255,0.12)] hover:-translate-y-1">
+<div class="relative w-full aspect-video overflow-hidden bg-surface-container-lowest">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 opacity-90 group-hover:opacity-100" data-alt="Deep space science fiction movie frame featuring an enormous glowing ring nebula, subtle cosmic dust in obsidian darkness, high dynamic range cinematic film composition, blue and teal nebula highlights." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDoKamXnPef4fZSKdlwcsTGFAvqd_2_Sqip4fuEXHZLh93Yzaef3ePFQH8Nwu2UEzNMrjMyN0N1zkjHj6VefdzzDsXbMDGQC0U1jLZrrwb30aONVozpX-HPoRPuN60bb8WR7JZClNxogy-2vJGSeeEZhGZLM4qVErOIjwUxfRmOH_XQusT-PRWrbkDZ1Tzu-q_jKAxx7aBsnNvybLqIj8tg6g23YJJMvCoT3zhQdawynSZ-ArlO2NV38g">
+<div class="absolute inset-0 bg-gradient-to-t from-surface-canvas/90 via-transparent to-black/40 pointer-events-none"></div>
+<div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-toast-neutral/90 backdrop-blur-md shadow-lg">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span class="font-mono-data text-label-sm text-primary tracking-tight">1小时前打开</span>
+</div>
+<div class="absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-0.5 rounded bg-surface-container-highest/90 backdrop-blur-md shadow-md">
+<span class="font-mono-data text-label-sm text-primary-container font-semibold">ProRes 4K</span>
+</div>
+<div class="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-surface-canvas/80 backdrop-blur font-mono-data text-label-sm text-text-muted">
+ATMOS · 7.1
+</div>
+<button aria-label="播放 电影_星际探索_导演剪辑版.mov" class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 backdrop-blur-[2px] transition-all duration-200" onclick="triggerPlay('电影_星际探索_导演剪辑版.mov')" type="button">
+<div class="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center shadow-[0_0_20px_rgba(0,240,255,0.6)] transform group-hover:scale-105 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-on-primary text-[28px] pl-0.5">play_arrow</span>
+</div>
+</button>
+</div>
+<div class="p-space-md flex flex-col gap-space-sm bg-surface-card">
+<div class="flex flex-col gap-0.5 min-w-0">
+<h3 class="font-headline-md text-body-lg text-text-primary truncate group-hover:text-primary-container transition-colors" title="电影_星际探索_导演剪辑版.mov">
+电影_星际探索_导演剪辑版.mov
+</h3>
+<div class="flex items-center gap-space-sm font-mono-data text-label-md text-text-muted">
+<span class="">02:48:19</span>
+<span class="w-1 h-1 rounded-full bg-surface-variant"></span>
+<span class="">38.4 GB</span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-space-xs mt-space-xs bg-surface-elevated/40 px-space-xs py-1 rounded-lg">
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors" onclick="triggerPlay('电影_星际探索_导演剪辑版.mov')" title="立即播放" type="button">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-amber-gold hover:bg-surface-elevated transition-colors" onclick="toggleFavorite(this, '电影_星际探索_导演剪辑版.mov')" title="收藏" type="button">
+<span class="material-symbols-outlined text-[18px]">star</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-primary-container hover:bg-surface-elevated transition-colors" onclick="openDirectory('/Volumes/Storage2/Films/电影_星际探索_导演剪辑版.mov')" title="在访达/文件夹中显示" type="button">
+<span class="material-symbols-outlined text-[18px]">folder_open</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-error hover:bg-error-container/40 transition-colors" onclick="removeVideo(this, '电影_星际探索_导演剪辑版.mov')" title="从最近播放移除" type="button">
+<span class="material-symbols-outlined text-[18px]">delete_sweep</span>
+</button>
+</div>
+</div>
+</article>
+<!-- Card 3: 旅行花絮.mkv (Active Favorited State) -->
+<article class="group relative flex flex-col rounded-xl bg-surface-card overflow-hidden shadow-md transition-all duration-300 hover:shadow-[0_0_24px_rgba(0,240,255,0.12)] hover:-translate-y-1">
+<div class="relative w-full aspect-video overflow-hidden bg-surface-container-lowest">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 opacity-90 group-hover:opacity-100" data-alt="Behind the scenes cinematic documentary photography of a handheld cinema rig camera in neon evening streets, shallow depth of field, warm street lamp reflections against rain soaked asphalt." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDrPAf8Qg0rGKrSHsv5ZOrt-biUO-c5RxLHTr8Ab_VRVrw1LbZMH7ucqLQRaGZkWDRS6toQ-OLsuQJTDhr8mFotUszIgQOm6pjvM_D93yiqUoCYwg3H5hH1aZ8EzhefMSflvt12o0SrIrIdYLuAJ6Vkf3jz-FGmEaskRRm0I6n0l8ecC9yACRMvPYPD3P7ZcmL8QFJx5EPM-TSL5u5bDfYZ4l455Ok19MeWUwZZ2lSPM-ELu_6qDH5hrQ">
+<div class="absolute inset-0 bg-gradient-to-t from-surface-canvas/90 via-transparent to-black/40 pointer-events-none"></div>
+<div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-toast-neutral/90 backdrop-blur-md shadow-lg">
+<span class="w-1.5 h-1.5 rounded-full bg-text-muted"></span>
+<span class="font-mono-data text-label-sm text-text-muted tracking-tight">昨天打开</span>
+</div>
+<div class="absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-0.5 rounded bg-surface-canvas/90 backdrop-blur-md shadow-md">
+<span class="material-symbols-outlined text-amber-gold text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-mono-data text-label-sm text-amber-gold font-medium">已收藏</span>
+</div>
+<button aria-label="播放 旅行花絮.mkv" class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 backdrop-blur-[2px] transition-all duration-200" onclick="triggerPlay('旅行花絮.mkv')" type="button">
+<div class="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center shadow-[0_0_20px_rgba(0,240,255,0.6)] transform group-hover:scale-105 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-on-primary text-[28px] pl-0.5">play_arrow</span>
+</div>
+</button>
+</div>
+<div class="p-space-md flex flex-col gap-space-sm bg-surface-card">
+<div class="flex flex-col gap-0.5 min-w-0">
+<h3 class="font-headline-md text-body-lg text-text-primary truncate group-hover:text-primary-container transition-colors" title="旅行花絮.mkv">
+旅行花絮.mkv
+</h3>
+<div class="flex items-center gap-space-sm font-mono-data text-label-md text-text-muted">
+<span class="">00:48:22</span>
+<span class="w-1 h-1 rounded-full bg-surface-variant"></span>
+<span class="">2.14 GB</span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-space-xs mt-space-xs bg-surface-elevated/40 px-space-xs py-1 rounded-lg">
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors" onclick="triggerPlay('旅行花絮.mkv')" title="立即播放" type="button">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-amber-gold bg-surface-elevated transition-colors" onclick="toggleFavorite(this, '旅行花絮.mkv')" title="取消收藏" type="button">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">star</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-primary-container hover:bg-surface-elevated transition-colors" onclick="openDirectory('/Users/Studio/Videos/Exports/旅行花絮.mkv')" title="在访达/文件夹中显示" type="button">
+<span class="material-symbols-outlined text-[18px]">folder_open</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-error hover:bg-error-container/40 transition-colors" onclick="removeVideo(this, '旅行花絮.mkv')" title="从最近播放移除" type="button">
+<span class="material-symbols-outlined text-[18px]">delete_sweep</span>
+</button>
+</div>
+</div>
+</article>
+<!-- Card 4: 4K_风光演示片_HDR.mkv -->
+<article class="group relative flex flex-col rounded-xl bg-surface-card overflow-hidden shadow-md transition-all duration-300 hover:shadow-[0_0_24px_rgba(0,240,255,0.12)] hover:-translate-y-1">
+<div class="relative w-full aspect-video overflow-hidden bg-surface-container-lowest">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 opacity-90 group-hover:opacity-100" data-alt="Breathtaking Icelandic mountain range under aurora borealis northern lights, emerald green ribbons dancing across arctic sky, crystal clean glacial river reflections, ultra photorealistic landscape." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3Ob0E0jjVCWHI7CK1mWD_V6I0WJJSoB_pY4PfQfqFiDKaawNGKbpJsNdt3EyewXvkwfjqLd0Ajp3LQarT7KidGUFzai4_4-U6y3ThHCVdKqbTF3hRqNgd49lg1InKTWQACSQ-hn7IopesceFgB0m2tm4jue9swkudH3HnBoitkIZ3D29N2GXDemrPhh3xgqGLX5M73azeH8n_bNf4ctc79IROJZiLbHHsy-aYjRGHOYkV5iEgBiufYw">
+<div class="absolute inset-0 bg-gradient-to-t from-surface-canvas/90 via-transparent to-black/40 pointer-events-none"></div>
+<div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-toast-neutral/90 backdrop-blur-md shadow-lg">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span class="font-mono-data text-label-sm text-primary tracking-tight">3天前打开</span>
+</div>
+<div class="absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-0.5 rounded bg-surface-elevated/90 backdrop-blur-md shadow-md">
+<span class="font-mono-data text-label-sm text-secondary font-semibold">HDR 10+</span>
+</div>
+<div class="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-surface-canvas/80 backdrop-blur font-mono-data text-label-sm text-text-muted">
+AV1 · 60 FPS
+</div>
+<button aria-label="播放 4K_风光演示片_HDR.mkv" class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 backdrop-blur-[2px] transition-all duration-200" onclick="triggerPlay('4K_风光演示片_HDR.mkv')" type="button">
+<div class="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center shadow-[0_0_20px_rgba(0,240,255,0.6)] transform group-hover:scale-105 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-on-primary text-[28px] pl-0.5">play_arrow</span>
+</div>
+</button>
+</div>
+<div class="p-space-md flex flex-col gap-space-sm bg-surface-card">
+<div class="flex flex-col gap-0.5 min-w-0">
+<h3 class="font-headline-md text-body-lg text-text-primary truncate group-hover:text-primary-container transition-colors" title="4K_风光演示片_HDR.mkv">
+4K_风光演示片_HDR.mkv
+</h3>
+<div class="flex items-center gap-space-sm font-mono-data text-label-md text-text-muted">
+<span class="">02:15:40</span>
+<span class="w-1 h-1 rounded-full bg-surface-variant"></span>
+<span class="">21.8 GB</span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-space-xs mt-space-xs bg-surface-elevated/40 px-space-xs py-1 rounded-lg">
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors" onclick="triggerPlay('4K_风光演示片_HDR.mkv')" title="立即播放" type="button">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-amber-gold hover:bg-surface-elevated transition-colors" onclick="toggleFavorite(this, '4K_风光演示片_HDR.mkv')" title="收藏" type="button">
+<span class="material-symbols-outlined text-[18px]">star</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-primary-container hover:bg-surface-elevated transition-colors" onclick="openDirectory('/Volumes/RAID_01/4K_风光演示片_HDR.mkv')" title="在访达/文件夹中显示" type="button">
+<span class="material-symbols-outlined text-[18px]">folder_open</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-error hover:bg-error-container/40 transition-colors" onclick="removeVideo(this, '4K_风光演示片_HDR.mkv')" title="从最近播放移除" type="button">
+<span class="material-symbols-outlined text-[18px]">delete_sweep</span>
+</button>
+</div>
+</div>
+</article>
+<!-- Card 5: 家庭聚会回忆录_2025.mp4 -->
+<article class="group relative flex flex-col rounded-xl bg-surface-card overflow-hidden shadow-md transition-all duration-300 hover:shadow-[0_0_24px_rgba(0,240,255,0.12)] hover:-translate-y-1">
+<div class="relative w-full aspect-video overflow-hidden bg-surface-container-lowest">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 opacity-90 group-hover:opacity-100" data-alt="Intimate cozy family dinner gathering around a wooden table with soft candle flame glows, warm laughter expressions, cinematic bokeh lighting in an elegant modern living room." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDbsC1o0RSdlKcrrLrnWM_8LowySRQu-GWR2qqC_v_Xh2NoEghEPfHkl--oHD0KO1377p6AyRegUD_AChHq80N2Y1aLSok6u7D54gDyegYBKLnJw1fy-SUEkilqwC-iMs4tQ-9R_WHpNl9hH47wrazSF1VQLkNA0CJncv35qGuO2NrA52v9iLF3j5rV-8kNxqIYb4SPJTs2k63og0f70I6z0EMwFDrWofsFa_2tZ2lyS7SwscBwaudeRA">
+<div class="absolute inset-0 bg-gradient-to-t from-surface-canvas/90 via-transparent to-black/40 pointer-events-none"></div>
+<div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-toast-neutral/90 backdrop-blur-md shadow-lg">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span class="font-mono-data text-label-sm text-primary tracking-tight">5天前打开</span>
+</div>
+<div class="absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-0.5 rounded bg-surface-canvas/90 backdrop-blur-md shadow-md">
+<span class="font-mono-data text-label-sm text-text-muted">私密归档</span>
+</div>
+<div class="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-surface-canvas/80 backdrop-blur font-mono-data text-label-sm text-text-muted">
+H.264 · 1080P
+</div>
+<button aria-label="播放 家庭聚会回忆录_2025.mp4" class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 backdrop-blur-[2px] transition-all duration-200" onclick="triggerPlay('家庭聚会回忆录_2025.mp4')" type="button">
+<div class="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center shadow-[0_0_20px_rgba(0,240,255,0.6)] transform group-hover:scale-105 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-on-primary text-[28px] pl-0.5">play_arrow</span>
+</div>
+</button>
+</div>
+<div class="p-space-md flex flex-col gap-space-sm bg-surface-card">
+<div class="flex flex-col gap-0.5 min-w-0">
+<h3 class="font-headline-md text-body-lg text-text-primary truncate group-hover:text-primary-container transition-colors" title="家庭聚会回忆录_2025.mp4">
+家庭聚会回忆录_2025.mp4
+</h3>
+<div class="flex items-center gap-space-sm font-mono-data text-label-md text-text-muted">
+<span class="">00:35:12</span>
+<span class="w-1 h-1 rounded-full bg-surface-variant"></span>
+<span class="">1.45 GB</span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-space-xs mt-space-xs bg-surface-elevated/40 px-space-xs py-1 rounded-lg">
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors" onclick="triggerPlay('家庭聚会回忆录_2025.mp4')" title="立即播放" type="button">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-amber-gold hover:bg-surface-elevated transition-colors" onclick="toggleFavorite(this, '家庭聚会回忆录_2025.mp4')" title="收藏" type="button">
+<span class="material-symbols-outlined text-[18px]">star</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-primary-container hover:bg-surface-elevated transition-colors" onclick="openDirectory('/Volumes/Storage2/Personal_Captures/家庭聚会回忆录_2025.mp4')" title="在访达/文件夹中显示" type="button">
+<span class="material-symbols-outlined text-[18px]">folder_open</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-error hover:bg-error-container/40 transition-colors" onclick="removeVideo(this, '家庭聚会回忆录_2025.mp4')" title="从最近播放移除" type="button">
+<span class="material-symbols-outlined text-[18px]">delete_sweep</span>
+</button>
+</div>
+</div>
+</article>
+<!-- Card 6: 纪录片_深海生态.mp4 -->
+<article class="group relative flex flex-col rounded-xl bg-surface-card overflow-hidden shadow-md transition-all duration-300 hover:shadow-[0_0_24px_rgba(0,240,255,0.12)] hover:-translate-y-1">
+<div class="relative w-full aspect-video overflow-hidden bg-surface-container-lowest">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 opacity-90 group-hover:opacity-100" data-alt="Bioluminescent deep sea jellyfish drifting in pitch black abyssal ocean waters, translucent tendrils glowing electric neon cyan and violet, macro underwater cinematography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuABZr_YowLvOoC4jkpwuFnwRklW5FvVIgARs5omJh48R2YK7-jxX8CjBCW2GHf_ZQpPeXMteH2M-j0thpm-m-W4PYxXjDTUI1bf9szRIUUsDNNEpoz-21X3RICuiOpqV9q_E0CaEqMpivFZNdDddMdJAVr-UqIaiCy7ebju3ywwH_j5IsB_sbBrE83ALmWqiMq3w8PTLmj5i_IG1ZrEmbNzc-yMfOAfsfQM5Q8OA3hmllAMWorRuDz9tg">
+<div class="absolute inset-0 bg-gradient-to-t from-surface-canvas/90 via-transparent to-black/40 pointer-events-none"></div>
+<div class="absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-toast-neutral/90 backdrop-blur-md shadow-lg">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span class="font-mono-data text-label-sm text-primary tracking-tight">1周前打开</span>
+</div>
+<div class="absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-0.5 rounded bg-surface-canvas/90 backdrop-blur-md shadow-md">
+<span class="w-1.5 h-1.5 rounded-full bg-mint-running shadow-[0_0_6px_#10B981]"></span>
+<span class="font-mono-data text-label-sm text-secondary font-medium">已共享</span>
+</div>
+<div class="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-surface-canvas/80 backdrop-blur font-mono-data text-label-sm text-text-muted">
+HEVC · 4K
+</div>
+<button aria-label="播放 纪录片_深海生态.mp4" class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 backdrop-blur-[2px] transition-all duration-200" onclick="triggerPlay('纪录片_深海生态.mp4')" type="button">
+<div class="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center shadow-[0_0_20px_rgba(0,240,255,0.6)] transform group-hover:scale-105 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-on-primary text-[28px] pl-0.5">play_arrow</span>
+</div>
+</button>
+</div>
+<div class="p-space-md flex flex-col gap-space-sm bg-surface-card">
+<div class="flex flex-col gap-0.5 min-w-0">
+<h3 class="font-headline-md text-body-lg text-text-primary truncate group-hover:text-primary-container transition-colors" title="纪录片_深海生态.mp4">
+纪录片_深海生态.mp4
+</h3>
+<div class="flex items-center gap-space-sm font-mono-data text-label-md text-text-muted">
+<span class="">00:52:10</span>
+<span class="w-1 h-1 rounded-full bg-surface-variant"></span>
+<span class="">3.1 GB</span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-space-xs mt-space-xs bg-surface-elevated/40 px-space-xs py-1 rounded-lg">
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-elevated transition-colors" onclick="triggerPlay('纪录片_深海生态.mp4')" title="立即播放" type="button">
+<span class="material-symbols-outlined text-[18px]">play_arrow</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-amber-gold hover:bg-surface-elevated transition-colors" onclick="toggleFavorite(this, '纪录片_深海生态.mp4')" title="收藏" type="button">
+<span class="material-symbols-outlined text-[18px]">star</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-primary-container hover:bg-surface-elevated transition-colors" onclick="openDirectory('/Volumes/RAID_01/Documentaries/纪录片_深海生态.mp4')" title="在访达/文件夹中显示" type="button">
+<span class="material-symbols-outlined text-[18px]">folder_open</span>
+</button>
+<button class="w-8 h-8 rounded flex items-center justify-center text-text-muted hover:text-error hover:bg-error-container/40 transition-colors" onclick="removeVideo(this, '纪录片_深海生态.mp4')" title="从最近播放移除" type="button">
+<span class="material-symbols-outlined text-[18px]">delete_sweep</span>
+</button>
+</div>
+</div>
+</article>
+</section>
+<!-- Bottom Pagination / Status Indicator -->
+<section class="flex flex-col sm:flex-row items-center justify-between gap-space-md pt-space-md border-t border-white/[0.04]">
+<div class="flex items-center gap-space-sm text-text-muted font-mono-data text-body-sm">
+<span class="">显示第 1 至 6 个结果</span>
+<span class="">•</span>
+<span class="">共 12 项本地记录</span>
+</div>
+<div class="flex items-center gap-space-sm">
+<button class="px-space-md py-1.5 rounded bg-surface-elevated text-text-muted hover:text-text-primary transition-all font-mono-data text-label-md flex items-center gap-1 disabled:opacity-40" disabled="" type="button">
+<span class="material-symbols-outlined text-[16px]">chevron_left</span>
+<span class="">上一页</span>
+</button>
+<div class="flex items-center gap-1 font-mono-data text-label-md">
+<button class="w-8 h-8 rounded bg-primary-container text-on-primary font-bold" type="button" style="background-color: rgb(255, 51, 75); color: rgb(255, 255, 255); box-shadow: rgba(255, 51, 75, 0.5) 0px 0px 14px;">1</button>
+<button class="w-8 h-8 rounded bg-surface-elevated text-text-muted hover:text-text-primary" type="button">2</button>
+</div>
+<button class="px-space-md py-1.5 rounded bg-surface-elevated text-text-muted hover:text-text-primary transition-all font-mono-data text-label-md flex items-center gap-1" type="button">
+<span class="">下一页</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+</section>
+</div>
+<!-- Interactive Logic Scripts -->
+<script>
+    let toastTimer = null;
+    let bannerTimer = null;
+    let bannerInterval = null;
+    let lastDeletedElement = null;
+
+    // Toast Prompt Function
+    function showToast(message) {
+      const toast = document.getElementById('toast-banner');
+      const text = document.getElementById('toast-text');
+      text.innerText = message;
+      toast.classList.remove('hidden');
+      toast.classList.add('flex');
+
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.add('hidden');
+        toast.classList.remove('flex');
+      }, 1400);
+    }
+
+    // Playback Trigger
+    function triggerPlay(videoTitle) {
+      showToast('启动播放器: ' + videoTitle);
+    }
+
+    // Star / Favorite Toggle
+    function toggleFavorite(btn, videoTitle) {
+      const icon = btn.querySelector('.material-symbols-outlined');
+      const isFilled = icon.style.fontVariationSettings && icon.style.fontVariationSettings.includes("'FILL' 1");
+      
+      if (isFilled) {
+        icon.style.fontVariationSettings = "'FILL' 0";
+        btn.classList.remove('text-amber-gold', 'bg-surface-elevated');
+        btn.classList.add('text-text-muted');
+        showToast('已取消收藏: ' + videoTitle);
+      } else {
+        icon.style.fontVariationSettings = "'FILL' 1";
+        btn.classList.add('text-amber-gold', 'bg-surface-elevated');
+        btn.classList.remove('text-text-muted');
+        showToast('已加入收藏: ' + videoTitle);
+      }
+    }
+
+    // Copy directory path & notify
+    function openDirectory(filePath) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(filePath).catch(() => {});
+      }
+      showToast('已定位至目录: ' + filePath.split('/').slice(0, -1).join('/'));
+    }
+
+    // Remove video card with undoable action banner
+    function removeVideo(btn, videoTitle) {
+      const card = btn.closest('article');
+      lastDeletedElement = {
+        element: card,
+        parent: card.parentElement,
+        nextSibling: card.nextSibling
+      };
+
+      card.style.opacity = '0';
+      card.style.transform = 'scale(0.95)';
+      setTimeout(() => {
+        card.style.display = 'none';
+      }, 200);
+
+      const banner = document.getElementById('operation-banner');
+      const titleSpan = document.getElementById('banner-video-title');
+      const progress = document.getElementById('banner-progress');
+
+      titleSpan.innerText = videoTitle;
+      banner.classList.remove('hidden');
+      banner.classList.add('flex');
+
+      // Countdown progress
+      progress.style.transition = 'none';
+      progress.style.width = '100%';
+      setTimeout(() => {
+        progress.style.transition = 'width 3s linear';
+        progress.style.width = '0%';
+      }, 20);
+
+      if (bannerTimer) clearTimeout(bannerTimer);
+      bannerTimer = setTimeout(() => {
+        banner.classList.add('hidden');
+        banner.classList.remove('flex');
+        lastDeletedElement = null;
+      }, 3050);
+    }
+
+    // Undo action
+    function undoRemove() {
+      if (lastDeletedElement && lastDeletedElement.element) {
+        lastDeletedElement.element.style.display = 'flex';
+        setTimeout(() => {
+          lastDeletedElement.element.style.opacity = '1';
+          lastDeletedElement.element.style.transform = 'scale(1)';
+        }, 10);
+
+        const banner = document.getElementById('operation-banner');
+        banner.classList.add('hidden');
+        banner.classList.remove('flex');
+        if (bannerTimer) clearTimeout(bannerTimer);
+        showToast('已撤销移除操作');
+        lastDeletedElement = null;
+      }
+    }
+  </script>
+</div></main><footer class="w-full bg-surface-canvas border-t border-white/[0.06] py-space-sm px-gutter text-center"><div class="flex items-center justify-between text-text-muted font-mono-data text-mono-data"><span class="">Enjoy Unified Media Launcher</span><span class="flex items-center gap-space-sm"><span class="">端口: 24892</span><span class="">•</span><span class="">编码加速: 已激活</span></span></div></footer>
+
+</body></html>
