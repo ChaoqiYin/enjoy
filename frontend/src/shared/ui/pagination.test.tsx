@@ -40,9 +40,14 @@ function pages({
   );
 }
 
-it('says which records of how many it is showing', () => {
+it('draws the controls and nothing else', () => {
   pages();
-  expect(screen.getByText('Showing 25–48 of 60')).toBeTruthy();
+  // The heading over a list already says how many records it holds, and the
+  // numbered buttons say how far it goes; a "showing 25–48 of 60" line here said
+  // the same fact a third time and is gone (ADR 0020). The en dash is what a
+  // range is drawn with, so its absence is the whole of what is asserted.
+  expect(screen.getByRole('navigation', { name: 'Pagination' })).toBeTruthy();
+  expect(screen.queryByText(/–/)).toBeNull();
 });
 
 it('says which page is the one on screen', () => {

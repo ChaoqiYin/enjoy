@@ -28,8 +28,10 @@ export const pictureClass = 'aspect-video';
  * Room the scroll viewport keeps on its start edge, so the hover feedback of the
  * first row and first column is not clipped flat at the padding box. It has to
  * cover `4px lift + 1% of the card's height` at the top edge and `1% of the
- * column width + 4px of shadow spill` at the left; the worst layout is a single
- * column, where the column stops at 399 wide and the left edge needs 7.99px.
+ * column width + 4px of shadow spill` at the left. The worst layout is a single
+ * column, and the columns are sized from the content width with a 240px floor
+ * (ADR 0019): one column is what is left below two columns and their gap, so it
+ * stops just under 496 wide and the left edge needs `0.01 × 496 + 4 ≈ 9px`.
  * Pixels rather than the rem scale: what has to be covered comes from the card's
  * size, and `html { font-size: 14px }` makes `0.5rem` 7px here — measured too
  * small for that layout. Full table: ADR 0008.

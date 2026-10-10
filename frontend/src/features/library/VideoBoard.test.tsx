@@ -71,6 +71,22 @@ it('draws the grid as one block per record', () => {
   }
 });
 
+it('sizes the grid from the width it is given rather than from the viewport', () => {
+  board('grid');
+  // The columns are fitted to the content width by the browser, so widening the
+  // window adds columns instead of stretching the cards. A viewport breakpoint
+  // cannot see the width the grid actually got, and a capped content column
+  // stopped answering to the window at all — which is how the columns came to
+  // freeze at three however wide the window was (ADR 0019). jsdom lays nothing
+  // out, so the class is the whole of what can be asserted here; the counts
+  // themselves are checked against a real layout.
+  const grid = screen.getAllByRole('article')[0].parentElement as HTMLElement;
+  expect(grid.className).toContain(
+    'repeat(auto-fill,minmax(min(240px,100%),1fr))',
+  );
+  expect(grid.className).not.toMatch(/(^|\s)(sm|lg|xl|2xl):grid-cols-/);
+});
+
 it('draws the compact list as a list of rows', () => {
   board('list');
   expect(screen.queryAllByRole('article')).toHaveLength(0);

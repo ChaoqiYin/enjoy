@@ -12,16 +12,15 @@ export type PaginationProps = {
 };
 
 /**
- * The footer of a listing: which slice of it is on screen, and how to reach the
- * rest.
+ * The footer of a listing: how to reach the rest of it.
  *
  * This is where the two ways of counting pages meet, and the only place either
  * of them is written down. The library asks the backend for an index from zero
  * and remembers that index per description (`libraryView`), so "the search
  * changed, go back to page one" is a change of description rather than a page.
  * The reader, meanwhile, counts pages from one, and so does the primitive
- * underneath (`shared/ui/pagination`, which also owns the numbering, the two
- * ends and the summary's wording) — that is the drawing `_8`.
+ * underneath (`shared/ui/pagination`, which also owns the numbering and the two
+ * ends) — the numbering is the drawing `_8`'s.
  *
  * A page size is not a parameter: one page is 24 records everywhere (`PAGE_SIZE`,
  * ADR 0017), and a footer that could be told otherwise is a second place for that
@@ -31,8 +30,7 @@ export type PaginationProps = {
  * decided, before the interface is handed one (`useLibrary`, `clampPage`), so
  * what reaches this is a page that exists. The guard stays as the last word for
  * the one index that remains past the end — the first page of a list holding
- * nothing — where a range would name records 1 to 0 of 0 and be saying something
- * false.
+ * nothing — where there is nothing to page through at all.
  */
 export function Pagination({
   index,

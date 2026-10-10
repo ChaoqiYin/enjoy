@@ -13,7 +13,7 @@ export function PageFrame({ children }: { children: ReactNode }) {
   const { status, isRunning, controlScan } = useScan();
   const { t, i18n } = useTranslation();
   return (
-    <main className="w-full max-w-7xl mx-auto p-6 min-h-0 flex-1 flex flex-col gap-6 overflow-hidden">
+    <main className="w-full p-6 min-h-0 flex-1 flex flex-col gap-6 overflow-hidden">
       {notices.error && (
         <ErrorNotice
           error={notices.error}

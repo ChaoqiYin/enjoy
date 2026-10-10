@@ -189,7 +189,6 @@ it('offers the rest of the list when it runs past this page', () => {
   const turnTo = vi.fn();
   collection.videos.data = { items: [video], total: 60 };
   render(page({ turnTo }));
-  expect(screen.getByText('Showing 1–24 of 60')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Next' }));
   // The footer asks in pages and the library counts in indices (see
   // `features/library/Pagination`), so the second page is index 1.
@@ -201,7 +200,7 @@ it('offers nowhere to go in a list that fits on one page', () => {
   render(page());
   // A footer with one page in it is furniture, and the count above already says
   // how much there is.
-  expect(screen.queryByText(/^Showing/)).toBeNull();
+  expect(screen.queryByRole('navigation')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
 });
 

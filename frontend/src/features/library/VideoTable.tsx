@@ -99,7 +99,7 @@ export function VideoTable({
             className="cursor-pointer"
             onClick={() => actions.details(video)}
           >
-            <TableCell className="max-w-0">
+            <TableCell className="max-w-0 min-w-[14rem]">
               {/* The name is the row's own heading, so it is what a table reader
                   hears first; the marks follow it in the same cell because they
                   are facts about the record and not a column of their own. */}

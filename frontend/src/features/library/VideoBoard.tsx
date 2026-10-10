@@ -28,11 +28,21 @@ import type { ViewMode } from './listing';
  * list are two other readers of the same three words, and a fourth name for
  * them here would be a fourth thing to keep in step.
  *
- * The grid's columns are the design document's breakpoints rather than a
- * measured count: at the widths the library is laid out at, the four steps
- * line up with what the measured layout would give, and a static grid needs no
- * width observer, no re-layout pass and no measurement to be correct on the
- * first paint. The gap is the same 16 pixels at every width.
+ * The grid's columns follow the width the board is given, not the viewport.
+ * `auto-fill` fits as many 240-pixel-minimum columns as the content width
+ * allows, so widening the window adds columns instead of stretching the cards.
+ * What it counts is the grid's own width, taken after the page's padding and the
+ * scrollbar's reserved room have come off it — the rule 开发指南 states for this
+ * grid, and the one the viewport breakpoints this replaced got wrong: a capped
+ * content column stops answering to the window at all, so the columns froze at
+ * three while the window kept growing. A browser lays this out from CSS alone and
+ * is right on the first paint, so the constant count's objection does not apply:
+ * no width observer, no re-layout pass, nothing here to keep in step with a
+ * stylesheet. The minimum is a floor rather than a fixed width — the columns take
+ * the slack, which keeps a card between 240 and 276 pixels at every size.
+ * `auto-fill` rather than `auto-fit`: a last page short of a full row keeps the
+ * column width a full page gave it instead of stretching. The gap is the same 16
+ * pixels at every width. Full reasoning: ADR 0019.
  *
  * The room the first row's and first column's hover feedback needs is **not**
  * taken here. It belongs to the element that clips the cards, which is the
@@ -90,7 +100,7 @@ export function VideoBoard({
     );
   }
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(min(240px,100%),1fr))] gap-4">
       {videos.map((video) => (
         <VideoCard
           key={video.id}
