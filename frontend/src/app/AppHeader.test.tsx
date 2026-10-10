@@ -3,7 +3,13 @@
 // for. Everything after this line is imported through the modules they stand
 // in for.
 import * as doubles from '../test/doubles';
-import { cleanup, render, screen } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
@@ -124,6 +130,25 @@ it('says the sharing state in words, in both states', () => {
   header();
   expect(screen.getByRole('status', { name: english.lanOnline })).toBeTruthy();
   expect(screen.queryByRole('status', { name: english.lanOffline })).toBeNull();
+});
+
+it('says where the service is on the prompt, rather than repeating that it is up', () => {
+  share.port = 4918;
+  header();
+  const pill = screen.getByRole('status', { name: english.lanOnline });
+  // The pointer's question is a different one from the reader's: where the
+  // service is, not whether it is up. So the prompt carries the port and the
+  // pill still carries its own name — the prompt does not repeat 「在线」.
+  vi.useFakeTimers();
+  try {
+    fireEvent.pointerMove(pill);
+    act(() => vi.runAllTimers());
+    expect(screen.getByRole('tooltip').textContent).toBe(
+      i18n.t('sharingOn', { port: 4918 }),
+    );
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it('gives the lamp a name rather than leaving a dot to be interpreted', () => {

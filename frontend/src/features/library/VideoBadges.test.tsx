@@ -1,7 +1,13 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
-import { afterEach, beforeEach, expect, it } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Video } from '../../shared/api';
 import { VideoBadges } from './VideoBadges';
 import english from '../../../../shared/locales/en/common.json';
@@ -73,7 +79,17 @@ it('marks a video on the share list with a glyph a reader can still name', () =>
   // well as in the name a reader hears.
   expect(marker.textContent).toBe('');
   expect(marker.querySelector('svg')).toBeTruthy();
-  expect(marker.getAttribute('title')).toBe(english.sharedMarker);
+  // The words are the prompt now rather than the browser's own title: the badge
+  // itself is what the pointer lands on and what opens them, and they are the
+  // same sentence the reader hears in the name above.
+  vi.useFakeTimers();
+  try {
+    fireEvent.pointerMove(marker);
+    act(() => vi.runAllTimers());
+    expect(screen.getByRole('tooltip').textContent).toBe(english.sharedMarker);
+  } finally {
+    vi.useRealTimers();
+  }
   // Sharing wears the business token pair the design document names for this
   // mark — `status-shared` for the fill and `status-shared-border` for its edge
   // — rather than a primitive's colour. The fill alone cannot separate the badge

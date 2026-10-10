@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -42,6 +48,26 @@ it('says how far the rebuild has come, and where it is now', () => {
   // The path in front of the user is the path the panel spells out, not the
   // verbatim one the index stores.
   expect(screen.getByText('E:\\movies\\example.mp4')).toBeTruthy();
+});
+
+it('gives the whole path of the file it is on, once the pointer rests on it', () => {
+  vi.useFakeTimers();
+  try {
+    rebuilding();
+    // As in the scan panel: the truncated row completes itself on hover, and the
+    // wait is the one that matches the native title it replaces.
+    const line = screen.getByText('E:\\movies\\example.mp4');
+    expect(line.getAttribute('data-slot')).toBe('tooltip-anchor');
+    fireEvent.pointerMove(line);
+    act(() => vi.advanceTimersByTime(500));
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    act(() => vi.advanceTimersByTime(300));
+    expect(screen.getByRole('tooltip').textContent).toBe(
+      'E:\\movies\\example.mp4',
+    );
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it('says it is working before there is a count to draw a length from', () => {

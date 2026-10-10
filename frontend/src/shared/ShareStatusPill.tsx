@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { Tooltip } from './Tooltip';
 import { Badge } from './ui/badge';
 
 /**
@@ -9,7 +10,8 @@ import { Badge } from './ui/badge';
  * already, so the dot is taken out of the reading — `aria-hidden` — and the
  * status itself is what a reader is given, both as the pill's name and as the
  * text beside the dot. The pointer's question is a different one — *where* the
- * service is, not whether it is up — so the port is on the title.
+ * service is, not whether it is up — so the port is on the prompt, which the
+ * pill itself opens (`asChild`); the prompt does not repeat 「在线」.
  *
  * This is the only place the state is drawn. The 共享 entry in the navigation
  * used to hang a second lamp on the same fact, and two lamps for one fact say
@@ -26,20 +28,21 @@ export function ShareStatusPill({
   const { t } = useTranslation();
   const label = t(running ? 'lanOnline' : 'lanOffline');
   return (
-    <Badge
-      // A live region, so a service that starts or ends while the user is
-      // elsewhere in the window is said rather than silently redrawn.
-      role="status"
-      aria-label={label}
-      title={t(running ? 'sharingOn' : 'sharingOff', { port })}
-      data-state={running ? 'running' : 'idle'}
-      className="gap-1.5 bg-muted/50 px-2.5 py-1 text-muted-foreground"
-    >
-      <span
-        aria-hidden="true"
-        className={`size-1.5 shrink-0 rounded-full ${running ? 'bg-share' : 'bg-muted-foreground'}`}
-      />
-      {label}
-    </Badge>
+    <Tooltip text={t(running ? 'sharingOn' : 'sharingOff', { port })} asChild>
+      <Badge
+        // A live region, so a service that starts or ends while the user is
+        // elsewhere in the window is said rather than silently redrawn.
+        role="status"
+        aria-label={label}
+        data-state={running ? 'running' : 'idle'}
+        className="gap-1.5 bg-muted/50 px-2.5 py-1 text-muted-foreground"
+      >
+        <span
+          aria-hidden="true"
+          className={`size-1.5 shrink-0 rounded-full ${running ? 'bg-share' : 'bg-muted-foreground'}`}
+        />
+        {label}
+      </Badge>
+    </Tooltip>
   );
 }

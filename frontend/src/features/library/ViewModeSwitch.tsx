@@ -1,5 +1,6 @@
 import { LayoutGrid, List, Table } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { Tooltip } from '../../shared/Tooltip';
 import { ToggleGroup, ToggleGroupItem } from '../../shared/ui/toggle-group';
 import type { ViewMode } from './listing';
 
@@ -24,7 +25,12 @@ export type ViewModeSwitchProps = {
  * pressed again (`shared/ui/toggle-group`); for a shape the user is already
  * reading that report would mean "no shape", and a library is always drawn in
  * one, so it is dropped rather than passed on. Each segment carries its name as
- * much for the screen reader as for the test: the drawing's segments are glyphs.
+ * much for the screen reader as for the test: the drawing's segments are glyphs,
+ * so the words are a prompt for the pointer and the keyboard both. The prompt is
+ * anchored on the segment itself (`asChild`) rather than wrapped around it — the
+ * row of segments stays a row of the group's own children — and the `sr-only`
+ * name stays beside it, because the prompt does not replace the name a reader
+ * hears, it is the same sentence for the eye.
  */
 export function ViewModeSwitch({
   value,
@@ -51,16 +57,16 @@ export function ViewModeSwitch({
       className={className}
     >
       {segments.map(({ mode, label, Icon }) => (
-        <ToggleGroupItem
-          key={mode}
-          value={mode}
-          title={label}
-          data-slot="view-mode-switch-item"
-          className="size-8 p-0"
-        >
-          <Icon aria-hidden="true" className="size-4" />
-          <span className="sr-only">{label}</span>
-        </ToggleGroupItem>
+        <Tooltip key={mode} text={label} asChild>
+          <ToggleGroupItem
+            value={mode}
+            data-slot="view-mode-switch-item"
+            className="size-8 p-0"
+          >
+            <Icon aria-hidden="true" className="size-4" />
+            <span className="sr-only">{label}</span>
+          </ToggleGroupItem>
+        </Tooltip>
       ))}
     </ToggleGroup>
   );
