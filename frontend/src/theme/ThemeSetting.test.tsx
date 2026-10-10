@@ -16,7 +16,7 @@ const { settings } = vi.hoisted(() => ({
   settings: {
     state: {
       language: 'system' as 'system' | 'en' | 'zh-CN',
-      theme: 'system' as 'system' | 'light' | 'dark',
+      theme: 'dark' as 'light' | 'dark',
     },
     update: vi.fn(),
   },
@@ -28,29 +28,9 @@ vi.mock('../settings/SettingsProvider', () => ({
 
 const i18n = createInstance();
 
-// The system's preference is a fact only the platform holds, so this stands in
-// for it — both the value it is asked for and the change it reports when the
-// system flips.
-let systemDark = false;
-let mediaListeners: Array<() => void> = [];
-
 beforeEach(async () => {
-  settings.state = { language: 'system', theme: 'system' };
+  settings.state = { language: 'system', theme: 'dark' };
   settings.update.mockReset();
-  systemDark = false;
-  mediaListeners = [];
-  vi.stubGlobal(
-    'matchMedia',
-    vi.fn(() => ({
-      get matches() {
-        return systemDark;
-      },
-      addEventListener: (_event: string, listener: () => void) => {
-        mediaListeners.push(listener);
-      },
-      removeEventListener: vi.fn(),
-    })),
-  );
   vi.stubGlobal('ResizeObserver', ResizeObserverStub);
   await i18n.init({
     lng: 'en',
@@ -74,15 +54,17 @@ function view() {
   );
 }
 
-/** The three themes are a choice of one, so they are the group's radios rather
- *  than the entries of a menu that has to be opened first. */
-it('offers following the system, light, and dark', () => {
+/** The two themes are a choice of one, so they are the group's radios rather
+ *  than the entries of a menu that has to be opened first. There were three
+ *  until following the system was dropped; `dark` is what is in force when the
+ *  stored preference names nothing, which is what this fixture stands for. */
+it('offers light and dark, with dark in force', () => {
   render(view());
   expect(screen.getByRole('radiogroup', { name: english.theme })).toBeTruthy();
-  expect(screen.getAllByRole('radio')).toHaveLength(3);
+  expect(screen.getAllByRole('radio')).toHaveLength(2);
   expect(
     screen
-      .getByRole('radio', { name: english.system })
+      .getByRole('radio', { name: english.darkTheme })
       .getAttribute('aria-checked'),
   ).toBe('true');
 });
@@ -128,11 +110,11 @@ function choose(value: string) {
 it('applies the theme once it has been stored', async () => {
   settings.update.mockResolvedValue(undefined);
   render(view());
-  choose(english.darkTheme);
+  choose(english.lightTheme);
   await waitFor(() =>
-    expect(settings.update).toHaveBeenCalledWith({ theme: 'dark' }),
+    expect(settings.update).toHaveBeenCalledWith({ theme: 'light' }),
   );
-  expect(document.documentElement.dataset.theme).toBe('dark');
+  expect(document.documentElement.dataset.theme).toBe('light');
   expect(screen.queryByRole('alert')).toBeNull();
 });
 
@@ -143,7 +125,7 @@ it('reports a save that failed, and leaves the applied theme alone', async () =>
     errorId: 'err_theme',
   });
   render(view());
-  choose(english.darkTheme);
+  choose(english.lightTheme);
   const alert = await screen.findByRole('alert');
   expect(alert.textContent).toContain('err_theme');
   // The document must not end up themed one way while the stored preference
@@ -160,32 +142,12 @@ it('retries the theme the user asked for', async () => {
     })
     .mockResolvedValueOnce(undefined);
   render(view());
-  choose(english.darkTheme);
+  choose(english.lightTheme);
   await screen.findByRole('alert');
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
   await waitFor(() =>
-    expect(document.documentElement.dataset.theme).toBe('dark'),
+    expect(document.documentElement.dataset.theme).toBe('light'),
   );
-  expect(settings.update).toHaveBeenNthCalledWith(2, { theme: 'dark' });
+  expect(settings.update).toHaveBeenNthCalledWith(2, { theme: 'light' });
   expect(screen.queryByRole('alert')).toBeNull();
-});
-
-it('follows the system while the preference is to follow it', () => {
-  render(view());
-  systemDark = true;
-  mediaListeners.forEach((listener) => listener());
-  expect(document.documentElement.dataset.theme).toBe('dark');
-  systemDark = false;
-  mediaListeners.forEach((listener) => listener());
-  expect(document.documentElement.dataset.theme).toBe('light');
-});
-
-it('leaves a theme the user picked alone when the system changes', () => {
-  // The system is only read while the preference is to follow it; once a theme
-  // is named, a change the system reports is not the user's answer to move.
-  settings.state = { language: 'system', theme: 'dark' };
-  render(view());
-  systemDark = true;
-  mediaListeners.forEach((listener) => listener());
-  expect(document.documentElement.dataset.theme).toBeUndefined();
 });

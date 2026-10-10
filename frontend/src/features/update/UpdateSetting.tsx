@@ -30,6 +30,10 @@ export function UpdateSetting() {
   };
   return (
     <div className="space-y-3">
+      {/* The card's own heading names the section this block now shares with the
+          language and the theme; this is the block's heading, the way those two
+          each carry theirs. */}
+      <h3 className="text-sm font-medium">{t('updateTitle')}</h3>
       <div className="flex w-full flex-wrap items-center justify-between gap-4">
         <p className="text-sm text-muted-foreground">
           {t('updateCurrent', {

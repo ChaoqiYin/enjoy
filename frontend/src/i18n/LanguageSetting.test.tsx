@@ -37,7 +37,7 @@ Element.prototype.matches = function (selector: string) {
 function answers(save: () => Promise<unknown>) {
   vi.mocked(invoke).mockImplementation((command: string) => {
     if (command === 'get_settings')
-      return Promise.resolve({ language: 'system', theme: 'system' });
+      return Promise.resolve({ language: 'system', theme: 'dark' });
     if (command === 'save_settings') return save();
     return Promise.resolve(undefined);
   });
@@ -85,7 +85,7 @@ it('keeps the saved preference on failure and retries the requested language', a
   expect(screen.getByRole('combobox').textContent).toContain(english.system);
   expect(screen.getByRole('alert').textContent).toContain('err_save');
 
-  answers(() => Promise.resolve({ language: 'zh-CN', theme: 'system' }));
+  answers(() => Promise.resolve({ language: 'zh-CN', theme: 'dark' }));
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
   await waitFor(() =>
     expect(screen.getByRole('combobox').textContent).toContain('简体中文'),

@@ -35,8 +35,8 @@ pub(crate) const FILE: &str = "preferences.json";
 /// of values that language may hold, in the one place it is written down.
 pub(crate) const LANGUAGES: &[&str] = &["system", "zh-CN", "en"];
 
-/// The themes the interface can be drawn in, `system` among them.
-pub(crate) const THEMES: &[&str] = &["system", "light", "dark"];
+/// The themes the interface can be drawn in.
+pub(crate) const THEMES: &[&str] = &["light", "dark"];
 
 /// One of the things this file holds.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -44,7 +44,7 @@ pub(crate) enum Preference {
     /// The language the interface is written in, or `system` to follow the
     /// machine's own.
     Language,
-    /// The theme, or `system` to follow the machine's own.
+    /// The theme.
     Theme,
     /// The password a client signs in to the 共享服务 with.
     SharePassword,
@@ -73,7 +73,7 @@ impl Preference {
             Preference::Theme => Spec {
                 key: "theme",
                 allowed: Some(THEMES),
-                default: "system",
+                default: "dark",
             },
             Preference::SharePassword => Spec {
                 key: "sharePassword",

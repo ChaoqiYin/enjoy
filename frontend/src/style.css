@@ -265,6 +265,31 @@
     outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
   }
 
+  /* Everything clickable wears the pointing hand.
+
+     Tailwind v4's preflight dropped the `button { cursor: pointer }` that v3
+     carried, so without this every native button in the application shows the
+     arrow: the user is looking at a control that does something and is told,
+     by the pointer alone, that it does not. Written as one rule rather than a
+     class on each component because what is clickable is not knowable from any
+     one file — the next component added inherits this instead of forgetting
+     it, which is how the gap opened in the first place.
+
+     The two roles below are the ones Radix does *not* draw as a button: its
+     menu items and listbox options are `div`s carrying the role, so the
+     `button` selector never reaches them. Anchors are left out on purpose —
+     the browser already gives them the hand.
+
+     A disabled control keeps the arrow. It is not clickable, and a hand over
+     it promises an action that will not happen. */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='menuitem']:not([data-disabled]),
+  [role='option']:not([data-disabled]),
+  [role='radio']:not([data-disabled]) {
+    cursor: pointer;
+  }
+
   body {
     background-color: var(--background);
     color: var(--foreground);

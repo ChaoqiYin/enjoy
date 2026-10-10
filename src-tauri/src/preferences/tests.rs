@@ -14,7 +14,7 @@ use super::{Preference, Preferences, LANGUAGES, THEMES};
 fn a_preference_nothing_was_ever_written_for_reads_as_its_default() {
     let preferences = Preferences::new(Memory::default());
     assert_eq!(preferences.read(Preference::Language), "system");
-    assert_eq!(preferences.read(Preference::Theme), "system");
+    assert_eq!(preferences.read(Preference::Theme), "dark");
     // Empty, and empty is not a password: the module that owns this one draws
     // one when it reads this.
     assert_eq!(preferences.read(Preference::SharePassword), "");
@@ -27,7 +27,7 @@ fn a_stored_value_outside_the_set_is_not_a_preference() {
     let memory = Memory::holding(&[("language", "fr-FR"), ("theme", "sepia")]);
     let preferences = Preferences::new(memory);
     assert_eq!(preferences.read(Preference::Language), "system");
-    assert_eq!(preferences.read(Preference::Theme), "system");
+    assert_eq!(preferences.read(Preference::Theme), "dark");
 }
 
 #[test]
@@ -85,5 +85,5 @@ fn the_two_value_sets_are_the_ones_the_interface_is_written_in() {
     // side without a translation, or a theme the stylesheet has no colours for,
     // would be a preference that can be stored and cannot be honoured.
     assert_eq!(LANGUAGES, &["system", "zh-CN", "en"]);
-    assert_eq!(THEMES, &["system", "light", "dark"]);
+    assert_eq!(THEMES, &["light", "dark"]);
 }

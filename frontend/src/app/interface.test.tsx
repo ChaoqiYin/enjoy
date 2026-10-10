@@ -258,8 +258,17 @@ describe('video card actions', () => {
     expect(marker.textContent).toBe('');
     expect(marker.querySelector('svg')).toBeTruthy();
     // The meaning is not in the glyph alone: it is written on the element the
-    // pointer lands on, as well as in the name a reader hears.
-    expect(marker.getAttribute('title')).toBe('Shared');
+    // pointer lands on, as well as in the name a reader hears. It is the site's
+    // own prompt now rather than the browser's own title, and the marker is what
+    // opens it — Radix rides a timer for that, which the clock here supplies.
+    vi.useFakeTimers();
+    try {
+      fireEvent.pointerMove(marker);
+      act(() => vi.runAllTimers());
+      expect(screen.getByRole('tooltip').textContent).toBe('Shared');
+    } finally {
+      vi.useRealTimers();
+    }
     expect(screen.getByText('Last played').classList.contains('start-2')).toBe(
       true,
     );

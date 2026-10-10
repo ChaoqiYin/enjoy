@@ -64,3 +64,10 @@ it('closes from the panel’s own button, with Escape, and from the caller’s c
 
   await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
 });
+
+it('says what the panel’s close button does when it is reached', () => {
+  render(<Panel />);
+  fireEvent.click(screen.getByRole('button', { name: 'Show details' }));
+  fireEvent.focus(screen.getByRole('button', { name: closeLabel }));
+  expect(screen.getByRole('tooltip').textContent).toBe(closeLabel);
+});

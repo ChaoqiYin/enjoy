@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -53,6 +59,25 @@ it('marks the shape the list is being read in', () => {
   ).toBe('false');
 });
 
+it('draws the chosen segment as chosen, under the prompt', () => {
+  // The segment draws itself as chosen through `data-state="on"` rather than
+  // through its name (see `shared/ui/toggle-group`), and Radix writes its own
+  // `data-state` — the prompt's, always `closed` — onto whatever element its
+  // trigger slotted onto, after the props it was handed. So the prompt's state
+  // was the last word and the chosen segment was drawn as though nothing were
+  // chosen. `aria-checked` does not catch this: it stayed right the whole time
+  // the styling was wrong.
+  modes({ value: 'table' });
+  expect(
+    screen
+      .getByRole('radio', { name: 'Table view' })
+      .getAttribute('data-state'),
+  ).toBe('on');
+  expect(
+    screen.getByRole('radio', { name: 'Grid view' }).getAttribute('data-state'),
+  ).toBe('off');
+});
+
 it('reports the shape that was picked', () => {
   const onChange = vi.fn();
   modes({ onChange });
@@ -74,6 +99,22 @@ it('stays in the chosen shape when it is picked again', () => {
       .getByRole('radio', { name: 'Grid view' })
       .getAttribute('aria-checked'),
   ).toBe('true');
+});
+
+it('says which shape each segment gives, in the app’s own words', () => {
+  modes();
+  // The segments are glyphs, so the words are read by the pointer and the
+  // keyboard both: the tooltip is anchored on the segment itself, and Radix
+  // opens it when the segment is reached by focus as well as by pointer. The
+  // `sr-only` name is kept beside it — the prompt does not replace the name a
+  // reader hears, it is the same sentence for the eye.
+  const grid = screen.getByRole('radio', { name: 'Grid view' });
+  // The prompt is anchored on the segment itself — the segment is what opens it
+  // on focus, which a wrapper element could not be made to do from here.
+  act(() => grid.focus());
+  expect(screen.getByRole('tooltip').textContent).toBe('Grid view');
+  // The name a reader hears is untouched: it is still the segment's own.
+  expect(grid.textContent).toBe('Grid view');
 });
 
 it('will not be reshaped while it is disabled', () => {

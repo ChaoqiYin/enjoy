@@ -10,7 +10,7 @@ type Context = {
   saving: boolean;
 };
 const SettingsContext = createContext<Context | null>(null);
-const defaults: SettingsState = { language: 'system', theme: 'system' };
+const defaults: SettingsState = { language: 'system', theme: 'dark' };
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(defaults);
   const [saving, setSaving] = useState(false);
