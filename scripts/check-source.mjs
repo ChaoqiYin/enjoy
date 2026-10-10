@@ -6,7 +6,12 @@ import ts from 'typescript';
 const excludedDirectories = new Set(['.git', 'node_modules', 'target', 'dist', 'gen', 'prototype-drawing']);
 const generatedFiles = new Set(['package-lock.json', 'Cargo.lock']);
 const textExtensions = new Set(['.ts', '.tsx', '.js', '.mjs', '.rs', '.json', '.md', '.css', '.html', '.toml', '.yml', '.yaml']);
+const contentTitleOwners = new Set(['EmptyState', 'SettingsSection', 'Drawer', 'SpaceDialog', 'EmptyRescanConfirmation']);
 const failures = [];
+
+function jsxElementName(tagName) {
+  return ts.isIdentifier(tagName) ? tagName.text : undefined;
+}
 
 function* files(directory) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -33,6 +38,15 @@ function inspectJavaScript(path, source) {
       if (expression.kind === ts.SyntaxKind.ImportKeyword ||
           (ts.isIdentifier(expression) && expression.text === 'require')) {
         failures.push(`${path}: dynamic module loading is forbidden`);
+      }
+    }
+    if (ts.isJsxAttribute(node) && node.name.getText() === 'title') {
+      const owner = node.parent.parent;
+      const element = ts.isJsxOpeningElement(owner) || ts.isJsxSelfClosingElement(owner)
+        ? jsxElementName(owner.tagName)
+        : undefined;
+      if (!contentTitleOwners.has(element)) {
+        failures.push(`${path}: native title attributes are forbidden; use shared/Tooltip for hover hints`);
       }
     }
     ts.forEachChild(node, visit);
