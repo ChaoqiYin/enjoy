@@ -2,6 +2,7 @@ import { Dialog as DialogPrimitive } from 'radix-ui';
 import { X } from 'lucide-react';
 import type { ComponentProps } from 'react';
 import { cn } from './cn';
+import { Tooltip, TooltipContent, TooltipTrigger } from './tooltip';
 
 /**
  * A question or a short form that takes the window until it is answered.
@@ -84,6 +85,40 @@ export function DialogPanel({
   );
 }
 
+/**
+ * The corner dismiss control, shared by `DialogContent` and `SheetContent`
+ * rather than written twice — the two were the same markup down to the class
+ * string, and a control that exists twice is one that drifts.
+ *
+ * It says what it does twice over, in the same words: `aria-label` for the
+ * reader and the tooltip for the eye, both the caller's `closeLabel`. The
+ * tooltip is built from `./tooltip`, the primitive in this directory, and not
+ * from the application's `shared/Tooltip`: everything here is the vendored
+ * shadcn primitives under a house name, and they reach for each other rather
+ * than up into the app. That is the local difference from upstream shadcn,
+ * which wires no tooltip at all; `sidebar` and `toggle-group` carry the same
+ * kind of note for the same reason.
+ */
+export function DialogCloseButton({ label }: { label: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <DialogPrimitive.Close
+          aria-label={label}
+          className={cn(
+            'absolute top-4 right-4 flex size-8 items-center justify-center rounded-lg',
+            'bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground',
+            'transition-colors outline-none',
+          )}
+        >
+          <X size={16} aria-hidden="true" />
+        </DialogPrimitive.Close>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function DialogContent({
   className,
   children,
@@ -93,16 +128,7 @@ export function DialogContent({
   return (
     <DialogPanel className={className} {...props}>
       {children}
-      <DialogPrimitive.Close
-        aria-label={closeLabel}
-        className={cn(
-          'absolute top-4 right-4 flex size-8 items-center justify-center rounded-lg',
-          'bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground',
-          'transition-colors outline-none',
-        )}
-      >
-        <X size={16} aria-hidden="true" />
-      </DialogPrimitive.Close>
+      <DialogCloseButton label={closeLabel} />
     </DialogPanel>
   );
 }

@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
@@ -93,6 +94,27 @@ it('hands over the folders that were chosen', async () => {
   await screen.findByText('/movies');
   fireEvent.click(screen.getByRole('button', { name: english.confirm }));
   expect(onConfirm).toHaveBeenCalledWith(['/movies']);
+});
+
+it('names the remove button after its path, and its tooltip after the act', async () => {
+  mount();
+  pick.mockResolvedValueOnce(['/movies']);
+  fireEvent.click(chooseFolder());
+  const row = (await screen.findByText('/movies')).closest('li') as HTMLElement;
+  const remove = within(row).getByRole('button');
+  // The row already says the path, so the tooltip spends no words on it: the
+  // reader who can see the row only needs the act. The name keeps the path
+  // because a reader who cannot see the row has nothing else to tell one
+  // identical garbage-can button from the next.
+  fireEvent.focus(remove);
+  const tip = await screen.findByRole('tooltip');
+  expect(tip.textContent).toBe(english.remove);
+  // The point of the two is that they differ: the tooltip drops the path the
+  // row already shows, while the name keeps it, so a reader can still tell the
+  // rows apart.
+  const label = remove.getAttribute('aria-label') ?? '';
+  expect(label).toContain('movies');
+  expect(label).not.toBe(english.remove);
 });
 
 it('will not confirm with nothing chosen', () => {

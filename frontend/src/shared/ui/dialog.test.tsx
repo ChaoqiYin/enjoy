@@ -91,3 +91,12 @@ it('closes from its own close button and from the caller’s close control', () 
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(screen.queryByRole('dialog')).toBeNull();
 });
+
+/** The corner control is a drawing rather than words, and it is the only thing
+ *  in that corner, so it says what it does on hover as well as on focus. */
+it('says what its close button does when that button is reached', () => {
+  render(<ConfirmQuestion onConfirm={() => {}} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove index' }));
+  fireEvent.focus(screen.getByRole('button', { name: closeLabel }));
+  expect(screen.getByRole('tooltip').textContent).toBe(closeLabel);
+});
