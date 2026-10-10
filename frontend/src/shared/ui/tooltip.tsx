@@ -42,7 +42,7 @@ export function TooltipContent({
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         className={cn(
-          'z-50 w-fit max-w-72 rounded-md bg-popover px-2 py-1 text-xs text-balance text-popover-foreground shadow-md',
+          'z-50 w-fit max-w-72 rounded-md bg-popover px-2 py-1 text-xs text-balance break-words text-popover-foreground shadow-md',
           className,
         )}
         {...props}
