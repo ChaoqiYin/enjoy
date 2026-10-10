@@ -1,10 +1,10 @@
 import { Dialog as DialogPrimitive } from 'radix-ui';
-import { X } from 'lucide-react';
 import type { ComponentProps } from 'react';
 import { cn } from './cn';
 import {
   Dialog,
   DialogClose,
+  DialogCloseButton,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -73,16 +73,7 @@ export function SheetContent({
         {...props}
       >
         {children}
-        <DialogPrimitive.Close
-          aria-label={closeLabel}
-          className={cn(
-            'absolute top-4 right-4 flex size-8 items-center justify-center rounded-lg',
-            'bg-muted text-muted-foreground hover:bg-secondary hover:text-foreground',
-            'transition-colors outline-none',
-          )}
-        >
-          <X size={16} aria-hidden="true" />
-        </DialogPrimitive.Close>
+        <DialogCloseButton label={closeLabel} />
       </DialogPrimitive.Content>
     </DialogPortal>
   );

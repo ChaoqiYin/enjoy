@@ -12,6 +12,20 @@ import { Toast } from './Toast';
 import type { ToastType } from './Toast';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 
+// jsdom answers `element.matches(':modal')` by recursing through nwsapi, which
+// costs about 180ms per call; Radix asks the page behind a dialog whether it
+// sits in the top layer whenever it hides it. Nothing here is a top-layer
+// element, so answering `false` outright is both correct and instant. The Radix
+// dialog below names its close button through a tooltip, and the tooltip's
+// panel is a second set of nodes for Radix's observer to walk — without the
+// shim that walk runs long enough to time the panel test out. The same shim,
+// for the same reason, sits in `AddDirectories.test.tsx`.
+const matches = Element.prototype.matches;
+Element.prototype.matches = function (selector: string) {
+  if (selector === ':modal') return false;
+  return matches.call(this, selector);
+};
+
 // The countdown is the first thing in this repo to need fake timers, so the
 // pairing is stated once here: unmount everything first, because React Testing
 // Library cannot clean up a tree whose timers have already been swapped back.

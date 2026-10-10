@@ -5,6 +5,7 @@ import { useCommand } from '../../shared/useCommand';
 import { pickDirectories } from '../../shared/api';
 import type { AppError } from '../../shared/api';
 import { Button } from '../../shared/ui/button';
+import { Tooltip } from '../../shared/Tooltip';
 import {
   Dialog,
   DialogContent,
@@ -58,19 +59,26 @@ export function AddDirectories({ onClose, onConfirm, onError }: Props) {
                 <span className="flex-1 font-mono text-sm break-all">
                   {path}
                 </span>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-destructive"
-                  aria-label={t('removePath', { path })}
-                  onClick={() =>
-                    setPaths((current) =>
-                      current.filter((value) => value !== path),
-                    )
-                  }
-                >
-                  <Trash2 size={14} aria-hidden="true" />
-                </Button>
+                {/* The row already spells the path out, so the tooltip says
+                    only what the press does — the words on the screen would be
+                    said twice. The name keeps the path, because a reader who
+                    cannot see the row has nothing else to tell one identical
+                    bin button from the next. */}
+                <Tooltip text={t('remove')}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-destructive"
+                    aria-label={t('removePath', { path })}
+                    onClick={() =>
+                      setPaths((current) =>
+                        current.filter((value) => value !== path),
+                      )
+                    }
+                  >
+                    <Trash2 size={14} aria-hidden="true" />
+                  </Button>
+                </Tooltip>
               </li>
             ))}
           </ul>
