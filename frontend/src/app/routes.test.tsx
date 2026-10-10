@@ -130,23 +130,18 @@ function navigate(name: string) {
 it('renders independent pages with shared navigation and page-specific actions', () => {
   mount();
   const navigation = screen.getByRole('navigation');
-  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
-    english.library,
-  );
+  // A listing page draws no title of its own any more, so which route is on
+  // screen is read off what only that page draws: the bar the library's own
+  // actions sit in, and each page's own empty state.
+  expect(screen.getByPlaceholderText(english.searchPlaceholder)).toBeTruthy();
   expect(screen.getByRole('button', { name: english.rescan })).toBeTruthy();
   // The space is named in the header, which every page shares, so it says what
   // the rest of the screen is about wherever the user is.
   expect(headerSpace()).toBe(space.name);
   navigate(english.favorites);
-  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
-    english.favorites,
-  );
   expect(screen.getByText(english.emptyFavorites)).toBeTruthy();
   expect(screen.queryByRole('button', { name: english.add })).toBeNull();
   navigate(english.history);
-  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
-    english.history,
-  );
   expect(screen.getByText(english.emptyHistory)).toBeTruthy();
   navigate(english.settings);
   expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
@@ -177,9 +172,10 @@ function headerSpace() {
   return screen.getByRole('button', { name: space.name }).textContent;
 }
 function openSettingsSection(name: string) {
-  // The rail is the tabs primitive's, and Radix picks a tab on pointerdown, as
-  // a browser delivers it before the click.
-  fireEvent.mouseDown(screen.getByRole('tab', { name }), { button: 0 });
+  // The rail is the shadcn sidebar's (ADR 0023), and its rows are ordinary
+  // buttons that answer an ordinary click — the branch is drawn by a rule now,
+  // not by a tree.
+  fireEvent.click(screen.getByRole('button', { name }));
 }
 it('retains shared search and separate route sorting after page remounts', () => {
   mount();
@@ -207,14 +203,10 @@ it('retains shared search and separate route sorting after page remounts', () =>
 });
 it('supports direct page entry and redirects unknown paths to the library', () => {
   mount('/favorites');
-  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
-    english.favorites,
-  );
+  expect(screen.getByText(english.emptyFavorites)).toBeTruthy();
   cleanup();
   mount('/missing');
-  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
-    english.library,
-  );
+  expect(screen.getByPlaceholderText(english.searchPlaceholder)).toBeTruthy();
 });
 
 it.each(['/', '/settings'])(

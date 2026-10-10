@@ -67,7 +67,12 @@ export function App({ initialSpace }: { initialSpace: Space }) {
 function Window() {
   const share = useShareContext();
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
+    // The dot matrix is this element's own background rather than a layer
+    // inside it: `bg-background` paints the surface and `.dot-grid` paints the
+    // dots over it, both under everything the column draws. That is why there
+    // is no wrapper, no `z-index` and no `isolate` here — the two attempts that
+    // needed them are what ADR 0022 is about.
+    <div className="dot-grid flex h-dvh flex-col overflow-hidden bg-background text-foreground">
       <LanguageFocusSync />
       <AppHeader />
       <Routes>

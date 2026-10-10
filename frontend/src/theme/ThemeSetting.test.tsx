@@ -51,6 +51,7 @@ beforeEach(async () => {
       removeEventListener: vi.fn(),
     })),
   );
+  vi.stubGlobal('ResizeObserver', ResizeObserverStub);
   await i18n.init({
     lng: 'en',
     keySeparator: false,
@@ -86,8 +87,42 @@ it('offers following the system, light, and dark', () => {
   ).toBe('true');
 });
 
+// jsdom does not implement `ResizeObserver`, and the control measures its track
+// with one. The house answer is a stub here rather than a guard in the
+// component, which is what `ScrollViewport` does too — see `beforeEach`, which
+// has to re-stub it because `afterEach` takes every global back.
+class ResizeObserverStub {
+  observe() {}
+  disconnect() {}
+}
+
+/**
+ * Picks a theme, the way a pointer does.
+ *
+ * Not `fireEvent.pointerDown`/`pointerUp`, and not `fireEvent.click`: the
+ * control commits on the track's `pointerup`, so a click never reaches it, and
+ * jsdom has no `PointerEvent` at all — `@testing-library/dom` falls back to
+ * `Event`, whose constructor keeps `bubbles`, `cancelable` and `composed` and
+ * silently drops the `pointerId` and `clientX` the component reads. A
+ * `MouseEvent` carries the coordinates and takes the id as an own property,
+ * which is all React needs to hand it over as a pointer event.
+ *
+ * A press is also the only path this fixture can take: `useSettings` below is a
+ * mock that never reports a new preference, so the component's `value` never
+ * moves and the arrow keys — which step from the *current* choice — could only
+ * ever reach the segment next to it. A press commits the segment it landed on.
+ */
 function choose(value: string) {
-  fireEvent.click(screen.getByRole('radio', { name: value }));
+  const init = { pointerId: 1, button: 0, clientX: 0 };
+  for (const type of ['pointerdown', 'pointerup']) {
+    const event = new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      ...init,
+    });
+    Object.defineProperty(event, 'pointerId', { value: init.pointerId });
+    fireEvent(screen.getByRole('radio', { name: value }), event);
+  }
 }
 
 it('applies the theme once it has been stored', async () => {

@@ -6,6 +6,7 @@ import { LanguageSetting } from '../i18n/LanguageSetting';
 import { ThemeSetting } from '../theme/ThemeSetting';
 import { ScrollViewport } from '../shared/ScrollViewport';
 import { Badge } from '../shared/ui/badge';
+import type { SettingsEntry } from '../features/settings/SettingsSidebar';
 import { SettingsSection } from '../features/settings/SettingsSection';
 import { SettingsSidebar } from '../features/settings/SettingsSidebar';
 import { useBusy } from '../features/library/useBusy';
@@ -29,16 +30,55 @@ import { UpdateSetting } from '../features/update/UpdateSetting';
  * taken theirs, and only the right column scrolls within it. The rail stays put
  * because moving it is what the reader came here to do, and the page behind
  * neither grows nor scrolls.
+ *
+ * The rail is a shadcn `Sidebar` (ADR 0023): one entry that opens onto the three
+ * panels that used to be stacked down the right column, and one that stands
+ * alone. Choosing a panel shows it alone — the rail is a thing that switches,
+ * and a column that showed all three at once made the choice do nothing but
+ * scroll. The rail is one level deeper than the drawings' flat list, because
+ * those three belong together: they are all "General".
  */
 export function SettingsPage() {
   const { t } = useTranslation();
   const { busy } = useBusy();
   const directories = useDirectories();
   const space = useSpace();
-  const [section, setSection] = useState('general');
+  const [panel, setPanel] = useState('appearance');
   const [showAdd, setShowAdd] = useState(false);
   const [showEmptyRescan, setShowEmptyRescan] = useState(false);
   const folders = directories.directories.data ?? [];
+  // Rebuilt on every render, which costs nothing: the rail draws these rows and
+  // holds no state that depends on their identity.
+  const items: SettingsEntry[] = [
+    {
+      label: t('settingsGeneral'),
+      value: 'general',
+      children: [
+        {
+          value: 'appearance',
+          label: t('settingsAppearance'),
+          icon: <Palette aria-hidden="true" />,
+        },
+        {
+          value: 'spaces',
+          label: t('spaces'),
+          icon: <Layers aria-hidden="true" />,
+        },
+        {
+          value: 'update',
+          label: t('updateTitle'),
+          icon: <RefreshCw aria-hidden="true" />,
+        },
+      ],
+    },
+    {
+      label: t('settingsFolders'),
+      value: 'folders',
+      // What the entry has to report about itself: how many folders this space
+      // is indexed from, and nothing when there are none.
+      badge: folders.length > 0 ? folders.length : undefined,
+    },
+  ];
   const rescan = () => {
     if (folders.length === 0) {
       setShowEmptyRescan(true);
@@ -54,67 +94,55 @@ export function SettingsPage() {
             <h1 className="text-2xl font-semibold">{t('settings')}</h1>
             <Badge variant="outline">{packageInfo.version}</Badge>
           </div>
-          <SettingsSidebar
-            value={section}
-            onChange={setSection}
-            items={[
-              { value: 'general', label: t('settingsGeneral') },
-              {
-                value: 'folders',
-                label: t('settingsFolders'),
-                // What the entry has to report about itself: how many folders
-                // this space is indexed from, and nothing when there are none.
-                badge: folders.length > 0 ? String(folders.length) : undefined,
-              },
-            ]}
-          />
+          <SettingsSidebar value={panel} onSelect={setPanel} items={items} />
         </div>
         <ScrollViewport className="min-h-0 flex-1 space-y-6">
-          {section === 'general' ? (
-            <>
-              <SettingsSection icon={Palette} title={t('settingsAppearance')}>
-                <div className="space-y-6">
-                  <LanguageSetting />
-                  <ThemeSetting />
-                </div>
-              </SettingsSection>
-              <SettingsSection icon={Layers} title={t('spaces')}>
-                <SpaceSetting />
-              </SettingsSection>
-              <SettingsSection icon={RefreshCw} title={t('updateTitle')}>
-                <UpdateSetting />
-              </SettingsSection>
-            </>
-          ) : (
-            <>
-              {/* Named after the space it belongs to, because it does not belong
-                  to the application: each space has its own directories, and
-                  this is the list of one of them. */}
-              <SettingsSection
-                icon={FolderOpen}
-                title={t('foldersInSpace', { name: space.name })}
-                description={t('settingsFoldersHelp')}
-              >
-                <div className="space-y-3">
-                  {folders.map((path) => (
-                    <DirectoryRow
-                      key={path}
-                      path={path}
-                      disabled={busy}
-                      onRemove={() => directories.removeDirectory(path)}
-                    />
-                  ))}
-                  <DirectoryActions
-                    busy={busy}
-                    onAdd={() => setShowAdd(true)}
-                    onRescan={rescan}
-                    onRegenerate={() =>
-                      void directories.regenerateAllThumbnails()
-                    }
+          {panel === 'appearance' && (
+            <SettingsSection icon={Palette} title={t('settingsAppearance')}>
+              <div className="space-y-6">
+                <LanguageSetting />
+                <ThemeSetting />
+              </div>
+            </SettingsSection>
+          )}
+          {panel === 'spaces' && (
+            <SettingsSection icon={Layers} title={t('spaces')}>
+              <SpaceSetting />
+            </SettingsSection>
+          )}
+          {panel === 'update' && (
+            <SettingsSection icon={RefreshCw} title={t('updateTitle')}>
+              <UpdateSetting />
+            </SettingsSection>
+          )}
+          {panel === 'folders' && (
+            // Named after the space it belongs to, because it does not belong
+            // to the application: each space has its own directories, and this
+            // is the list of one of them.
+            <SettingsSection
+              icon={FolderOpen}
+              title={t('foldersInSpace', { name: space.name })}
+              description={t('settingsFoldersHelp')}
+            >
+              <div className="space-y-3">
+                {folders.map((path) => (
+                  <DirectoryRow
+                    key={path}
+                    path={path}
+                    disabled={busy}
+                    onRemove={() => directories.removeDirectory(path)}
                   />
-                </div>
-              </SettingsSection>
-            </>
+                ))}
+                <DirectoryActions
+                  busy={busy}
+                  onAdd={() => setShowAdd(true)}
+                  onRescan={rescan}
+                  onRegenerate={() =>
+                    void directories.regenerateAllThumbnails()
+                  }
+                />
+              </div>
+            </SettingsSection>
           )}
         </ScrollViewport>
       </div>

@@ -32,7 +32,6 @@ function toolbar(
   overrides: Partial<Parameters<typeof LibraryToolbar>[0]> = {},
 ) {
   const props: Parameters<typeof LibraryToolbar>[0] = {
-    title: 'Library',
     folders: [],
     search: '',
     folder: '',
@@ -51,18 +50,25 @@ function toolbar(
   );
 }
 
-it('names the page and offers the four ways to narrow it', () => {
+it('offers the four ways to narrow the list', () => {
   toolbar();
-  expect(screen.getByRole('heading', { name: 'Library' })).toBeTruthy();
+  expect(screen.queryByRole('heading')).toBeNull();
   expect(screen.getByRole('searchbox', { name: 'Search' })).toBeTruthy();
   expect(screen.getByRole('combobox', { name: 'Folder' })).toBeTruthy();
   expect(screen.getByRole('combobox', { name: 'Sort' })).toBeTruthy();
   expect(screen.getByRole('radiogroup', { name: 'View' })).toBeTruthy();
 });
 
-it('shows the page actions beside the title', () => {
+it('draws the page actions in the bar rather than in a row of their own', () => {
   toolbar({ actions: <button type="button">Add folders</button> });
-  expect(screen.getByRole('button', { name: 'Add folders' })).toBeTruthy();
+  // The bar is the whole of what this control draws, so an action inside it is
+  // in the same row as the filters and the view mode — which is the difference
+  // the page's own title line used to make.
+  expect(
+    screen
+      .getByRole('button', { name: 'Add folders' })
+      .closest('[data-slot="library-toolbar"]'),
+  ).toBeTruthy();
 });
 
 it('narrows the list by what was typed', () => {

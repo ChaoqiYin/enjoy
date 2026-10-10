@@ -290,10 +290,10 @@ it('gives the room a hover needs to the viewport that clips, not to the grid', a
   // `overflow` box clips at its padding box, and a descendant's negative start
   // margin is the one thing such a box cannot scroll to, so room kept by the
   // grid was room spent outside the glass. Measured on the built page, the
-  // first column's card sat 1.61px past the clip edge with its lift 4.92px
-  // above it, its shadow sliced off along both. jsdom lays nothing out, so what
-  // this proves is where the room was put; that it is enough is the browser's
-  // measurement, in `videoCardBox` and ADR 0008.
+  // first column's card sat 1.61px past the clip edge and the glow it throws
+  // was sliced off along it. jsdom lays nothing out, so what this proves is
+  // where the room was put; that it is enough is the browser's measurement, in
+  // `videoCardBox` and ADR 0008.
   const viewport = container.querySelector<HTMLElement>('.scroll-viewport')!;
   expect(viewport.style.paddingInlineStart).toBe('10px');
   expect(viewport.style.marginInlineStart).toBe('-10px');

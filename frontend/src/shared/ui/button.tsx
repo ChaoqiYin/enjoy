@@ -8,6 +8,15 @@ import { cn } from './cn';
  * gets by saying nothing, because the drawings' one emphatic button per screen
  * is the common case.
  *
+ * Every variant paints a background of its own, the two unfilled-looking ones
+ * included: `outline` and `ghost` carry `--background`, which is the colour of
+ * the layer the window's dot matrix is drawn on. The fill is there to stop the
+ * dots rather than to give these two presence — `--background` is the page's
+ * own colour and within a few levels of `--card`, so a caller gets the button
+ * it had before with nothing behind it (ADR 0022). `link` is the exception and
+ * stays bare: it draws no shape, so the dots behind its text are the same ones
+ * around it, and a fill would turn a link into a button.
+ *
  * The variant and size names are the contract other tickets import, so they are
  * mirrored onto `data-variant` / `data-size`: a test can pin which one was
  * asked for without reading class names, which change whenever the visual
@@ -22,8 +31,8 @@ const buttonVariants = cva(
         secondary:
           'bg-secondary text-secondary-foreground hover:bg-secondary/80',
         outline:
-          'border border-input bg-transparent hover:bg-accent hover:text-accent-foreground',
-        ghost: 'hover:bg-accent hover:text-accent-foreground',
+          'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
+        ghost: 'bg-background hover:bg-accent hover:text-accent-foreground',
         destructive:
           'bg-destructive text-destructive-foreground hover:bg-destructive/90',
         link: 'text-primary underline-offset-4 hover:underline',

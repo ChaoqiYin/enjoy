@@ -64,6 +64,15 @@
   --color-share: var(--share);
   --color-share-border: var(--share-border);
   --color-last-played: var(--last-played);
+
+  /* The settings rail's panel. shadcn's sidebar names a set of these; only the
+     six its rows actually paint are kept, so no token here is decorative. */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 }
 
 /* Light theme — prototype-drawing/vermilion_studio/DESIGN.md.
@@ -110,6 +119,87 @@
   --share: #e11d48; /* status-shared */
   --share-border: #9f1239; /* status-shared-border */
   --last-played: #e11d48; /* last-played */
+
+  /* The video card's border glow — the react-bits BorderGlow, tuned the way its
+     own demo tunes it. The demo swaps five things per colour mode
+     (`src/demo/Components/BorderGlowDemo.jsx`, the `useColorModeValue` calls),
+     and not one of them can be written down in the component: the theme is
+     switched in `[data-theme]` without React knowing (ADR 0018), so a value
+     that differs per theme has to be a token.
+
+     The hue is the one of the five that is not the demo's. The demo lights a
+     white card violet and a near-black one warm white, and its mesh carries a
+     third hue again — violet, pink and sky — so a hovered card put four hues
+     next to the app's own red and read as noise rather than as light. The glow
+     is the accent, so it takes the accent: `--primary`. Written once, here,
+     because a custom property is resolved where it is *used* and this file's
+     dark block redeclares `--primary` — the hue follows the theme without a
+     second line (the same trick as `--dot-color`). Only the strength is per
+     theme, and light is still the demo's: a slightly stronger glow and a
+     lighter fill. */
+  --glow-color: var(--primary);
+  --glow-intensity: 1.25;
+  --glow-fill-opacity: 0.22;
+
+  /* The card's resting border and elevation. The demo picks these from the
+     background being light or dark — the same branch, moved to CSS. */
+  --glow-card-border: rgb(24 24 27 / 12%);
+  --glow-card-shadow:
+    rgb(24 24 27 / 4%) 0 1px 2px, rgb(24 24 27 / 5%) 0 8px 24px;
+
+  /* A violet on white is already as dark as it gets, so adding to it would only
+     mud the card: the demo lets the light one composite normally. */
+  --glow-blend: normal;
+  --glow-fill-blend: normal;
+
+  /* The dot matrix behind the whole window, drawn as `.dot-grid`'s background.
+     Written once for both themes, which works because `--foreground` is
+     resolved where the value is *used* rather than where it is written: under
+     `[data-theme='dark']` this same line picks up the light foreground, and the
+     dots flip with the theme on their own.
+
+     Walked down four times, and the numbers below are what settled it. 40% read
+     as a pattern rather than as a surface; 32% was the first value that was
+     plainly there, on the `20px` pitch this started with; the pitch then came
+     down to `16px` and this with it to 20% (a tighter grid is more ink, so the
+     two move together); 12% was still called too obvious; 4% is the one.
+
+     4% is a target, not a taste. What was asked for is a layer that is barely
+     there and yet still faintly legible, and on a near-white surface that is a
+     dot about 10 levels of 255 off the background — present if you look, gone
+     if you do not. Below this the dots stop reading as a field at all: 3% is
+     already only a suspicion of one. The same alpha lands the same distance
+     from the background in the dark theme (see the ADR's table), which is why
+     there is one number here and not two. */
+  --dot-color: color-mix(in oklab, var(--foreground) 4%, transparent);
+
+  /* The settings rail's panel, written once for both themes for the same reason
+     as the two above: every one of these resolves against a token the dark block
+     redeclares, so the panel follows the theme without a second declaration. The
+     surface is `--card`, which is where the drawings put the rail
+     (`surface-card`), and the rest are the slots shadcn's sidebar expects — the
+     fill a row takes when hovered or current, and the edge around the panel and
+     down the branch.
+
+     That fill is `--secondary` (`surface-container-high`) rather than
+     `--accent`, which is the elevated surface, and the same fill is worn by the
+     chosen segment of `ToggleGroup` and of the theme segment. `--accent` is a
+     surface in the light theme — `#ffe4e6` against a near-white page — and a
+     hover wash in the dark one: `#1a1e26` sits nine to fifteen levels above the
+     `#111317` page, which is the weight of something that only has to be
+     noticed when a pointer is on it. A surface that says which one is chosen
+     has to be read with no pointer at all, and the dark theme reads a surface
+     off its border — which a filled segment does not have. `--secondary` is one
+     step further up in both themes, so the chosen one is a block in both.
+
+     It is deliberately not `--primary`: a row of choices paints the one that is
+     chosen, and the red is for the control that commits. */
+  --sidebar: var(--card);
+  --sidebar-foreground: var(--card-foreground);
+  --sidebar-accent: var(--secondary);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
 }
 
 /* Dark theme — prototype-drawing/crimson_cinema/DESIGN.md. */
@@ -147,6 +237,22 @@
   --share: #ff4d6d; /* status-shared */
   --share-border: #991b32; /* status-shared-border */
   --last-played: #ff334b; /* last-played */
+
+  /* The demo's near-black card: the glow at its own strength, a fuller fill,
+     and a heavier resting shadow than the light one. The hue is deliberately
+     not redeclared — it is `--primary`, which this block already sets, so the
+     glow is this theme's own red rather than the demo's warm white. Light on
+     dark is what `plus-lighter` is for — adding it is what makes it read as
+     light. Reasoning at `:root`. */
+  --glow-intensity: 1;
+  --glow-fill-opacity: 0.5;
+  --glow-card-border: rgb(255 255 255 / 15%);
+  --glow-card-shadow:
+    rgba(0, 0, 0, 0.1) 0 1px 2px, rgba(0, 0, 0, 0.1) 0 2px 4px,
+    rgba(0, 0, 0, 0.1) 0 4px 8px, rgba(0, 0, 0, 0.1) 0 8px 16px,
+    rgba(0, 0, 0, 0.1) 0 16px 32px, rgba(0, 0, 0, 0.1) 0 32px 64px;
+  --glow-blend: plus-lighter;
+  --glow-fill-blend: soft-light;
 }
 
 @layer base {
@@ -166,17 +272,85 @@
 }
 
 /* Kept as-is: the scrollbar contract, not a daisyUI artifact. Radix's
-   `ScrollArea` draws its own scrollbar and would fight `scrollbar-gutter`. */
+   `ScrollArea` draws its own scrollbar and would fight `scrollbar-gutter`.
+
+   The 20px is the gap between the last column and the scrollbar, and it is a
+   flat 20px rather than something adjusted for the scrollbar's width, because
+   there is nothing to adjust for: `clientWidth` has already had the scrollbar
+   taken out of it, and `padding-inline-end` is measured from the content box to
+   the padding box — the scrollbar's strip is the far side of that padding box,
+   not part of it. So the gap the eye sees *is* this value, whatever the
+   scrollbar is doing. Subtracting the gutter from it, which this rule used to
+   do, spent the whole difference on the scrollbar: with a 15px scrollbar the
+   cards sat 5px from it.
+
+   Twenty is also what the cards' glow needs. It is thrown 10px past the card
+   (`videoCardBox.hoverRoom`), and everything past the visible edge counts as
+   scrollable overflow — the gutter included, which is why five pixels of gap
+   was enough to put a horizontal scrollbar under the grid. */
 .scroll-viewport {
   overflow: auto;
   scrollbar-gutter: stable;
-  padding-inline-end: max(0px, calc(20px - var(--native-scrollbar-width, 0px)));
+  padding-inline-end: 20px;
 }
 
 @supports not (scrollbar-gutter: stable) {
   .scroll-viewport {
     overflow-y: scroll;
   }
+}
+
+/* The video card's three token-driven properties, as rules rather than as
+   utilities: Tailwind emits no class for `mix-blend-[var(--…)]` at all (the
+   built stylesheet holds no `mix-blend-mode`), and a value that is the theme's
+   belongs beside the tokens holding it. Consumed by
+   `frontend/src/shared/ui/border-glow.tsx`.
+
+   `--fill-strength` is the pointer's, not the theme's — the component writes
+   it as it tracks the cursor — so the fill's opacity is the product of the two:
+   how close the pointer is to an edge, times how opaque the fill is in this
+   theme. The resting border and elevation are the card's own; `box-shadow` has
+   this one writer and no other (ADR 0008). */
+.glow-card {
+  border-color: var(--glow-card-border);
+  box-shadow: var(--glow-card-shadow);
+}
+
+/* The dot matrix the window sits on. A rule rather than a utility because it is
+   two properties that only make sense together — a repeating radial gradient
+   with no `background-size` is a single dot stretched over the whole element.
+
+   It is flat CSS on purpose, and that is the whole design: no canvas, no
+   animation, no JavaScript, so it costs nothing while the window is open, it
+   cannot fail to come up on a machine without WebGL, and it follows the theme
+   without being told (see `--dot-color`). What it gives up for that is the
+   pointer interaction two earlier attempts had — and those attempts are why it
+   is flat now; ADR 0022 has the account.
+
+   The radius is the dot's, so the dots are 2px across on a 16px pitch. The
+   half-pixel the gradient is drawn out to is what keeps the edges from
+   stair-stepping: ending both stops on the same value leaves the browser
+   antialiasing a hard circle, and this is a cheaper way to say the same thing.
+
+   The pitch and the colour move as a pair — tightening the grid raises how much
+   of the surface is ink, so the colour has to come down to keep the layer the
+   same weight. `--dot-color` carries the reasoning for both numbers. */
+.dot-grid {
+  background-image: radial-gradient(
+    circle,
+    var(--dot-color) 1px,
+    transparent 1.5px
+  );
+  background-size: 16px 16px;
+}
+
+.glow-blend {
+  mix-blend-mode: var(--glow-blend);
+}
+
+.glow-fill-blend {
+  mix-blend-mode: var(--glow-fill-blend);
+  opacity: calc(var(--fill-strength, 0) * var(--glow-fill-opacity));
 }
 
 /* The countdown line along a notice's bottom edge. Draining it is the engine's

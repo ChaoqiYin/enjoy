@@ -1,0 +1,27 @@
+Enjoy — third-party notices
+===========================
+
+Enjoy itself is MIT licensed. See LICENSE. Copyright (c) 2026 ChaoqiYin.
+
+Two files under `frontend/src/shared/ui/` are not original to this repository.
+They are copies, modified, of components published by the react-bits project,
+which carries its own licence. They stay under that licence and are **not**
+covered by this repository's MIT licence.
+
+react-bits — https://github.com/DavidHDev/react-bits
+Copyright (c) 2026 David Haz
+MIT License plus the Commons Clause License Condition v1.0.
+
+  frontend/src/shared/ui/border-glow.tsx
+      from src/ts-tailwind/Components/BorderGlow/BorderGlow.tsx
+
+  frontend/src/shared/ui/rubber-segment.tsx
+      from src/ts-tailwind/Micro/RubberSegment/RubberSegment.tsx
+
+They have been modified for this application. Their own headers list what was
+changed and why, and the reasoning is recorded under `docs/adr/`.
+
+The Commons Clause condition forbids selling, sublicensing or redistributing
+the component itself. It does not restrict this application's use of it: using
+it as part of an application, commercial use included, is what that clause
+permits.

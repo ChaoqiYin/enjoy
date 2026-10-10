@@ -91,12 +91,12 @@ export function SharePage() {
   const copyText = (text: string) => void copy(text);
   return (
     <PageFrame>
-      {/* The page's name, and the one action that is the page's own: starting and
-          ending the service, which no listing draws. Beside it are the same four
-          controls every listing is read by, asked of this route's list. */}
+      {/* The one action that is the page's own: starting and ending the service,
+          which no listing draws. It sits among the four controls every listing is
+          read by, asked of this route's list — the bar is where a page says what
+          it does, and this page's answer is one button. */}
       <LibraryToolbar
         {...view.toolbarProps}
-        title={t('sharing')}
         actions={
           <Button
             variant={running ? 'secondary' : 'primary'}

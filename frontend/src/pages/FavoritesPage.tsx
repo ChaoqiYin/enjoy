@@ -9,7 +9,7 @@ export function FavoritesPage() {
 
   return (
     <PageFrame>
-      <LibraryToolbar {...view.toolbarProps} title={t('favorites')} />
+      <LibraryToolbar {...view.toolbarProps} />
       <VideoPageContent
         view={view}
         listLabel={t('favorites')}

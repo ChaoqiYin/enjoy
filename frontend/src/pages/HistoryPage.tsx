@@ -9,7 +9,7 @@ export function HistoryPage() {
 
   return (
     <PageFrame>
-      <LibraryToolbar {...view.toolbarProps} title={t('history')} />
+      <LibraryToolbar {...view.toolbarProps} />
       <VideoPageContent
         view={view}
         listLabel={t('history')}
