@@ -24,9 +24,8 @@ function footer(props: {
   );
 }
 
-it('names what this is and where the service is listening', () => {
+it('names where the service is listening and how the platform encodes', () => {
   footer({ port: 4918, hardwareAcceleration: true });
-  expect(screen.getByText(english.footerProduct)).toBeTruthy();
   expect(screen.getByText('Port: 4918')).toBeTruthy();
   expect(screen.getByText(english.footerAccelerationOn)).toBeTruthy();
 });

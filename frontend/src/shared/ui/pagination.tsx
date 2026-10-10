@@ -44,22 +44,20 @@ export function Pagination({
   const { t } = useTranslation();
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   // One page is not a choice, and the count of records is already on the
-  // toolbar; a footer that only says "1" is furniture.
+  // toolbar; a footer that only says "1" is furniture. The count is why there is
+  // no range line either: "showing 1–24 of 48" beside a list whose heading
+  // already says how much it holds, over a row of page numbers that already says
+  // how far it goes, is the same fact written three times.
   if (pageCount <= 1) return null;
-  const from = (page - 1) * pageSize + 1;
-  const to = Math.min(total, page * pageSize);
   return (
     <nav
       aria-label={t('pagination')}
       data-slot="pagination"
       className={cn(
-        'flex flex-col items-center justify-between gap-4 border-t border-border pt-4 sm:flex-row',
+        'flex items-center justify-end gap-4 border-t border-border pt-4',
         className,
       )}
     >
-      <p className="text-sm text-muted-foreground tabular-nums">
-        {t('paginationSummary', { from, to, total })}
-      </p>
       <div className="flex items-center gap-2">
         <Button
           variant="outline"

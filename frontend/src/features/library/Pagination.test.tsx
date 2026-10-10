@@ -29,13 +29,6 @@ function footer({
   );
 }
 
-it('says which slice of the list is on screen', () => {
-  render(footer({ index: 1, total: 60 }));
-  // The range is named over the whole list, which only the backend knows the
-  // size of (ADR 0016): the second page of 24 is records 25 to 48.
-  expect(screen.getByText('Showing 25–48 of 60')).toBeTruthy();
-});
-
 it('asks for the page that was picked', () => {
   const onPageChange = vi.fn();
   render(footer({ index: 1, total: 60, onPageChange }));
@@ -64,18 +57,17 @@ it('marks the page being read', () => {
 
 it('offers no pages in a list that fits on one', () => {
   render(footer({ total: 24 }));
-  // Nothing else to read: a footer whose only page is this one is furniture, and
-  // a range would repeat what the toolbar already says about the whole list.
-  expect(screen.queryByText(/^Showing/)).toBeNull();
+  // Nothing else to read: a footer whose only page is this one is furniture.
+  expect(screen.queryByRole('navigation')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
 });
 
 it('offers no pages beyond the end of the list', () => {
   // An index past the end is clamped before it reaches this footer (`useLibrary`,
   // `clampPage`), which leaves the one index that is past the end of every
-  // possible list: the first page of one holding nothing. A footer there would
-  // name a range that runs backwards, so it says nothing at all.
+  // possible list: the first page of one holding nothing, where there is nothing
+  // to page through at all.
   render(footer({ index: 0, total: 0 }));
-  expect(screen.queryByText(/^Showing/)).toBeNull();
+  expect(screen.queryByRole('navigation')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
 });

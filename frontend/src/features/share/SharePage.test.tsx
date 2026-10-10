@@ -278,15 +278,7 @@ it('offers the rest of the 共享清单 when there is more of it than this page'
   backend(invoke, { share_status: status() });
   page();
   expect(
-    await screen.findByText(
-      english.paginationSummary
-        .replace('{{from}}', '1')
-        .replace('{{to}}', '24')
-        .replace('{{total}}', '48'),
-    ),
-  ).toBeTruthy();
-  expect(
-    screen.getByRole('button', { name: english.paginationNext }),
+    await screen.findByRole('button', { name: english.paginationNext }),
   ).toBeTruthy();
 });
 
