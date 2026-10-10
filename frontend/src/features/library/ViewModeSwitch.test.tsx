@@ -59,6 +59,25 @@ it('marks the shape the list is being read in', () => {
   ).toBe('false');
 });
 
+it('draws the chosen segment as chosen, under the prompt', () => {
+  // The segment draws itself as chosen through `data-state="on"` rather than
+  // through its name (see `shared/ui/toggle-group`), and Radix writes its own
+  // `data-state` — the prompt's, always `closed` — onto whatever element its
+  // trigger slotted onto, after the props it was handed. So the prompt's state
+  // was the last word and the chosen segment was drawn as though nothing were
+  // chosen. `aria-checked` does not catch this: it stayed right the whole time
+  // the styling was wrong.
+  modes({ value: 'table' });
+  expect(
+    screen
+      .getByRole('radio', { name: 'Table view' })
+      .getAttribute('data-state'),
+  ).toBe('on');
+  expect(
+    screen.getByRole('radio', { name: 'Grid view' }).getAttribute('data-state'),
+  ).toBe('off');
+});
+
 it('reports the shape that was picked', () => {
   const onChange = vi.fn();
   modes({ onChange });
