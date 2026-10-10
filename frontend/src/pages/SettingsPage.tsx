@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FolderOpen, Layers, Palette, RefreshCw } from 'lucide-react';
+import { FolderOpen, Layers, Palette } from 'lucide-react';
 import packageInfo from '../../../package.json';
 import { LanguageSetting } from '../i18n/LanguageSetting';
 import { ThemeSetting } from '../theme/ThemeSetting';
@@ -51,29 +51,19 @@ export function SettingsPage() {
   // holds no state that depends on their identity.
   const items: SettingsEntry[] = [
     {
-      label: t('settingsGeneral'),
-      value: 'general',
-      children: [
-        {
-          value: 'appearance',
-          label: t('settingsAppearance'),
-          icon: <Palette aria-hidden="true" />,
-        },
-        {
-          value: 'spaces',
-          label: t('spaces'),
-          icon: <Layers aria-hidden="true" />,
-        },
-        {
-          value: 'update',
-          label: t('updateTitle'),
-          icon: <RefreshCw aria-hidden="true" />,
-        },
-      ],
+      value: 'appearance',
+      label: t('settingsGeneralPanel'),
+      icon: <Palette aria-hidden="true" />,
+    },
+    {
+      value: 'spaces',
+      label: t('spaces'),
+      icon: <Layers aria-hidden="true" />,
     },
     {
       label: t('settingsFolders'),
       value: 'folders',
+      icon: <FolderOpen aria-hidden="true" />,
       // What the entry has to report about itself: how many folders this space
       // is indexed from, and nothing when there are none.
       badge: folders.length > 0 ? folders.length : undefined,
@@ -98,21 +88,17 @@ export function SettingsPage() {
         </div>
         <ScrollViewport className="min-h-0 flex-1 space-y-6">
           {panel === 'appearance' && (
-            <SettingsSection icon={Palette} title={t('settingsAppearance')}>
+            <SettingsSection icon={Palette} title={t('settingsGeneralPanel')}>
               <div className="space-y-6">
                 <LanguageSetting />
                 <ThemeSetting />
+                <UpdateSetting />
               </div>
             </SettingsSection>
           )}
           {panel === 'spaces' && (
             <SettingsSection icon={Layers} title={t('spaces')}>
               <SpaceSetting />
-            </SettingsSection>
-          )}
-          {panel === 'update' && (
-            <SettingsSection icon={RefreshCw} title={t('updateTitle')}>
-              <UpdateSetting />
             </SettingsSection>
           )}
           {panel === 'folders' && (

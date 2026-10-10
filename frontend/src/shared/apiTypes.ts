@@ -206,7 +206,7 @@ export interface Device {
  */
 export interface SettingsState {
   language: 'system' | 'zh-CN' | 'en';
-  theme: 'system' | 'light' | 'dark';
+  theme: 'light' | 'dark';
 }
 
 /**

@@ -1,30 +1,34 @@
-import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MonitorSmartphone, Moon, Sun } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { RubberSegment } from '../shared/ui/rubber-segment';
 import { useCommand } from '../shared/useCommand';
 import { useSettings } from '../settings/SettingsProvider';
 
-export type ThemePreference = 'system' | 'light' | 'dark';
+export type ThemePreference = 'light' | 'dark';
 const key = 'enjoy-theme';
 
 function applyTheme(value: ThemePreference) {
-  const dark =
-    value === 'dark' ||
-    (value === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.documentElement.dataset.theme = value;
 }
 
+/**
+ * What the document is drawn in before anything has been read.
+ *
+ * Nothing usable in storage means dark, and `system` counts as nothing usable
+ * now that there are two themes: a machine whose last choice was "follow the
+ * system" comes out dark rather than staying on whatever the system happens to
+ * be. The backend gives the same answer for the same stored value — the theme
+ * it holds as its default is the other half of this pair.
+ */
 export function initializeTheme() {
-  const saved = localStorage.getItem(key) as ThemePreference | null;
-  applyTheme(saved === 'light' || saved === 'dark' ? saved : 'system');
+  const saved = localStorage.getItem(key);
+  applyTheme(saved === 'light' ? 'light' : 'dark');
 }
 
-/** The three choices, in the order the drawings put them. */
+/** The two choices, in the order the drawings put them. */
 const options: { value: ThemePreference; label: string; icon: LucideIcon }[] = [
-  { value: 'system', label: 'system', icon: MonitorSmartphone },
   { value: 'light', label: 'lightTheme', icon: Sun },
   { value: 'dark', label: 'darkTheme', icon: Moon },
 ];
@@ -39,12 +43,6 @@ export function ThemeSetting() {
     dismissFailure,
     run,
   } = useCommand<ThemePreference>();
-  useEffect(() => {
-    const media = matchMedia('(prefers-color-scheme: dark)');
-    const update = () => preference === 'system' && applyTheme(preference);
-    media.addEventListener('change', update);
-    return () => media.removeEventListener('change', update);
-  }, [preference]);
   // The theme is applied only once it has been stored, and that order is
   // inside the action: applying it first and saving afterwards would leave the
   // document themed one way and the stored preference another when the save
