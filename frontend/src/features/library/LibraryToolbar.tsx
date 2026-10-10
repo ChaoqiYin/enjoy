@@ -9,10 +9,9 @@ import { SORT_ORDER_LABELS, SORT_ORDERS } from './listing';
 import type { SortOrder, ViewMode } from './listing';
 
 export type LibraryToolbarProps = {
-  /** The page's own name — 视频库, 收藏, 最近播放 — which each page knows and this
-   *  control does not. */
-  title: string;
-  /** What the page does besides reading a list, drawn beside the title. */
+  /** What the page does besides reading a list. It is drawn inside the bar,
+   *  between the filters and the view mode, so that it reads as one group in a
+   *  row of groups rather than as a second row above them. */
   actions?: ReactNode;
   /** The folders the list can be narrowed to, as the backend stores them. */
   folders: string[];
@@ -32,9 +31,14 @@ export type LibraryToolbarProps = {
 };
 
 /**
- * The bar a listing is read from: its name, what else the page does, and the four
- * ways to narrow or reshape the records under it — a search, a folder, an order
- * and a shape.
+ * The bar a listing is read from: what else the page does, and the four ways to
+ * narrow or reshape the records under it — a search, a folder, an order and a
+ * shape.
+ *
+ * The bar is the top of the page. It used to hang below a title line that named
+ * the page and held the page's actions beside it; the name was the navigation's
+ * to say (the entry the header marks as current) and the actions were a group of
+ * one more kind sitting in this row, so both moved rather than stayed.
  *
  * It holds no state and asks for nothing. Every control is handed its value and
  * reports a change upwards, and which listing that change belongs to is the
@@ -51,7 +55,6 @@ export type LibraryToolbarProps = {
  * the query can name, and it is drawn in the words `SORT_ORDER_LABELS` gives it.
  */
 export function LibraryToolbar({
-  title,
   actions,
   folders,
   search,
@@ -68,19 +71,9 @@ export function LibraryToolbar({
   const { t } = useTranslation();
   return (
     <div className={className}>
-      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <h1 className="flex min-h-10 items-center text-3xl font-bold">
-          {title}
-        </h1>
-        {actions && (
-          <div className="flex min-h-10 items-center gap-2 sm:justify-end">
-            {actions}
-          </div>
-        )}
-      </div>
       <div
         data-slot="library-toolbar"
-        className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3"
+        className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3"
       >
         <SearchInput
           value={search}
@@ -117,6 +110,7 @@ export function LibraryToolbar({
           className="hidden h-6 w-px bg-border sm:block"
           aria-hidden="true"
         />
+        {actions}
         <ViewModeSwitch
           value={viewMode}
           onChange={onViewModeChange}

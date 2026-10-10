@@ -81,6 +81,20 @@ it('keeps the entries links that navigate rather than action buttons', () => {
   }
 });
 
+it('gives every entry an icon that stays out of its name', () => {
+  header();
+  // The prototype's header is words alone, so the icons are an addition (ADR
+  // 0024). What has to hold either way is that they are decoration: an icon
+  // carrying a name of its own would be read into the entry's accessible name,
+  // and these entries are found by that name — here and in `routes.test.tsx`,
+  // which drives the whole app by clicking them.
+  for (const label of entries) {
+    const entry = navEntry(label);
+    expect(entry.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1);
+    expect(entry.textContent).toBe(label);
+  }
+});
+
 it('names the navigation for a reader that cannot see the row', () => {
   header();
   expect(screen.getByRole('navigation').getAttribute('aria-label')).toBe(

@@ -13,9 +13,16 @@ import { cn } from './cn';
  * `orientation` is the same prop Radix takes and reaches no further: it decides
  * which arrow keys move, and Radix writes it onto the list as
  * `aria-orientation`, so the layout below keys off `data-orientation` rather
- * than restating the prop. The strip is drawn as an underline, matching the
- * prototype's nav and settings rails; a vertical strip puts the rule on its
- * left edge and stacks.
+ * than restating the prop. A vertical strip is drawn as an underline on its
+ * left edge and stacks, matching the prototype's settings rail, and that rule
+ * is this file's.
+ *
+ * The horizontal strip's mark is the caller's, and it is not laziness: the mark
+ * that belongs on a horizontal strip slides between entries, and the only thing
+ * that can be told to slide is one that knows which entry is current. Radix
+ * keeps that in the DOM, as `data-state` — a trigger cannot read it about
+ * itself in React, and no prop here would reach it. `MainNav` knows the route
+ * and draws the underline; see there.
  */
 
 export function Tabs(props: ComponentProps<typeof TabsPrimitive.Root>) {
@@ -55,9 +62,6 @@ export function TabsTrigger({
         // buttons carry, or a keyboard user cannot see where they are.
         'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         'data-[state=active]:text-foreground',
-        'data-[state=active]:data-[orientation=horizontal]:border-b-2',
-        'data-[state=active]:data-[orientation=horizontal]:border-primary',
-        'data-[state=active]:data-[orientation=horizontal]:shadow-[0_0_12px_var(--glow)]',
         'data-[state=active]:data-[orientation=vertical]:border-l-2',
         'data-[state=active]:data-[orientation=vertical]:border-primary',
         'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',

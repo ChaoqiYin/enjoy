@@ -80,9 +80,15 @@ it('sizes the grid from the width it is given rather than from the viewport', ()
   // freeze at three however wide the window was (ADR 0019). jsdom lays nothing
   // out, so the class is the whole of what can be asserted here; the counts
   // themselves are checked against a real layout.
-  const grid = screen.getAllByRole('article')[0].parentElement as HTMLElement;
+  // Found rather than walked to: the card has worn a `BorderGlow` wrapper since
+  // ADR 0021, so its parent is that wrapper's content box and the grid is two
+  // levels further up. Naming the grid by its own column class keeps this about
+  // the grid instead of about how deep a card happens to sit.
+  const grid = screen
+    .getAllByRole('article')[0]
+    .closest('[class*="grid-cols-"]') as HTMLElement;
   expect(grid.className).toContain(
-    'repeat(auto-fill,minmax(min(240px,100%),1fr))',
+    'repeat(auto-fill,minmax(min(200px,100%),1fr))',
   );
   expect(grid.className).not.toMatch(/(^|\s)(sm|lg|xl|2xl):grid-cols-/);
 });

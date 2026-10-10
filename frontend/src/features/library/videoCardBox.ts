@@ -25,16 +25,27 @@
 export const pictureClass = 'aspect-video';
 
 /**
- * Room the scroll viewport keeps on its start edge, so the hover feedback of the
- * first row and first column is not clipped flat at the padding box. It has to
- * cover `4px lift + 1% of the card's height` at the top edge and `1% of the
- * column width + 4px of shadow spill` at the left. The worst layout is a single
- * column, and the columns are sized from the content width with a 240px floor
- * (ADR 0019): one column is what is left below two columns and their gap, so it
- * stops just under 496 wide and the left edge needs `0.01 × 496 + 4 ≈ 9px`.
- * Pixels rather than the rem scale: what has to be covered comes from the card's
- * size, and `html { font-size: 14px }` makes `0.5rem` 7px here — measured too
- * small for that layout. Full table: ADR 0008.
+ * Room the scroll viewport keeps on its start edge, so the border glow of the
+ * first row and first column is not clipped flat at the padding box.
+ *
+ * It is `glowRadius`, and that is the whole of it: the card's glow is thrown
+ * 10px past it on every side (`border-glow.tsx`), and the clip around the cards
+ * is the only thing that can cut it, so the room is that reach. It used to be
+ * argued from the hover lift — `4px lift + 1% of the card's height` at the top,
+ * `1% of the column width + 4px of shadow spill` at the left — and both of
+ * those are gone: the card does not lift (ADR 0021) and the shadow it spilled
+ * was replaced by the glow.
+ *
+ * The end edge needs none of this: `.scroll-viewport` keeps a flat 20px there,
+ * twice this reach, and flat is the point — a gap that shrank as the scrollbar
+ * widened was how the last column's glow came to be scrollable overflow. The
+ * bottom edge has nothing, and is
+ * the one place a glow still ends in a straight line — the last row of a list
+ * scrolled to its end — because room below it would come out of the page's own
+ * layout rather than out of the clip.
+ *
+ * Pixels rather than the rem scale: what has to be covered comes from the
+ * glow's radius, which is written in pixels. Full table: ADR 0008.
  */
 export const hoverRoom = 10;
 

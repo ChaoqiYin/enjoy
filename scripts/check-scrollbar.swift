@@ -42,14 +42,23 @@ final class ScrollbarCheck: NSObject, WKNavigationDelegate {
           const style = getComputedStyle(viewport);
           const gutter = viewport.offsetWidth - viewport.clientWidth;
           const padding = parseFloat(style.paddingInlineEnd);
-          const reserved = gutter + padding;
+          // The padding is the gap between the last column and the scrollbar,
+          // and it is the whole of that gap: `clientWidth` is already net of the
+          // scrollbar, so nothing is measured across it and nothing is taken off
+          // this value for its sake. `gutter + padding`, which this asserted
+          // before, held at 20 while the cards sat 5px from a 15px scrollbar —
+          // and the glow thrown 10px past them then became scrollable overflow,
+          // which `noSideScroll` is here to catch.
           const result = {
             supported: CSS.supports('scrollbar-gutter', 'stable'),
-            gutter, padding, reserved,
+            gutter, padding,
             contentWidth: content.getBoundingClientRect().width,
             viewportWidth: viewport.getBoundingClientRect().width,
             rootOverflow: document.documentElement.scrollHeight > innerHeight,
-            passed: Math.abs(reserved - 20) < 1 && style.scrollbarGutter === 'stable'
+            noSideScroll: viewport.scrollWidth <= viewport.clientWidth,
+            passed: Math.abs(padding - 20) < 1 &&
+              style.scrollbarGutter === 'stable' &&
+              viewport.scrollWidth <= viewport.clientWidth
           };
           return result;
         })()

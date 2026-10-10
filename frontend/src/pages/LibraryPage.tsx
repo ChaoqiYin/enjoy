@@ -21,9 +21,9 @@ export function LibraryPage() {
     <PageFrame>
       <LibraryToolbar
         {...view.toolbarProps}
-        title={t('library')}
         actions={
           <DirectoryActions
+            iconOnly
             busy={busy}
             onAdd={onAdd}
             onRescan={() => {
