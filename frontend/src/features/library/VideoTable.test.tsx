@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -106,6 +112,25 @@ it('writes every fact of the record into its row', () => {
     english.removeIndex,
   ]) {
     expect(screen.getByRole('button', { name })).toBeTruthy();
+  }
+});
+
+it('says the whole path from the whole cell the pointer sweeps over', () => {
+  vi.useFakeTimers();
+  try {
+    table();
+    const cell = screen.getByText(video.path).closest('td') as HTMLElement;
+    // The trigger is the cell, not the text inside it: pointing anywhere in it
+    // opens the prompt, which is what keeps it reachable across a row's width.
+    fireEvent.pointerMove(cell);
+    // A whole column of paths is swept through when a user reads down the table,
+    // so the words are held back — a moment's pause, not a flash per row.
+    act(() => vi.advanceTimersByTime(500));
+    expect(screen.queryByRole('tooltip')).toBeNull();
+    act(() => vi.advanceTimersByTime(300));
+    expect(screen.getByRole('tooltip').textContent).toBe(video.path);
+  } finally {
+    vi.useRealTimers();
   }
 });
 

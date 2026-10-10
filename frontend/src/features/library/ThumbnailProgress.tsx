@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { ScanStatus } from '../../shared/api';
 import { displayPath } from '../../shared/format';
+import { Tooltip } from '../../shared/Tooltip';
 import { Button } from '../../shared/ui/button';
 import { Progress } from '../../shared/ui/progress';
 import { Spinner } from '../../shared/ui/spinner';
@@ -69,9 +70,12 @@ export function ThumbnailProgress({
       ) : (
         <Spinner aria-hidden="true" />
       )}
-      <p className="truncate" title={current}>
-        {current}
-      </p>
+      {/* The row is truncated, so the prompt completes it. It is anchored on the
+          text line itself (`asChild`) and waits, like the native title it
+          replaces, rather than answering the moment the pointer crosses it. */}
+      <Tooltip asChild text={current} delayDuration={700}>
+        <p className="truncate">{current}</p>
+      </Tooltip>
       <div className="flex flex-wrap items-center gap-3">
         <Button
           size="lg"

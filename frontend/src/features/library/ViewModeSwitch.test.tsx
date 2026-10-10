@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from '@testing-library/react';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -74,6 +80,22 @@ it('stays in the chosen shape when it is picked again', () => {
       .getByRole('radio', { name: 'Grid view' })
       .getAttribute('aria-checked'),
   ).toBe('true');
+});
+
+it('says which shape each segment gives, in the app’s own words', () => {
+  modes();
+  // The segments are glyphs, so the words are read by the pointer and the
+  // keyboard both: the tooltip is anchored on the segment itself, and Radix
+  // opens it when the segment is reached by focus as well as by pointer. The
+  // `sr-only` name is kept beside it — the prompt does not replace the name a
+  // reader hears, it is the same sentence for the eye.
+  const grid = screen.getByRole('radio', { name: 'Grid view' });
+  // The prompt is anchored on the segment itself — the segment is what opens it
+  // on focus, which a wrapper element could not be made to do from here.
+  act(() => grid.focus());
+  expect(screen.getByRole('tooltip').textContent).toBe('Grid view');
+  // The name a reader hears is untouched: it is still the segment's own.
+  expect(grid.textContent).toBe('Grid view');
 });
 
 it('will not be reshaped while it is disabled', () => {

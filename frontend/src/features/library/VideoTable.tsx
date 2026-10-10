@@ -142,13 +142,16 @@ export function VideoTable({
             {/* The full path rather than the folder: the path is the fact and
                 the folder is its beginning, and a path is what a user copies
                 out of here. It is the one column allowed to be long, so it is
-                the one that is told where to stop. */}
-            <TableCell
-              className="max-w-[24rem] truncate"
-              title={displayPath(video.path)}
-            >
-              <span className="tabular-nums">{displayPath(video.path)}</span>
-            </TableCell>
+                the one that is told where to stop — and the prompt that gives
+                the whole of it back is anchored on the cell (`asChild`), so the
+                trigger spans the row's width rather than the text inside it.
+                It waits, because a whole column of paths is swept through when
+                the table is read down. */}
+            <Tooltip asChild text={displayPath(video.path)} delayDuration={700}>
+              <TableCell className="max-w-[24rem] truncate">
+                <span className="tabular-nums">{displayPath(video.path)}</span>
+              </TableCell>
+            </Tooltip>
             <TableCell className="text-end">
               {/* No play here: the overlay on the picture carries it in the two
                   views that draw one, and this one has no picture, so the play

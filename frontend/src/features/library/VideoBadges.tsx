@@ -1,6 +1,7 @@
 import { Share2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Video } from '../../shared/api';
+import { Tooltip } from '../../shared/Tooltip';
 import { Badge } from '../../shared/ui/badge';
 import { cn } from '../../shared/ui/cn';
 
@@ -66,15 +67,20 @@ export function VideoBadges({
         // pair, so the edge holds in both themes over a picture of any
         // brightness. The daisyUI chip this replaced thinned its fill to 80%
         // for the same reason, and that thinning is not what carries it here.
-        <Badge
-          className={cn(corner, 'end-2')}
-          variant="share"
-          role="img"
-          aria-label={shared}
-          title={shared}
-        >
-          <Share2 size={12} aria-hidden="true" />
-        </Badge>
+        //
+        // The meaning is on the prompt now rather than the browser's title: the
+        // badge itself is the trigger (`asChild`), and the words are the same
+        // ones its name carries, so the pointer and the reader are told alike.
+        <Tooltip text={shared} asChild>
+          <Badge
+            className={cn(corner, 'end-2')}
+            variant="share"
+            role="img"
+            aria-label={shared}
+          >
+            <Share2 size={12} aria-hidden="true" />
+          </Badge>
+        </Tooltip>
       )}
     </>
   );
