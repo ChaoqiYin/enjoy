@@ -59,7 +59,10 @@ export function TabsTrigger({
         // The strip removes the browser's outline, and the underline it draws
         // on the current entry is about the route, not about the keyboard. So
         // the entry has to paint its own focus marker, the same ring the
-        // buttons carry, or a keyboard user cannot see where they are.
+        // buttons carry, or a keyboard user cannot see where they are. That is
+        // the default; the header's navigation asks for the opposite and takes
+        // this ring back off through `className`, which is the merge `cn` is
+        // here for. See `MainNavItem`.
         'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
         'data-[state=active]:text-foreground',
         'data-[state=active]:data-[orientation=vertical]:border-l-2',

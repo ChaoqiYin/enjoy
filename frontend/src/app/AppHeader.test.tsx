@@ -108,16 +108,22 @@ it('names the navigation for a reader that cannot see the row', () => {
   );
 });
 
-it('paints a focus ring on the entry the keyboard lands on', () => {
+it('keeps the entries out of the keyboard order, and draws no ring on them', () => {
   header();
-  // The strip takes the browser's own outline away (`outline-none`) and shows
-  // which entry is current with an underline, which says nothing about where
-  // the keyboard is: the current entry and the focused one are different
-  // entries. So each entry draws its own ring, the same one the buttons carry,
-  // or a keyboard user cannot see where they are.
+  // The row is the mouse's way in. Radix focuses an entry from `mousedown` and
+  // Chromium reads a script's `focus()` as keyboard focus, so the ring the
+  // primitive wears for the keyboard is painted on every click — a keyboard
+  // marker raised by the pointer. Two things keep it off, and they are not the
+  // two a first reading expects: a strip's tab stop is the **list**, not any
+  // entry (every trigger is `tabIndex={-1}` on its own), so the `-1` that
+  // keeps the keyboard out lives on the tablist; and the ring is merged away in
+  // `TabsTrigger`'s `className`. The cost — the keyboard cannot reach the row —
+  // is a decision `MainNav` states outright rather than a side effect, and this
+  // is where it is held to: a ring or a tab stop cannot come back unnoticed.
+  expect(screen.getByRole('tablist').tabIndex).toBe(-1);
   const entry = navEntry(english.history);
-  expect(entry.classList.contains('focus-visible:ring-2')).toBe(true);
-  expect(entry.classList.contains('focus-visible:ring-ring')).toBe(true);
+  expect(entry.classList.contains('focus-visible:ring-2')).toBe(false);
+  expect(entry.classList.contains('focus-visible:ring-offset-2')).toBe(false);
 });
 
 it('says the sharing state in words, in both states', () => {

@@ -38,6 +38,14 @@ const entries = [
  * The row is always shown, unlike the prototype's `hidden md:flex`: the narrow
  * width's substitute for it does not exist yet, and a navigation that is hidden
  * with nothing behind it is one the window cannot be used from.
+ *
+ * The row is out of the keyboard's order. Radix's tab stop for a strip is the
+ * list itself and not any entry — every trigger is `tabIndex={-1}` on its own,
+ * which is why the `-1` here looks pointless and is not: it lands on `TabsList`.
+ * The cost is stated rather than implied: the keyboard cannot reach this row at
+ * all. It is the mouse's way in, the entries are marked with `aria-current` for
+ * a reader, and the ring that would say where the keyboard is has nowhere to
+ * stand because the keyboard does not go there; `MainNavItem` says the rest.
  */
 export function MainNav() {
   const { t } = useTranslation();
@@ -45,7 +53,10 @@ export function MainNav() {
   return (
     <nav aria-label={t('nav')} className="flex h-full flex-1">
       <Tabs value={pathname} className="h-full">
-        <TabsList className="h-full w-auto gap-2 border-0 data-[orientation=horizontal]:border-b-0">
+        <TabsList
+          tabIndex={-1}
+          className="h-full w-auto gap-2 border-0 data-[orientation=horizontal]:border-b-0"
+        >
           {entries.map((entry) => (
             <MainNavItem
               key={entry.to}
@@ -90,6 +101,17 @@ export function MainNav() {
  * `[&_svg]` rules the buttons and badges do, and a squeezed icon is a distorted
  * one. The space between it and the words is the trigger's own `gap-1.5`, which
  * has been sitting there unused.
+ *
+ * The entry takes the primitive's focus ring off. Radix focuses the entry from
+ * `mousedown` and Chromium reads a script's `focus()` as keyboard focus, so the
+ * ring meant for the keyboard is drawn on every click — a box on the row that
+ * is supposed to have none. The two classes go through `TabsTrigger`'s own
+ * `className` rather than the anchor's because `cn` merges them there, over the
+ * primitive's `ring-2`; put on the anchor they would sit *beside* the
+ * primitive's and the winner would come down to the order Tailwind emitted the
+ * two in. The `outline-none` the request also names is already the primitive's,
+ * so there is nothing to add for it. What removing the ring costs the keyboard
+ * is `MainNav`'s to say, and it says it.
  */
 export function MainNavItem({
   to,
@@ -104,7 +126,11 @@ export function MainNavItem({
 }) {
   const reduceMotion = useReducedMotion();
   return (
-    <TabsTrigger asChild value={to}>
+    <TabsTrigger
+      asChild
+      value={to}
+      className="focus-visible:ring-0 focus-visible:ring-offset-0"
+    >
       <NavLink
         to={to}
         end
