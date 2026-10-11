@@ -32,8 +32,10 @@ export function SettingsSection({
     <Card>
       <CardHeader className="gap-2 border-b border-border pb-4">
         {/* An `h2` rather than the card's own title: the page is a stack of
-            these, so the rail names the page and each block is a section under
-            it, which is what a reader walking the outline is given. */}
+            these, so each block is a section of it, which is what a reader
+            walking the outline is given. The page draws no heading of its own —
+            the header's navigation names it — so these are as high as the
+            outline goes here. */}
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Icon size={18} aria-hidden="true" />
           {title}

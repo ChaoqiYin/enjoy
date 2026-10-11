@@ -144,9 +144,9 @@ it('renders independent pages with shared navigation and page-specific actions',
   navigate(english.history);
   expect(screen.getByText(english.emptyHistory)).toBeTruthy();
   navigate(english.settings);
-  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(
-    english.settings,
-  );
+  // The settings page draws no title of its own either, so the route is read
+  // off what only this page has: the rail, named for the page it is the rail of.
+  expect(screen.getByRole('list', { name: english.settings })).toBeTruthy();
   expect(screen.queryByPlaceholderText(english.searchPlaceholder)).toBeNull();
   // Folder management is its own section of the settings page now, so it is
   // reached by choosing it from the rail rather than by scrolling to it.

@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderOpen, Layers, Palette } from 'lucide-react';
-import packageInfo from '../../../package.json';
 import { LanguageSetting } from '../i18n/LanguageSetting';
 import { ThemeSetting } from '../theme/ThemeSetting';
 import { ScrollViewport } from '../shared/ScrollViewport';
-import { Badge } from '../shared/ui/badge';
 import type { SettingsEntry } from '../features/settings/SettingsSidebar';
 import { SettingsSection } from '../features/settings/SettingsSection';
 import { SettingsSidebar } from '../features/settings/SettingsSidebar';
@@ -37,6 +35,16 @@ import { UpdateSetting } from '../features/update/UpdateSetting';
  * and a column that showed all three at once made the choice do nothing but
  * scroll. The rail is one level deeper than the drawings' flat list, because
  * those three belong together: they are all "General".
+ *
+ * The page draws no title of its own. A `设置` heading and the version badge sat
+ * above the rail; both are gone, and the rail now starts at the top of its
+ * column, level with the panel on the right. The heading went for the reason the
+ * listing pages gave theirs up: the header's navigation already names this page
+ * and marks it as the one on screen, so a title here was a second thing saying
+ * the same, and one that pushed the rail down out of line with what it chooses
+ * between. The version is not lost with the badge — the update block states the
+ * running version on the right, where it is the thing being acted on rather than
+ * a label on the page.
  */
 export function SettingsPage() {
   const { t } = useTranslation();
@@ -79,11 +87,7 @@ export function SettingsPage() {
   return (
     <PageFrame>
       <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
-        <div className="flex shrink-0 flex-col gap-3 lg:w-64">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold">{t('settings')}</h1>
-            <Badge variant="outline">{packageInfo.version}</Badge>
-          </div>
+        <div className="shrink-0 lg:w-64">
           <SettingsSidebar value={panel} onSelect={setPanel} items={items} />
         </div>
         <ScrollViewport className="min-h-0 flex-1 space-y-6">
