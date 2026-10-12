@@ -56,6 +56,7 @@ fn main() {
             commands::space::rename_space,
             commands::space::delete_space,
             commands::space::switch_space,
+            commands::window::show_window,
             commands::window::close_window,
             update::commands::check_for_update,
             update::commands::install_update,
@@ -88,23 +89,19 @@ fn main() {
             // needs the application data folder, which only exists once there
             // is an application to ask, so this cannot happen any earlier.
             logging::init(app.handle());
-            let result = app::initialize_backend(app.handle());
-            if let Err(error) = result {
+            // The window is created hidden (`tauri.conf.json`) and is not shown
+            // here. It is shown by the interface asking, once React has committed
+            // what will be on it (`commands::window::show_window`) — so there is
+            // no window period for a startup picture to cover, and the first
+            // visible frame is the interface itself.
+            //
+            // What that costs is the other half of the arrangement: a frontend
+            // that never comes up leaves a process with no window at all, and
+            // nothing puts one on screen. Deliberate, and recorded in ADR 0037
+            // §四. A backend that fails to come up is still reported on screen,
+            // because that report does not need this window (`i18n::native`).
+            if let Err(error) = app::initialize_backend(app.handle()) {
                 native::startup_failure(app.handle(), &error);
-                return Ok(());
-            }
-            if let Some(window) = app.get_webview_window("main") {
-                if let Err(error) = window.show() {
-                    let error = error::AppError::new("app.startup.failed", error);
-                    native::startup_failure(app.handle(), &error);
-                }
-                // macOS gives a WKWebView no context-menu entry for the Web
-                // inspector, and this app turns the default menu bar off, so a
-                // debug build would otherwise have no way to open one. The call
-                // itself only exists under `debug_assertions` (or the `devtools`
-                // feature), so release builds are unchanged.
-                #[cfg(debug_assertions)]
-                window.open_devtools();
             }
             Ok(())
         })

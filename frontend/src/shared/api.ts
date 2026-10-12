@@ -162,21 +162,32 @@ export const shareApi = {
 };
 
 /**
- * The window this interface is drawn in, asked for the one thing the 共享服务
- * needs of it: to go away once the user has said so.
+ * The window this interface is drawn in, asked for the two things it is asked of
+ * it: to appear once there is something to show, and to go away once the user has
+ * said so. Both are commands of the application's own, which is what leaves the
+ * interface needing no permission over its own window at all.
  *
  * Whether a close is held — and if so, that the user is asked first — is the
  * backend's decision, taken where the fact it rests on lives: only the backend
  * knows a service is running (`crate::closing`). It holds the close and tells
  * this side a question is due; the answer comes back here as a command, and the
  * window is closed by the side that decided it should wait. Nothing here
- * subscribes to the window or destroys it, and the interface needs no permission
- * over its own window at all.
+ * subscribes to the window or destroys it.
  *
  * The command ends the service before the window goes, which is why the answer
  * to a yes is one call rather than two.
+ *
+ * `show` is the other direction. The window is created hidden and the backend
+ * never shows it, because what its first visible frame should be — the theme,
+ * the language, the space — is a fact only this side has. It is asked from one
+ * place, `shared/WindowReveal.tsx`, on React's commit rather than on the theme
+ * having been read: reading the theme is a step towards a drawn interface, and a
+ * window shown on it would put an unstyleable page on screen. An answer that
+ * never arrives means the window never appears; there is nothing behind it
+ * putting the window up anyway (ADR 0037).
  */
 export const windowApi = {
+  show: (): Promise<void> => invoke<void>('show_window'),
   close: (): Promise<void> => invoke<void>('close_window'),
 };
 
@@ -333,6 +344,26 @@ export function readLanguage(): Promise<LanguageSettings> {
         : 'en',
     });
   return languageApi.read();
+}
+
+/**
+ * The theme, read before the interface is rendered, so that what it renders is
+ * already drawn in the right one.
+ *
+ * It answers from the same stored preference the settings page shows, and that
+ * is the whole point of it living here. The page read the preference and the
+ * startup read a browser storage key nothing has ever written, so the two
+ * disagreed for as long as the application has had two themes: the page said
+ * "light" over an application drawn dark, and stayed that way until someone
+ * clicked.
+ *
+ * With no backend, the browser answers with the theme the backend falls back to
+ * for a preference it cannot resolve — the same decision as the stand-in space
+ * and language above, made in the same place.
+ */
+export function readTheme(): Promise<SettingsState['theme']> {
+  if (!hosted()) return Promise.resolve('dark');
+  return settingsApi.read().then((settings) => settings.theme);
 }
 
 export function normalizeError(error: unknown): AppError {

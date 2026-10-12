@@ -1,30 +1,41 @@
 import { useTranslation } from 'react-i18next';
 import { Moon, Sun } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { readTheme } from '../shared/api';
 import { ErrorNotice } from '../shared/ErrorNotice';
 import { RubberSegment } from '../shared/ui/rubber-segment';
 import { useCommand } from '../shared/useCommand';
 import { useSettings } from '../settings/SettingsProvider';
 
 export type ThemePreference = 'light' | 'dark';
-const key = 'enjoy-theme';
 
 function applyTheme(value: ThemePreference) {
   document.documentElement.dataset.theme = value;
 }
 
 /**
- * What the document is drawn in before anything has been read.
+ * Draws the document in the theme the stored preference names, before the
+ * interface is rendered.
  *
- * Nothing usable in storage means dark, and `system` counts as nothing usable
- * now that there are two themes: a machine whose last choice was "follow the
- * system" comes out dark rather than staying on whatever the system happens to
- * be. The backend gives the same answer for the same stored value — the theme
- * it holds as its default is the other half of this pair.
+ * The preference is read from the backend, not from `localStorage`. It used to
+ * be `localStorage['enjoy-theme']`, a key nothing in this repository has ever
+ * written — so the read always missed, and the document came out dark whatever
+ * the settings page said. That is exactly what the two of them disagreed about:
+ * the page rendered the stored preference while the startup rendered a key
+ * nobody writes, and they agreed only after someone clicked.
+ *
+ * A failed read leaves the theme as it is. The document is already dark —
+ * `index.html` says so before any script runs, and dark is what the backend
+ * answers for a preference it cannot resolve — so there is nothing to put
+ * right, and a window is not worth refusing to open over its colour. The
+ * settings page reads the same preference again and will show what it holds.
  */
-export function initializeTheme() {
-  const saved = localStorage.getItem(key);
-  applyTheme(saved === 'light' ? 'light' : 'dark');
+export async function initializeTheme() {
+  try {
+    applyTheme(await readTheme());
+  } catch {
+    // Left as the document already has it.
+  }
 }
 
 /** The two choices, in the order the drawings put them. */

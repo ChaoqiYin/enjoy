@@ -395,6 +395,13 @@ mockIPC(
         // No space: nothing is running, and the answer says so in every field
         // the space was only ever needed for.
         return share();
+      case 'show_window':
+        // The window appearing is the other answer a page cannot be shown: in
+        // the application this is what puts the window on screen at startup, and
+        // here the page is already in one, drawn. Answered rather than left
+        // unimplemented so that a walkthrough reads the application rather than a
+        // banner about the fixture.
+        return;
       case 'close_window':
         // The window going away is the one answer a page cannot be shown: in
         // the application the backend ends the service and closes the window,
