@@ -102,6 +102,32 @@ export function MainNav() {
  * one. The space between it and the words is the trigger's own `gap-1.5`, which
  * has been sitting there unused.
  *
+ * The words are wrapped in a span so that a band of light can cross them while
+ * the pointer is on the entry (`.nav-shine`, and ADR 0026 for why it is a rule
+ * in `style.css` rather than a component here). The wrapper is not a second
+ * thing to read: it holds the label and nothing else, so the entry's accessible
+ * name is still those words — `textContent` included, which is how the header's
+ * tests hold the icons out of the name and would catch a second copy of the
+ * words going in. The class paints nothing on its own: the rule behind it is
+ * gated on the same hover, so an entry with no pointer on it is the plain label
+ * rather than a label the effect is merely not moving — which the words need,
+ * because a gradient clipped to glyphs is a thinner rendering of them even when
+ * its band is parked outside the box.
+ *
+ * `group` sits on the entry rather than on the span, for two reasons that come
+ * to the same thing: the hover target is the whole entry — the pointer is on the
+ * icon and the padding as much as on the letters, and a band that only ran when
+ * the pointer was over the glyphs would look like a miss — and it is that class
+ * the rule in `style.css` is gated on.
+ *
+ * Under the reduced-motion preference the span wears no class at all, so the
+ * entry is a plain label and the effect is absent rather than still — the rule
+ * ADR 0008 set for decoration, and the reason the branch is here rather than a
+ * `motion-reduce:` variant: this component already reads the preference for the
+ * line below, and one component keeps one source for it. What that costs is
+ * stated rather than implied: a reader who asks the system for less motion never
+ * sees the band, not even once.
+ *
  * The entry takes the primitive's focus ring off. Radix focuses the entry from
  * `mousedown` and Chromium reads a script's `focus()` as keyboard focus, so the
  * ring meant for the keyboard is drawn on every click — a box on the row that
@@ -135,14 +161,20 @@ export function MainNavItem({
         to={to}
         end
         aria-current={isActive ? 'page' : undefined}
-        className="relative h-full px-3"
+        className="group relative h-full px-3"
       >
         <Icon
           size={14}
           aria-hidden="true"
           className="pointer-events-none shrink-0"
         />
-        {label}
+        <span
+          className={
+            reduceMotion ? undefined : 'nav-shine group-hover:animate-nav-shine'
+          }
+        >
+          {label}
+        </span>
         {isActive && (
           <motion.span
             aria-hidden="true"

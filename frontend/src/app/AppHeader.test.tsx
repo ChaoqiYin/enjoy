@@ -101,6 +101,30 @@ it('gives every entry an icon that stays out of its name', () => {
   }
 });
 
+it('wraps the words of every entry in a layer that only moves under a pointer', () => {
+  header();
+  // jsdom runs no animations and computes no styles, so what is pinned here is
+  // the declaration and not the band: the class sits on the words, and the
+  // sweep is asked for by the hover variant alone, so an entry with no pointer
+  // on it is not animating. That the band then really crosses the words is the
+  // browser's half of the bargain — the same split `interface.test.tsx` draws,
+  // and ADR 0026 holds the measurements.
+  //
+  // The reduced-motion branch is not here either, and not because it was
+  // forgotten: `useReducedMotion` reads the preference once into a module-level
+  // variable the first time any hook asks for it, so a stub installed inside a
+  // test is read too late — the value was settled by the first render in this
+  // file. It is checked the way the rest of the app's reduced-motion branches
+  // are, by running the real engine with the preference forced on.
+  for (const label of entries) {
+    const words = navEntry(label).querySelector('.nav-shine');
+    expect(words?.textContent).toBe(label);
+    expect(words?.classList.contains('group-hover:animate-nav-shine')).toBe(
+      true,
+    );
+  }
+});
+
 it('names the navigation for a reader that cannot see the row', () => {
   header();
   expect(screen.getByRole('navigation').getAttribute('aria-label')).toBe(
