@@ -49,9 +49,10 @@ it('opens the repository this project is written in', () => {
 it('is a mark with a name rather than a label', () => {
   render(view());
   const button = screen.getByRole('button', { name: english.openRepository });
-  // What it is drawn as is the shape every other plain-icon control in a card
-  // here takes, and the name is the one those carry too.
-  expect(button.getAttribute('data-variant')).toBe('outline');
+  // What it is drawn as: the inverted variant, which is the circle the mark
+  // itself is drawn as, at the size every other icon button in a card here
+  // takes. The name is the one those carry too.
+  expect(button.getAttribute('data-variant')).toBe('inverse');
   expect(button.getAttribute('data-size')).toBe('icon-sm');
   // Nothing is written on it: the name is there to be read aloud, not shown.
   expect(button.textContent).toBe('');

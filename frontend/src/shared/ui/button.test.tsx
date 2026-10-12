@@ -6,6 +6,7 @@ afterEach(cleanup);
 
 const variants = [
   'primary',
+  'inverse',
   'secondary',
   'outline',
   'ghost',

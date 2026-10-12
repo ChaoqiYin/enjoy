@@ -28,6 +28,13 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        // The one variant that swaps the page's two ends: the fill is the
+        // colour text is normally drawn in, and what sits on it is the page's
+        // own. One declaration therefore reads dark-on-light in one theme and
+        // light-on-dark in the other, without either being written twice. It is
+        // for a mark that carries an identity of its own rather than this
+        // application's accent — `RepositoryLink` is the only caller.
+        inverse: 'bg-foreground text-background hover:bg-foreground/90',
         secondary:
           'bg-secondary text-secondary-foreground hover:bg-secondary/80',
         outline:

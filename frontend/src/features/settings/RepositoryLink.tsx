@@ -10,6 +10,13 @@ const repositoryUrl = 'https://github.com/ChaoqiYin/enjoy';
  * The way out to the source: one mark at the end of the 常规 block's heading,
  * and nothing else.
  *
+ * It is drawn the way the mark itself is drawn rather than the way the controls
+ * around it are: a filled circle, dark under a light mark in the light theme and
+ * light under a dark one in the dark, which is the `inverse` variant reading its
+ * two colours from the page's own and flipping with it. An `outline` button in
+ * this row would read as one more control of this application's, and this is not
+ * one — it is the mark of the place the application comes from.
+ *
  * It carries no label of its own. The address is the same for everyone and
  * never changes, so it is not a fact this page has to carry in words — and the
  * heading row it stands in is the one place in this section with room in it and
@@ -28,8 +35,9 @@ export function RepositoryLink() {
   return (
     <Tooltip text={label}>
       <Button
-        variant="outline"
+        variant="inverse"
         size="icon-sm"
+        className="rounded-full"
         aria-label={label}
         onClick={() => void openExternal(repositoryUrl)}
       >
