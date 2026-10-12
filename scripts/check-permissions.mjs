@@ -77,6 +77,11 @@ const needs = {
   },
   '@tauri-apps/plugin-opener': {
     revealItemInDir: 'opener:allow-reveal-item-in-dir',
+    // The command and its scope are two grants, and the pair is the point:
+    // `allow-open-url` names the command and carries no pre-configured scope of
+    // its own, so on its own it opens nothing — `allow-default-urls` is where
+    // `https://*` and the rest are listed.
+    openUrl: 'opener:allow-open-url',
   },
 };
 

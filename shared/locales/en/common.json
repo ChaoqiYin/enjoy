@@ -181,6 +181,7 @@
   "updateRestart": "Restart now",
   "updateRestarting": "Restarting…",
   "updateRestartBlocked": "Finish or cancel the running scan first",
+  "openRepository": "Open the GitHub repository",
   "busy": "Another media task is running",
   "pagination": "Pagination",
   "paginationPrevious": "Previous",

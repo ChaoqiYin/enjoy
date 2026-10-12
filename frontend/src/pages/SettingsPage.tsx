@@ -5,6 +5,7 @@ import { LanguageSetting } from '../i18n/LanguageSetting';
 import { ThemeSetting } from '../theme/ThemeSetting';
 import { ScrollViewport } from '../shared/ScrollViewport';
 import type { SettingsEntry } from '../features/settings/SettingsSidebar';
+import { RepositoryLink } from '../features/settings/RepositoryLink';
 import { SettingsSection } from '../features/settings/SettingsSection';
 import { SettingsSidebar } from '../features/settings/SettingsSidebar';
 import { useBusy } from '../features/library/useBusy';
@@ -92,7 +93,13 @@ export function SettingsPage() {
         </div>
         <ScrollViewport className="min-h-0 flex-1 space-y-6">
           {panel === 'appearance' && (
-            <SettingsSection icon={Palette} title={t('settingsGeneralPanel')}>
+            <SettingsSection
+              icon={Palette}
+              title={t('settingsGeneralPanel')}
+              // The way out to the source, in the heading row: it belongs to
+              // the block as a whole rather than to any one control in it.
+              action={<RepositoryLink />}
+            >
               <div className="space-y-6">
                 <LanguageSetting />
                 <ThemeSetting />

@@ -1,7 +1,7 @@
 import { convertFileSrc, invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener';
 import { open } from '@tauri-apps/plugin-dialog';
 import type {
   AppError,
@@ -248,6 +248,34 @@ export const backendEvents = {
 /** Asks the user for folders, through the platform's own picker. */
 export function pickDirectories(): Promise<string[] | null> {
   return open({ directory: true, multiple: true });
+}
+
+/**
+ * Opens a page in the browser the user already has, rather than in this window.
+ *
+ * A window is the whole of this application — the library, the space it is
+ * showing and the scan in flight are all in it — so navigating the webview to a
+ * page would put that page where all of it was, and getting back would be the
+ * browser's back button rather than anything this application draws. The
+ * address therefore goes to the platform's opener, and the browser the user
+ * already trusts the web to is what shows it.
+ *
+ * It is named here rather than left to an anchor for the same reason every
+ * other reach is: Tauri hands a `_blank` navigation to the opener only when
+ * something is there to take it, and drops it in silence otherwise — a click
+ * that does nothing, with nothing said. A call this file makes is a call
+ * `check-permissions.mjs` can hold against the capability that grants it.
+ *
+ * With no backend — the browser development build — the browser is already the
+ * thing being asked for and answers for itself. Same decision as the two reads
+ * below, made in the same place.
+ */
+export function openExternal(url: string): Promise<void> {
+  if (!hosted()) {
+    window.open(url, '_blank', 'noopener');
+    return Promise.resolve();
+  }
+  return openUrl(url);
 }
 
 /**

@@ -181,6 +181,7 @@
   "updateRestart": "立即重启",
   "updateRestarting": "正在重启…",
   "updateRestartBlocked": "请先完成或取消正在进行的扫描",
+  "openRepository": "打开 GitHub 仓库",
   "busy": "另一个媒体任务正在运行",
   "pagination": "分页",
   "paginationPrevious": "上一页",
