@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { Clapperboard, Heart, History, Settings, Share2 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -24,6 +25,56 @@ const entries = [
   { to: '/share', label: 'sharing', icon: Share2 },
   { to: '/settings', label: 'settings', icon: Settings },
 ] as const;
+
+/// How far apart two characters start their turn, and the ceiling on the whole
+/// stagger.
+///
+/// One turn is most of half a second (`--animate-nav-turn`), so the stagger is
+/// what decides how long the label spends being turned rather than being read.
+/// The gap is the short label's: "收藏" is two characters and 30ms apart they
+/// read as one movement, not as two. The ceiling is the long label's —
+/// "Recently played" is fourteen drawn characters, and at a flat 30ms the last
+/// of them would not start until 0.39s, so the label would be turning for the
+/// better part of a second every time a pointer crossed it. Nothing here is
+/// hidden while a character waits its turn (no fill mode: a character that has
+/// not started is the plain label), which is what makes a long stagger
+/// affordable at all — the waiting characters are the label, and the wave never
+/// takes the whole of it at once.
+const STAGGER_MS = 30;
+const STAGGER_CAP_MS = 240;
+
+/// Grapheme clusters rather than code points, so a character carrying a
+/// combining mark stays one piece — spread apart, the mark would be drawn in a
+/// box of its own with nothing under it.
+const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+/**
+ * A label as the pieces the hover effect turns: one per character, in the order
+ * they go, with the spaces between words left as pieces of their own.
+ *
+ * The spaces are drawn as plain text rather than in a span — they must not
+ * turn, and they must not be clipped by the mask the characters slide under.
+ * They are also left out of the count, so the characters keep a steady rhythm
+ * across a word boundary, and they carry `null` to say so. The step is capped
+ * so a long label finishes quickly (`STAGGER_MS`), and is zero for a label of
+ * one character, which has nothing to be staggered against.
+ */
+function splitLabel(label: string) {
+  const pieces: { text: string; order: number | null }[] = [];
+  let order = 0;
+  for (const { segment } of segmenter.segment(label)) {
+    if (segment.trim() === '') {
+      pieces.push({ text: segment, order: null });
+      continue;
+    }
+    pieces.push({ text: segment, order });
+    order += 1;
+  }
+  return {
+    pieces,
+    step: order < 2 ? 0 : Math.min(STAGGER_MS, STAGGER_CAP_MS / (order - 1)),
+  };
+}
 
 /**
  * Where the interface can go, and which of those places is on screen.
@@ -93,8 +144,8 @@ export function MainNav() {
  * written as a pixel because the root font size is 14px, where the `0.5` step
  * that would be the natural spelling comes out at 1.75.
  *
- * The icon is decoration and says so: the entry is named by its words, and the
- * words are the name of the place. `aria-hidden` and `pointer-events-none` are
+ * The icon is decoration and says so: the entry is named by its label, and the
+ * label is the name of the place. `aria-hidden` and `pointer-events-none` are
  * the guide's rule for a leading icon, and here they also hold the accessible
  * name to the label alone — the entries are found by that name, by a reader and
  * by the header's tests. `shrink-0` because this strip carries none of the
@@ -102,31 +153,71 @@ export function MainNav() {
  * one. The space between it and the words is the trigger's own `gap-1.5`, which
  * has been sitting there unused.
  *
- * The words are wrapped in a span so that a band of light can cross them while
- * the pointer is on the entry (`.nav-shine`, and ADR 0026 for why it is a rule
- * in `style.css` rather than a component here). The wrapper is not a second
- * thing to read: it holds the label and nothing else, so the entry's accessible
- * name is still those words — `textContent` included, which is how the header's
- * tests hold the icons out of the name and would catch a second copy of the
- * words going in. The class paints nothing on its own: the rule behind it is
- * gated on the same hover, so an entry with no pointer on it is the plain label
- * rather than a label the effect is merely not moving — which the words need,
- * because a gradient clipped to glyphs is a thinner rendering of them even when
- * its band is parked outside the box.
+ * The words are wrapped in a layer, and inside it each character is a span of
+ * its own, so that a character can be turned — lifted toward the top of the
+ * label and set back down into its own place — one at a time while the pointer
+ * is on the entry (`.nav-char`, `--animate-nav-turn`, and ADR 0027 for why the
+ * effect is a token in `style.css` rather than a component here).
  *
- * `group` sits on the entry rather than on the span, for two reasons that come
- * to the same thing: the hover target is the whole entry — the pointer is on the
- * icon and the padding as much as on the letters, and a band that only ran when
- * the pointer was over the glyphs would look like a miss — and it is that class
- * the rule in `style.css` is gated on.
+ * That layer is load-bearing rather than cosmetic. The trigger is a flex row
+ * with `gap-1.5`, and characters left as its own children would each be a flex
+ * item — the gap would open six pixels between every letter, and the space in
+ * an English label, being a whitespace-only anonymous item, would be dropped
+ * altogether: "Recently played" would read "Recentlyplayed". Held inside one
+ * layer the label is still one flex item and `gap-1.5` is still the distance to
+ * the icon. The layer must not become a flex box itself, for the same reason.
  *
- * Under the reduced-motion preference the span wears no class at all, so the
- * entry is a plain label and the effect is absent rather than still — the rule
- * ADR 0008 set for decoration, and the reason the branch is here rather than a
+ * A character has to be `inline-block` to be movable at all: a transform does
+ * not apply to a non-replaced inline box, which is what a bare span is. That is
+ * a cost paid at rest and not only while the effect runs — each character is
+ * shaped in a box of its own, so kerning and ligatures between characters are
+ * lost. None of today's labels show it (no `fi`/`fl` pair is among them, and
+ * Space Grotesk kerns nothing that appears), but the labels come from
+ * `shared/locales`, and a language added later can bring "Files"
+ * or "Profile" in with it. What the fixed boxes buy is what this effect needs:
+ * hovering reflows nothing, because the boxes are already there.
+ * `whitespace-nowrap` holds the other half of today's behaviour: atomic inline
+ * boxes may be broken between, so without it a squeezed entry would split a
+ * word where it now overflows whole.
+ *
+ * The layer clips, and that clip is the effect rather than tidiness: the top of
+ * a character's glyph is carried past the top of the line box at the peak of its
+ * turn, so without it the upper half would be painted over the strip and over
+ * whatever the header is sitting on. The clip
+ * goes on the layer and not on the character, which is the one place it cannot:
+ * an inline-block's baseline is its last line box's only while overflow is
+ * visible, so a character that clipped would drop the row by half a line. The
+ * layer can afford it because the trigger is `items-center` — a flex item's
+ * baseline is never asked for here. What the clip costs is the floor under the
+ * layer's width: a flex item has an automatic minimum size only while its
+ * overflow is visible, so this one could be squeezed to nothing and have its
+ * words cut off mid-word, where a squeezed entry today keeps its words whole and
+ * lets the row overflow. `min-w-max` is that floor, put back by hand.
+ *
+ * The label also names the entry through `aria-label` now, and that is a
+ * concession worth stating rather than burying. The entries are found by their
+ * accessible name, and the name algorithm puts a space on either side of every
+ * element child that is not `inline` — so per-character spans would name this
+ * entry "L i b r a r y" for a reader and in the header's tests. The attribute is
+ * handed the same `label`, so the name is still those words and the icon is
+ * still outside it; what moved is where the name comes from. It goes on the
+ * anchor and not on the layer: `aria-label` on a role=generic `span` is
+ * prohibited — jsdom would pass it and a screen reader would ignore it, which
+ * is the worst kind of green.
+ *
+ * `group` sits on the entry rather than on a character, for two reasons that
+ * come to the same thing: the hover target is the whole entry — the pointer is
+ * on the icon and the padding as much as on the letters, and characters that
+ * only moved while the pointer was over the glyphs would look like a miss — and
+ * it is that class the utility is gated on.
+ *
+ * Under the reduced-motion preference the layer holds plain words and no
+ * characters at all, so the effect is absent rather than still — the rule ADR
+ * 0008 set for decoration, and the reason the branch is here rather than a
  * `motion-reduce:` variant: this component already reads the preference for the
  * line below, and one component keeps one source for it. What that costs is
- * stated rather than implied: a reader who asks the system for less motion never
- * sees the band, not even once.
+ * stated rather than implied: a reader who asks the system for less motion
+ * never sees a character turn, not even once.
  *
  * The entry takes the primitive's focus ring off. Radix focuses the entry from
  * `mousedown` and Chromium reads a script's `focus()` as keyboard focus, so the
@@ -151,6 +242,7 @@ export function MainNavItem({
   isActive: boolean;
 }) {
   const reduceMotion = useReducedMotion();
+  const split = reduceMotion ? null : splitLabel(label);
   return (
     <TabsTrigger
       asChild
@@ -160,6 +252,7 @@ export function MainNavItem({
       <NavLink
         to={to}
         end
+        aria-label={label}
         aria-current={isActive ? 'page' : undefined}
         className="group relative h-full px-3"
       >
@@ -168,12 +261,22 @@ export function MainNavItem({
           aria-hidden="true"
           className="pointer-events-none shrink-0"
         />
-        <span
-          className={
-            reduceMotion ? undefined : 'nav-shine group-hover:animate-nav-shine'
-          }
-        >
-          {label}
+        <span className="nav-words overflow-hidden min-w-max whitespace-nowrap">
+          {split
+            ? split.pieces.map((piece, i) =>
+                piece.order === null ? (
+                  <Fragment key={i}>{piece.text}</Fragment>
+                ) : (
+                  <span
+                    key={i}
+                    className="nav-char inline-block group-hover:animate-nav-turn"
+                    style={{ animationDelay: `${piece.order * split.step}ms` }}
+                  >
+                    {piece.text}
+                  </span>
+                ),
+              )
+            : label}
         </span>
         {isActive && (
           <motion.span

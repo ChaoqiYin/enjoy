@@ -75,28 +75,43 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-/* The band of light that crosses a header entry's words while the pointer rests
-   on it. An animation rather than a transition, so it needs a token: Tailwind v4
-   builds `animate-<name>` out of `--animate-*`, and the keyframes sit in this
-   block as the only way to have them emitted where the utility is used and
-   nowhere else. `.nav-shine` at the end of this file is the layer itself and
-   `--nav-shine-color` is the colour it crosses; ADR 0026 has the reasoning. */
+/* What carries a header entry's label through one turn while the pointer is on
+   it: each character lifts out of its own place and settles back down into it,
+   one after another. An animation rather than a transition, so it needs a token
+   — Tailwind v4 builds `animate-<name>` out of `--animate-*` — and the keyframes
+   sit in this block as the only way to have them emitted where the utility is
+   used and nowhere else. `MainNavItem` wears the utility on each character and
+   spaces them out with a delay; ADR 0027 has the reasoning and the
+   measurements. */
 @theme {
-  --animate-nav-shine: nav-shine 1.6s linear infinite;
+  --animate-nav-turn: nav-turn 0.48s ease-in-out;
 
-  /* The two ends rather than a direction, because the pair is what has to hold:
-     `100%` parks the band off the left edge, which is where the rule at the end
-     of this file starts it and so where the sweep opens — on nothing; `0%` parks
-     it off the right, which is where the sweep closes. Written the other way
-     round the band would travel right to left, against the reading direction,
-     and a shorter walk would open with the band already in view, so the entry
-     would flash the moment a pointer landed on it. */
-  @keyframes nav-shine {
-    from {
-      background-position: 100% 0;
+  /* No fill mode and no opacity: a character is where the words are until its
+     turn comes, and it is drawn the whole way — what takes the top of its glyph
+     out of sight is the layer's clip at the top of the line, not a fade.
+
+     Two shapes were measured before this one and both left a hole in the label.
+     The first handed each character over from underneath, and the four-character
+     label was blank from 220ms to 340ms. Going back the way it came costs
+     nothing and reads as the character's own place being where it returns to,
+     but the travel is not free either: at -110% the glyph clears the line box
+     entirely, and four characters 30ms apart are then all away at once for
+     220ms to 360ms of the turn. What the layer's clip keeps, over the whole
+     turn, as a share of the label's ink — -30%: 0.77, -55%: 0.47, -85%: 0.11
+     and blank from 260ms to 300ms, -110%: none of it. So the lift stops at -55%,
+     a little over half a character's height: a wave passes through the label
+     with the far side of the line still on screen at every moment. The
+     fourteen-character English label, staggered 18ms, never drops below 0.27
+     even at -85%. */
+  @keyframes nav-turn {
+    0% {
+      transform: translateY(0);
     }
-    to {
-      background-position: 0% 0;
+    50% {
+      transform: translateY(-55%);
+    }
+    100% {
+      transform: translateY(0);
     }
   }
 }
@@ -198,20 +213,6 @@
      from the background in the dark theme (see the ADR's table), which is why
      there is one number here and not two. */
   --dot-color: color-mix(in oklab, var(--foreground) 4%, transparent);
-
-  /* The colour of the band `.nav-shine` carries across a header entry. A token
-     and not a literal, for the reason the glow's hue is one: the words it crosses
-     are near-black in the light theme and near-white in the dark one, so a band
-     bright enough for one is invisible on the other, and which theme is on is
-     decided in `data-theme` where React cannot see it (ADR 0018). Named against
-     `--primary`, which the dark block redeclares, so the band follows the theme
-     without a second declaration here — the same trick as `--dot-color`.
-
-     The band is the accent rather than white, which is the one thing this file
-     keeps having to relearn: light on a near-white page is not light, it is
-     nothing. ADR 0026 has the comparisons, including the white one that reads as
-     a blank in the dark theme. */
-  --nav-shine-color: var(--primary);
 
   /* The settings rail's panel, written once for both themes for the same reason
      as the two above: every one of these resolves against a token the dark block
@@ -432,60 +433,5 @@
   }
   to {
     transform: scaleX(0);
-  }
-}
-
-/* The band of light that crosses a header entry's words while the pointer is on
-   it — the effect react-bits publishes as Shiny Text, in the form that component
-   had before that project rewrote it as a rAF engine with a canvas for reading
-   colours. What is left of it is a gradient clipped to the glyphs, so there is
-   no vendored file here and nothing for `NOTICE` to carry; ADR 0026 argues the
-   choice and records the comparisons behind the numbers.
-
-   All of it is behind the pointer, and not only its movement. A gradient clipped
-   to glyphs is a different way for the browser to paint text than a plain fill
-   is: measured against the same words with no layer on them at all, they came out
-   12% lighter in ink, every stroke edge a little thinner, because the fill is
-   transparent and the glyphs are the mask. That is fine while the band crosses
-   them and wrong for an entry nobody is pointing at, so the rule paints nothing
-   until the pointer arrives — and that, rather than where the band happens to
-   rest, is what holds such an entry unchanged.
-
-   The guard is Tailwind's around the `group-hover:` that starts the sweep, so
-   both halves switch on together and neither answers a finger that cannot leave.
-   `.group` is the entry — icon, words and padding — and `MainNavItem` says why
-   the band is not gated on the words alone.
-
-   `currentColor` is the base, and that is why this is one rule. The entry already
-   says what colour its words are — `text-muted-foreground`,
-   `hover:text-foreground`, the primitive's `transition-colors` — and a gradient
-   reading the colour off the element inherits every one of those. What this rule
-   adds is the band, plus the clip that paints the words instead of the box.
-
-   The `90deg` carries weight rather than being the default: with no direction
-   the gradient runs top to bottom, which is the same in every column, so the
-   sweep moves a stripe that never changes a pixel — which is how this measured
-   before the direction was written in.
-
-   `background-size` sets both the width of the band and the length of the walk:
-   at `250%` the gradient is two and a half boxes wide, the `40%`–`60%` band is
-   half a box across, and `background-position` has a box and a half to travel.
-   Both ends of that travel put the band clear of the box, which is why the entry
-   arrives at the words it already had. The sweep itself is `--animate-nav-shine`,
-   applied by the component on hover alone. */
-@media (hover: hover) {
-  .group:hover .nav-shine {
-    background-image: linear-gradient(
-      90deg,
-      currentColor 40%,
-      var(--nav-shine-color) 50%,
-      currentColor 60%
-    );
-    background-repeat: no-repeat;
-    background-size: 250% 100%;
-    background-position: 100% 0;
-    background-clip: text;
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
   }
 }

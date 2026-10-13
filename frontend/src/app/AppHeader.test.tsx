@@ -101,14 +101,14 @@ it('gives every entry an icon that stays out of its name', () => {
   }
 });
 
-it('wraps the words of every entry in a layer that only moves under a pointer', () => {
+it('turns the words of every entry a character at a time', () => {
   header();
-  // jsdom runs no animations and computes no styles, so what is pinned here is
-  // the declaration and not the band: the class sits on the words, and the
-  // sweep is asked for by the hover variant alone, so an entry with no pointer
-  // on it is not animating. That the band then really crosses the words is the
+  // jsdom runs no animation and computes no styles, so what is pinned here is
+  // the declaration and not the movement: one span per drawn character, each
+  // asking for the turn under the hover variant alone, with delays that step
+  // forward and finish quickly. That the characters then really turn is the
   // browser's half of the bargain — the same split `interface.test.tsx` draws,
-  // and ADR 0026 holds the measurements.
+  // and ADR 0027 holds the measurements.
   //
   // The reduced-motion branch is not here either, and not because it was
   // forgotten: `useReducedMotion` reads the preference once into a module-level
@@ -117,11 +117,32 @@ it('wraps the words of every entry in a layer that only moves under a pointer', 
   // file. It is checked the way the rest of the app's reduced-motion branches
   // are, by running the real engine with the preference forced on.
   for (const label of entries) {
-    const words = navEntry(label).querySelector('.nav-shine');
-    expect(words?.textContent).toBe(label);
-    expect(words?.classList.contains('group-hover:animate-nav-shine')).toBe(
-      true,
+    const words = navEntry(label).querySelector<HTMLElement>('.nav-words');
+    const chars = Array.from(
+      words?.querySelectorAll<HTMLElement>('.nav-char') ?? [],
     );
+    expect(words?.textContent).toBe(label);
+    // The spaces are pieces too and are left as text, so they are not counted
+    // and not drawn: the characters alone spell the label with no gaps in it.
+    expect(chars.map((char) => char.textContent).join('')).toBe(
+      label.replace(/\s/g, ''),
+    );
+
+    const delays = chars.map((char) => {
+      expect(char.classList.contains('group-hover:animate-nav-turn')).toBe(
+        true,
+      );
+      return parseFloat(char.style.animationDelay);
+    });
+    // Non-decreasing, and stepped by no more than the gap: not `previous + 30`
+    // for every pair, because a space sitting between two characters is skipped
+    // by the count — the assertions would fail on the one English label that
+    // has one, which is exactly the label they are here for.
+    expect(delays).toEqual([...delays].sort((a, b) => a - b));
+    delays.forEach((delay, i) => {
+      if (i > 0) expect(delay - delays[i - 1]).toBeLessThanOrEqual(30);
+    });
+    expect(delays.at(-1)).toBeLessThanOrEqual(240);
   }
 });
 
