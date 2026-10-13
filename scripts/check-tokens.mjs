@@ -41,9 +41,14 @@ function token(body, name) {
 const light = block(':root');
 const dark = block("[data-theme='dark']");
 
-// The five slots the ticket names, against the drawings.
+// The five slots the ticket names, against the drawings. One exception: the
+// light `background` is `#f5f5f5`, not the document's `#faf8ff` — the user
+// picked it, and the light `--field` beside it, off a screenshot of another
+// application (ADR 0029). It is asserted here anyway rather than dropped from
+// the list, because the value is still this file's to hold: the check exists to
+// catch a token drifting, not to insist the document always won.
 const named = [
-  ['light', light, 'background', '#faf8ff'],
+  ['light', light, 'background', '#f5f5f5'],
   ['light', light, 'card', '#fcfcfd'],
   ['light', light, 'primary', '#e11d48'],
   ['light', light, 'destructive', '#ba1a1a'],

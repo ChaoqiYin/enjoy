@@ -23,7 +23,7 @@ import { cn } from './cn';
  * language does.
  */
 const buttonVariants = cva(
-  'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0',
+  'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0',
   {
     variants: {
       variant: {
@@ -51,7 +51,20 @@ const buttonVariants = cva(
         sm: 'h-8 gap-1.5 px-3 text-xs',
         default: 'h-9 px-4',
         lg: 'h-10 px-6',
+        // The icon-only sizes. `icon-sm` is the interface's icon button and the
+        // one the toolbar, the directory rows and three of the four places a
+        // video is drawn ask for. `icon-xs` is one step tighter and belongs to
+        // the video card alone: there the glyph stays 14 pixels while the
+        // button around it drops from 28 to 20 — 3 pixels of padding a side
+        // instead of 7 — because a card draws three of these in a row beside a
+        // duration, and that row had more air than it needed. The side is a
+        // pixel value rather than one of the rem steps for the same reason the
+        // padding is: what was asked for is the 3 pixels beside a 14-pixel
+        // glyph, and no step lands on 20. The corner comes down with it, from
+        // `rounded-md`'s 5 to `rounded-sm`'s 3 — a radius that reads as a soft
+        // corner on a 28-pixel button reads as a near-circle on a 20-pixel one.
         'icon-sm': 'size-8',
+        'icon-xs': 'size-[20px] rounded-sm',
         icon: 'size-9',
         'icon-lg': 'size-10',
       },

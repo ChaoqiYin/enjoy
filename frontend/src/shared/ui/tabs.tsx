@@ -67,7 +67,7 @@ export function TabsTrigger({
         'data-[state=active]:text-foreground',
         'data-[state=active]:data-[orientation=vertical]:border-l-2',
         'data-[state=active]:data-[orientation=vertical]:border-primary',
-        'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'data-[disabled]:opacity-50',
         className,
       )}
       {...props}

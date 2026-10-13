@@ -37,7 +37,7 @@ export function SortSelect({
       <SelectTrigger
         size="default"
         data-slot="sort-select"
-        className={cn('w-full min-w-44 sm:w-56', className)}
+        className={cn('w-full min-w-44 bg-field sm:w-56', className)}
         {...props}
       >
         <ArrowDownUp

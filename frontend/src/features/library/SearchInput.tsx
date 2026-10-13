@@ -27,6 +27,12 @@ export type SearchInputProps = Omit<
  * searchbox role and, with it, the platform's own Escape-to-clear. The glyph
  * and the keyboard hint are decoration: the name the field is announced under
  * is the caller's, and the hint is a caption rather than a control.
+ *
+ * It fills `--field` rather than the `Input` default's `--background` because
+ * the toolbar is a plain row on the page canvas and not a card (ADR 0028). The
+ * keyboard hint then has to leave `--muted` for `--background`: in the dark
+ * theme `--muted` *is* `--field`, and the caption would be a blank rectangle on
+ * the field it sits in.
  */
 export function SearchInput({
   value,
@@ -47,13 +53,13 @@ export function SearchInput({
         size={size}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className={cn('ps-9', kbdHint && 'pe-16')}
+        className={cn('bg-field ps-9', kbdHint && 'pe-16')}
         {...props}
       />
       {kbdHint && (
         <kbd
           aria-hidden="true"
-          className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[0.625rem] text-muted-foreground"
+          className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[0.625rem] text-muted-foreground"
         >
           {kbdHint}
         </kbd>

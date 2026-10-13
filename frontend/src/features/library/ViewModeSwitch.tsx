@@ -1,6 +1,7 @@
 import { LayoutGrid, List, Table } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Tooltip } from '../../shared/Tooltip';
+import { cn } from '../../shared/ui/cn';
 import { ToggleGroup, ToggleGroupItem } from '../../shared/ui/toggle-group';
 import type { ViewMode } from './listing';
 
@@ -31,6 +32,10 @@ export type ViewModeSwitchProps = {
  * row of segments stays a row of the group's own children — and the `sr-only`
  * name stays beside it, because the prompt does not replace the name a reader
  * hears, it is the same sentence for the eye.
+ *
+ * The track takes `--field` where `ToggleGroup` defaults to `--background`: the
+ * toolbar this sits in is a bare row on the page canvas rather than a card, so
+ * the group has to carry the surface itself (ADR 0028).
  */
 export function ViewModeSwitch({
   value,
@@ -54,7 +59,7 @@ export function ViewModeSwitch({
       disabled={disabled}
       aria-label={t('viewMode')}
       data-slot="view-mode-switch"
-      className={className}
+      className={cn('bg-field', className)}
     >
       {segments.map(({ mode, label, Icon }) => (
         <Tooltip key={mode} text={label} asChild>

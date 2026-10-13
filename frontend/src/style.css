@@ -16,6 +16,16 @@
    adopting it would mean rewriting `theme/ThemeSetting` and both HTML entries. */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
+/* `hover`, minus disabled controls: ADR 0033 takes `pointer-events-none` off
+   disabled controls, so they have to be excluded here or they light up. */
+@custom-variant hover {
+  @media (hover: hover) {
+    &:hover:not(:disabled):not([aria-disabled='true']):not([data-disabled]) {
+      @slot;
+    }
+  }
+}
+
 @theme inline {
   --font-sans:
     'Space Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
@@ -49,6 +59,15 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-field: var(--field);
+  --color-selection: var(--selection);
+  --color-selection-foreground: var(--selection-foreground);
+
+  /* The wash under the pointer, and its fainter twin for a whole table row: two
+     weights, because the dark theme has always drawn those two at different
+     steps. The tokens below carry the rest. */
+  --color-hover: var(--hover);
+  --color-hover-soft: var(--hover-soft);
 
   /* Extended slots: shadcn ships none of these three and the app draws a
      green "indexed / hardware ready", an amber star and a blue info action. */
@@ -121,7 +140,11 @@
 :root {
   --radius: 0.5rem;
 
-  --background: #faf8ff; /* background */
+  /* Not the document's `background` (`#faf8ff`): the user pointed at a
+     screenshot of another application for the light theme's page colour and for
+     the field on it, and the two were taken together. `--card` and the rest of
+     the light palette stay as the document has them (ADR 0029). */
+  --background: #f5f5f5; /* user-supplied, see ADR 0029 */
   --foreground: #0f172a; /* on-surface */
   --card: #fcfcfd; /* surface */
   --card-foreground: #0f172a; /* on-surface */
@@ -142,6 +165,14 @@
   --destructive-foreground: #ffffff; /* on-error */
   --border: #e2e8f0; /* outline */
   --input: #cbd5e1; /* outline-variant */
+
+  /* The surface a control takes when it sits on the page canvas rather than a
+     card — the toolbar's controls (ADR 0028). Both themes step *off* the page:
+     light down to `#ebebeb`, dark up to `surface-container-low` (#1a1c20); not
+     `--muted`, whose light `#fff1f2` is lighter than the page. The light value
+     is the user's, read off the same screenshot as `--background` above — the
+     10 levels between them are that screenshot's own (ADR 0029). */
+  --field: #ebebeb; /* user-supplied, see ADR 0029 */
 
   /* One focus hue for the whole app. The drawings carry a cyan glow and a red
      one side by side, which is a draft that never converged; the primary wins. */
@@ -219,28 +250,42 @@
      redeclares, so the panel follows the theme without a second declaration. The
      surface is `--card`, which is where the drawings put the rail
      (`surface-card`), and the rest are the slots shadcn's sidebar expects — the
-     fill a row takes when hovered or current, and the edge around the panel and
-     down the branch.
+     wash a row takes under the pointer, and the edge around the panel.
 
-     That fill is `--secondary` (`surface-container-high`) rather than
-     `--accent`, which is the elevated surface, and the same fill is worn by the
-     chosen segment of `ToggleGroup` and of the theme segment. `--accent` is a
-     surface in the light theme — `#ffe4e6` against a near-white page — and a
-     hover wash in the dark one: `#1a1e26` sits nine to fifteen levels above the
-     `#111317` page, which is the weight of something that only has to be
-     noticed when a pointer is on it. A surface that says which one is chosen
-     has to be read with no pointer at all, and the dark theme reads a surface
-     off its border — which a filled segment does not have. `--secondary` is one
-     step further up in both themes, so the chosen one is a block in both.
-
-     It is deliberately not `--primary`: a row of choices paints the one that is
-     chosen, and the red is for the control that commits. */
+     That wash is `--hover`, not the `--secondary` it used to be: this row and
+     the two chosen segments above were the same pink, and only the row is a
+     hover (ADR 0034). It is deliberately not `--primary`: a row of choices
+     paints the one that is chosen, and the red is for the control that
+     commits. */
   --sidebar: var(--card);
   --sidebar-foreground: var(--card-foreground);
-  --sidebar-accent: var(--secondary);
+  --sidebar-accent: var(--hover);
   --sidebar-accent-foreground: var(--accent-foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
+
+  /* The block that says which one is chosen — the settings rail's current row,
+     the thumb of the theme segment, the pressed segment of `ToggleGroup`. Three
+     places, one rule, and unlike the groups above it is deliberately *not* the
+     same in both themes: light draws it as the drawings do, the brand red with
+     the white `on-primary` on it, because the pink it wore until ADR 0032 had
+     been picked against a lavender-white page that no longer exists; dark keeps
+     the grey step above the page, where a whole row of `#ff334b` would be white
+     on red at 3.4:1 and would outshout the one action a screen is for. */
+  --selection: var(--primary);
+  --selection-foreground: var(--primary-foreground);
+
+  /* What a row or a control takes under the pointer. Light takes the neutral
+     step below the page (`--background` is neutral-100, this one neutral-200):
+     the pink these washes used to be read as a stray hue on that grey canvas,
+     exactly as the chosen block above did, and ADR 0034 has the numbers. Dark
+     keeps both washes where its rows already had them — a menu row and a table
+     row were never the same grey there (`--secondary` against `--muted`) — and
+     that difference is what the light theme's single value does not carry over.
+     `--hover-soft` is the fainter of the two, for a whole table row rather than
+     a control; its callers narrow it further with `/50` and `/40`. */
+  --hover: #e5e5e5;
+  --hover-soft: var(--hover);
 }
 
 /* Dark theme — prototype-drawing/crimson_cinema/DESIGN.md. */
@@ -264,8 +309,19 @@
   --destructive-foreground: #690005; /* on-error */
   --border: #383b42; /* outline */
   --input: #25282f; /* outline-variant */
+  --field: #1a1c20; /* surface-container-low; see the light block */
 
   --ring: #ff334b; /* primary */
+
+  /* The chosen block stays the grey step here — the light block carries why the
+     two themes disagree. */
+  --selection: var(--secondary);
+  --selection-foreground: var(--secondary-foreground);
+
+  /* Both hover washes stay where this theme's rows already had them — the light
+     block carries why only its own moved (ADR 0034). */
+  --hover: var(--secondary);
+  --hover-soft: var(--muted);
 
   --success: #66dabf; /* tertiary */
   --success-foreground: #00382e; /* on-tertiary */
@@ -306,29 +362,36 @@
     outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
   }
 
-  /* Everything clickable wears the pointing hand.
+  /* Everything clickable wears the pointing hand; everything disabled wears the
+     barred one.
 
-     Tailwind v4's preflight dropped the `button { cursor: pointer }` that v3
-     carried, so without this every native button in the application shows the
-     arrow: the user is looking at a control that does something and is told,
-     by the pointer alone, that it does not. Written as one rule rather than a
-     class on each component because what is clickable is not knowable from any
-     one file — the next component added inherits this instead of forgetting
-     it, which is how the gap opened in the first place.
+     Tailwind v4's preflight dropped v3's `button { cursor: pointer }`, so
+     without the first half a native button shows the arrow: the user is looking
+     at a control that does something and is told, by the pointer alone, that it
+     does not. One rule rather than a class on each component: what is clickable
+     is not knowable from any one file. The roles are the ones Radix does *not*
+     draw as a button — its menu items and listbox options are `div`s carrying
+     the role; anchors are left out, the browser already gives them the hand.
+     The disabled half says `not-allowed`, which `Input` and `Checkbox` already
+     say: an arrow there was an accident, not a design, because
+     `pointer-events-none` had swallowed the pointer itself and left the cursor
+     to whatever layer sat underneath. */
+  :is(
+    button,
+    [role='button'],
+    [role='menuitem'],
+    [role='option'],
+    [role='radio']
+  ) {
+    &:not(:disabled, [aria-disabled='true'], [data-disabled]) {
+      cursor: pointer;
+    }
 
-     The two roles below are the ones Radix does *not* draw as a button: its
-     menu items and listbox options are `div`s carrying the role, so the
-     `button` selector never reaches them. Anchors are left out on purpose —
-     the browser already gives them the hand.
-
-     A disabled control keeps the arrow. It is not clickable, and a hand over
-     it promises an action that will not happen. */
-  button:not(:disabled),
-  [role='button']:not([aria-disabled='true']),
-  [role='menuitem']:not([data-disabled]),
-  [role='option']:not([data-disabled]),
-  [role='radio']:not([data-disabled]) {
-    cursor: pointer;
+    &:is(:disabled, [aria-disabled='true'], [data-disabled]) {
+      /* `!important`: `cursor-default` is a utility, and layers put utilities
+         last — the Radix menu and select items both carry it. */
+      cursor: not-allowed !important;
+    }
   }
 
   body {

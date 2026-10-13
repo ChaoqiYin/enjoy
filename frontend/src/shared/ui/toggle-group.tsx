@@ -24,14 +24,14 @@ import { cn } from './cn';
  * ours: a recessed track holding the raised segment, which is how `_5`'s theme
  * buttons and `_6`'s settings rail both read. The track sits on the page canvas
  * (`bg-background`, the drawings' `surface-canvas`) and the chosen segment
- * takes `bg-secondary`, with the text of the unchosen ones stepped back to
+ * takes `--selection`, with the text of the unchosen ones stepped back to
  * `muted-foreground`.
  *
- * The chosen segment is `--secondary` and not `--accent`, the elevated surface:
- * in the dark theme `--accent` is a hover wash nine to fifteen levels above the
- * page rather than a surface, and a segment has no border for the eye to fall
- * back on. The settings rail and the theme segment wear the same fill, so the
- * three places that paint a choice agree.
+ * `--selection` and not a colour written here: what says "chosen" differs by
+ * theme — the brand red on the light page, the grey step on the dark one — so
+ * it is one semantic slot whose two values live in `style.css` `:root`, which
+ * carries the reasoning for both. The settings rail and the theme segment wear
+ * the same fill, so the three places that paint a choice agree.
  */
 
 export function ToggleGroup({
@@ -60,9 +60,9 @@ export function ToggleGroupItem({
         'inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5',
         'text-sm font-medium text-muted-foreground',
         'transition-colors outline-none hover:text-foreground',
-        'data-[state=on]:bg-secondary data-[state=on]:text-secondary-foreground',
+        'data-[state=on]:bg-selection data-[state=on]:text-selection-foreground',
         'data-[state=on]:shadow-sm',
-        'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'data-[disabled]:opacity-50',
         className,
       )}
       {...props}

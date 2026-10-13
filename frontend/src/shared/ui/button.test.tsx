@@ -17,7 +17,15 @@ const variants = [
   'warning',
 ] as const;
 
-const sizes = ['sm', 'default', 'lg', 'icon-sm', 'icon', 'icon-lg'] as const;
+const sizes = [
+  'sm',
+  'default',
+  'lg',
+  'icon-sm',
+  'icon-xs',
+  'icon',
+  'icon-lg',
+] as const;
 
 it('is pressed by the name it shows', () => {
   const onClick = vi.fn();

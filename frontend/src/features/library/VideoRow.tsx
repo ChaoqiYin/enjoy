@@ -75,7 +75,7 @@ export function VideoRow({
           actions.details(video);
         }
       }}
-      className="group flex list-none cursor-pointer items-center gap-3 rounded-lg border border-border bg-card p-2 text-card-foreground transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+      className="group flex list-none cursor-pointer items-center gap-3 rounded-lg border border-border bg-card p-2 text-card-foreground transition-colors duration-150 hover:bg-hover-soft/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
       onClick={() => actions.details(video)}
     >
       {/* The picture keeps the card's ratio at a fixed 96 pixels, so every row

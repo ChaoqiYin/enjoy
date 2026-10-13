@@ -81,24 +81,19 @@ export function ThemeSetting() {
           Two colours are passed and two are left alone. The track and the
           unselected labels keep the component's defaults — `--background` and
           `--muted-foreground` — while the thumb and the selected label are
-          handed `--secondary` and `--secondary-foreground` rather than the
+          handed `--selection` and `--selection-foreground` rather than the
           component's own `--accent` and `--accent-foreground`.
 
-          `--accent` is the elevated surface, and in the light theme it is one:
-          `#ffe4e6` against a near-white track. In the dark theme it is not —
-          `#1a1e26` sits nine to fifteen levels above the `#111317` page, which
-          is the weight of a hover wash, not of the one thing on the control
-          that has to be legible with no pointer on it. A surface in the dark
-          theme is read off its border, and a thumb has no border. `--secondary`
-          (`surface-container-high`) is a step further up in both themes, so the
-          selected segment is a block in both. The settings rail and the chosen
-          segment of `ToggleGroup` wear the same fill, so the three places that
-          paint a choice agree.
-
-          A literal could not have done this — it could not be right in both
-          themes — nor could just any pair of semantic tokens, since none of
-          them flips on its own: `--muted` sits *below* `--card` in light and
-          *above* it in dark.
+          That pair is one semantic slot whose two values differ by theme: the
+          brand red in the light theme, the grey step in the dark one. Neither
+          the component's `--accent` pair nor a single token could have served —
+          `--accent` is a surface on the near-white page and a hover wash nine to
+          fifteen levels above the `#111317` one, where a thumb has no border for
+          the eye to fall back on, and no semantic token flips on its own
+          (`--muted` sits *below* `--card` in light and *above* it in dark).
+          `:root` in `style.css` carries both values and why they differ. The
+          settings rail and the chosen segment of `ToggleGroup` wear the same
+          fill, so the three places that paint a choice agree.
 
           The focus ring is re-drawn in `--ring`, and said to be solid. The
           component draws the ring in the thumb colour, which its author could
@@ -127,8 +122,8 @@ export function ThemeSetting() {
         value={preference}
         onChange={(value) => void change(value as ThemePreference)}
         disabled={saving}
-        thumbColor="var(--secondary)"
-        activeTextColor="var(--secondary-foreground)"
+        thumbColor="var(--selection)"
+        activeTextColor="var(--selection-foreground)"
         className="w-full outline-1 outline-border [&_[role=radio]]:focus-visible:outline-solid [&_[role=radio]]:focus-visible:outline-ring"
       />
       {failure && (

@@ -3,6 +3,7 @@ import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Video } from '../../shared/api';
+import type { ButtonProps } from '../../shared/ui/button';
 import { VideoActions } from './VideoActions';
 import type { VideoActionHandlers } from './VideoActions';
 import english from '../../../../shared/locales/en/common.json';
@@ -51,10 +52,19 @@ function actions() {
 function mount({
   record = {},
   iconOnly = false,
+  iconSize,
   hidePlay = false,
   hideRemove = false,
   handlers = actions(),
   onCard = vi.fn(),
+}: {
+  record?: Partial<Video>;
+  iconOnly?: boolean;
+  iconSize?: ButtonProps['size'];
+  hidePlay?: boolean;
+  hideRemove?: boolean;
+  handlers?: VideoActionHandlers;
+  onCard?: () => void;
 } = {}) {
   render(
     <I18nextProvider i18n={i18n}>
@@ -64,6 +74,7 @@ function mount({
           busy={false}
           actions={handlers}
           iconOnly={iconOnly}
+          iconSize={iconSize}
           hidePlay={hidePlay}
           hideRemove={hideRemove}
         />
@@ -117,6 +128,27 @@ it('offers a video that is not a favorite the way to become one', () => {
   const button = screen.getByRole('button', { name: english.favorites });
   expect(button.getAttribute('aria-pressed')).toBe('false');
   expect(button.getAttribute('data-variant')).toBe('outline');
+});
+
+it('draws the icon form at the size its caller asks for', () => {
+  // The card's bottom line is the tightest row of icon buttons in the
+  // interface, so it asks for the smaller size; the row, the table and the
+  // details panel say nothing and keep the interface's own (ADR 0030).
+  mount({ iconOnly: true, iconSize: 'icon-xs' });
+  for (const name of [english.favorites, english.reveal, english.removeIndex]) {
+    expect(screen.getByRole('button', { name }).getAttribute('data-size')).toBe(
+      'icon-xs',
+    );
+  }
+});
+
+it('keeps the interface icon button when no size is asked for', () => {
+  mount({ iconOnly: true });
+  expect(
+    screen
+      .getByRole('button', { name: english.reveal })
+      .getAttribute('data-size'),
+  ).toBe('icon-sm');
 });
 
 it('leaves out the actions the caller has taken over', () => {

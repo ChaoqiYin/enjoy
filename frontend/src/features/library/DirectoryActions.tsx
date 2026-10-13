@@ -52,7 +52,11 @@ export function DirectoryActions({
       <Button
         variant={variant}
         size={size}
-        className={iconOnly ? undefined : 'gap-3'}
+        // The icon-only form is the toolbar's, and the toolbar is a bare row on
+        // the page canvas: those buttons take `--field` like the controls
+        // around them. The labelled form is the settings page's, where the
+        // buttons sit on a card and keep the `outline` variant's own fill.
+        className={iconOnly ? 'bg-field' : 'gap-3'}
         disabled={disabled}
         aria-label={iconOnly ? label : undefined}
         onClick={onClick}

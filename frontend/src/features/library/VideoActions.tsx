@@ -45,16 +45,26 @@ const CLAIM_TAP = {};
  * `hidePlay` exists because the two views that draw a picture hand the play
  * affordance to the overlay on it (`HoverPlayOverlay`): one action, one control,
  * one name, rather than two controls a reader would hear as the same word.
+ *
+ * `iconSize` is the one place the four callers differ in shape rather than in
+ * what they leave out, and it is the card that differs: its three controls sit
+ * on the same line as the duration, inside a card whose padding is already
+ * tight, so it asks for `icon-xs` — the same 14-pixel glyph in a 20-pixel
+ * button with a 3-pixel corner, which is 3 pixels of padding a side instead of
+ * 7 (ADR 0030). The other three keep `icon-sm`, the interface's icon button, so
+ * the default is the shape they already had.
  */
 export function VideoActions({
   video,
   busy,
   actions,
   iconOnly = false,
+  iconSize = 'icon-sm',
   hidePlay = false,
   hideRemove = false,
 }: {
   iconOnly?: boolean;
+  iconSize?: ButtonProps['size'];
   hidePlay?: boolean;
   hideRemove?: boolean;
   video: Video;
@@ -63,7 +73,7 @@ export function VideoActions({
 }) {
   const { t } = useTranslation();
   const favorite = video.favorite ? t('unfavorite') : t('favorites');
-  const size: ButtonProps['size'] = iconOnly ? 'icon-sm' : 'sm';
+  const size: ButtonProps['size'] = iconOnly ? iconSize : 'sm';
   const control = (
     label: string,
     variant: ButtonProps['variant'],

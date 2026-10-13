@@ -67,8 +67,8 @@ export function DropdownMenuItem({
       className={cn(
         'relative flex cursor-default items-center gap-2 rounded-lg px-2.5 py-1.5',
         'text-sm outline-none select-none',
-        'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-        'focus:bg-secondary focus:text-foreground',
+        'data-[disabled]:opacity-50',
+        'focus:bg-hover focus:text-foreground',
         inset && 'pl-8',
         className,
       )}
@@ -89,8 +89,8 @@ export function DropdownMenuCheckboxItem({
       className={cn(
         'relative flex cursor-default items-center gap-2 rounded-lg py-1.5 pr-2.5 pl-8',
         'text-sm outline-none select-none',
-        'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
-        'focus:bg-secondary focus:text-foreground',
+        'data-[disabled]:opacity-50',
+        'focus:bg-hover focus:text-foreground',
         className,
       )}
       {...props}

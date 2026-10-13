@@ -40,6 +40,14 @@ export type LibraryToolbarProps = {
  * to say (the entry the header marks as current) and the actions were a group of
  * one more kind sitting in this row, so both moved rather than stayed.
  *
+ * The row is not a card. It was one — `rounded-xl border border-border bg-card
+ * p-3` — which drew a frame around controls that are framed already and inset
+ * them from the columns below; it is now a bare row sitting on the page canvas,
+ * flush with the list under it. What that costs is the fill the controls used to
+ * read against: they took `bg-background` because they sat *in* a card, so with
+ * the card gone they take `--field` instead, one step off the page in each theme
+ * (ADR 0028).
+ *
  * It holds no state and asks for nothing. Every control is handed its value and
  * reports a change upwards, and which listing that change belongs to is the
  * caller's to know (see `useVideoPageView`): the toolbar is drawn once per page
@@ -73,7 +81,7 @@ export function LibraryToolbar({
     <div className={className}>
       <div
         data-slot="library-toolbar"
-        className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3"
+        className="flex flex-wrap items-center gap-3"
       >
         <SearchInput
           value={search}

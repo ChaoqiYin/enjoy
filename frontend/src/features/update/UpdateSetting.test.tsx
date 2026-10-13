@@ -125,9 +125,10 @@ it('gives each control the variant its meaning asks for', () => {
   update.check = { ...update.check!, available: release, readyToRestart: true };
   render(view());
   const check = screen.getByRole('button', { name: english.updateCheck });
-  // Asking is not the section's one emphatic move — the download or restart it
-  // leads to is — so it sits at the neutral end and at the page's text size.
-  expect(check.getAttribute('data-variant')).toBe('secondary');
+  // The block's own action, so it takes the theme's red rather than a surface
+  // colour: `primary` is the variant that says a control commits, and asking
+  // for the check is what this block exists for.
+  expect(check.getAttribute('data-variant')).toBe('primary');
   expect(check.getAttribute('data-size')).toBe('sm');
   expect(
     screen

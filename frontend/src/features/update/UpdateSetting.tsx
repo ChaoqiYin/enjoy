@@ -46,8 +46,14 @@ export function UpdateSetting() {
             platform has published updates is unknown until it is pressed, and
             an answer of "none" arrives as a notice rather than by taking away
             the button the user just pressed. */}
+        {/* The one thing this block does, so it takes the theme's own red
+            rather than a surface colour: the block exists to offer a check the
+            user has to ask for, and `primary` is the variant that says a
+            control commits. In the light theme it lands on the same fill as
+            `--selection` — the block that marks what is chosen — and the two
+            are read the same way: a red thing with white on it. */}
         <Button
-          variant="secondary"
+          variant="primary"
           size="sm"
           disabled={busy}
           onClick={update.checkNow}

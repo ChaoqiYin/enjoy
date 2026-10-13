@@ -143,6 +143,25 @@ describe('video card actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Favorites' }));
     expect(actions.favorite).toHaveBeenCalledOnce();
   });
+  it('draws its three controls a size tighter than the rest of the interface', () => {
+    mount();
+    // The card's bottom line is its tightest: a duration and three controls
+    // sharing a row inside 12 pixels of padding. The glyphs stay 14 pixels and
+    // the buttons around them drop to 20 with a 3-pixel corner — 3 pixels of
+    // padding a side instead of the icon button's 7 — which is the one shape
+    // the card does not share with the row, the table and the details panel
+    // (ADR 0030). jsdom computes no styles, so this pins the size the caller
+    // asked for rather than the box a browser paints.
+    for (const name of [
+      english.favorites,
+      english.reveal,
+      english.removeIndex,
+    ]) {
+      expect(
+        screen.getByRole('button', { name }).getAttribute('data-size'),
+      ).toBe('icon-xs');
+    }
+  });
   it('keeps action keyboard gestures separate from card activation', () => {
     const actions = mount();
     const card = screen.getByRole('article');

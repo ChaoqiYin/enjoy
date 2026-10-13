@@ -178,12 +178,17 @@ export function VideoCard({
             <span className="text-xs tabular-nums text-muted-foreground">
               {duration(video.duration_ms)}
             </span>
-            {/* No play here: the picture's overlay carries it. */}
+            {/* No play here: the picture's overlay carries it. The row is the
+                card's tightest line — a duration and three controls on one
+                line inside a card padded by 12 — so its buttons take the
+                smaller icon size; the other three places a video is drawn
+                keep the interface's own (ADR 0030). */}
             <VideoActions
               video={video}
               busy={busy}
               actions={actions}
               iconOnly
+              iconSize="icon-xs"
               hidePlay
             />
           </div>
