@@ -30,7 +30,7 @@ export function VideoMetaTable({ rows }: { rows: VideoMetaRow[] }) {
         <div
           key={row.label}
           data-slot="video-meta-row"
-          className="flex items-center justify-between gap-4 px-4 py-2.5 transition-colors hover:bg-accent/40"
+          className="flex items-center justify-between gap-4 px-4 py-2.5 transition-colors hover:bg-hover/40"
         >
           <dt className="flex items-center gap-1.5 text-muted-foreground">
             {row.icon}

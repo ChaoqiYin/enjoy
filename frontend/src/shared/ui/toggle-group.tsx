@@ -59,7 +59,12 @@ export function ToggleGroupItem({
       className={cn(
         'inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5',
         'text-sm font-medium text-muted-foreground',
-        'transition-colors outline-none hover:text-foreground',
+        // The pointer's mark is a wash of its own, gated on `data-state=off`:
+        // a hover must not repaint the chosen segment, and the two states are
+        // mutually exclusive, so the gate says so structurally rather than
+        // leaving it to the cascade (ADR 0038). `--hover`, not `--selection`:
+        // a wash is not a choice.
+        'transition-colors outline-none data-[state=off]:hover:bg-hover',
         'data-[state=on]:bg-selection data-[state=on]:text-selection-foreground',
         'data-[state=on]:shadow-sm',
         'data-[disabled]:opacity-50',

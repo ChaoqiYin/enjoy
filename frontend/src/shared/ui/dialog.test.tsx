@@ -14,6 +14,14 @@ import {
 
 afterEach(cleanup);
 
+/** A class that asks for a foreground colour under the pointer. The rule itself
+ *  is held repo-wide by `scripts/check-tokens.mjs`; this pins the one control
+ *  the ticket was written about (ADR 0038). */
+const pointerForegrounds = (el: Element) =>
+  Array.from(el.classList).filter((name) =>
+    /(hover|focus)[^:]*:text-/.test(name),
+  );
+
 const closeLabel = 'Close';
 
 /** A caller-shaped dialog: the primitive owns none of the open state, so the
@@ -99,4 +107,18 @@ it('says what its close button does when that button is reached', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Remove index' }));
   fireEvent.focus(screen.getByRole('button', { name: closeLabel }));
   expect(screen.getByRole('tooltip').textContent).toBe(closeLabel);
+});
+
+/** The corner is a muted glyph on a tinted square. The pointer deepens the
+ *  square and leaves the glyph alone, where it used to also lift the glyph to
+ *  `--foreground` — the removal that costs the most and shows the least, since
+ *  in both themes the two colours were close enough to read as the same
+ *  (ADR 0038). */
+it('washes its close button under the pointer without repainting it', () => {
+  render(<ConfirmQuestion onConfirm={() => {}} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Remove index' }));
+  const close = screen.getByRole('button', { name: closeLabel });
+
+  expect(close.classList.contains('hover:bg-hover')).toBe(true);
+  expect(pointerForegrounds(close)).toEqual([]);
 });

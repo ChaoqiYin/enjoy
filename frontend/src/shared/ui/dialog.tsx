@@ -107,7 +107,7 @@ export function DialogCloseButton({ label }: { label: string }) {
           aria-label={label}
           className={cn(
             'absolute top-4 right-4 flex size-8 items-center justify-center rounded-lg',
-            'bg-muted text-muted-foreground hover:bg-hover hover:text-foreground',
+            'bg-muted text-muted-foreground hover:bg-hover',
             'transition-colors outline-none',
           )}
         >

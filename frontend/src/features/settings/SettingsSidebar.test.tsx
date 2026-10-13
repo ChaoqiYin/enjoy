@@ -16,6 +16,14 @@ beforeEach(async () => {
 });
 afterEach(cleanup);
 
+/** A class that asks for a foreground colour under the pointer. The rule itself
+ *  is held repo-wide by `scripts/check-tokens.mjs`; this pins the one control
+ *  the ticket was written about (ADR 0038). */
+const pointerForegrounds = (el: Element) =>
+  Array.from(el.classList).filter((name) =>
+    /(hover|focus)[^:]*:text-/.test(name),
+  );
+
 const items: SettingsEntry[] = [
   {
     value: 'general',
@@ -68,6 +76,46 @@ it('opens and closes an entry that has children', () => {
   fireEvent.click(general);
   expect(general.getAttribute('aria-expanded')).toBe('true');
   expect(row('Appearance')).toBeTruthy();
+});
+
+/** The current row stays filled and legible while the pointer is over it: the
+ *  fill asks for the row only while it is current, and the wash only while it
+ *  is not, so which one wins is settled by the row's own state rather than by
+ *  the order the two rules come out in (ADR 0038). Light mode is where the two
+ *  colours part company, and where the ungated pair drew a grey block over the
+ *  red one. */
+it('keeps the current row filled under the pointer', () => {
+  view('appearance');
+  const current = row('Appearance');
+  const spare = row('Spaces');
+
+  expect(current.getAttribute('data-active')).toBe('true');
+  expect(current.classList.contains('data-[active=true]:bg-selection')).toBe(
+    true,
+  );
+  expect(spare.getAttribute('data-active')).toBe('false');
+  expect(
+    spare.classList.contains('data-[active=false]:hover:bg-sidebar-accent'),
+  ).toBe(true);
+  expect(pointerForegrounds(current)).toEqual([]);
+  expect(pointerForegrounds(spare)).toEqual([]);
+});
+
+/** The badge took the row's hover colour by name — `peer-hover/menu-button:
+ *  text-sidebar-accent-foreground` — which is a foreground colour written by
+ *  the pointer, so it was removed rather than gated. The badge still follows
+ *  the row into the current state; that half is not the pointer's doing and
+ *  stays (ADR 0038). */
+it('leaves the count of a row out of the pointer’s reach', () => {
+  view('appearance');
+  const badge = screen.getByText('2');
+
+  expect(pointerForegrounds(badge)).toEqual([]);
+  expect(
+    badge.classList.contains(
+      'peer-data-[active=true]/menu-button:text-selection-foreground',
+    ),
+  ).toBe(true);
 });
 
 it('hands back the child that was pressed', () => {

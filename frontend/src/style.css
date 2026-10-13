@@ -16,11 +16,16 @@
    adopting it would mean rewriting `theme/ThemeSetting` and both HTML entries. */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
-/* `hover`, minus disabled controls: ADR 0033 takes `pointer-events-none` off
-   disabled controls, so they have to be excluded here or they light up. */
+/* `hover`, minus disabled controls: Tailwind's own is `&:hover` in
+   `@media (hover: hover)` — the query is kept, only the exclusion is added.
+   The exclusions go in `:where()`, which costs no specificity: three bare
+   `:not()`s each add one, compiling every `hover:` to (0,5,0), above every
+   state variant (`data-[…]` is (0,2,0)). At (0,2,0) the state wins (ADR 0038). */
 @custom-variant hover {
   @media (hover: hover) {
-    &:hover:not(:disabled):not([aria-disabled='true']):not([data-disabled]) {
+    &:hover:where(
+        :not(:disabled):not([aria-disabled='true']):not([data-disabled])
+      ) {
       @slot;
     }
   }
@@ -52,8 +57,6 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
@@ -159,8 +162,6 @@
   --secondary-foreground: #0f172a; /* on-surface */
   --muted: #fff1f2; /* surface-container-low */
   --muted-foreground: #64748b; /* on-surface-variant */
-  --accent: #ffe4e6; /* surface-container, near surface-elevated */
-  --accent-foreground: #0f172a; /* on-surface */
   --destructive: #ba1a1a; /* error */
   --destructive-foreground: #ffffff; /* on-error */
   --border: #e2e8f0; /* outline */
@@ -260,7 +261,7 @@
   --sidebar: var(--card);
   --sidebar-foreground: var(--card-foreground);
   --sidebar-accent: var(--hover);
-  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
 
@@ -303,8 +304,6 @@
   --secondary-foreground: #edeef2; /* on-surface */
   --muted: #1a1c20; /* surface-container-low */
   --muted-foreground: #9aa0aa; /* on-surface-variant */
-  --accent: #1a1e26; /* surface-elevated */
-  --accent-foreground: #edeef2; /* on-surface */
   --destructive: #ffb4ab; /* error */
   --destructive-foreground: #690005; /* on-error */
   --border: #383b42; /* outline */

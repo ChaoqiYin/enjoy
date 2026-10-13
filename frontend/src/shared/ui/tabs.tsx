@@ -55,7 +55,14 @@ export function TabsTrigger({
       className={cn(
         'inline-flex items-center gap-1.5 px-3 py-2 text-left',
         'text-sm font-semibold text-muted-foreground outline-none',
-        'transition-colors hover:text-foreground',
+        // The pointer neither lifts the words nor fills the entry. Lifting them
+        // was the older behaviour and is what the rule forbids (ADR 0038); a
+        // wash is what a control with no other answer to the pointer gets, and
+        // the one caller here — the header's navigation — already answers by
+        // turning its characters one after another (ADR 0027). Measured, the
+        // fill was a 49-pixel square-cornered block standing the header's full
+        // height, and it read as a second selection rather than as a pointer.
+        'transition-colors',
         // The strip removes the browser's outline, and the underline it draws
         // on the current entry is about the route, not about the keyboard. So
         // the entry has to paint its own focus marker, the same ring the

@@ -95,7 +95,6 @@ for (const name of [
   'popover',
   'muted',
   'muted-foreground',
-  'accent',
   'secondary',
   'border',
   'input',
@@ -326,6 +325,94 @@ assert.ok(
   `daisyUI class names are back in the source, where they generate no styles:\n  ${offenders.join('\n  ')}`,
 );
 
+// A pointer or a keyboard landing may repaint a *background*, and nothing else.
+//
+// `hover:text-…` puts the foreground back in play, and that is exactly how the
+// pointer came to repaint a chosen row and a pressed segment: the colour that
+// says "chosen" belongs to a state, a state and a hover weigh the same, and the
+// state is written later — so a hover must not be writing a foreground colour
+// at all (ADR 0038). Geometry and compositing are not a repaint — `outline-`
+// (a card's hovered edge), `opacity-`, `animate-`, `underline` — and are left
+// alone; the contrast that keeps a disabled control legible is a state's job.
+const FOREGROUND_PREFIXES = [
+  'text-',
+  'fill-',
+  'stroke-',
+  'caret-',
+  'decoration-',
+  'placeholder-',
+];
+
+/** A class name split at the `:` that separate its variants from its utility.
+ *  The ones inside `[...]` are not separators: `data-[active=true]:hover:bg-x`
+ *  splits after the bracket, not inside it. */
+function splitClass(name) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    const ch = name[i];
+    if (ch === '[') depth += 1;
+    else if (ch === ']') depth -= 1;
+    else if (ch === ':' && depth === 0) {
+      parts.push(name.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(name.slice(start));
+  return { variants: parts.slice(0, -1), utility: parts[parts.length - 1] };
+}
+
+/** A variant that reacts to the pointer or to the keyboard's landing. The
+ *  suffix and prefix forms are Tailwind's own (`group-hover`, `peer-hover/…`),
+ *  and they reach the same `:hover` this file's variant does. */
+function isPointerVariant(variant) {
+  return (
+    variant === 'focus' ||
+    variant === 'focus-visible' ||
+    /(^|-)hover(-|\/|$)/.test(variant)
+  );
+}
+
+const pointerOffenders = [];
+for (const file of sources(join('frontend', 'src'))) {
+  const text = readFileSync(file, 'utf8');
+  for (const { at, text: value } of classStrings(text)) {
+    for (const word of value.split(/\s+/)) {
+      const token = classWord(word);
+      if (!token) continue;
+      const { variants, utility } = splitClass(token);
+      if (!variants.some(isPointerVariant)) continue;
+      if (FOREGROUND_PREFIXES.some((prefix) => utility.startsWith(prefix)))
+        pointerOffenders.push(
+          `${relative('.', file)}:${lineAt(text, at)}  ${token}`,
+        );
+    }
+  }
+}
+assert.ok(
+  pointerOffenders.length === 0,
+  `a hover or focus state repaints a foreground colour, where it may only repaint a background:\n  ${pointerOffenders.join('\n  ')}\n  See docs/adr/0038-悬停只改背景且选中优先.md`,
+);
+
+// The hover variant's exclusions have to sit in `:where()`. Three bare
+// `:not()`s each add a point of specificity, which compiles *every* `hover:` to
+// (0,5,0) — above every state variant — so a hovered "chosen" row repainted
+// over its own fill. The second assertion is the one that matters: it is what
+// catches the `:where()` being taken back off (ADR 0038).
+const hoverVariant =
+  /&:hover:where\(\s*:not\(:disabled\):not\(\[aria-disabled='true'\]\):not\(\[data-disabled\]\)\s*\)/.test(
+    style,
+  );
+assert.ok(
+  hoverVariant,
+  "the hover variant's exclusions are not wrapped in :where(), so every hover outranks every state — see docs/adr/0038-悬停只改背景且选中优先.md",
+);
+assert.ok(
+  !/&:hover:not\(/.test(style),
+  "the hover variant's exclusions are outside a :where(), so every hover outranks every state — see docs/adr/0038-悬停只改背景且选中优先.md",
+);
+
 console.log(
-  'Design tokens match the two design documents in both themes, and daisyUI is gone — from the stylesheet and from the source.',
+  'Design tokens match the two design documents in both themes, daisyUI is gone — from the stylesheet and from the source — and a hover or focus state repaints a background only.',
 );
