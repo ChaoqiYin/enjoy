@@ -13,7 +13,7 @@ import type { ShareStatus } from '../shared/api';
  * than the file it is written in — and this is what those mocks are pointed at.
  * The provider tree stays in each test file too, deliberately: a shared render
  * helper buys one line and costs the reader the ability to see what is mounted
- * (see 开发指南「测试与检查」). What is shared here is the data, which is the
+ * (see 开发指南「测试与检查」，docs/guides/测试与检查.md). What is shared here is the data, which is the
  * same for both files and is what a second copy would let drift.
  *
  * The window is not here, and nothing about it is mocked: the interface does not

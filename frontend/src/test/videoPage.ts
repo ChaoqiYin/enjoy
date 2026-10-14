@@ -12,7 +12,8 @@ import { video as anyVideo } from './fixtures';
  * the same record, so those are written once here. What stays in each file is
  * what a reader has to see: the `vi.mock` calls, which reach no further than the
  * file they are written in, and the render helper, which is where what is
- * mounted is readable (开发指南「测试与检查」; `sharePage.tsx` is the same shape
+ * mounted is readable (开发指南「测试与检查」，见 docs/guides/测试与检查.md;
+ * `sharePage.tsx` is the same shape
  * for 共享页).
  */
 
