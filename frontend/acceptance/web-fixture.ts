@@ -409,6 +409,22 @@ mockIPC(
         // unimplemented so that a walkthrough past the close question reads the
         // application rather than a banner about the fixture.
         return;
+      case 'minimize_window':
+      case 'toggle_maximize_window':
+        // Answered, and nothing done. What the three titlebar buttons reach is
+        // the window this page is drawn in, and a page cannot reach it: there is
+        // nothing here that a window could be asked to do, and the glyph the
+        // middle one draws is pushed from the backend rather than asked for, so
+        // it stays the square. A walkthrough of the titlebar is a walkthrough of
+        // the strip — is it the right height, does it follow the theme, are the
+        // three marks the platform's — and what pressing them does is read in a
+        // real window.
+        return;
+      case 'request_close_window':
+        // A request, and the fixture has no 共享服务 for one to be held on:
+        // whether it is held and whether the user is asked is the backend's
+        // answer, which is `close_window`'s below and `crate::closing`'s.
+        return;
       case 'regenerate_share_password':
         sharePassword = `drawn-${String(++drawnPasswords)}`;
         return share(Number(payload.spaceId));

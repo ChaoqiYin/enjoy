@@ -71,8 +71,10 @@ it('offers light and dark, with dark in force', () => {
 
 // jsdom does not implement `ResizeObserver`, and the control measures its track
 // with one. The house answer is a stub here rather than a guard in the
-// component, which is what `ScrollViewport` does too — see `beforeEach`, which
-// has to re-stub it because `afterEach` takes every global back.
+// component — see `beforeEach`, which has to re-stub it because `afterEach`
+// takes every global back. (`ScrollViewport` used to be the other customer of
+// this stub: it measured the platform's scrollbar gutter until that stopped
+// naming anything, ADR 0040.)
 class ResizeObserverStub {
   observe() {}
   disconnect() {}

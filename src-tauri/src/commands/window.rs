@@ -73,3 +73,65 @@ pub(crate) async fn close_window(
         .destroy()
         .map_err(|error| AppError::new("app.close.failed", error))
 }
+
+/// The window's three own buttons, which are the interface's to draw because
+/// the window has no decorations to draw them (`tauri.conf.json`).
+///
+/// Commands of the application's own, for the reason ADR 0037 gave for
+/// `show_window`: `@tauri-apps/api/window` has a `minimize()`, a
+/// `toggleMaximize()` and a `close()` and none of them is used, because that
+/// reach is what `scripts/check-permissions.mjs` exists to catch, and every
+/// extra capability is a thing that can be granted wrong. What these do is
+/// what Tauri's own button-backed commands do; the guard Tauri puts on the
+/// drag region's double click — resizable, then maximizable — has nothing to
+/// say here, since this window is both (`tauri.conf.json`).
+///
+/// Nothing is decided on this side, which is the point: whether a close is
+/// held is `crate::closing`'s, and the two commands below are on opposite
+/// sides of it.
+#[tauri::command]
+pub(crate) fn minimize_window(window: WebviewWindow) -> Result<(), AppError> {
+    window
+        .minimize()
+        .map_err(|error| AppError::new("app.window.minimize_failed", error))
+}
+
+/// Maximizes the window, or puts it back to the size it had.
+///
+/// Which of the two it is comes from the window rather than from the interface,
+/// for the same reason the picture on the button does (`crate::titlebar`): the
+/// interface draws this fact, it does not hold it, and a copy held on that side
+/// is one that can disagree with the window it is drawn on. The window cannot
+/// fail to say — its maximized state is read from the platform, not inferred
+/// from a size — and a window that cannot be read at all is one that is already
+/// gone, so the reading falling back to "not maximized" costs nothing and
+/// leaves one error path rather than two.
+#[tauri::command]
+pub(crate) fn toggle_maximize_window(window: WebviewWindow) -> Result<(), AppError> {
+    let maximized = window.is_maximized().unwrap_or(false);
+    let outcome = if maximized {
+        window.unmaximize()
+    } else {
+        window.maximize()
+    };
+    outcome.map_err(|error| AppError::new("app.window.maximize_failed", error))
+}
+
+/// Asks for the window to close — pressed, not closed.
+///
+/// The pair is deliberate and the difference is the whole of `crate::closing`:
+/// a request is held while a 共享服务 is running, the user is asked, and
+/// [`close_window`] is what carrying out a yes looks like. `Window::close()`
+/// is the way to ask, and the only one: Tauri documents it as sending
+/// `WindowEvent::CloseRequested` first, "like a user-initiated close request",
+/// which is precisely what the window's own decorations used to send and what
+/// `.on_window_event` in `main.rs` holds. `destroy()` would go past all of it.
+///
+/// The failure is reported as the same one the confirmed close reports, and it
+/// means the same thing to the user: the window did not close.
+#[tauri::command]
+pub(crate) fn request_close_window(window: WebviewWindow) -> Result<(), AppError> {
+    window
+        .close()
+        .map_err(|error| AppError::new("app.close.failed", error))
+}

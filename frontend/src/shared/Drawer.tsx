@@ -107,7 +107,7 @@ export function Drawer({
           }}
           // The panel takes the width the drawer is allowed: the frame fills
           // the window and the sheet's own width is a fraction of it.
-          className="block w-full max-w-[440px] space-y-5 overflow-y-auto p-6 outline-none"
+          className="app-scrollbar block w-full max-w-[440px] space-y-5 overflow-y-auto p-6 outline-none"
         >
           {/* Named here rather than on the frame: this is what assistive
               technology is left with while the drawer is open, and Radix points

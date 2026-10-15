@@ -14,6 +14,7 @@ import { SharePage } from '../pages/SharePage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { AppFooter } from '../shared/AppFooter';
 import { AppHeader } from './AppHeader';
+import { TitleBar } from './TitleBar';
 import { SettingsProvider } from '../settings/SettingsProvider';
 import { SpaceProvider } from '../features/space/SpaceProvider';
 import { ErrorBoundary } from '../shared/ErrorBoundary';
@@ -74,6 +75,9 @@ function Window() {
     // needed them are what ADR 0022 is about.
     <div className="dot-grid flex h-dvh flex-col overflow-hidden bg-background text-foreground">
       <LanguageFocusSync />
+      {/* Above the header and outside the scroll container with it: the strip is
+          the window's, not the page's (`docs/guides/列表与滚动.md`). */}
+      <TitleBar />
       <AppHeader />
       <Routes>
         <Route path="/" element={<LibraryPage />} />

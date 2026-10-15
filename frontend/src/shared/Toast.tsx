@@ -132,7 +132,7 @@ export function Toast({
             // The line is drawn full width and scaled down, rather than
             // narrowed step by step: a `transform` animation is the engine's to
             // run on the compositor, so the line drains smoothly whatever the
-            // main thread is doing. The `@keyframes` live in `style.css`; only
+            // main thread is doing. The `@keyframes` live in `components.css`; only
             // parts that change at run time are here.
             //
             // A different duration is a different notice in this slot, so the

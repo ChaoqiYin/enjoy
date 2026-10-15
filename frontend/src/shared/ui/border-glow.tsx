@@ -29,7 +29,8 @@ import {
  *    The demo asks React for the colour mode (`BorderGlowDemo.jsx`, the four
  *    `useColorModeValue` calls); this repository switches themes in
  *    `[data-theme]` without React knowing (ADR 0018), so the same values live
- *    in `style.css` beside the two blend modes. The original's own
+ *    in `style.css` — the tokens — with the two blend modes beside the card's
+ *    own rule in `components.css`. The original's own
  *    `isLightColor` branch went the same way — it read the background as a hex
  *    literal, and a token is not one.
  * 2. Colours are read through `color-mix`, which takes any colour expression.

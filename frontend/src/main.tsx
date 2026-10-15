@@ -10,6 +10,7 @@ import { readCurrentSpace } from './shared/api';
 import english from '../../shared/locales/en/common.json';
 import chinese from '../../shared/locales/zh-CN/common.json';
 import './style.css';
+import './components.css';
 import { initializeTheme } from './theme/ThemeSetting';
 
 const client = new QueryClient();

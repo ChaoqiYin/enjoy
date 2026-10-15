@@ -162,17 +162,25 @@ export const shareApi = {
 };
 
 /**
- * The window this interface is drawn in, asked for the two things it is asked of
- * it: to appear once there is something to show, and to go away once the user has
- * said so. Both are commands of the application's own, which is what leaves the
- * interface needing no permission over its own window at all.
+ * The window this interface is drawn in, asked for the things it is asked of it:
+ * to appear once there is something to show, to go away once the user has said
+ * so, and to be minimized, resized and asked-to-close from the buttons the
+ * interface draws in its corner. Every one is a command of the application's
+ * own, which is what leaves the interface reaching into `@tauri-apps/api/window`
+ * for nothing at all.
  *
  * Whether a close is held — and if so, that the user is asked first — is the
  * backend's decision, taken where the fact it rests on lives: only the backend
  * knows a service is running (`crate::closing`). It holds the close and tells
  * this side a question is due; the answer comes back here as a command, and the
  * window is closed by the side that decided it should wait. Nothing here
- * subscribes to the window or destroys it.
+ * subscribes to the window, destroys it, or decides the close.
+ *
+ * The three the titlebar presses are the same three the window's own decorations
+ * used to carry, and `requestClose` is the one of them that is a *request*:
+ * pressing the button asks for the close, exactly as the platform's own button
+ * did, and what becomes of the request is the paragraph above. `close` is the
+ * other end of that — the user has answered yes.
  *
  * The command ends the service before the window goes, which is why the answer
  * to a yes is one call rather than two.
@@ -189,6 +197,9 @@ export const shareApi = {
 export const windowApi = {
   show: (): Promise<void> => invoke<void>('show_window'),
   close: (): Promise<void> => invoke<void>('close_window'),
+  minimize: (): Promise<void> => invoke<void>('minimize_window'),
+  toggleMaximize: (): Promise<void> => invoke<void>('toggle_maximize_window'),
+  requestClose: (): Promise<void> => invoke<void>('request_close_window'),
 };
 
 /**
@@ -254,6 +265,19 @@ export const backendEvents = {
    */
   onCloseRequested: (handler: () => void): Promise<UnlistenFn> =>
     listen('close-requested', handler),
+  /**
+   * Whether the window is maximized, which is the picture on the titlebar's
+   * middle button.
+   *
+   * Pushed rather than asked for, and pushed on the change rather than on every
+   * measuring: the window is maximized just as well by a double click on the
+   * title or by a drag to the top of the screen as by that button, and none of
+   * those is a call this side makes (`crate::titlebar`).
+   */
+  onWindowMaximized: (
+    handler: (maximized: boolean) => void,
+  ): Promise<UnlistenFn> =>
+    listen<boolean>('window-maximized', ({ payload }) => handler(payload)),
 };
 
 /** Asks the user for folders, through the platform's own picker. */

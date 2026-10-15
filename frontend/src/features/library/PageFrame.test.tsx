@@ -89,11 +89,16 @@ it('announces a copied path once it was copied, and not before', () => {
 
 // The scan panel is a native `<dialog>`, and a native dialog is painted with the
 // UA stylesheet's `color: canvastext` — a keyword resolved from `color-scheme`,
-// which this app never sets (it themes with `data-theme` and CSS variables, so
-// `color-scheme` computes to `normal`). In the dark theme `canvastext` is black,
-// and because a UA declaration beats inheritance, `body`'s `color` never reaches
-// the panel: the text came out black on the dark card until the panel's surface
-// named its own foreground.
+// which this app did not set at the time (it themes with `data-theme` and CSS
+// variables, so `color-scheme` computed to `normal`, which the engine reads as
+// light). In the dark theme `canvastext` was black, and because a UA declaration
+// beats inheritance, `body`'s `color` never reached the panel: the text came out
+// black on the dark card until the panel's surface named its own foreground.
+//
+// That keyword now resolves per theme — the app declares `color-scheme` in both
+// theme blocks (ADR 0040). The panel keeps naming its own foreground anyway: it
+// is what every other surface in the app does, and the black-text fix must not
+// rest on a second declaration staying correct.
 //
 // What this test holds is that pairing — the surface that paints `bg-card` also
 // names `text-card-foreground`, as every other card in this app does. What it

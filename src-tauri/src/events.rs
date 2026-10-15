@@ -27,6 +27,13 @@ pub trait Events {
     /// Carries nothing: what is being asked is a question the interface already
     /// has the words for, and what would be closed is the window it is drawn in.
     fn close_requested(&self);
+    /// Whether the window is maximized, which is the whole of what the picture
+    /// on the titlebar's middle button is drawn from.
+    ///
+    /// Sent on the change rather than on every measurement, because the
+    /// measurement is the window's own resize event and that arrives on every
+    /// frame of a drag (`crate::titlebar`).
+    fn window_maximized(&self, maximized: bool);
     /// Where a download has got to. How it ended is not here: that is the
     /// answer the command returns, because the section has to settle on exactly
     /// one of "ready", "paused" or "cancelled" and an event is not a race it
@@ -61,6 +68,10 @@ impl Events for AppEvents {
         let _ = self.0.emit("close-requested", ());
     }
 
+    fn window_maximized(&self, maximized: bool) {
+        let _ = self.0.emit("window-maximized", maximized);
+    }
+
     fn update_progress(&self, progress: UpdateProgress) {
         let _ = self.0.emit("update-progress", progress);
     }
@@ -85,6 +96,11 @@ pub struct Recorded {
     pub downloads: std::sync::Mutex<Vec<UpdateProgress>>,
     /// How many times the interface was told a close is being held for it.
     pub close_requests: std::sync::atomic::AtomicUsize,
+    /// Every maximized state the interface was told, in order. The order is
+    /// the point rather than the tally: what the titlebar is being kept from
+    /// doing is repeating itself, and a count would not say whether the last
+    /// thing said is the thing that is true.
+    pub maximized: std::sync::Mutex<Vec<bool>>,
     /// Runs as each status goes out, before it is written down.
     ///
     /// Some rules can only be exercised from inside the pass that has them:
@@ -133,6 +149,11 @@ impl Recorded {
         self.close_requests
             .load(std::sync::atomic::Ordering::SeqCst)
     }
+
+    /// Every maximized state the interface was told, in order.
+    pub fn maximized(&self) -> Vec<bool> {
+        self.maximized.lock().unwrap().clone()
+    }
 }
 
 #[cfg(test)]
@@ -160,5 +181,9 @@ impl Events for Recorded {
     fn close_requested(&self) {
         self.close_requests
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    fn window_maximized(&self, maximized: bool) {
+        self.maximized.lock().unwrap().push(maximized);
     }
 }

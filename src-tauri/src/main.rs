@@ -17,12 +17,17 @@ mod repository;
 mod scan;
 mod settings;
 mod share;
+mod titlebar;
 mod update;
 
 use i18n::{language, native};
 use tauri::Manager;
 
 fn main() {
+    // What the titlebar is told about the window, kept across the two of them:
+    // the state the interface already has, so that a resize it is standing
+    // still through says nothing (`titlebar`).
+    let titlebar = titlebar::Titlebar::default();
     tauri::Builder::default()
         .enable_macos_default_menu(false)
         .plugin(tauri_plugin_dialog::init())
@@ -58,6 +63,9 @@ fn main() {
             commands::space::switch_space,
             commands::window::show_window,
             commands::window::close_window,
+            commands::window::minimize_window,
+            commands::window::toggle_maximize_window,
+            commands::window::request_close_window,
             update::commands::check_for_update,
             update::commands::install_update,
             update::commands::control_update,
@@ -69,11 +77,12 @@ fn main() {
         // nothing about its own window, and it is told a close is being held the
         // same way it is told everything else.
         //
-        // This is the whole of the wiring: the decision, the holding and the
-        // telling are one call, so what is left here is the one thing no test can
-        // do — hold Tauri's window.
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        // Both arms are the same kind of wiring — a fact the window reports, a
+        // rule from a module beside this one, and one thing said — so what is
+        // left here is the part no test can do: hold Tauri's window, and read
+        // its size.
+        .on_window_event(move |window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
                 // A close arriving before the backend came up — a startup that
                 // failed, and said so natively — has nothing to hold it: the
                 // window is the only thing left to close.
@@ -83,6 +92,17 @@ fn main() {
                 let events = events::AppEvents(window.app_handle().clone());
                 closing::handle(&state.share, &events, || api.prevent_close());
             }
+            // Every change of the window's size, which is where the state of the
+            // titlebar's middle button is read. Read from the window rather than
+            // from whichever command was called: the window is maximized just as
+            // well by a double click on the title, by Win+Up, and by being
+            // dragged to the top of the screen, and none of those is a call of
+            // ours.
+            tauri::WindowEvent::Resized(_) => {
+                let maximized = window.is_maximized().unwrap_or(false);
+                titlebar.report(maximized, &events::AppEvents(window.app_handle().clone()));
+            }
+            _ => {}
         })
         .setup(|app| {
             // First, so that a failure below is written down. The log file

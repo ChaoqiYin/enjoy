@@ -19,6 +19,10 @@ import { extname, join, relative } from 'node:path';
 // `primary-foreground` follows its `on-primary`.
 
 const style = readFileSync(join('frontend', 'src', 'style.css'), 'utf8');
+const components = readFileSync(
+  join('frontend', 'src', 'components.css'),
+  'utf8',
+);
 
 /** The declarations between the braces that follow `selector`. */
 function block(selector) {
@@ -35,6 +39,15 @@ function block(selector) {
 function token(body, name) {
   const match = body.match(new RegExp(`--${name}:\\s*([^;]+);`));
   assert.ok(match, `--${name} is declared`);
+  return match[1].trim().toLowerCase();
+}
+
+/** The value of the plain property `name` inside a block, for the one or two
+ *  declarations in there that are not tokens. Anchored to the start of a line so
+ *  that a custom property ending in the same words cannot answer for it. */
+function declaration(body, name, where) {
+  const match = body.match(new RegExp(`^\\s*${name}:\\s*([^;]+);`, 'm'));
+  assert.ok(match, `${where} declares ${name}`);
   return match[1].trim().toLowerCase();
 }
 
@@ -116,6 +129,49 @@ assert.equal(token(dark, 'ring'), token(dark, 'primary'));
 // component the moment the theme flips, so the dark block must not redeclare.
 assert.equal(token(light, 'radius'), '0.5rem');
 assert.ok(!/--radius:/.test(dark), 'the dark block redeclares --radius');
+
+// Which palette the *engine* paints with: the scrollbar beside every scrolling
+// container, the internals of a form control, the `canvastext` keyword. Not a
+// colour of this stylesheet's — nothing here reads it — and that is exactly why
+// it needs holding: it is the one surface the theme switch cannot reach by
+// itself, because the switch writes `data-theme` and the engine answers only to
+// `color-scheme`, so a dark window kept a white scrollbar down its side
+// (ADR 0040). The pair is asserted rather than one value, because the failure is
+// silent and lands in one theme at a time: drop the dark line and the light
+// theme is still perfect.
+assert.equal(declaration(light, 'color-scheme', ':root'), 'light');
+assert.equal(declaration(dark, 'color-scheme', "[data-theme='dark']"), 'dark');
+
+// The lane a scrollbar takes, which is this interface's own number now that the
+// bar is drawn (`components.css`, `.app-scrollbar`). It is asserted because it is
+// the one token the layout can feel: `scrollbar-gutter` reserves it beside every
+// scrolling container, so moving it moves the content column — the readings the
+// ADRs and the guides carry are all taken at ten. The dark block must not
+// redeclare it: the lane is not a theme's, it is a shape, the same rule `--radius`
+// is under (ADR 0040).
+assert.equal(token(light, 'scrollbar-width'), '10px');
+assert.ok(
+  !/--scrollbar-width:/.test(dark),
+  'the dark block redeclares --scrollbar-width',
+);
+
+// And the two standard properties that would silently undo every drawn rule.
+// `scrollbar-color` and `scrollbar-width` are the *standard* answer, and an
+// element that has one is painted by the engine again: every
+// `::-webkit-scrollbar` rule on it is dropped, `!important` and all. Measured,
+// not assumed — with `scrollbar-color` set on a page wearing `.app-scrollbar`,
+// the lane went back from 10 to the platform's 15 and the arrows came back
+// (ADR 0040). Nobody would notice until they looked, which is what this file is
+// for; the negative lookbehind keeps the token `--scrollbar-width` out of it.
+for (const [name, sheet] of [
+  ['style.css', style],
+  ['components.css', components],
+]) {
+  assert.ok(
+    !/(?<!-)\bscrollbar-(color|width)\s*:/.test(sheet),
+    `${name} sets the standard scrollbar properties, which discard the drawn bar`,
+  );
+}
 
 // The dark variant follows the document attribute `ThemeSetting` writes, not
 // shadcn's default `.dark` class, which nothing in this app sets.

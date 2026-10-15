@@ -18,7 +18,9 @@ import ts from 'typescript';
 //
 // The reaches are in one file. `check-commands.mjs` keeps them there, so
 // `shared/api.ts` is the whole of the interface's own address for Tauri, and
-// reading it reads every reach.
+// reading it reads every reach the interface makes by calling something. One
+// reach is not a call — an element saying that it may be dragged by — and it is
+// looked for where it is written instead; `DRAG_REGION` below has the account.
 //
 // Of the two facts this needs, only one is in the repository. What a reach
 // requires is Tauri's own list, kept in `needs` below and named the way Tauri
@@ -257,7 +259,48 @@ function expand(manifests, identifier) {
   return expanded;
 }
 
+/**
+ * The one reach that is not a call, and the second kind of thing this file has
+ * to read.
+ *
+ * A window is dragged by `data-tauri-drag-region`, and that attribute is not an
+ * address of the interface's at all: Tauri's own injected script reads it off
+ * the element under the pointer — on mousedown, and on the way down it also
+ * answers a double click — and calls `plugin:window|start_dragging` for it. So
+ * the reach is real, the permission is real, and the table above cannot see
+ * either: nothing in `api.ts` names it. Left here, the attribute and the grant
+ * would drift apart silently in both directions — a drag region on a window
+ * that is not allowed to start dragging is a window that cannot be moved at all
+ * once it has no decorations, and the one place that would be noticed is a desk
+ * with a mouse on it.
+ *
+ * So the attribute is looked for in the source, the way the stylesheet checks
+ * look for a class name, and what it needs is added to what the grants have to
+ * carry. `internal-toggle-maximize`, which is the same script's double click, is
+ * deliberately not here: it is in `core:window:default`, which `core:default`
+ * brings in, and a permission that is granted by a set this file already reads
+ * through needs no second accounting.
+ */
+const DRAG_REGION = 'data-tauri-drag-region';
+const DRAG_REGION_PERMISSION = 'core:window:allow-start-dragging';
+
+/** Every source file under `dir`, at any depth. */
+function sources(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return sources(path);
+    return entry.isFile() && /\.tsx?$/.test(entry.name) ? [path] : [];
+  });
+}
+
 const needed = reaches();
+// The attribute is only asked about when it is there: this file does not
+// require a drag region to exist, it requires one that exists to be allowed.
+for (const path of sources(join('frontend', 'src'))) {
+  if (readFileSync(path, 'utf8').includes(DRAG_REGION))
+    needed.add(DRAG_REGION_PERMISSION);
+}
+
 const grants = granted();
 const names = new Set(grants.map((grant) => grant.permission));
 

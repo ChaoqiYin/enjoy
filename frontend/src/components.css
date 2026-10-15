@@ -1,0 +1,235 @@
+/* The rules a named piece of the interface wears, which no utility can say.
+   `style.css` declares what a colour, a step or a radius *is* — its tokens, the
+   two variants, and the base layer that sets the document up. This file is what
+   one control or one layer does with them: several properties that only mean
+   anything together (a repeating gradient with the pitch it is drawn at, a
+   glyph's shape with the mask that paints it), a `box-shadow` that has to have
+   one writer, and a countdown's keyframes.
+
+   A second file rather than more of the first because the two are read for
+   different reasons, and because the first had reached the line limit its module
+   keeps (`scripts/check-source.mjs`). The one thing in `style.css` that names a
+   component is the nav's keyframes, and it is there for a reason of Tailwind's
+   rather than this file's: `animate-nav-turn` is built out of `--animate-*`, so
+   the keyframes have to be emitted from the block the token is declared in.
+
+   Loaded from `main.tsx` right after `style.css`, so the order the two are
+   written in is the order they are applied in. */
+
+/* Kept as-is: the scrollbar contract, not a daisyUI artifact. Radix's
+   `ScrollArea` draws its own scrollbar and would fight `scrollbar-gutter`.
+
+   The 20px is the gap between the last column and the scrollbar, and it is a
+   flat 20px rather than something adjusted for the scrollbar's width, because
+   there is nothing to adjust for: `clientWidth` has already had the scrollbar
+   taken out of it, and `padding-inline-end` is measured from the content box to
+   the padding box — the scrollbar's strip is the far side of that padding box,
+   not part of it. So the gap the eye sees *is* this value, whatever the
+   scrollbar is doing. Subtracting the gutter from it, which this rule used to
+   do, spent the whole difference on the scrollbar: with a 15px scrollbar the
+   cards sat 5px from it.
+
+   Twenty is also what the cards' glow needs. It is thrown 10px past the card
+   (`videoCardBox.hoverRoom`), and everything past the visible edge counts as
+   scrollable overflow — the gutter included, which is why five pixels of gap
+   was enough to put a horizontal scrollbar under the grid. */
+.scroll-viewport {
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding-inline-end: 20px;
+}
+
+@supports not (scrollbar-gutter: stable) {
+  .scroll-viewport {
+    overflow-y: scroll;
+  }
+}
+
+/* The scrollbar, drawn here rather than left to the engine: one class, worn by
+   whichever box scrolls, so that every bar in the window is the same bar.
+
+   Not a blanket rule on every scroller, because the two halves of what a bar
+   needs are not the same kind of thing: the *lane* is geometry a container has
+   to agree with (`.scroll-viewport`'s `scrollbar-gutter` and its 20px tail
+   margin, ADR 0040), and how the bar is *painted* is this. A box that takes this
+   class takes the paint; a box that takes `scroll-viewport` takes the lane. The
+   two are worn together where both are wanted, and a container that wants only
+   the second — the drawer's panel, the select's list, the table's own overflow —
+   says so on its own element.
+
+   The colours are the theme's, so nothing here is per-theme: `--muted-foreground`
+   is this palette's quiet ink and `--foreground` its loud one, and both flip
+   with `data-theme` on their own. The track is transparent rather than a step of
+   its own — what the lane reserves is the page, dots and all — and the thumb is
+   inset two pixels each side by a transparent border, so a ten-pixel lane shows
+   a six-pixel pill.
+
+   `!important` on every declaration, deliberately. The engine's own scrollbar
+   declarations live in the UA origin and an author rule beats them anyway; what
+   this defends is the *single* statement about scrollbars. A second rule written
+   later — one component's exception, or a `::-webkit-scrollbar` copy-pasted into
+   another file — would otherwise decide by specificity and order which of the
+   two wins, and the loser fails silently: half the window keeps the other bar.
+   With these, the class is the answer wherever it is worn.
+
+   Two traps for whoever edits this. `scrollbar-color` and `scrollbar-width` are
+   the *standard* properties, and setting either of them makes the engine drop
+   every `::-webkit-scrollbar` rule on that element — the bar silently reverts to
+   the platform's, `!important` and all. And `background-clip` has to be stated
+   as `background-color` rather than as the `background` shorthand: the shorthand
+   resets `background-clip` to `border-box`, which turns the pill into a square
+   that fills the lane. */
+.app-scrollbar::-webkit-scrollbar {
+  width: var(--scrollbar-width) !important;
+  height: var(--scrollbar-width) !important;
+}
+
+.app-scrollbar::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--muted-foreground) !important;
+  background-clip: content-box !important;
+  border: 2px solid transparent !important;
+  border-radius: 9999px !important;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--foreground) !important;
+}
+
+.app-scrollbar::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+/* Chromium's classic bar carries a button at each end; a drawn bar does not
+   want them, and neither does this one. */
+.app-scrollbar::-webkit-scrollbar-button {
+  display: none !important;
+}
+
+/* The video card's three token-driven properties, as rules rather than as
+   utilities: Tailwind emits no class for `mix-blend-[var(--…)]` at all (the
+   built stylesheet holds no `mix-blend-mode`), and a value that is the theme's
+   belongs beside the tokens holding it. Consumed by
+   `frontend/src/shared/ui/border-glow.tsx`.
+
+   `--fill-strength` is the pointer's, not the theme's — the component writes
+   it as it tracks the cursor — so the fill's opacity is the product of the two:
+   how close the pointer is to an edge, times how opaque the fill is in this
+   theme. The resting border and elevation are the card's own; `box-shadow` has
+   this one writer and no other (ADR 0008). */
+.glow-card {
+  border-color: var(--glow-card-border);
+  box-shadow: var(--glow-card-shadow);
+}
+
+/* The dot matrix the window sits on. A rule rather than a utility because it is
+   two properties that only make sense together — a repeating radial gradient
+   with no `background-size` is a single dot stretched over the whole element.
+
+   It is flat CSS on purpose, and that is the whole design: no canvas, no
+   animation, no JavaScript, so it costs nothing while the window is open, it
+   cannot fail to come up on a machine without WebGL, and it follows the theme
+   without being told (see `--dot-color`). What it gives up for that is the
+   pointer interaction two earlier attempts had — and those attempts are why it
+   is flat now; ADR 0022 has the account.
+
+   The radius is the dot's, so the dots are 2px across on a 16px pitch. The
+   half-pixel the gradient is drawn out to is what keeps the edges from
+   stair-stepping: ending both stops on the same value leaves the browser
+   antialiasing a hard circle, and this is a cheaper way to say the same thing.
+
+   The pitch and the colour move as a pair — tightening the grid raises how much
+   of the surface is ink, so the colour has to come down to keep the layer the
+   same weight. `--dot-color` carries the reasoning for both numbers. */
+.dot-grid {
+  background-image: radial-gradient(
+    circle,
+    var(--dot-color) 1px,
+    transparent 1.5px
+  );
+  background-size: 16px 16px;
+}
+
+.glow-blend {
+  mix-blend-mode: var(--glow-blend);
+}
+
+/* The four glyphs on the titlebar's buttons, painted rather than drawn.
+   `WindowControls` writes the size and the colour; what is here is the shape,
+   and it is a mask so that the colour is a `background-color`.
+
+   That is not a stylistic choice. The operating system's close button turns its
+   glyph white under the pointer, and this repository's rule is that a pointer
+   state may repaint a background and nothing else — `scripts/check-tokens.mjs`
+   holds every `hover:` in the source to it, and ADR 0038 has the two bugs it
+   came from. Painting the ink with the same property as the wash it sits on
+   makes the rule true of the button rather than an exception to it, and the ink
+   and its fill then cannot come apart.
+
+   The shapes are the operating system's own rather than `lucide-react`'s: those
+   are drawn at two pixels with round caps and ends, and the three marks on a
+   Windows titlebar are one pixel, square and crisp. `shape-rendering` says so
+   for the three that are made of level and vertical edges; the close button is
+   two diagonals and stays antialiased, as it does on the platform.
+
+   Each shape is carried by an ordinary custom property rather than by the mask
+   declarations themselves, which is what keeps the `-webkit-` pair written once:
+   `mask-*` unprefixed only arrived with an engine macOS 10.15's WKWebView
+   predates, and four rules each restating two prefixed declarations is eight
+   long lines that say one thing twice. A fifth button would then be one
+   declaration. */
+.window-glyph {
+  -webkit-mask-image: var(--window-glyph);
+  mask-image: var(--window-glyph);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+/* Ten by one, on the box's middle. */
+.window-glyph-minimize {
+  --window-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Crect x='0' y='4.5' width='10' height='1' fill='black' shape-rendering='crispEdges'/%3E%3C/svg%3E");
+}
+
+/* A ten-square, one pixel of it the frame. */
+.window-glyph-maximize {
+  --window-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Crect x='0.5' y='0.5' width='9' height='9' fill='none' stroke='black' stroke-width='1' shape-rendering='crispEdges'/%3E%3C/svg%3E");
+}
+
+/* Two squares of eight, the one behind showing only the edges that are not
+   under the one in front — the top run from x=2 to the right, and the right run
+   down to y=8. Drawn as one path because the two runs meet at a corner. */
+.window-glyph-restore {
+  --window-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M0.5 2.5H7.5V9.5H0.5Z M2 0.5H9.5V8' fill='none' stroke='black' stroke-width='1' shape-rendering='crispEdges'/%3E%3C/svg%3E");
+}
+
+/* Corner to corner, both ways. */
+.window-glyph-close {
+  --window-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M0.5 0.5L9.5 9.5M9.5 0.5L0.5 9.5' stroke='black' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+.glow-fill-blend {
+  mix-blend-mode: var(--glow-fill-blend);
+  opacity: calc(var(--fill-strength, 0) * var(--glow-fill-opacity));
+}
+
+/* The countdown line along a notice's bottom edge. Draining it is the engine's
+   work, not React's: the line keeps its full width and is scaled down over the
+   notice's remaining time, which the compositor does without the main thread.
+   A line narrowed one step at a time from a timer was one render per step, and
+   a step is late or lost exactly when the main thread is busy — which, for a
+   notice that appears as a scan finishes, is most of its life. Not silenced for
+   `prefers-reduced-motion`: the line is not an entrance flourish, it is how
+   much time the notice has left. */
+@keyframes notice-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}

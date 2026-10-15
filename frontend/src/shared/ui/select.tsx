@@ -57,7 +57,7 @@ export function SelectContent({
         position="popper"
         sideOffset={4}
         className={cn(
-          'relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[8rem] overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md',
+          'app-scrollbar relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[8rem] overflow-y-auto rounded-md border border-border bg-popover text-popover-foreground shadow-md',
           className,
         )}
         {...props}
