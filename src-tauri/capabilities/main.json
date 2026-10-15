@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "What the main window's interface reaches for: the core defaults, the listener it follows the library, a held close and the window's maximized state on, the folder picker, showing a file in its folder, and opening a web page in the user's own browser. Plus one reach that is not a call of the interface's: `core:window:allow-start-dragging`, which is what Tauri's own injected script asks for when the pointer goes down on the titlebar, whose element carries `data-tauri-drag-region`. The window's own buttons go through commands of the application's (see `src-tauri/src/commands/window.rs`) and need nothing from here; `core:window:default` already carries the double click's `internal-toggle-maximize`, and the rest of that set is getters",
+  "description": "What the main window's interface reaches for: the core defaults, the listener it follows the library, a held close and the window's maximized state on, the folder picker, showing a file in its folder, and opening a web page in the user's own browser. Plus two reaches that are not calls of the interface's: `core:window:allow-start-dragging`, which is what Tauri's own injected script asks for when the pointer goes down on the titlebar, whose element carries `data-tauri-drag-region`; and `snap-layout:default`, which is what `tauri-plugin-snap-layout`'s injected script asks for to keep the maximize button's hit test where the button is. The window's own buttons go through commands of the application's (see `src-tauri/src/commands/window.rs`) and need nothing from here; `core:window:default` already carries the double click's `internal-toggle-maximize`, and the rest of that set is getters",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -10,6 +10,7 @@
     "dialog:allow-open",
     "opener:allow-reveal-item-in-dir",
     "opener:allow-open-url",
-    "opener:allow-default-urls"
+    "opener:allow-default-urls",
+    "snap-layout:default"
   ]
 }

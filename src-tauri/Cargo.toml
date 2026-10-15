@@ -69,6 +69,23 @@ getrandom="0.3"
 # and `getifaddrs` elsewhere -- the two platform branches this crate is, in a
 # hundred lines, with the unsafe in its own code rather than ours.
 if-addrs="0.15"
+# The maximize button's hit test, which is the only thing in this application
+# that speaks to the window manager itself. Windows 11 hangs its snap-layouts
+# flyout on one answer and one answer only: `WM_NCHITTEST` returning
+# `HTMAXBUTTON` for the point under the pointer. That point is inside a rectangle
+# this interface owns — the button is drawn in the webview — so the answer has to
+# come from outside the page, and this plugin is what produces it: it lays a
+# transparent child window over the button and subclasses that child, rather than
+# subclassing the window itself.
+#
+# Taken rather than written, and the comparison is in ADR 0041. What decided it
+# is the child: the main window's message chain — the drag region, the resize
+# borders, everything `tao` does with it — is left exactly as it was, and the
+# plugin's own dependencies (`raw-window-handle`, `thiserror`, `windows-version`,
+# `windows-sys`) are all already in the tree through `tao`, so this adds no new
+# version line. Nowhere but Windows 11 (build 22000) does it do anything: below
+# that, and on macOS, every call of it is a no-op.
+tauri-plugin-snap-layout="1"
 
 [dev-dependencies]
 # Only for the signature tests, which have to bring a key of their own: a valid

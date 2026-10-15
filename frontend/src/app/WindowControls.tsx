@@ -55,6 +55,12 @@ export function WindowControls() {
           onPress={() => controls.run(undefined, () => windowApi.minimize())}
         />
         <WindowButton
+          // The one button whose pointer state is not this page's. Windows 11
+          // takes the rectangle for `HTMAXBUTTON` so it can hang its snap-layouts
+          // flyout on it, and a webview that is sent no mouse events there cannot
+          // answer `:hover` — so the id is what `main.rs` aims the plugin at, and
+          // the wash comes back as a class (`components.css`, `#window-maximize`).
+          id="window-maximize"
           label={t(maximized ? 'restoreWindow' : 'maximizeWindow')}
           glyph={maximized ? 'window-glyph-restore' : 'window-glyph-maximize'}
           onPress={() =>
@@ -94,11 +100,17 @@ export function WindowControls() {
 function WindowButton({
   label,
   glyph,
+  id,
   closing = false,
   onPress,
 }: {
   label: string;
   glyph: string;
+  /**
+   * Set on the one button the snap-layout plugin is aimed at (`main.rs`), and
+   * set only there: it is the id the plugin looks for in the page.
+   */
+  id?: string;
   /** The one that turns red and white under the pointer, as the platform's does. */
   closing?: boolean;
   onPress: () => void;
@@ -106,6 +118,7 @@ function WindowButton({
   return (
     <button
       type="button"
+      id={id}
       aria-label={label}
       onClick={onPress}
       className={cn(

@@ -34,6 +34,18 @@ fn main() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // Windows 11's snap layouts, which are the one piece of this window that
+        // is still the platform's. They hang on the window answering
+        // `HTMAXBUTTON` for the point under the maximize button, and the button
+        // is drawn in the webview — so the answer has to come from outside the
+        // page, and this is what gives it (`Cargo.toml` carries the why, ADR
+        // 0041 the comparison). The id is the button's in `WindowControls.tsx`,
+        // which is the whole of what the two sides have to agree on.
+        .plugin(
+            tauri_plugin_snap_layout::init()
+                .button_id("window-maximize")
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             language::get_language,
             settings::get_settings,

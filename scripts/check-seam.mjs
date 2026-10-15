@@ -257,8 +257,31 @@ for (const pair of pairs) {
   }
 }
 
+// The one setting of the snap-layout plugin, which is the same fault one step
+// out from the shapes above: the id is written twice, in two languages, and
+// neither side can work out the other's. `main.rs` aims the plugin at an id and
+// `WindowControls.tsx` puts that id on the maximize button. Renamed on one side
+// it still compiles, still builds, still passes every test, and fails only in a
+// window — on Windows 11, when the pointer comes to rest on the maximize button
+// and nothing appears.
+const aimed = /button_id\("([^"]+)"\)/.exec(
+  readFileSync(join('src-tauri', 'src', 'main.rs'), 'utf8'),
+);
+const controls = readFileSync(
+  join('frontend', 'src', 'app', 'WindowControls.tsx'),
+  'utf8',
+);
+if (!aimed) {
+  failures.push('main.rs aims the snap layout at no id');
+} else if (!controls.includes(`id="${aimed[1]}"`)) {
+  failures.push(
+    `main.rs aims the snap layout at "${aimed[1]}", and no element in WindowControls.tsx carries that id`,
+  );
+}
+
 assert.equal(failures.length, 0, failures.join('\n'));
 
 console.log(
-  `Every shape across the seam agrees: ${pairs.length} pairs, ${fields} fields`,
+  `Every shape across the seam agrees: ${pairs.length} pairs, ${fields} fields` +
+    (aimed ? `; the snap layout is aimed at "${aimed[1]}"` : ''),
 );

@@ -7,3 +7,6 @@ src-tauri/gen/
 resources/ffmpeg/**/*.exe
 resources/ffmpeg/**/*.dll
 resources/ffmpeg/**/*.zip
+# 验收截图留档在本机、不入库：它们是验收当时的证据，而不是仓库要长期带着的东西。
+# 指向它们的地方（三份验收文档与三份 ADR）都改成了「当时拍过，未随仓库保留」。
+docs/验收截图/

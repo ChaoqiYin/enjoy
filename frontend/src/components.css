@@ -57,9 +57,9 @@
    the second — the drawer's panel, the select's list, the table's own overflow —
    says so on its own element.
 
-   The colours are the theme's, so nothing here is per-theme: `--muted-foreground`
-   is this palette's quiet ink and `--foreground` its loud one, and both flip
-   with `data-theme` on their own. The track is transparent rather than a step of
+   The colours are the theme's, so nothing here is per-theme: `--scrollbar-thumb`
+   and its hover twin are declared in both theme blocks, and both flip with
+   `data-theme` on their own. The track is transparent rather than a step of
    its own — what the lane reserves is the page, dots and all — and the thumb is
    inset two pixels each side by a transparent border, so a ten-pixel lane shows
    a six-pixel pill.
@@ -89,14 +89,14 @@
 }
 
 .app-scrollbar::-webkit-scrollbar-thumb {
-  background-color: var(--muted-foreground) !important;
+  background-color: var(--scrollbar-thumb) !important;
   background-clip: content-box !important;
   border: 2px solid transparent !important;
   border-radius: 9999px !important;
 }
 
 .app-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: var(--foreground) !important;
+  background-color: var(--scrollbar-thumb-hover) !important;
 }
 
 .app-scrollbar::-webkit-scrollbar-corner {
@@ -210,6 +210,26 @@
 /* Corner to corner, both ways. */
 .window-glyph-close {
   --window-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M0.5 0.5L9.5 9.5M9.5 0.5L0.5 9.5' stroke='black' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+/* The maximize button's wash on Windows 11 — the one pointer state of this
+   window that the page is not told about the ordinary way.
+
+   Windows 11 hangs its snap-layouts flyout on the window answering
+   `HTMAXBUTTON` for the point under that button, and a point answered for is a
+   point the shell has taken: the webview is sent no mouse events there at all,
+   so `:hover` never fires and the `hover:bg-hover` the button carries paints
+   nothing. `tauri-plugin-snap-layout` is what answers for it, and it puts this
+   class on the button when the pointer arrives and takes it off when the
+   pointer leaves — so the wash is stated once more here, in the one form that
+   reaches the screen.
+
+   The `hover:` on the button stays rather than being replaced by this. Below
+   Windows 11 the plugin does nothing, nothing has taken the rectangle, and the
+   page's own `:hover` is what paints it; the two say the same colour and only
+   one of them is ever live. */
+#window-maximize.is-hovered {
+  background-color: var(--hover);
 }
 
 .glow-fill-blend {

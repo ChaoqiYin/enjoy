@@ -175,6 +175,17 @@
      wider than it was before the bar was drawn (ADR 0040). */
   --scrollbar-width: 10px;
 
+  /* The pill, and the pill under the pointer. A pair of its own rather than
+     `--muted-foreground` / `--foreground`, which is what it started as: those
+     two are this palette's quiet and loud *text*, and the user tuned the bar
+     away from both — the light one greyer than the slate the text is, the dark
+     one darker than the ink the text is. Both are neutral greys: nothing is
+     behind the pill but the page (the track is transparent), so it carries no
+     hue of its own. The relationship is the same in both themes — quiet enough
+     at rest to read as furniture, plainly there under the pointer. */
+  --scrollbar-thumb: #a3a3a3;
+  --scrollbar-thumb-hover: #737373;
+
   /* Not the document's `background` (`#faf8ff`): the user pointed at a
      screenshot of another application for the light theme's page colour and for
      the field on it, and the two were taken together. `--card` and the rest of
@@ -366,6 +377,13 @@
   --field: #1a1c20; /* surface-container-low; see the light block */
 
   --ring: #ff334b; /* primary */
+
+  /* The scrollbar's pill, tuned for a near-black page: what the platform's own
+     dark bar offers (`#9f9f9f`) was called too bright against this one, so at
+     rest it sits much closer to the page and only the pointer lifts it. The
+     light block carries the rest. */
+  --scrollbar-thumb: #5f646d;
+  --scrollbar-thumb-hover: #8f949c;
 
   /* The chosen block stays the grey step here — the light block carries why the
      two themes disagree. */

@@ -109,7 +109,7 @@ The detailed project documentation is currently in Simplified Chinese.
 - [Development Guide](docs/开发指南.md): Environment setup, commands, coding standards, UI conventions, and validation procedures.
 - [Design Baseline](docs/本地视频统一启动器-开发基线.md): Product scope, architecture, data model, and processing workflows.
 - [Implementation Review](docs/逐项完成审查.md): Completed validation and outstanding acceptance checks.
-- [Validation Log](docs/开发验收进度.md): Verification records and screenshots from development.
+- [Validation Log](docs/开发验收进度.md): Verification records and screenshots from development; the rounds before 2026-10 are in the [archive](docs/开发验收进度-归档.md).
 - [GitHub Issues](https://github.com/ChaoqiYin/enjoy/issues): Report bugs or suggest features. Include your operating system version, reproduction steps, and any error reference ID.
 
 Error notifications in the app show a reference ID. What that ID stands for is written to `enjoy.log` in the application data folder, beside the library database (`enjoy.db`); the file rotates once it passes 4 MiB.
