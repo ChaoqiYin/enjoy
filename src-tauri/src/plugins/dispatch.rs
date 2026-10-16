@@ -186,7 +186,10 @@ impl PluginHost {
                     mount_point,
                     CallOutcome::TimedOut,
                     elapsed,
-                    "The plugin ran past its deadline and was interrupted",
+                    // "Given up on" rather than "interrupted": one of the three
+                    // deadlines behind this ends the call while the plugin's own
+                    // thread may still be busy (`RunnerError::TimedOut`).
+                    "The plugin ran past its deadline and the call was given up on",
                 );
                 None
             }
@@ -207,7 +210,7 @@ impl PluginHost {
         why: impl std::fmt::Display,
     ) {
         // Only the two failures reach here. Which one it was is worth telling
-        // apart: "this plugin is broken" and "this plugin was stopped for
+        // apart: "this plugin is broken" and "this plugin was given up on for
         // taking too long" are different things to do something about.
         let code = match outcome {
             CallOutcome::TimedOut => "plugin.call.timed_out",

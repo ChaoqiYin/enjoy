@@ -27,14 +27,13 @@
 //! is reached through. This file holds only what they share: the type, its two
 //! locks, and the order a call is written down in.
 //!
-//! Where a call's interruption comes from: not here. A body that runs past its
-//! deadline is stopped by the deadline inside its own store (ADR 0044 §4) and
-//! reports [`RunnerError::TimedOut`]; the host does not spawn a thread per call
-//! to keep one of its own, because a plugin's body is already a dedicated
-//! thread with a resident store (ADR 0044 §2) and because a wasm blocked inside
-//! a host function is a blind spot this design writes down instead of papering
-//! over (ADR 0044 §6). What the host owes is what happens after, and that is
-//! the same as for any other failure: the call said nothing.
+//! Where a call's interruption comes from: not here. The host keeps no deadline
+//! of its own and starts no thread per call, so a call comes back only because
+//! the port made it come back — [`Runner`]'s docs are that contract, and coming
+//! back is the implementor's obligation rather than something this module
+//! backstops (ADR 0044 §2, §4, §5). What the host owes is what happens after,
+//! and it is the same for a call that failed and a call that ran past its
+//! deadline: the call said nothing.
 
 mod dispatch;
 mod metrics;

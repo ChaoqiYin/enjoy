@@ -5,6 +5,7 @@
 //! stops (ADR 0043 §5).
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::plugins::fixture::{self, FakeBody};
 use crate::plugins::mount_points::{self, SettingFieldKind, SourcedFieldValue};
@@ -88,6 +89,37 @@ fn a_plugin_that_ran_past_its_deadline_is_stopped_and_says_nothing() {
         "a plugin that was stopped for taking too long is not reported as one that broke"
     );
     assert_eq!(host.calls()[0].outcome, CallOutcome::TimedOut);
+}
+
+#[test]
+fn the_host_has_no_deadline_of_its_own() {
+    // The other half of the port's contract (`crate::plugins::runner`): a call
+    // comes back because the port made it come back, so the host waits as long
+    // as a body takes and hands back what it said. What this pins is that no
+    // deadline has been put here — a timer of the host's own, or a thread per
+    // call, is what ADR 0044 §2 rules out, and this is where either would show
+    // up.
+    let (host, _) = fixture::host();
+    host.enable(
+        "slow",
+        FakeBody::slow(
+            fixture::fields(&[("cover", "/slow.jpg")]),
+            Duration::from_millis(30),
+        ),
+    );
+
+    let fields = host.video_fields(&fixture::space(), &fixture::video());
+
+    assert_eq!(
+        answered(&fields),
+        vec![("cover".into(), "/slow.jpg".into(), "slow".into())],
+        "a body that takes its time is waited for, not given up on"
+    );
+    assert!(
+        host.calls()[0].elapsed >= Duration::from_millis(30),
+        "the call took at least as long as the body did: {:?}",
+        host.calls()[0].elapsed
+    );
 }
 
 #[test]

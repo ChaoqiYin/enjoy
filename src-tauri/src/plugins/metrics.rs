@@ -15,7 +15,14 @@ pub(crate) enum CallOutcome {
     Answered,
     /// The body threw, or answered something the kernel could not read.
     Failed,
-    /// The body ran past its deadline and was interrupted.
+    /// The call ran past its deadline and is over.
+    ///
+    /// One outcome for all three ways a call is kept bounded — the plugin's own
+    /// epoch or fuel, the runner giving up on the thread it was waiting on, and
+    /// the timeout around a host call (`RunnerError::TimedOut` says which
+    /// stretches those cover). What the status line and the diagnostics read
+    /// from it is the one thing they have in common: it was the clock, not the
+    /// plugin's code.
     TimedOut,
 }
 
