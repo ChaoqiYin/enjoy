@@ -112,7 +112,7 @@ impl PluginHost {
     /// told, but remembering is not having been told. The first time a plugin is
     /// asked it has nothing, and a plugin switched on after the user filled the
     /// form in never saw the values arrive — so every question carries them, and
-    /// a plugin has one way to get them rather than two (baseline §14.7).
+    /// a plugin has one way to get them rather than two (baseline §14.8).
     pub(crate) fn plugin_settings(
         &self,
         space: &SpaceRef,

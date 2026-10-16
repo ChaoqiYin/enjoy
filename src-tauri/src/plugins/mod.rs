@@ -39,6 +39,7 @@ mod archive;
 mod dispatch;
 mod manifest;
 mod metrics;
+mod order;
 mod registry;
 mod runner;
 mod store;
@@ -60,6 +61,8 @@ mod loading_tests;
 mod manifest_tests;
 #[cfg(test)]
 mod metrics_tests;
+#[cfg(test)]
+mod order_tests;
 #[cfg(test)]
 mod settings_tests;
 #[cfg(test)]

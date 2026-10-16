@@ -17,6 +17,7 @@ import type { PluginPort } from './status';
 export const pluginPort: PluginPort = {
   bootstrap: () => pluginApi.list(),
   setEnabled: (id, enabled) => pluginApi.setEnabled(id, enabled),
+  setOrder: (ids) => pluginApi.setOrder([...ids]),
   preview: (source) => pluginApi.preview(source),
   install: (source) => pluginApi.install(source),
   uninstall: (id, deleteContent) => pluginApi.uninstall(id, deleteContent),

@@ -56,9 +56,13 @@ pub(crate) const DATA: &str = "data";
 
 /// Puts every plugin the user switched on into the host's rotation.
 ///
-/// The order is the disk's (by id, [`Store::list`]'s own order), because the
-/// user's order is [`PluginHost::reorder`]'s and belongs to a running window;
-/// nothing here has one yet.
+/// The order the plugins end up in is the user's, and it comes from the order
+/// file rather than from the listing: the loop below walks the directory, which
+/// is in no order in particular, and the arrangement is applied once, after it,
+/// by [`PluginHost::reorder`]. Which plugin is asked first is the only place the
+/// order matters — a mount point several plugins contribute to (ADR 0045 §3) —
+/// and leaving it to whatever order the loop happened to walk would make it an
+/// accident of the file system.
 pub(crate) fn load(store: &Store, host: &PluginHost) {
     let rows = match store.list() {
         Ok(rows) => rows,
@@ -87,6 +91,13 @@ pub(crate) fn load(store: &Store, host: &PluginHost) {
             ),
         }
     }
+    // After the loop, not during it: what the loop built is a set of plugins the
+    // kernel will ask, and this is the one place the user's arrangement is put
+    // on it. An id the order names that is not in the rotation — a plugin that
+    // has been uninstalled, or one that failed to load — is ignored by
+    // `reorder`, which is what lets the file outlive the plugins it was written
+    // against.
+    host.reorder(&store.order());
 }
 
 /// One plugin's body, built from what its directory holds.

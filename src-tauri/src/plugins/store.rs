@@ -40,6 +40,7 @@ use crate::repository::Repository;
 
 use super::archive;
 use super::manifest::{self, Manifest, Problem};
+use super::order;
 
 /// The file the plugins that are switched on are written down in.
 pub(crate) const RECORD: &str = "enabled.json";
@@ -114,10 +115,12 @@ impl Store {
 
     /// Every installed plugin, by id.
     ///
-    /// Ids are what the list is ordered by, and that is a decision rather than
-    /// an oversight: the user's own order is [`super::PluginHost::reorder`]'s
-    /// and belongs to the running window, while this is a directory listing
-    /// read in a way that does not change between two runs.
+    /// Ids are what this is ordered by, and that is a decision rather than an
+    /// oversight: this is a directory listing read in a way that does not change
+    /// between two runs, and the order the *user* arranged is a separate fact on
+    /// disk ([`order`]), read by [`Store::ordered`] and applied to the running
+    /// window by [`super::PluginHost::reorder`]. What walks this listing is
+    /// [`super::loading::load`], which does not care what order it is in.
     pub(crate) fn list(&self) -> Result<Vec<PluginBootstrap>, AppError> {
         let enabled = self.enabled()?;
         let mut plugins: Vec<PluginBootstrap> = self
@@ -127,6 +130,63 @@ impl Store {
             .collect();
         plugins.sort_by(|left, right| left.id.cmp(&right.id));
         Ok(plugins)
+    }
+
+    /// Every installed plugin, in the order the user arranged them.
+    ///
+    /// What the plugin page lists, and what every lifecycle command answers
+    /// with: the order decides who is asked first at a mount point several
+    /// plugins contribute to (ADR 0045 §3), so it is part of what a row is
+    /// rather than a detail of how the page draws it.
+    ///
+    /// A plugin the order does not name — one just installed, or a directory the
+    /// user copied into place — comes after the ones it does, by id. That is the
+    /// rule [`super::registry::Registry::reorder`] applies to the rotation, so
+    /// what the page lists and what the kernel asks are one order rather than
+    /// two that happen to agree.
+    pub(crate) fn ordered(&self) -> Result<Vec<PluginBootstrap>, AppError> {
+        let arranged = self.order();
+        let mut plugins = self.list()?;
+        let place = |id: &str| {
+            arranged
+                .iter()
+                .position(|held| held == id)
+                .unwrap_or(arranged.len())
+        };
+        plugins.sort_by(|left, right| {
+            place(&left.id)
+                .cmp(&place(&right.id))
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        Ok(plugins)
+    }
+
+    /// The order the user arranged the plugins in, as it is written down.
+    ///
+    /// Read straight off the file rather than derived from the listing, because
+    /// it is the order and not the listing that decides: what walks it is
+    /// [`super::loading::load`], which hands it to the host so that the rotation
+    /// is in the user's order whatever order the plugins were built in.
+    pub(crate) fn order(&self) -> Vec<String> {
+        order::read(&self.directory)
+    }
+
+    /// Writes down the order the user arranged, and answers with the list as it
+    /// now stands.
+    ///
+    /// Every id has to be one that is installed, and that is [`Store::set_enabled`]'s
+    /// rule rather than a second one: the ids arrive from the window, so an id
+    /// this kernel never handed out is a page that is out of step with the disk,
+    /// and saying so is more use than writing a name that means nothing. An
+    /// installed plugin the order leaves out keeps its place at the end, which is
+    /// how a page that has not heard about a plugin installed a moment ago still
+    /// has one answer.
+    pub(crate) fn set_order(&self, arranged: &[String]) -> Result<Vec<PluginBootstrap>, AppError> {
+        for id in arranged {
+            self.installed_plugin(id)?;
+        }
+        order::write(&self.directory, arranged)?;
+        self.ordered()
     }
 
     /// Switches one plugin on or off, and answers with the list as it now
@@ -149,7 +209,7 @@ impl Store {
             record.remove(id);
         }
         self.write_enabled(&record)?;
-        self.list()
+        self.ordered()
     }
 
     /// Reads a source and says what installing it would do, without doing any
@@ -185,7 +245,7 @@ impl Store {
         let mut record = self.enabled()?;
         record.insert(id);
         self.write_enabled(&record)?;
-        self.list()
+        self.ordered()
     }
 
     /// Removes a plugin, and — only if the user said so — what it wrote.
@@ -199,7 +259,7 @@ impl Store {
     /// so it goes with the plugin whichever way the content question was
     /// answered. Keeping it would leave the library holding a form for something
     /// that is no longer installed, which no page could ever show again
-    /// (baseline §14.6).
+    /// (baseline §14.7).
     pub(crate) fn uninstall(
         &self,
         repository: &mut Repository,
@@ -219,7 +279,13 @@ impl Store {
         let mut record = self.enabled()?;
         record.remove(id);
         self.write_enabled(&record)?;
-        self.list()
+        // The place goes with it, unlike switching a plugin off: a place is kept
+        // for a plugin that is still there to come back to, and one that has been
+        // removed is not coming back to it — a reinstall that landed in an old
+        // slot would be an arrangement the user never made.
+        let arranged: Vec<String> = self.order().into_iter().filter(|held| held != id).collect();
+        order::write(&self.directory, &arranged)?;
+        self.ordered()
     }
 
     /// Puts the enable record aside, so that nothing is switched on.
@@ -238,7 +304,7 @@ impl Store {
                     .with_param("path", record.to_string_lossy())
             })?;
         }
-        self.list()
+        self.ordered()
     }
 
     /// The name no backup is using yet, so that two safe modes in one second do

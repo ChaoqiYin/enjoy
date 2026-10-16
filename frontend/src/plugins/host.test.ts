@@ -329,6 +329,34 @@ it('redraws the rows from a list without loading anything', async () => {
   expect(loadEntry).not.toHaveBeenCalled();
 });
 
+it('redraws the rows in the order the kernel answered with', async () => {
+  // The answer is the order the user arranged (ADR 0045 §3). The rows are held
+  // in a `Map`, and a `Map` keeps the place of a key it already holds — so
+  // rewriting them where they stand would leave a plugin the user has just
+  // moved up drawn below the ones it has passed, which is the whole of
+  // 「用户改了顺序而插件界面还按旧的排」.
+  const host = createPluginHost({
+    registry: createRegistry(),
+    port: portOf(),
+    baseline: {},
+    positions: [],
+    loadEntry: async () => ({ default: () => {} }),
+  });
+  await host.load();
+  host.refresh([
+    plugin({ id: 'first', name: 'First' }),
+    plugin({ id: 'second', name: 'Second' }),
+  ]);
+  expect(host.statuses().map((row) => row.id)).toEqual(['first', 'second']);
+
+  // The same two plugins, in the order the user has just put them in.
+  host.refresh([
+    plugin({ id: 'second', name: 'Second' }),
+    plugin({ id: 'first', name: 'First' }),
+  ]);
+  expect(host.statuses().map((row) => row.id)).toEqual(['second', 'first']);
+});
+
 it('drops the row of a plugin that is gone, and keeps what a plugin said', async () => {
   const registry = createRegistry();
   let said: ((activity: string) => void) | undefined;

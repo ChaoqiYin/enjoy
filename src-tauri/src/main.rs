@@ -86,6 +86,7 @@ fn main() {
             commands::space::delete_space,
             commands::space::switch_space,
             commands::plugin::list_plugins,
+            commands::plugin::set_plugin_order,
             commands::plugin::set_plugin_enabled,
             commands::plugin::preview_plugin_install,
             commands::plugin::install_plugin,

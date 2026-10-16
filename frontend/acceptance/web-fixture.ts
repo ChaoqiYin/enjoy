@@ -389,6 +389,10 @@ mockIPC(
           String(payload.pluginId),
           Boolean(payload.enabled),
         );
+      case 'set_plugin_order':
+        return plugins.setOrder(
+          (payload.order as unknown[]).map((id) => String(id)),
+        );
       case 'preview_plugin_install':
         return plugins.preview(String(payload.source));
       case 'install_plugin':
@@ -405,7 +409,7 @@ mockIPC(
       case 'list_plugin_settings':
         // The space travels with the call — every mount point is named with one
         // (ADR 0012) — and the answer does not depend on it: a plugin's settings
-        // are the same ones whichever space is on screen (baseline §14.6).
+        // are the same ones whichever space is on screen (baseline §14.7).
         return plugins.listSettings();
       case 'save_plugin_settings':
         return plugins.saveSettings(

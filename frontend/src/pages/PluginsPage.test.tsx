@@ -275,6 +275,65 @@ it('switches one plugin off and leaves the rest of the list alone', async () => 
   expect(setEnabled).toHaveBeenCalledWith('on', false);
 });
 
+it('moves a plugin up and draws the rows in the order the kernel answered with', async () => {
+  // Who is asked first is the order (ADR 0045 §3), so moving a plugin is a
+  // command of its own rather than a way of drawing the page — and what comes
+  // back is the whole list, which the page draws from.
+  const first = plugin({ id: 'first', name: 'First' });
+  const second = plugin({ id: 'second', name: 'Second' });
+  const setOrder = vi.fn(async (ids: readonly string[]) =>
+    ids.map((id) => (id === 'first' ? first : second)),
+  );
+  page({ ...doubles.pluginPort([first, second]), setOrder });
+  await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(2));
+
+  const rows = () =>
+    screen.getAllByRole('listitem').map((row) => row.textContent);
+  expect(rows()).toEqual([
+    `First${english.pluginEnabled}`,
+    `Second${english.pluginEnabled}`,
+  ]);
+
+  // The first row's "down": the two swap places, and the page redraws from the
+  // answer rather than moving the two rows itself.
+  fireEvent.click(
+    screen.getAllByRole('button', { name: english.pluginMoveDown })[0],
+  );
+  await waitFor(() =>
+    expect(rows()).toEqual([
+      `Second${english.pluginEnabled}`,
+      `First${english.pluginEnabled}`,
+    ]),
+  );
+  expect(setOrder).toHaveBeenCalledWith(['second', 'first']);
+});
+
+it('has nowhere to move the first and the last plugin', async () => {
+  // The ends are the ends: a button that would do nothing is disabled rather
+  // than left to look like it did something.
+  page(
+    portOf(
+      plugin({ id: 'first', name: 'First' }),
+      plugin({ id: 'middle', name: 'Middle' }),
+      plugin({ id: 'last', name: 'Last' }),
+    ),
+  );
+  await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(3));
+
+  const up = screen.getAllByRole('button', { name: english.pluginMoveUp });
+  const down = screen.getAllByRole('button', { name: english.pluginMoveDown });
+  expect(up.map((button) => button.hasAttribute('disabled'))).toEqual([
+    true,
+    false,
+    false,
+  ]);
+  expect(down.map((button) => button.hasAttribute('disabled'))).toEqual([
+    false,
+    false,
+    true,
+  ]);
+});
+
 it('asks about the content once, counts it, and keeps it unless told otherwise', async () => {
   const cover = plugin({
     id: 'cover',

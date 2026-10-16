@@ -79,7 +79,7 @@ pub struct VideoField {
 /// one named plugin, so the name is the call's argument rather than a column of
 /// every row it answers with. There is no space either, and that is the decision
 /// rather than an omission — a setting says how the plugin works, not what is in
-/// a space, so the same answers are in force in every one (baseline §14.6).
+/// a space, so the same answers are in force in every one (baseline §14.7).
 ///
 /// It is not the catalog's `SettingValue`, and deliberately: that shape is
 /// generated, and a generated file is not where a decision about what the

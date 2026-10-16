@@ -47,7 +47,7 @@ const SPACES: i64 = 5;
 ///
 /// `plugin_settings` is the other direction: what the user filled in for a
 /// plugin, which the kernel keeps because the plugin cannot (`plugin.settings`,
-/// baseline §14.6). It hangs off nothing at all — not off `videos`, because a
+/// baseline §14.7). It hangs off nothing at all — not off `videos`, because a
 /// setting is not about a record, and not off a space, because it says how the
 /// plugin works rather than what is in a space, so the same answers are in force
 /// in every one. `plugin_id` is a bare string for the reason `source_plugin` is,

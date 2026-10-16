@@ -19,7 +19,7 @@
 //! stay **beside the field it is about**, because the user's next act is to
 //! change that value and not to work out which of six values was wrong. So a
 //! refusal names the field in its params and the interface draws it there
-//! (baseline §14.8).
+//! (baseline §14.9).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -62,7 +62,7 @@ pub struct PluginSettingsGroup {
 ///
 /// Read before the plugins are, because the values go with the question
 /// (`PluginSettingsParams.values`): a plugin is always asked with what the user
-/// has filled in, so the answer can depend on it (baseline §14.7).
+/// has filled in, so the answer can depend on it (baseline §14.8).
 pub(crate) fn saved(
     repository: &Repository,
     plugins: &[String],

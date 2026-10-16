@@ -21,9 +21,30 @@ use crate::error::AppError;
 use crate::plugins::{PluginBootstrap, PluginInstallPreview};
 use crate::repository::lock_shared;
 
+/// Every installed plugin, in the order the user arranged them.
+///
+/// The order is what decides who is asked first at a mount point several
+/// plugins contribute to (ADR 0045 §3), so it is part of what a row is and not
+/// a way of drawing the page: this answers with the same order the kernel will
+/// ask them in on the next start.
 #[tauri::command]
 pub(crate) fn list_plugins(state: State<'_, AppState>) -> Result<Vec<PluginBootstrap>, AppError> {
-    state.plugin_store.list()
+    state.plugin_store.ordered()
+}
+
+/// Writes down the order the user arranged the plugins in.
+///
+/// Reading the current order is [`list_plugins`]: it is already the arrangement,
+/// and a second command that answered the same list would be a second name for
+/// one fact. Like every other lifecycle command this one takes effect on the
+/// next start (spec #82, 「不做热插拔」) — what changes now is what the page
+/// draws, not what this window is asking.
+#[tauri::command]
+pub(crate) fn set_plugin_order(
+    state: State<'_, AppState>,
+    order: Vec<String>,
+) -> Result<Vec<PluginBootstrap>, AppError> {
+    state.plugin_store.set_order(&order)
 }
 
 /// Switches one plugin on or off.

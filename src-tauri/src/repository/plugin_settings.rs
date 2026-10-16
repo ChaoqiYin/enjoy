@@ -12,7 +12,7 @@
 //!
 //! - no space, because a setting says how the plugin works rather than what is
 //!   in a space — the same answer in every space, like the plugin's own data
-//!   directory (baseline §14.6);
+//!   directory (baseline §14.7);
 //! - no reference, because a plugin lives on disk and this table does not follow
 //!   it there, so the column is a bare string for the reason
 //!   `video_fields.source_plugin` is. What goes when a plugin is uninstalled is
@@ -218,7 +218,7 @@ mod plugin_settings_tests {
         // Filled in with one space current, read with another: neither call
         // names a space, and the same answer comes back. That is the whole of
         // the decision — a setting says how the plugin works, not what is in a
-        // space (baseline §14.6) — and this test is what would fail if a space
+        // space (baseline §14.7) — and this test is what would fail if a space
         // column were added and left to default.
         let second = repository.create_space("Second").unwrap();
         repository.switch_space(second.id).unwrap();

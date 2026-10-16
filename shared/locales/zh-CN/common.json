@@ -232,5 +232,7 @@
   "pluginEnable": "启用",
   "pluginSettingsSave": "保存",
   "pluginSettingsRequired": "必填",
-  "pluginSettingsFolder": "选择文件夹"
+  "pluginSettingsFolder": "选择文件夹",
+  "pluginMoveUp": "上移",
+  "pluginMoveDown": "下移"
 }

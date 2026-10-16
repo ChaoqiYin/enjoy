@@ -7,7 +7,7 @@ import {
   usePluginHost,
 } from './PluginHostProvider';
 import type { PluginContext } from './host';
-import type { PluginFailure, PluginPort } from './status';
+import type { PluginBootstrap, PluginFailure, PluginPort } from './status';
 import { pluginPort } from '../test/doubles';
 
 // The provider is where the interface's registration point meets React: the one
@@ -44,16 +44,29 @@ function portOf(
     failure?: PluginFailure | null;
   }[]
 ): PluginPort {
-  return pluginPort(
-    plugins.map((entry) => ({
-      author: 'someone',
-      capabilities: [],
-      entry: null,
-      hasBody: false,
-      failure: null,
-      ...entry,
-    })),
-  );
+  return pluginPort(bootstraps(...plugins));
+}
+
+/** The same list, as the kernel answers with it: what a lifecycle action hands
+ * back to `refresh` rather than a port that answers it. */
+function bootstraps(
+  ...plugins: {
+    id: string;
+    name: string;
+    enabled: boolean;
+    entry?: string | null;
+    hasBody?: boolean;
+    failure?: PluginFailure | null;
+  }[]
+): PluginBootstrap[] {
+  return plugins.map((entry) => ({
+    author: 'someone',
+    capabilities: [],
+    entry: null,
+    hasBody: false,
+    failure: null,
+    ...entry,
+  }));
 }
 
 /** What a video's own menu reads: the plugins that can act on one. */
@@ -68,17 +81,21 @@ function Actions() {
   );
 }
 
-it('gives the window a position to read before any plugin has loaded', () => {
+it('gives the window its positions to read before any plugin has loaded', () => {
   // The navigation reads `app.page` while it is being rendered for the first
   // time, so the positions have to be declared by then — a position declared
   // when the first plugin arrives would be a page missing from the navigation
-  // until something else happened.
+  // until something else happened. `video.panel` is read the same way, by the
+  // details panel, and it is the one position whose absence is not a gap in a
+  // page but a plugin that cannot load at all: a registration at a position
+  // nobody declared is refused while the interface is loading (ADR 0045 §4).
   render(
     <PluginHostProvider>
       <Probe />
     </PluginHostProvider>,
   );
   expect(held.registry.drawsAt('app.page', KERNEL)).toEqual([]);
+  expect(held.registry.drawsAt('video.panel', KERNEL)).toEqual([]);
 });
 
 it('says the plugins are still being loaded until every answer is in', async () => {
@@ -175,6 +192,57 @@ it('draws a page a plugin registered, where the navigation put it', async () => 
         .map(({ owner, contribution }) => [owner, contribution.key]),
     ).toEqual([['a-plugin', 'covers']]);
   });
+});
+
+it('reads every position in the order the user arranged the plugins in', async () => {
+  // The order is what decides who is asked first where several plugins
+  // contribute to one mount point (ADR 0045 §3), and the kernel's answer is
+  // that order — so the registration point reads the answer rather than the
+  // order the plugins happened to be loaded in. The two agree when the window
+  // starts and part company the moment the user moves one, which is the case
+  // this is about: the rows are redrawn from the answer while this window goes
+  // on running what it loaded (spec #82, 「不做热插拔」).
+  render(
+    <PluginHostProvider
+      port={portOf(
+        { id: 'first', name: 'First', enabled: true, entry: 'first/entry.js' },
+        {
+          id: 'second',
+          name: 'Second',
+          enabled: true,
+          entry: 'second/entry.js',
+        },
+      )}
+      loadEntry={async (entry) => ({
+        default: (_baseline, context: PluginContext) => {
+          const id = entry.split('/')[0];
+          context.draw('app.page', { key: id, label: id, draw: () => null });
+        },
+      })}
+    >
+      <Probe />
+    </PluginHostProvider>,
+  );
+  const drawn = () =>
+    held.registry.drawsAt('app.page', KERNEL).map(({ owner }) => owner);
+  await waitFor(() => expect(drawn()).toEqual(['first', 'second']));
+
+  // The user moves the second one up, and the page redraws from what the kernel
+  // answered. Nothing is loaded a second time: what changed is the order.
+  act(() => {
+    held.refresh(
+      bootstraps(
+        {
+          id: 'second',
+          name: 'Second',
+          enabled: true,
+          entry: 'second/entry.js',
+        },
+        { id: 'first', name: 'First', enabled: true, entry: 'first/entry.js' },
+      ),
+    );
+  });
+  expect(drawn()).toEqual(['second', 'first']);
 });
 
 it('offers a video’s menu one entry per plugin that has a body', async () => {

@@ -232,5 +232,7 @@
   "pluginEnable": "Enabled",
   "pluginSettingsSave": "Save",
   "pluginSettingsRequired": "Required",
-  "pluginSettingsFolder": "Choose folder"
+  "pluginSettingsFolder": "Choose folder",
+  "pluginMoveUp": "Move up",
+  "pluginMoveDown": "Move down"
 }

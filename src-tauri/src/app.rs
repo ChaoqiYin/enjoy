@@ -135,7 +135,7 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
     // menu would otherwise never see the user's settings, because the only other
     // moment the kernel hands them over is when the plugin page is open — which
     // is not where such a plugin is ever used (`plugins::settings` says the rest,
-    // baseline §14.7). A library that cannot be read costs the user their
+    // baseline §14.8). A library that cannot be read costs the user their
     // plugins' settings and not their application, the same bargain loading
     // makes with a plugins directory it cannot read.
     if let Err(error) = settings::hand_over(&plugins, &repository) {

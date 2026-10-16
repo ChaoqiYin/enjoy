@@ -14,28 +14,45 @@ use std::sync::Arc;
 
 /// The body every plugin in these tests has: a module that answers an empty
 /// `video.fields`, which is all a body has to do to be a body.
+fn body() -> Vec<u8> {
+    body_answering(&[])
+}
+
+/// The same body, answering these fields instead of nothing.
 ///
 /// Written as text and compiled by the test, for the reason `super::wasm::fixture`
 /// gives: `wasm32` is not a target this repository builds for, and a fixture
 /// that needs another toolchain to have run first is a fixture that stops being
 /// run. What the loader is handed is the bytes a directory holds, and this is
 /// what those bytes are.
-fn body() -> Vec<u8> {
-    wat::parse_str(BODY).unwrap()
-}
-
-const BODY: &str = r#"
+///
+/// The answer is one `data` segment at a fixed offset and a `handle` that
+/// returns it, so what a plugin says is the module itself — which is what makes
+/// the order-sensitive test below a reading of the running instance rather than
+/// of the fake it was built from.
+fn body_answering(values: &[(&str, &str)]) -> Vec<u8> {
+    let json = super::fixture::fields(values);
+    // The answer is a WAT string literal, so its own quotes are escaped; the
+    // length is the JSON's, before the escaping, because that is what the guest
+    // hands back as the byte count.
+    let text = json.replace('"', "\\\"");
+    let length = json.len();
+    wat::parse_str(format!(
+        r#"
     (module
       (memory (export "memory") 1)
       (func (export "alloc") (param i32) (result i32) (i32.const 1024))
-      (data (i32.const 2048) "{\"fields\":[]}")
+      (data (i32.const 2048) "{text}")
       (func (export "handle") (param i32 i32 i32 i32) (result i64)
         (i64.const 2048)
         (i64.const 32)
         (i64.shl)
-        (i64.const 13)
+        (i64.const {length})
         (i64.or)))
-"#;
+"#
+    ))
+    .unwrap()
+}
 
 /// A manifest that declares a body module, on top of the one every plugin has.
 fn with_body(id: &str) -> serde_json::Value {
@@ -189,4 +206,60 @@ fn a_plugin_is_asked_at_the_mount_point_the_catalog_names() {
 
     let fields = host.video_fields(&super::fixture::space(), &super::fixture::video());
     assert!(fields.is_empty());
+}
+
+#[test]
+fn the_order_the_user_arranged_decides_which_plugin_fills_a_field() {
+    // The acceptance criterion of the ordering story (User Story 20): two
+    // plugins offering the same key, and the user putting the second one first.
+    // `video.fields` takes the first non-empty answer, so the order is what
+    // decides who wins — and the order is the user's, written down on disk and
+    // applied when the window starts rather than being the order the directory
+    // happens to list.
+    let directory = Installed::new();
+    let store = installed(
+        &directory,
+        "first",
+        &with_body("first"),
+        &body_answering(&[("cover", "/first.jpg")]),
+    );
+    directory.plugin("second", &with_body("second"));
+    directory.file(
+        "second",
+        "body.wasm",
+        &body_answering(&[("cover", "/second.jpg")]),
+    );
+    store.set_enabled("second", true).unwrap();
+    store
+        .set_order(&["second".to_string(), "first".to_string()])
+        .unwrap();
+
+    // Starting the window.
+    let running = host();
+    loading::load(&store, &running);
+
+    let fields = running.video_fields(&super::fixture::space(), &super::fixture::video());
+    assert_eq!(
+        fields
+            .iter()
+            .map(|field| (
+                field.key.as_str(),
+                field.value.as_str(),
+                field.source_plugin.as_str()
+            ))
+            .collect::<Vec<_>>(),
+        vec![("cover", "/second.jpg", "second")],
+        "the plugin the user put first is the one that fills the field"
+    );
+
+    // And again, in a window that has never seen the first one: the order is on
+    // disk, so a restart is not a place it can be lost.
+    let restarted = host();
+    loading::load(&store, &restarted);
+    let fields = restarted.video_fields(&super::fixture::space(), &super::fixture::video());
+    assert_eq!(
+        fields.first().map(|field| field.source_plugin.as_str()),
+        Some("second"),
+        "the order is still there the next time the window starts"
+    );
 }
