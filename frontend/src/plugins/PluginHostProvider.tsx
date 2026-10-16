@@ -10,8 +10,14 @@ import {
 import type { ReactNode } from 'react';
 import { createPluginHost } from './host';
 import type { BaselineModules, EntryLoader } from './host';
-import { createRegistry } from './registry';
-import type { DrawnKey, PluginId, PluginRegistry } from './registry';
+import { createRegistry, KERNEL } from './registry';
+import type {
+  DrawnContributions,
+  DrawnKey,
+  Placement,
+  PluginId,
+  PluginRegistry,
+} from './registry';
 import { noPlugins } from './status';
 import type { PluginBootstrap, PluginPort, PluginStatus } from './status';
 
@@ -35,11 +41,14 @@ import type { PluginBootstrap, PluginPort, PluginStatus } from './status';
  * Only the ones something here actually draws. That is what makes 「this plugin
  * is registered at a place nothing shows」 a load-time error rather than a
  * silent nothing: a position nobody declared is one a registration is refused
- * on. `video.panel` and `video.fields` join this list when the video page
- * draws them, and `plugin.settings`, `scan.completed` and `video.actions` when
- * the pages that ask them do.
+ * on. `video.fields` joins this list when the video page draws it, and
+ * `plugin.settings`, `scan.completed` and `video.actions` when the pages that
+ * ask them do.
  */
-const DRAWN_HERE = ['app.page'] as const satisfies readonly DrawnKey[];
+const DRAWN_HERE = [
+  'app.page',
+  'video.panel',
+] as const satisfies readonly DrawnKey[];
 
 /**
  * The kernel's own copy of a module, for a plugin that asks for one.
@@ -177,6 +186,32 @@ export interface PluginAction {
 
 /** Nothing, handed out again on every render that has no plugins. */
 const NO_ACTIONS: readonly PluginAction[] = [];
+
+/** The same, for a window whose details panels have nothing on them. */
+const NO_PANELS: readonly Placement<DrawnContributions['video.panel']>[] = [];
+
+/**
+ * The blocks the plugins add to a video's details panel, in plugin order.
+ *
+ * It is the render side of `video.panel`, and it is read the way the
+ * navigation reads `app.page`: the panel draws what is on the position and
+ * never learns which plugin put it there. Each block is handed the space the
+ * window is in and the video being described, which is the whole of what this
+ * mount point passes (`mountPoints.ts`).
+ *
+ * It answers with nothing rather than throwing when there is no provider above
+ * it, for the reason {@link usePluginActions} does: the panel belongs to a
+ * listing page, and a listing page is drawn whether or not this window has any
+ * plugins at all. A block a plugin draws is the plugin's, but the panel that
+ * holds it is the kernel's.
+ */
+export function usePluginPanels(): readonly Placement<
+  DrawnContributions['video.panel']
+>[] {
+  const value = useContext(PluginHostContext);
+  if (value === null) return NO_PANELS;
+  return value.registry.drawsAt('video.panel', KERNEL);
+}
 
 /**
  * What the plugins add to a video's own menu: one entry per plugin that has a

@@ -10,7 +10,11 @@ import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ScanStatus, Video, VideoField } from '../../shared/api';
+import { pluginPort } from '../../test/doubles';
 import { idleScan } from '../../test/fixtures';
+import type { PluginContext } from '../../plugins/host';
+import { PluginHostProvider } from '../../plugins/PluginHostProvider';
+import type { VideoPanelParams } from '../../plugins/mountPoints';
 import { VideoDetails } from './VideoDetails';
 import english from '../../../../shared/locales/en/common.json';
 import errors from '../../../../shared/locales/en/errors.json';
@@ -70,6 +74,7 @@ function view(
     <I18nextProvider i18n={i18n}>
       <VideoDetails
         video={source}
+        space={{ id: 1 }}
         actions={handlers}
         busy={busy}
         scan={scan}
@@ -153,6 +158,64 @@ it('reads out the fields the plugins wrote, each beside the plugin that wrote it
     ),
   ).map((badge) => badge.textContent);
   expect(sources).toEqual(['cover-fetcher', 'metadata-fetcher']);
+});
+
+it('draws the block a plugin registered in the panel, with the space and the video it is about', async () => {
+  // The panel is the render side of `video.panel`: a plugin registers a block
+  // and it is drawn here, in the one place a video's details are read. What the
+  // mount point hands the block is the space the window is in and the video the
+  // panel is describing — the whole of what a block is told
+  // (`shared/plugins/mount-points.json`).
+  const handed: VideoPanelParams[] = [];
+  render(
+    <I18nextProvider i18n={i18n}>
+      <PluginHostProvider
+        port={pluginPort([
+          {
+            id: 'a-plugin',
+            name: 'A plugin',
+            author: 'someone',
+            capabilities: [],
+            enabled: true,
+            entry: 'a/interface.js',
+            hasBody: false,
+            failure: null,
+          },
+        ])}
+        loadEntry={async () => ({
+          default: (_baseline: unknown, context: PluginContext) => {
+            context.draw('video.panel', {
+              key: 'stats',
+              draw: (params: VideoPanelParams) => {
+                handed.push(params);
+                return <p>drawn by the plugin</p>;
+              },
+            });
+          },
+        })}
+      >
+        <VideoDetails
+          video={video}
+          space={{ id: 7 }}
+          actions={actions()}
+          busy={false}
+        />
+      </PluginHostProvider>
+    </I18nextProvider>,
+  );
+  const block = await screen.findByText('drawn by the plugin');
+  expect(handed).toEqual([
+    { space: { id: 7 }, video: { id: 1, path: '/movies/example.mp4' } },
+  ]);
+  // In the panel and above the record's own terms: the panel keeps the room for
+  // a plugin's own area between the file's own header and the table, and that
+  // is the position a block is drawn in.
+  const firstTerm = document.querySelector('[data-slot="video-meta-row"]');
+  expect(firstTerm).not.toBeNull();
+  expect(
+    block.compareDocumentPosition(firstTerm as Node) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
 });
 
 it('adds no row at all for a library whose plugins wrote nothing', () => {
