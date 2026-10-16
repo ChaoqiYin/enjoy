@@ -227,7 +227,9 @@ fn a_mount_call_answers_even_when_every_plugin_fails() {
         .is_empty());
     assert!(host.plugin_settings(&fixture::space()).is_empty());
     host.scan_completed(&fixture::space(), &[fixture::video()]);
-    host.video_actions(&fixture::space(), &fixture::video());
+    for id in ["one", "two", "three"] {
+        host.video_action(id, &fixture::space(), &fixture::video());
+    }
 
     assert_eq!(
         host.calls().len(),

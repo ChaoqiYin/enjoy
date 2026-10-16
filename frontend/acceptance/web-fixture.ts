@@ -9,38 +9,17 @@ import {
   reported as reportedCheck,
   setCheck,
 } from './update';
+import * as assets from './assets';
 import * as fields from './fields';
+import { markOn, recordsOf, sharedIds } from './marks';
 import * as plugins from './plugins';
 import type {
   AppError,
   SettingsState,
   ShareStatus,
   Space,
-  Video,
   VideoQuery,
 } from '../src/shared/api';
-
-// Every space holds the same files, because that is what spaces are: the same
-// path is a different record in each of them (ADR 0011). What a space keeps for
-// itself is which of them the user marked, and it keeps two marks: a favorite,
-// and an entry on the 共享清单. Both are held the same way -- keyed by the space
-// id the command carried, not by the one the fixture thinks the interface is on.
-// Answering the wrong space is the mistake this harness exists to make visible,
-// and it cannot make it visible while it corrects for it.
-//
-// A space starts with a stretch of the library marked, thirty records long and
-// shifted per mark, because 收藏, 最近播放 and 共享 are pages of this same
-// collection asked three ways (ADR 0016): a listing holding one record can be
-// shown in one shape and never turned to a second page, and three listings
-// holding the same records would be three readings of one page rather than three
-// pages a walkthrough can tell apart. Six records are left out of each, so a mark
-// is visibly a mark rather than the library.
-const marked = (first: number) =>
-  Array.from({ length: 30 }, (_, step) => first + step);
-const marks = new Map<string, Set<number>>([
-  ['favorite:1', new Set(marked(7))],
-  ['shared:1', new Set(marked(4))],
-]);
 
 /**
  * Whether a folder has been added, which is the whole of what the 首启 screen is
@@ -62,40 +41,6 @@ const marks = new Map<string, Set<number>>([
  */
 const asked = new URLSearchParams(location.search).get('library');
 let indexed = asked !== 'empty';
-
-/** One record as the space being asked holds it: the files, and its own marks. */
-function recordsOf(spaceId: number | undefined): Video[] {
-  const favorites = markedOf('favorite', Number(spaceId));
-  const shared = markedOf('shared', Number(spaceId));
-  return videos.map((video) => ({
-    ...video,
-    favorite: favorites.has(video.id),
-    shared: shared.has(video.id),
-  }));
-}
-function markedOf(kind: Marker, spaceId: number) {
-  const key = `${kind}:${spaceId}`;
-  const held = marks.get(key) ?? new Set<number>();
-  marks.set(key, held);
-  return held;
-}
-
-/**
- * The two marks a space can put on a record, named by the field the command
- * carries them in, so one handler can serve both.
- */
-type Marker = 'favorite' | 'shared';
-
-function markOn(kind: Marker, payload: Record<string, unknown>) {
-  const video = videos.find((video) => video.path === payload.path);
-  if (!video) return;
-  const held = markedOf(kind, Number(payload.spaceId));
-  if (Boolean(payload[kind])) held.add(video.id);
-  else held.delete(video.id);
-  // Nothing is recorded here about the service being out of step: a share mark
-  // moved while one is running is noticed by the status comparing the list
-  // against the snapshot it read, which is how the backend notices it too.
-}
 
 let language = 'en';
 let settings: SettingsState = { language: 'en', theme: 'dark' };
@@ -131,11 +76,6 @@ let servedList: { spaceId: number; ids: number[] } | null = null;
  * so it is the one nearest to hand.
  */
 const missingFromDisk = new Set([1]);
-
-/** One space's 共享清单, in the order the backend would serve it. */
-function sharedIds(spaceId: number): number[] {
-  return [...markedOf('shared', spaceId)].sort((left, right) => left - right);
-}
 
 /**
  * The status, composed the way the backend composes it: the port and the
@@ -264,6 +204,10 @@ function unimplemented(command: string): never {
 }
 
 mockConvertFileSrc('macos');
+// Straight after it, because this wraps what that installs: the paths the
+// application has files behind — a cover, and a plugin's own entry — are the
+// ones a browser cannot read, and `assets.ts` is what stands in for them.
+assets.installAssetSrc();
 Object.defineProperty(window, 'isTauri', { value: true });
 mockIPC(
   (command, args) => {
@@ -369,6 +313,11 @@ mockIPC(
         };
       case 'refresh_video_fields':
         return fields.refresh(String(payload.path));
+      case 'run_video_action':
+        // The one plugin here has one action, and what it does is find a cover:
+        // the answer is the fields as they now stand, which is what the kernel's
+        // own command answers with — the errand and the read, in one call.
+        return fields.runAction(String(payload.path));
       case 'set_favorite':
         return markOn('favorite', payload);
       case 'set_shared':

@@ -28,6 +28,7 @@ export const videos: Video[] = Array.from({ length: 36 }, (_, index) => ({
   height: 1080,
   codec: 'h264',
   thumbnail_path: null,
+  cover_path: null,
   favorite: index === 0,
   shared: false,
   play_count: index < 30 ? 1 : 0,

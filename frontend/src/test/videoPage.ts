@@ -38,6 +38,7 @@ export const actionMocks = {
   removeVideo: vi.fn(),
   regenerateThumbnail: vi.fn(),
   refreshInfo: vi.fn(),
+  runPlugin: vi.fn(),
 };
 
 // One double per module the page reads, built from that module's own declared
@@ -62,6 +63,16 @@ export const space = doubles.space({ name: 'Library' });
  * module boundary in both files, exactly as the slices are.
  */
 export const fields: VideoField[] = [];
+
+/**
+ * The plugins that can act on a video, as the window's own list would have them.
+ *
+ * The page reads them from the plugin host, which is a module boundary like the
+ * five slices above and is replaced at it in the file that opens a video's menu.
+ * A plugin with no body is not in here: it has no action to run, and the list is
+ * the caller's to filter (`usePluginActions`).
+ */
+export const pluginActions = [{ id: 'cover-fetcher', name: 'Cover Fetcher' }];
 
 /**
  * Which page of the list the page is being drawn on.

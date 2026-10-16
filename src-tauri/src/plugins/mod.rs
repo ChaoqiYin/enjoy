@@ -45,6 +45,8 @@ mod store;
 mod wasm;
 
 #[cfg(test)]
+mod cover_tests;
+#[cfg(test)]
 mod dispatch_tests;
 #[cfg(test)]
 mod escape_tests;
@@ -52,6 +54,8 @@ mod escape_tests;
 mod failure_tests;
 #[cfg(test)]
 pub(crate) mod fixture;
+#[cfg(test)]
+mod loading_tests;
 #[cfg(test)]
 mod manifest_tests;
 #[cfg(test)]
@@ -66,6 +70,14 @@ mod store_tests;
 // rather than this one — the two interface mount points and their params — so
 // the module holds more than the host reads.
 pub(crate) mod mount_points;
+
+// The two the rest of the kernel reaches for rather than through: `loading` is
+// what the application calls once at startup to put the plugins on disk into the
+// rotation, and `cover` is what a field command calls for the one field name the
+// kernel knows. Both are the kernel's own work around the host rather than
+// anything a plugin is asked.
+pub(crate) mod cover;
+pub(crate) mod loading;
 
 pub(crate) use dispatch::PluginSettings;
 pub(crate) use metrics::{CallOutcome, CallRecord};
@@ -136,6 +148,11 @@ impl PluginHost {
     /// The plugins the kernel asks, in order, as (id, body).
     fn asking(&self) -> Vec<(String, Arc<dyn Runner>)> {
         self.registry().asking()
+    }
+
+    /// One named plugin's body, if the kernel is asking it.
+    fn asking_one(&self, plugin: &str) -> Option<Arc<dyn Runner>> {
+        self.registry().asking_one(plugin)
     }
 
     /// Writes down how one call ended and what it cost.

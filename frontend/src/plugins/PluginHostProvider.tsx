@@ -11,7 +11,7 @@ import type { ReactNode } from 'react';
 import { createPluginHost } from './host';
 import type { BaselineModules, EntryLoader } from './host';
 import { createRegistry } from './registry';
-import type { DrawnKey, PluginRegistry } from './registry';
+import type { DrawnKey, PluginId, PluginRegistry } from './registry';
 import { noPlugins } from './status';
 import type { PluginBootstrap, PluginPort, PluginStatus } from './status';
 
@@ -166,4 +166,47 @@ export function usePluginHost(): PluginHostValue {
   const value = useContext(PluginHostContext);
   if (!value) throw new Error('PluginHostProvider is required');
   return value;
+}
+
+/** One plugin's own entry in a video's menu: the plugin, and what to call it. */
+export interface PluginAction {
+  id: PluginId;
+  /** The plugin's name for itself, which is what the menu item says. */
+  name: string;
+}
+
+/** Nothing, handed out again on every render that has no plugins. */
+const NO_ACTIONS: readonly PluginAction[] = [];
+
+/**
+ * What the plugins add to a video's own menu: one entry per plugin that has a
+ * body half and is switched on.
+ *
+ * An action on a video is run by the plugin's body — the side that has no
+ * interface of its own and can be reached no other way — so a plugin that has
+ * only an interface has nothing to offer here and gets no entry. Which plugin
+ * an entry belongs to is the plugin's id and not its name: two plugins may
+ * call themselves the same thing, and the menu has to be able to say which one
+ * the user picked.
+ *
+ * Unlike `usePluginHost`, this answers with nothing rather than throwing when
+ * there is no provider above it. The difference is who is asking: the pages
+ * that draw a plugin's own contribution are the plugin page and the navigation,
+ * which are inside the provider by construction, while the menu of a video
+ * belongs to a listing page that is drawn whether or not this window has any
+ * plugins at all — and one that could not be drawn without a plugin host would
+ * be the failure ADR 0044 §7 exists to prevent.
+ */
+export function usePluginActions(): readonly PluginAction[] {
+  const value = useContext(PluginHostContext);
+  const statuses = value?.statuses;
+  return useMemo(
+    () =>
+      statuses === undefined
+        ? NO_ACTIONS
+        : statuses
+            .filter((row) => row.state === 'enabled' && row.hasBody)
+            .map((row) => ({ id: row.id, name: row.name })),
+    [statuses],
+  );
 }

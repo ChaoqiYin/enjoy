@@ -198,6 +198,7 @@ export function createPluginHost({
       id: entry.id,
       name: entry.name,
       state: 'failed',
+      hasBody: entry.hasBody,
       failure: { code, params: { plugin: entry.name } },
     };
   }
@@ -238,7 +239,12 @@ export function createPluginHost({
   async function start(
     entry: PluginBootstrap & { entry: string },
   ): Promise<void> {
-    put({ id: entry.id, name: entry.name, state: 'enabled' });
+    put({
+      id: entry.id,
+      name: entry.name,
+      state: 'enabled',
+      hasBody: entry.hasBody,
+    });
     const context = contextFor(entry.id);
     let module: PluginInterfaceModule;
     try {
@@ -281,17 +287,28 @@ export function createPluginHost({
           id: entry.id,
           name: entry.name,
           state: 'failed',
+          hasBody: entry.hasBody,
           failure: entry.failure,
         });
       } else if (!entry.enabled) {
-        put({ id: entry.id, name: entry.name, state: 'disabled' });
+        put({
+          id: entry.id,
+          name: entry.name,
+          state: 'disabled',
+          hasBody: entry.hasBody,
+        });
       } else {
         // A plugin with no interface — a body-only one — is on, and has
         // nothing for this side to load; one that has an interface is written
         // down as on here and loaded below, so that a window which never loads
         // it (a lifecycle action, which is not a load) still says the right
         // thing.
-        put({ id: entry.id, name: entry.name, state: 'enabled' });
+        put({
+          id: entry.id,
+          name: entry.name,
+          state: 'enabled',
+          hasBody: entry.hasBody,
+        });
       }
     }
     changed();

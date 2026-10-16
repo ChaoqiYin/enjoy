@@ -110,12 +110,7 @@ export function VideoDetails({
   ];
   return (
     <>
-      <Thumbnail
-        path={video.thumbnail_path}
-        name={video.file_name}
-        videoPath={video.path}
-        scan={scan}
-      />
+      <Thumbnail video={video} scan={scan} />
       <h3 className="text-lg font-semibold break-all">{video.file_name}</h3>
       <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2">
         <p className="flex min-w-0 items-center gap-1.5 text-muted-foreground">

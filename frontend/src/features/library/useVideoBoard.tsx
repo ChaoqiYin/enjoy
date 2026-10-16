@@ -12,6 +12,7 @@ import { useVideoActions } from './useVideoActions';
 import { useVideoFields } from './useVideoFields';
 import { useVideos } from './useVideos';
 import { useSpace } from '../space/SpaceProvider';
+import { usePluginActions } from '../../plugins/PluginHostProvider';
 import { VideoMenu } from './VideoMenu';
 import type { MenuTarget } from './VideoMenu';
 import { VideoDetails } from './VideoDetails';
@@ -58,6 +59,11 @@ export function useVideoBoard() {
   const notices = useNotices();
   const videoActions = useVideoActions();
   const { id: spaceId } = useSpace();
+  // The plugins that can act on a video, read once for the menu below. It is a
+  // read of the window's plugins and not of this page's: which of them are
+  // installed is not something a listing knows, and a page drawn with none —
+  // a window that has no plugin host above it — draws the menu it always did.
+  const plugins = usePluginActions();
   // What the open drawer is describing, together with the answer it was read
   // from: the list, the page of it, and how long it was then. The panel needs
   // the video; the removal rule below needs the other two, and neither is
@@ -159,6 +165,12 @@ export function useVideoBoard() {
     regenerate: videoActions.regenerateThumbnail,
     refreshInfo: videoActions.refreshInfo,
   };
+  // The menu closes on its own when an item is chosen, so nothing here has to:
+  // what the errand leaves behind is the fields of this record and the card's
+  // picture, and both are read again by the action itself.
+  const runPlugin = (video: Video, pluginId: string) => {
+    void videoActions.runPlugin(video, pluginId);
+  };
   const overlays = (
     <>
       <Drawer
@@ -192,6 +204,8 @@ export function useVideoBoard() {
           target={menu}
           busy={busy}
           actions={actions}
+          plugins={plugins}
+          onPlugin={runPlugin}
           onClose={closeMenu}
         />
       )}

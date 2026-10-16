@@ -5,8 +5,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../../shared/ui/dropdown-menu';
+import type { PluginAction } from '../../plugins/PluginHostProvider';
 import type { VideoActionHandlers } from './VideoActions';
 
 /** Where the pointer asked for the menu, and the record it is about. */
@@ -44,16 +46,27 @@ export interface MenuTarget {
  * entries, as the favorite beside it does: one item whose words follow the state
  * rather than two that sit side by side, and the state it follows is the
  * record's, so it reads the list the video is already on.
+ *
+ * The plugins' own actions come last, below a rule, and each is one plugin's
+ * item: the name on it is the plugin's name for itself, because the user is
+ * choosing a plugin and not a verb this application wrote. Which plugins those
+ * are is not worked out here — the caller hands over the ones that can act on a
+ * video, and the menu draws what it is given.
  */
 export function VideoMenu({
   target,
   busy,
   actions,
+  plugins,
+  onPlugin,
   onClose,
 }: {
   target: MenuTarget;
   busy: boolean;
   actions: VideoActionHandlers;
+  /** The plugins that can act on a video, in the order they are listed. */
+  plugins: readonly PluginAction[];
+  onPlugin: (video: Video, pluginId: string) => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -141,6 +154,21 @@ export function VideoMenu({
             onSelect={() => item.action(target.video)}
           >
             {t(item.key)}
+          </DropdownMenuItem>
+        ))}
+        {/* A rule and not a heading, because the items below it are the same
+            kind of thing as the ones above — things that can be done with this
+            video — and what separates them is who wrote them. The rule is drawn
+            only when there is something under it: an empty group would say
+            plugins are part of this menu and then show none. */}
+        {plugins.length > 0 && <DropdownMenuSeparator />}
+        {plugins.map((plugin) => (
+          <DropdownMenuItem
+            key={plugin.id}
+            disabled={busy}
+            onSelect={() => onPlugin(target.video, plugin.id)}
+          >
+            {plugin.name}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
