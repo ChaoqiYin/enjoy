@@ -91,12 +91,7 @@ export function VideoRow({
           pressOnPicture(event, () => actions.play(video), !busy)
         }
       >
-        <Thumbnail
-          videoPath={video.path}
-          scan={scan}
-          path={video.thumbnail_path}
-          name={video.file_name}
-        />
+        <Thumbnail video={video} scan={scan} />
         <HoverPlayOverlay disabled={busy} onPlay={() => actions.play(video)} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">

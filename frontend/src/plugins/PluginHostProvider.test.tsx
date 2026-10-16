@@ -1,9 +1,13 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { KERNEL } from './registry';
-import { PluginHostProvider, usePluginHost } from './PluginHostProvider';
+import {
+  PluginHostProvider,
+  usePluginActions,
+  usePluginHost,
+} from './PluginHostProvider';
 import type { PluginContext } from './host';
-import type { PluginPort } from './status';
+import type { PluginFailure, PluginPort } from './status';
 import { pluginPort } from '../test/doubles';
 
 // The provider is where the interface's registration point meets React: the one
@@ -36,6 +40,8 @@ function portOf(
     name: string;
     enabled: boolean;
     entry?: string | null;
+    hasBody?: boolean;
+    failure?: PluginFailure | null;
   }[]
 ): PluginPort {
   return pluginPort(
@@ -47,6 +53,18 @@ function portOf(
       failure: null,
       ...entry,
     })),
+  );
+}
+
+/** What a video's own menu reads: the plugins that can act on one. */
+let actions: readonly { id: string; name: string }[] = [];
+
+function Actions() {
+  actions = usePluginActions();
+  return (
+    <p data-testid="actions">
+      {actions.map((plugin) => `${plugin.id}:${plugin.name}`).join('|')}
+    </p>
   );
 }
 
@@ -157,6 +175,55 @@ it('draws a page a plugin registered, where the navigation put it', async () => 
         .map(({ owner, contribution }) => [owner, contribution.key]),
     ).toEqual([['a-plugin', 'covers']]);
   });
+});
+
+it('offers a video’s menu one entry per plugin that has a body', async () => {
+  render(
+    <PluginHostProvider
+      port={portOf(
+        {
+          id: 'cover-fetcher',
+          name: 'Cover Fetcher',
+          enabled: true,
+          hasBody: true,
+        },
+        // Only an interface: there is no body to run an action, so this plugin
+        // has nothing to offer a video's menu.
+        {
+          id: 'a-plugin',
+          name: 'A plugin',
+          enabled: true,
+          entry: 'a/entry.js',
+        },
+        // Switched off, and a body would not be run either way.
+        { id: 'off', name: 'Off', enabled: false, hasBody: true },
+        // A manifest the kernel would not take: it is a row with a reason, not
+        // a plugin, and nothing of it runs.
+        {
+          id: 'broken',
+          name: 'Broken',
+          enabled: true,
+          hasBody: true,
+          failure: { code: 'plugin.manifest.invalid', params: {} },
+        },
+      )}
+      loadEntry={async () => ({ default: () => {} })}
+    >
+      <Actions />
+    </PluginHostProvider>,
+  );
+  await waitFor(() =>
+    expect(screen.getByTestId('actions').textContent).toBe(
+      'cover-fetcher:Cover Fetcher',
+    ),
+  );
+});
+
+it('answers a menu with no plugins at all when nothing is above it', () => {
+  // A listing page is drawn whether or not this window has a plugin host: the
+  // menu it draws is the one it always had.
+  render(<Actions />);
+  expect(actions).toEqual([]);
 });
 
 it('takes what the plugins registered off when the window goes', async () => {

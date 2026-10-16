@@ -53,6 +53,15 @@ export interface PluginStatus {
   id: PluginId;
   name: string;
   state: 'enabled' | 'disabled' | 'failed';
+  /**
+   * Whether the plugin declares a body half.
+   *
+   * Carried here rather than read off the manifest again because it is the
+   * answer to a question the interface asks about a video: an action on a
+   * video's own menu is run by the body half, so a plugin that has only an
+   * interface has nothing to offer one and gets no entry.
+   */
+  hasBody: boolean;
   /** What the plugin says it is doing right now, while it is doing something. */
   activity?: string;
   /** Why it is not running, when it is not. */

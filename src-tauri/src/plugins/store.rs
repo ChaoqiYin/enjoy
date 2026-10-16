@@ -306,7 +306,7 @@ impl Store {
     /// same rule rather than a second one: such a directory can never hold a
     /// manifest that matches it ([`manifest::read`] compares the two), so it is
     /// a row that says it failed, not a plugin any lifecycle action is about.
-    fn installed_plugin(&self, id: &str) -> Result<PathBuf, AppError> {
+    pub(crate) fn installed_plugin(&self, id: &str) -> Result<PathBuf, AppError> {
         let directory = self.directory.join(id);
         if !manifest::valid_id(id) || !directory.is_dir() {
             return Err(

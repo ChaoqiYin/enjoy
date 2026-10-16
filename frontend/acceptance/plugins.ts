@@ -1,3 +1,4 @@
+import exampleEntry from '../../examples/plugins/hello-page/interface.js?raw';
 import type {
   AppError,
   PluginBootstrap,
@@ -20,11 +21,35 @@ import type {
  * named after, which is how a pre-flight is reachable without a real plugin on
  * disk to point the picker at.
  *
- * Three plugins are here from the start — one on with an interface, one the user
- * switched off, and one whose manifest did not validate — because those are the
- * three rows the page is a page of, and a fixture holding only the first would
- * leave two thirds of it unreachable to a walkthrough.
+ * Four plugins are here from the start, because those are the four rows the
+ * page is a page of: the cover plugin (on, body half only), the example plugin
+ * (on, interface half), one the user switched off, and one whose manifest did
+ * not validate. A fixture holding only the first would leave three quarters of
+ * the page unreachable to a walkthrough — and one holding no plugin with an
+ * interface would leave the interface half unreachable to the window, which is
+ * the half a page can mount and a body-only plugin cannot.
  */
+
+/**
+ * The example plugin's entry, and the one path this copy can really serve.
+ *
+ * `examples/plugins/hello-page/` is in this repository and is what a plugin
+ * author copies; reading its text here is what makes the interface a
+ * walkthrough mounts the plugin that ships rather than a second copy of it
+ * written for the fixture, which would be free to drift from the thing an
+ * author is given. `assets.ts` turns the text into a module a browser will
+ * import, in place of the file the kernel would read off a disk.
+ *
+ * The plugin is body-less on purpose, and so is the cover plugin: a plugin has
+ * one half or the other, and a fixture that gave both to one of them would be
+ * showing a shape the kernel does not have.
+ */
+const EXAMPLE_ENTRY = 'hello-page/interface.js';
+
+/** The source of a plugin's interface, for the paths this copy has one for. */
+export function entrySource(path: string): string | undefined {
+  return path === EXAMPLE_ENTRY ? exampleEntry : undefined;
+}
 
 function plugin(
   id: string,
@@ -48,7 +73,16 @@ let installed: PluginBootstrap[] = [
   plugin('cover-fetcher', 'Cover Fetcher', {
     author: 'Enjoy',
     capabilities: ['fetch', 'storage'],
+    // No interface: the cover plugin is a body and nothing else, and the kernel
+    // answers with no entry for it. The default entry a plugin is given would
+    // be a file that is not there, and a walkthrough would read the row this
+    // plugin is *not* in — a plugin that failed to load — as the row it is in.
+    entry: null,
     hasBody: true,
+  }),
+  plugin('hello-page', 'Hello page', {
+    author: 'Enjoy',
+    entry: EXAMPLE_ENTRY,
   }),
   plugin('watch-log', 'Watch log', { enabled: false }),
   plugin('broken-one', 'Broken one', {

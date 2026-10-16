@@ -74,6 +74,7 @@ fn main() {
             commands::library::set_shared,
             commands::library::open_video,
             commands::fields::refresh_video_fields,
+            commands::fields::run_video_action,
             commands::share::open_share,
             commands::share::close_share,
             commands::share::share_status,

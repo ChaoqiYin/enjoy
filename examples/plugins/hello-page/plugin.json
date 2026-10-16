@@ -1,0 +1,8 @@
+{
+  "id": "hello-page",
+  "name": "Hello page",
+  "author": "Enjoy",
+  "apiVersion": 1,
+  "capabilities": [],
+  "interface": "interface.js"
+}

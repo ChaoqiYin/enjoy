@@ -8,6 +8,7 @@ import {
   fields,
   listing,
   notices,
+  pluginActions,
   resetVideoPage,
   scan,
   space,
@@ -60,6 +61,12 @@ vi.mock('./useVideoFields', () => ({
 
 vi.mock('../space/SpaceProvider', () => ({
   useSpace: () => space,
+}));
+// Which plugins can act on a video is the window's own list and is read from
+// the plugin host, which the page is drawn inside of in the application and
+// not in a test: what is here is the list it hands the menu.
+vi.mock('../../plugins/PluginHostProvider', () => ({
+  usePluginActions: () => pluginActions,
 }));
 
 beforeEach(async () => {
@@ -189,6 +196,21 @@ it('asks the library to play the video the click landed on', () => {
     }),
   );
   expect(actionMocks.play).toHaveBeenCalledWith(video);
+});
+
+it('runs the plugin whose menu item was picked, on the record the menu is about', () => {
+  render(page());
+  fireEvent.contextMenu(screen.getByRole('article'));
+  fireEvent.click(
+    screen.getByRole('menuitem', { name: pluginActions[0].name }),
+  );
+  // The record the right-click landed on, and the plugin the user picked out of
+  // it: the menu names a plugin, and the action has to reach that one and not
+  // whichever plugin the window happens to list first.
+  expect(actionMocks.runPlugin).toHaveBeenCalledWith(
+    video,
+    pluginActions[0].id,
+  );
 });
 
 it('closes what was opened onto the old space when the space changes', async () => {

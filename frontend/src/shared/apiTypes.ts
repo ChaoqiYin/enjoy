@@ -27,6 +27,16 @@ export interface Video {
   height: number | null;
   codec: string | null;
   thumbnail_path: string | null;
+  /**
+   * The picture a plugin found for this record, if one did.
+   *
+   * It wins over `thumbnail_path` where a picture is drawn: the user installed
+   * the plugin and asked it for *this* video, while the thumbnail was written by
+   * the media pass on its way past. The value is a path under the application's
+   * covers directory, put there by the kernel — a plugin answers with an address
+   * and the kernel is what fetches and keeps the image.
+   */
+  cover_path: string | null;
   favorite: boolean;
   /** 共享清单: one of the videos this space offers over the share service. */
   shared: boolean;

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { thumbnailUrl } from '../../shared/api';
-import type { ScanStatus } from '../../shared/api';
+import type { ScanStatus, Video } from '../../shared/api';
 import { Spinner } from '../../shared/ui/spinner';
 import { pictureClass } from './videoCardBox';
 
@@ -19,22 +19,29 @@ import { pictureClass } from './videoCardBox';
  * Three states, in the order they are worth telling apart: the file being
  * prepared right now (which is the only one the user can act on), a picture
  * that is not here yet or will not load, and the picture.
+ *
+ * It is handed the whole record rather than a path, and that is the point of
+ * the file: which picture a video has is one decision, and this is where it is
+ * taken. A plugin's cover wins over the frame the media pass made — the user
+ * asked that plugin for *this* video, while the frame was written on the media
+ * pass's way past — and every place a picture is drawn gets that answer by
+ * drawing this component. Handing each caller a path to choose would put the
+ * same decision in the card, the row and the panel, where the three would drift
+ * apart.
  */
 export function Thumbnail({
-  path,
-  name,
-  videoPath,
+  video,
   scan,
 }: {
-  path: string | null;
-  name: string;
-  videoPath?: string;
+  video: Video;
   scan?: ScanStatus;
 }) {
   const { t } = useTranslation();
+  const path = video.cover_path ?? video.thumbnail_path;
+  const name = video.file_name;
   const [failedPath, setFailedPath] = useState<string | null>(null);
   const processing =
-    videoPath === scan?.currentPath &&
+    video.path === scan?.currentPath &&
     (scan?.phase === 'processing' || scan?.phase === 'paused');
   if (processing) {
     return (

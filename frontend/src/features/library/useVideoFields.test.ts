@@ -32,6 +32,7 @@ const video: Video = {
   height: null,
   codec: null,
   thumbnail_path: null,
+  cover_path: null,
   favorite: false,
   shared: false,
   play_count: 0,

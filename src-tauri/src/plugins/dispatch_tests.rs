@@ -8,7 +8,7 @@
 use crate::plugins::fixture::{self, FakeBody};
 use crate::plugins::mount_points::{
     self, PluginSettingsResult, ScanCompletedParams, SettingField, SettingFieldKind,
-    SourcedFieldValue, VideoFieldsParams,
+    SourcedFieldValue, VideoActionsParams, VideoFieldsParams,
 };
 
 /// What a chain handed back, as the three facts a reader cares about.
@@ -168,24 +168,52 @@ fn every_plugin_is_told_when_a_scan_finishes() {
 }
 
 #[test]
-fn an_action_is_offered_to_every_plugin_in_the_users_order() {
+fn an_action_goes_to_the_plugin_whose_item_was_chosen_and_no_other() {
+    // One manifest is one menu item, so choosing an item is a question put to
+    // one plugin. A second plugin that also offers an action has offered a
+    // second item, and this is not it.
     let (host, _) = fixture::host();
-    let first = FakeBody::answering("{}");
-    let second = FakeBody::answering("{}");
-    host.enable("first", first.clone());
-    host.enable("second", second.clone());
+    let chosen = FakeBody::answering("{}");
+    let other = FakeBody::answering("{}");
+    host.enable("chosen", chosen.clone());
+    host.enable("other", other.clone());
 
-    host.video_actions(&fixture::space(), &fixture::video());
+    host.video_action("chosen", &fixture::space(), &fixture::video());
 
     assert_eq!(
-        first
+        chosen
             .asked()
             .iter()
             .map(|(method, _)| method.clone())
             .collect::<Vec<_>>(),
         vec![mount_points::VIDEO_ACTIONS.to_string()]
     );
-    assert_eq!(second.asked_times(), 1);
+    let params: VideoActionsParams = chosen.params_of(mount_points::VIDEO_ACTIONS, 0);
+    assert_eq!(params.space.id, 1);
+    assert_eq!(params.video.id, 7);
+    assert_eq!(
+        other.asked_times(),
+        0,
+        "a plugin whose item was not chosen is not told about the click"
+    );
+}
+
+#[test]
+fn an_action_for_a_plugin_that_is_not_being_asked_does_nothing() {
+    // The menu is drawn from the manifest on disk; the rotation is what the
+    // running window asks. The two can disagree — a plugin switched off since
+    // the window opened — and the disagreement is a menu item that quietly
+    // does nothing rather than a call to a plugin that is not there.
+    let (host, told) = fixture::host();
+    let body = FakeBody::answering("{}");
+    host.enable("one", body.clone());
+    host.disable("one");
+
+    host.video_action("one", &fixture::space(), &fixture::video());
+    host.video_action("never-installed", &fixture::space(), &fixture::video());
+
+    assert_eq!(body.asked_times(), 0);
+    assert!(told.plugin_failures().is_empty());
 }
 
 #[test]

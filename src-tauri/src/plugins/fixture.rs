@@ -10,8 +10,15 @@
 //! directory with plugins laid out in it, because what loading is about is what
 //! is on disk. Two doubles for two sides of the same module is what this file
 //! is, and neither of them is written by the application.
+//!
+//! [`serving`] is the third: a server on the loopback, because the cover is the
+//! one field whose value the kernel goes and gets, and a test about it that did
+//! not have a server to fetch from would be a test about the code that reads the
+//! answer rather than about the answer arriving.
 
 use std::fs;
+use std::io::{Read, Write};
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -211,6 +218,12 @@ impl Installed {
         directory
     }
 
+    /// Writes one file into a plugin's directory: its body module, its
+    /// interface entry, or whatever else its manifest names.
+    pub(crate) fn file(&self, id: &str, name: &str, bytes: &[u8]) {
+        fs::write(self.0.join(id).join(name), bytes).unwrap();
+    }
+
     /// A directory with no manifest in it: something else the user left in the
     /// plugins directory, which is not a plugin.
     pub(crate) fn stray(&self, name: &str) -> PathBuf {
@@ -236,6 +249,32 @@ impl Drop for Installed {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
+}
+
+/// A server on the loopback that answers every request with one fixed reply,
+/// and the address it is reachable at.
+///
+/// Written out by hand rather than served through a framework: what is being
+/// tested is the kernel's own fetching, and a server with opinions of its own
+/// would be one more thing standing between the two.
+pub(crate) fn serving(status: &str, headers: &str, body: &[u8]) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("a port on the loopback");
+    let address = format!("http://{}", listener.local_addr().expect("a bound address"));
+    let head = format!(
+        "HTTP/1.1 {status}\r\nContent-Length: {}\r\n{headers}Connection: close\r\n\r\n",
+        body.len()
+    );
+    let (head, body) = (head.into_bytes(), body.to_vec());
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { break };
+            let mut request = [0u8; 2048];
+            let _ = stream.read(&mut request);
+            let _ = stream.write_all(&head);
+            let _ = stream.write_all(&body);
+        }
+    });
+    address
 }
 
 /// A manifest that passes every check, as a test starts from it.

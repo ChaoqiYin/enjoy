@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Video } from '../../shared/api';
 import { VideoMenu } from './VideoMenu';
 import type { VideoActionHandlers } from './VideoActions';
+import type { PluginAction } from '../../plugins/PluginHostProvider';
 import english from '../../../../shared/locales/en/common.json';
 
 const i18n = createInstance();
@@ -20,6 +21,7 @@ const video: Video = {
   height: 1080,
   codec: 'h264',
   thumbnail_path: null,
+  cover_path: null,
   favorite: false,
   shared: false,
   play_count: 0,
@@ -50,7 +52,11 @@ afterEach(cleanup);
  * when the caller has a target and unmounts when the caller clears it, so what
  * "closing" means here is the caller being told, which is what `onClose` is for.
  */
-function open(record: Partial<Video> = {}, busy = false) {
+function open(
+  record: Partial<Video> = {},
+  busy = false,
+  plugins: readonly PluginAction[] = [],
+) {
   const actions: VideoActionHandlers = {
     details: vi.fn(),
     play: vi.fn(),
@@ -62,6 +68,7 @@ function open(record: Partial<Video> = {}, busy = false) {
     regenerate: vi.fn(),
     refreshInfo: vi.fn(),
   };
+  const onPlugin = vi.fn();
   const onClose = vi.fn();
   render(
     <I18nextProvider i18n={i18n}>
@@ -69,11 +76,13 @@ function open(record: Partial<Video> = {}, busy = false) {
         target={{ video: { ...video, ...record }, x: 240, y: 180 }}
         busy={busy}
         actions={actions}
+        plugins={plugins}
+        onPlugin={onPlugin}
         onClose={onClose}
       />
     </I18nextProvider>,
   );
-  return { actions, onClose };
+  return { actions, onPlugin, onClose };
 }
 
 it('says which record it belongs to and lists what can be done with it', () => {
@@ -148,4 +157,56 @@ it('offers to leave the share list for a record that is on it', () => {
   expect(screen.queryByRole('menuitem', { name: english.share })).toBeNull();
   fireEvent.click(screen.getByRole('menuitem', { name: english.unshare }));
   expect(actions.share).toHaveBeenCalledWith({ ...video, shared: true });
+});
+
+/**
+ * Two plugins that can act on a video, as the caller hands them over: the id is
+ * the plugin's, and the name is what the menu item says — the user is picking a
+ * plugin, not a verb this application wrote.
+ */
+const fetcher: PluginAction = { id: 'cover-fetcher', name: 'Cover Fetcher' };
+const scrobbler: PluginAction = { id: 'scrobbler', name: 'Scrobbler' };
+
+it('offers one item per plugin that can act on a video, after the record’s own', () => {
+  open({}, false, [fetcher, scrobbler]);
+  expect(
+    screen.getAllByRole('menuitem').map((item) => item.textContent),
+  ).toEqual([
+    english.details,
+    english.play,
+    english.favorites,
+    english.share,
+    english.reveal,
+    english.regenerate,
+    english.removeIndex,
+    fetcher.name,
+    scrobbler.name,
+  ]);
+  // Below a rule, because the items are the same kind of thing as the ones
+  // above and what separates them is who wrote them.
+  expect(screen.getByRole('separator')).toBeTruthy();
+});
+
+it('runs the plugin whose item was chosen, and that plugin alone', () => {
+  const { onPlugin, onClose } = open({}, false, [fetcher, scrobbler]);
+  fireEvent.click(screen.getByRole('menuitem', { name: scrobbler.name }));
+  // The id and not the name: two plugins may call themselves the same thing,
+  // and the kernel has to be told which of them the user picked.
+  expect(onPlugin).toHaveBeenCalledWith(video, scrobbler.id);
+  expect(onClose).toHaveBeenCalled();
+});
+
+it('draws no rule for plugins when there are none', () => {
+  open();
+  // A separator with nothing under it would say plugins are part of this menu
+  // and then show none of them.
+  expect(screen.queryByRole('separator')).toBeNull();
+});
+
+it('leaves a plugin’s item out of reach while a task runs', () => {
+  const { onPlugin } = open({}, true, [fetcher]);
+  const item = screen.getByRole('menuitem', { name: fetcher.name });
+  expect(item.getAttribute('aria-disabled')).toBe('true');
+  fireEvent.click(item);
+  expect(onPlugin).not.toHaveBeenCalled();
 });

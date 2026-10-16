@@ -46,6 +46,18 @@ impl Registry {
     /// failures that switched it off are behind it, and leaving them standing
     /// would switch it off again on the first failure after — which would make
     /// the user's action look like it had not happened.
+    /// One named plugin's body, if the host is asking it.
+    ///
+    /// For the mount point that is one plugin's own rather than every plugin's:
+    /// an action the user picked from a menu belongs to the plugin whose item
+    /// they picked, and asking the others would be work nobody asked for.
+    pub(crate) fn asking_one(&self, plugin: &str) -> Option<Arc<dyn Runner>> {
+        self.entries
+            .iter()
+            .find(|entry| entry.id == plugin && entry.asking)
+            .map(|entry| entry.body.clone())
+    }
+
     pub(crate) fn enable(&mut self, plugin: &str, body: Arc<dyn Runner>) {
         match self.entries.iter_mut().find(|entry| entry.id == plugin) {
             Some(entry) => {

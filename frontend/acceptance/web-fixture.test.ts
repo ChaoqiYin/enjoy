@@ -125,22 +125,45 @@ describe('the fixture as a stand-in backend', () => {
     expect(new Set(seen).size).toBe(36);
   });
 
-  it('answers the fields a plugin wrote, and nothing for a record it did not', async () => {
-    // Asked the way the panel asks (`libraryApi.fields`), because the argument
-    // this command is keyed on is the path the interface sends: a fixture that
-    // read the record from somewhere else would answer for the wrong video and
-    // look exactly like one that answered correctly.
-    const written = await libraryApi.fields(1, videos[0].path);
+  it('finds no cover until the plugin’s own action has been run', async () => {
+    // The cover is the action's answer, and both the record and the panel say
+    // so: before it, the record carries no cover and the panel has no row to
+    // draw — which is the state every record starts in, and the one a fixture
+    // that began with a cover would leave unreadable.
+    expect(await libraryApi.fields(1, videos[0].path)).toEqual([]);
+    const before = await listing({ search: 'video-01' });
+    expect(before.items[0].cover_path).toBeNull();
+
+    // Asked the way the menu asks it (`libraryApi.runAction`), because the
+    // argument this command is keyed on is the path the interface sends: a
+    // fixture that read the record from somewhere else would answer for the
+    // wrong video and look exactly like one that answered correctly.
+    const written = await libraryApi.runAction(
+      1,
+      videos[0].path,
+      'cover-fetcher',
+    );
     expect(written).toEqual([
       {
         key: 'cover',
-        value: '/acceptance/covers/video-01.jpg',
+        value: '/acceptance/covers/1.jpg',
         source_plugin: 'cover-fetcher',
       },
     ]);
-    // No plugin has written anything about the record beside it, so the panel
-    // draws no row for it — the state most records are in.
+    // And the record the card is drawn from carries it now, under the same
+    // directory and in the same shape the kernel writes one into — the video's
+    // id and the extension the image turned out to be. That is the half a
+    // walkthrough reads on the card; the path is what the panel's row names.
+    const after = await listing({ search: 'video-01' });
+    expect(after.items[0].cover_path).toBe('/acceptance/covers/1.jpg');
+    expect(await libraryApi.fields(1, videos[0].path)).toEqual(written);
+
+    // The record beside it is untouched: an action is about one video, and the
+    // panel draws no plugin row for the ones nothing has been found for.
     expect(await libraryApi.fields(1, videos[1].path)).toEqual([]);
+    expect(
+      (await listing({ search: 'video-02' })).items[0].cover_path,
+    ).toBeNull();
   });
 
   it('gives every listing more than one page to read', async () => {
@@ -236,10 +259,15 @@ describe('the fixture as a stand-in backend', () => {
     // reason the listing above is: a fixture asked in another spelling is a
     // fixture answering a question nobody asks.
     //
-    // The three seeded plugins are the three states a row can be in — on with an
-    // interface, switched off, and refused by its own manifest — because a
-    // walkthrough of the plugin page that could only reach one of them would be
-    // a reading of a third of the page.
+    // The four seeded plugins are the four states a row can be in — on with an
+    // interface, on with a body and no interface, switched off, and refused by
+    // its own manifest — because a walkthrough of the plugin page that could
+    // only reach one of them would be a reading of a quarter of the page.
+    //
+    // The two halves are the part worth holding here: the cover plugin answers
+    // with no entry, which is what makes the window draw it as a row rather
+    // than as a plugin that failed to load, and the example plugin answers with
+    // one, which is what makes the window really mount an interface.
     const seeded = await pluginApi.list();
     expect(
       seeded.map((plugin) => [
@@ -249,17 +277,23 @@ describe('the fixture as a stand-in backend', () => {
       ]),
     ).toEqual([
       ['cover-fetcher', true, true],
+      ['hello-page', true, true],
       ['watch-log', false, true],
       ['broken-one', true, false],
     ]);
-    expect(seeded[2].entry).toBeNull();
+    expect(seeded.map((plugin) => [plugin.entry, plugin.hasBody])).toEqual([
+      [null, true],
+      ['hello-page/interface.js', false],
+      ['watch-log/index.js', false],
+      [null, false],
+    ]);
 
     // A pre-flight reads a source and copies nothing: what it answers is where
     // the plugin would land and what it declares, and the list is what it was.
     const preview = await pluginApi.preview('/downloads/new-one');
     expect(preview.destination).toBe('/acceptance/plugins/new-one');
     expect(preview.plugin.capabilities).toEqual(['fetch']);
-    expect(await pluginApi.list()).toHaveLength(3);
+    expect(await pluginApi.list()).toHaveLength(4);
     // And the one refusal a pre-flight can hit: an id is what a plugin is found
     // under, and two plugins cannot share one.
     await expect(
@@ -272,6 +306,7 @@ describe('the fixture as a stand-in backend', () => {
     const added = await pluginApi.install('/downloads/new-one');
     expect(added.map((plugin) => plugin.id)).toEqual([
       'cover-fetcher',
+      'hello-page',
       'watch-log',
       'broken-one',
       'new-one',
@@ -279,6 +314,7 @@ describe('the fixture as a stand-in backend', () => {
     const removed = await pluginApi.uninstall('new-one', false);
     expect(removed.map((plugin) => plugin.id)).toEqual([
       'cover-fetcher',
+      'hello-page',
       'watch-log',
       'broken-one',
     ]);
@@ -287,6 +323,7 @@ describe('the fixture as a stand-in backend', () => {
     const off = await pluginApi.setEnabled('cover-fetcher', false);
     expect(off.map((plugin) => [plugin.id, plugin.enabled])).toEqual([
       ['cover-fetcher', false],
+      ['hello-page', true],
       ['watch-log', false],
       ['broken-one', true],
     ]);
@@ -300,6 +337,7 @@ describe('the fixture as a stand-in backend', () => {
     const aside = await pluginApi.safeMode();
     expect(aside.map((plugin) => [plugin.id, plugin.enabled])).toEqual([
       ['cover-fetcher', false],
+      ['hello-page', false],
       ['watch-log', false],
       ['broken-one', false],
     ]);

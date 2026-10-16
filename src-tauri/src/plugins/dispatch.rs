@@ -121,18 +121,33 @@ impl PluginHost {
         self.announce::<ScanCompletedResult>(mount_points::SCAN_COMPLETED, &params);
     }
 
-    /// `video.actions`: tells every plugin about the actions offered on one
-    /// video.
+    /// `video.actions`: asks **one** plugin to do the thing its own menu item
+    /// says.
     ///
-    /// It belongs to the body rather than to the interface because a plugin
-    /// with no interface has only this way to be reached (ADR 0045 §2): the
-    /// cover plugin has no page and is used from the menu on a video.
-    pub(crate) fn video_actions(&self, space: &SpaceRef, video: &VideoRef) {
+    /// One plugin, not every plugin, and that is what the catalog's wording is:
+    /// a contribution at this mount point is *a plugin's own action* on a video,
+    /// so one manifest is one menu item and choosing an item is a question put
+    /// to the plugin that put it there. Telling every plugin that somebody
+    /// clicked something would be a broadcast, and a plugin that reacted to it
+    /// would be doing work on behalf of a menu item it never offered.
+    ///
+    /// It belongs to the body rather than to the interface because a plugin with
+    /// no interface has only this way to be reached (ADR 0045 §2): the cover
+    /// plugin has no page and is used from the menu on a video.
+    ///
+    /// A plugin the host is not asking — switched off, never enabled, or out of
+    /// the rotation after five failures — is not a failure of this call: the
+    /// item was drawn from the manifest on disk, and the disk is not what the
+    /// running window asks.
+    pub(crate) fn video_action(&self, plugin: &str, space: &SpaceRef, video: &VideoRef) {
+        let Some(body) = self.asking_one(plugin) else {
+            return;
+        };
         let params = VideoActionsParams {
             space: space.clone(),
             video: video.clone(),
         };
-        self.announce::<VideoActionsResult>(mount_points::VIDEO_ACTIONS, &params);
+        let _ = self.ask::<VideoActionsResult>(plugin, &body, mount_points::VIDEO_ACTIONS, &params);
     }
 
     /// Tells every plugin something, in order, and keeps nothing.

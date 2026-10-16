@@ -93,10 +93,9 @@ export const libraryApi = {
   regenerate: (spaceId: number, path: string | null) =>
     invoke<void>('regenerate_thumbnails', { spaceId, path }),
   // One page of the library, as described by the query. The command name is the
-  // same one it always was while what it takes is not, because the listing is
-  // one thing the interface asks for however many questions the answer is made
-  // of — and a second name beside it would be a second way to ask for the same
-  // records (ADR 0016).
+  // same one it always was while what it takes is not, because the listing is one
+  // thing the interface asks for however many questions its answer is made of —
+  // and a second name would be a second way to ask for the same records (ADR 0016).
   list: (query: VideoQuery) => invoke<VideoPage>('list_videos', { query }),
   directories: (spaceId: number) =>
     invoke<string[]>('list_directories', { spaceId }),
@@ -108,8 +107,7 @@ export const libraryApi = {
   favorite: (spaceId: number, path: string, favorite: boolean) =>
     invoke<void>('set_favorite', { spaceId, path, favorite }),
   // A mark on a record, as a favorite is, so it is addressed and answered the
-  // same way. Which videos it marks is the space's business; what it means is
-  // the share service's.
+  // same way. Which videos it marks is the space's; what it means, the service's.
   shared: (spaceId: number, path: string, shared: boolean) =>
     invoke<void>('set_shared', { spaceId, path, shared }),
   remove: (spaceId: number, path: string) =>
@@ -126,12 +124,14 @@ export const libraryApi = {
     invoke<void>('open_video', { spaceId, path }),
   refreshInfo: (spaceId: number, path: string) =>
     invoke<void>('refresh_video_info', { spaceId, path }),
-  // The fields this video's plugins have written. Asking is what makes them
-  // current: the command puts the question to the plugins and stores what they
-  // answer, and the answer is the library afterwards rather than the chain's
-  // own reply — so what the panel draws is a row that is there.
+  // The fields this video's plugins have written, and one plugin's own action on
+  // it. Asking is what makes them current: the command puts the question to the
+  // plugins and stores what they answer. An action is that question again, once
+  // the plugin has been told to go and find something, and answers the same way.
   fields: (spaceId: number, path: string) =>
     invoke<VideoField[]>('refresh_video_fields', { spaceId, path }),
+  runAction: (spaceId: number, path: string, pluginId: string) =>
+    invoke<VideoField[]>('run_video_action', { spaceId, path, pluginId }),
   checkForUpdate: () => invoke<UpdateCheck>('check_for_update'),
   // Answers with how the transfer ended, so a download that was paused or
   // cancelled is told apart from one that finished without reading an event.

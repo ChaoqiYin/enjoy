@@ -110,6 +110,7 @@ export function videoActions(
     refreshInfo: vi.fn(async () => {}),
     regenerateThumbnail: vi.fn(async () => {}),
     removeVideo: vi.fn(async () => {}),
+    runPlugin: vi.fn(async () => {}),
     ...overrides,
   };
 }
