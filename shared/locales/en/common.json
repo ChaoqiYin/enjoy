@@ -195,5 +195,13 @@
   "footerPort": "Port: {{port}}",
   "footerAccelerationOn": "Encode acceleration: on",
   "footerAccelerationOff": "Encode acceleration: off",
-  "footerAccelerationUnknown": "Encode acceleration: not reported"
+  "footerAccelerationUnknown": "Encode acceleration: not reported",
+  "plugins": "Plugins",
+  "pluginsEmpty": "No plugins are installed",
+  "pluginsEmptyHint": "A plugin you install appears here, and the pages it adds appear in the navigation",
+  "pluginEnabled": "Enabled",
+  "pluginDisabled": "Disabled",
+  "pluginFailed": "Failed to load",
+  "pluginDoing": "Doing: {{activity}}",
+  "pluginPageBy": "Provided by the plugin {{plugin}}"
 }

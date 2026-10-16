@@ -325,6 +325,20 @@ export function thumbnailUrl(path: string): string {
 }
 
 /**
+ * The URL a plugin interface's entry is loaded from.
+ *
+ * The same conversion as a thumbnail's, and here for the same reason: it is the
+ * backend that hands out the URL a file on disk stands for, and this file is the
+ * one address the backend is reached at (`check-commands.mjs`). The plugin host
+ * imports this by name, and it is the name the source check holds the interface's
+ * one dynamic import to — a plugin is a directory outside this build, so its
+ * entry is reached for at run time, and this is what says where.
+ */
+export function pluginEntryUrl(entry: string): string {
+  return convertFileSrc(entry);
+}
+
+/**
  * Whether there is a backend behind this window.
  *
  * Asked once, here. Everywhere else reads the answer by asking for the thing

@@ -54,5 +54,8 @@
   "share.port.in_use": "从 {{port}} 起的连续 {{count}} 个端口都被其他程序占用，共享服务无法启动",
   "share.start.failed": "共享服务无法启动，请查看排查编号对应的日志",
   "share.already_running": "共享服务已经在运行",
-  "share.stop_failed": "共享服务无法结束，请查看排查编号对应的日志"
+  "share.stop_failed": "共享服务无法结束，请查看排查编号对应的日志",
+  "plugin.interface.unreachable": "读不到 {{plugin}} 的插件界面，请重新安装这个插件",
+  "plugin.interface.no_factory": "{{plugin}} 的插件界面里没有可启动的入口，插件可能已损坏",
+  "plugin.interface.start_failed": "{{plugin}} 启动失败，请查看排查编号对应的日志"
 }

@@ -12,6 +12,9 @@ import { FavoritesPage } from '../pages/FavoritesPage';
 import { HistoryPage } from '../pages/HistoryPage';
 import { SharePage } from '../pages/SharePage';
 import { SettingsPage } from '../pages/SettingsPage';
+import { PluginsPage } from '../pages/PluginsPage';
+import { PluginHostProvider } from '../plugins/PluginHostProvider';
+import { PluginPageView } from '../plugins/PluginPageView';
 import { AppFooter } from '../shared/AppFooter';
 import { AppHeader } from './AppHeader';
 import { TitleBar } from './TitleBar';
@@ -46,7 +49,13 @@ export function App({ initialSpace }: { initialSpace: Space }) {
                     space, closing the window — so it sits where it can reach
                     them. */}
                 <ShareProvider>
-                  <Window />
+                  {/* Inside everything and around the whole window, because
+                      the navigation draws a plugin's pages and a plugin's page
+                      draws itself: one host, one registration point, for the
+                      header and the routes both. */}
+                  <PluginHostProvider>
+                    <Window />
+                  </PluginHostProvider>
                 </ShareProvider>
               </UpdateProvider>
             </LibraryProvider>
@@ -85,6 +94,11 @@ function Window() {
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/share" element={<SharePage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/plugins" element={<PluginsPage />} />
+        {/* A page a plugin registered, under the address `MainNav` builds for
+            it. The pattern is the one thing here the plugin does not decide:
+            whatever a plugin calls its page, it is drawn inside this. */}
+        <Route path="/plugins/:pluginId/:page" element={<PluginPageView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {/* Nothing measured the platform's encoding for the interface yet, so
