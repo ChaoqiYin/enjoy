@@ -107,7 +107,11 @@ impl FakeBody {
         Self::doing(|method, _| Err(RunnerError::Failed(format!("{method} threw"))))
     }
 
-    /// A body that runs past its deadline and is interrupted.
+    /// A body that comes back saying it ran past its deadline.
+    ///
+    /// What a real one does first is not reproducible here — it hangs, and
+    /// something has to end the call (`super::runner`'s contract). What the
+    /// host does with the answer is the same either way.
     pub(crate) fn timing_out() -> Arc<Self> {
         Self::doing(|_, _| Err(RunnerError::TimedOut))
     }

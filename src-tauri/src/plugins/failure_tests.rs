@@ -71,7 +71,7 @@ fn the_notification_names_the_plugin_and_the_mount_point() {
 }
 
 #[test]
-fn a_plugin_that_ran_past_its_deadline_is_stopped_and_says_nothing() {
+fn a_plugin_that_ran_past_its_deadline_says_nothing() {
     let (host, told) = one_broken(FakeBody::timing_out());
 
     let fields = host.video_fields(&fixture::space(), &fixture::video());
@@ -86,7 +86,7 @@ fn a_plugin_that_ran_past_its_deadline_is_stopped_and_says_nothing() {
             .map(|failure| failure.code.as_str())
             .collect::<Vec<_>>(),
         vec!["plugin.call.timed_out"],
-        "a plugin that was stopped for taking too long is not reported as one that broke"
+        "a call that was given up on for taking too long is not reported as one that broke"
     );
     assert_eq!(host.calls()[0].outcome, CallOutcome::TimedOut);
 }
