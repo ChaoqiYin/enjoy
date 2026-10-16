@@ -106,6 +106,8 @@ const pairs = [
   // The listing: what one page of the library is asked for, and what comes back.
   { rust: 'src-tauri/src/model.rs', struct: 'VideoQuery', ts: 'VideoQuery' },
   { rust: 'src-tauri/src/model.rs', struct: 'VideoPage', ts: 'VideoPage' },
+  // What the plugins have written about one record, and who wrote each one.
+  { rust: 'src-tauri/src/model.rs', struct: 'VideoField', ts: 'VideoField' },
 ];
 
 const failures = [];

@@ -9,15 +9,14 @@ mod logging;
 mod media;
 mod model;
 mod player;
-// The one place in the kernel that knows plugins exist (#84). Nothing reaches
-// it yet, which is the order this work lands in rather than an oversight: the
-// host and the rules it holds come first, and the callers arrive with the
-// plugin page (#85), the install and enable commands and the loader (#86) and
-// the fields a video has (#88). Until then the module is unreached in this
-// binary — the tests beside it are what holds its rules still — so the lints
-// that would say so are turned off at the one place the fact is created rather
-// than sprinkled over the module. The re-exports are dead for the same reason
-// and go with them.
+// The one place in the kernel that knows plugins exist (#84). What reaches it
+// so far is one command — the fields a video has (#88) — which is the order this
+// work lands in rather than the whole of it: the plugin page (#85), the install
+// and enable commands and the loader (#86) and the runtime (#87) arrive beside
+// it. Until they do, most of the module is unreached in this binary — the tests
+// beside it are what holds those rules still — so the lints that would say so
+// are turned off at the one place the fact is created rather than sprinkled over
+// the module. The re-exports are dead for the same reason and go with them.
 #[allow(dead_code, unused_imports)]
 mod plugins;
 #[cfg(test)]
@@ -74,6 +73,7 @@ fn main() {
             commands::library::set_favorite,
             commands::library::set_shared,
             commands::library::open_video,
+            commands::fields::refresh_video_fields,
             commands::share::open_share,
             commands::share::close_share,
             commands::share::share_status,
