@@ -9,7 +9,7 @@ import {
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { ScanStatus, Video } from '../../shared/api';
+import type { ScanStatus, Video, VideoField } from '../../shared/api';
 import { idleScan } from '../../test/fixtures';
 import { VideoDetails } from './VideoDetails';
 import english from '../../../../shared/locales/en/common.json';
@@ -63,10 +63,17 @@ function view(
   busy = false,
   source = video,
   scan?: ScanStatus,
+  fields: VideoField[] = [],
 ) {
   return (
     <I18nextProvider i18n={i18n}>
-      <VideoDetails video={source} actions={handlers} busy={busy} scan={scan} />
+      <VideoDetails
+        video={source}
+        actions={handlers}
+        busy={busy}
+        scan={scan}
+        fields={fields}
+      />
     </I18nextProvider>
   );
 }
@@ -113,6 +120,45 @@ it('reads the file out in the terms the panel names, in their order', () => {
 it('answers a term it has no value for rather than leaving it blank', () => {
   render(view(actions(), false, { ...video, width: null, height: null }));
   expect(metaRows()[1][1]).toBe(english.unknown);
+});
+
+it('reads out the fields the plugins wrote, each beside the plugin that wrote it', () => {
+  render(
+    view(actions(), false, video, undefined, [
+      { key: 'cover', value: '/covers/1.jpg', source_plugin: 'cover-fetcher' },
+      { key: 'rating', value: '8.1', source_plugin: 'metadata-fetcher' },
+    ]),
+  );
+  // After the record's own terms, because they are not terms the record has:
+  // the panel reads the file out first, and what the plugins added comes after
+  // it in the order the backend handed them over. The key is drawn as the
+  // plugin wrote it — a field's name is the plugin's, and the kernel has no
+  // vocabulary for it to translate.
+  expect(metaRows().map(([term]) => term)).toEqual([
+    english.duration,
+    english.resolution,
+    english.codec,
+    english.fileSize,
+    english.modifiedAt,
+    'cover',
+    'rating',
+  ]);
+  // And the source is readable, which is the whole of what it is there for: the
+  // user can tell whose value they are looking at, including after the plugin
+  // that wrote it is gone (User Story 10).
+  const sources = Array.from(
+    document.querySelectorAll(
+      '[data-slot="video-meta-row"] [data-slot="badge"][data-variant="outline"]',
+    ),
+  ).map((badge) => badge.textContent);
+  expect(sources).toEqual(['cover-fetcher', 'metadata-fetcher']);
+});
+
+it('adds no row at all for a library whose plugins wrote nothing', () => {
+  render(view());
+  // 内核自己的界面不被插件系统弄脏 (User Story 13): a library with no plugins
+  // looks exactly like a library that never had any, down to the number of rows.
+  expect(metaRows().length).toBe(5);
 });
 
 it('hands the video to the copy the caller owns, which is what reports it', () => {

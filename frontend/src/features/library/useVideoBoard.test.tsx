@@ -5,6 +5,7 @@ import {
   actionMocks,
   busy,
   collection,
+  fields,
   listing,
   notices,
   resetVideoPage,
@@ -26,6 +27,7 @@ import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { VideoPageContent } from './VideoPageContent';
+import { useVideoFields } from './useVideoFields';
 import type { useVideoPageView } from './useVideoPageView';
 import type { ViewMode } from './listing';
 import english from '../../../../shared/locales/en/common.json';
@@ -49,6 +51,12 @@ vi.mock('./useScan', () => ({ useScan: () => scan }));
 vi.mock('./useNotices', () => ({ useNotices: () => notices }));
 vi.mock('./useVideoActions', () => ({ useVideoActions: () => videoActions }));
 vi.mock('./useBusy', () => ({ useBusy: () => busy }));
+// The fields are a question about the one video that is open, and this file is
+// about which video that is: what the hook is handed is the assertion below, and
+// what it answers with is `fields`.
+vi.mock('./useVideoFields', () => ({
+  useVideoFields: vi.fn(() => fields),
+}));
 
 vi.mock('../space/SpaceProvider', () => ({
   useSpace: () => space,
@@ -105,6 +113,38 @@ function setClipboard(writeText?: (text: string) => Promise<void>) {
     value: writeText ? { writeText } : undefined,
   });
 }
+
+it('draws the fields the plugins wrote for the video that is open', () => {
+  fields.push({
+    key: 'cover',
+    value: '/covers/1.jpg',
+    source_plugin: 'cover-fetcher',
+  });
+  render(page());
+  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
+  // The term is the plugin's own name for the field and the badge is the plugin
+  // that wrote it, drawn in the panel the record's own facts are in — one list,
+  // because the user is reading one video.
+  const row = screen.getByText('cover').closest('[data-slot="video-meta-row"]');
+  expect(row?.querySelector('dd')?.textContent).toBe(
+    '/covers/1.jpgcover-fetcher',
+  );
+});
+
+it('hands the open video to the fields hook, and nothing once the drawer is shut', () => {
+  const handed = vi.mocked(useVideoFields);
+  render(page());
+  // Nothing is open, so nothing is asked: the drawer is mounted either way, and
+  // a question tied to the mount would be a plugin call per rendered page.
+  expect(handed).toHaveBeenLastCalledWith(null);
+  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
+  expect(handed).toHaveBeenLastCalledWith(video);
+  // The panel keeps the video it was describing after it closes — it is the
+  // open state that says whether anything is being looked at, not the last
+  // thing that was.
+  fireEvent.click(screen.getByRole('button', { name: english.closeDetails }));
+  expect(handed).toHaveBeenLastCalledWith(null);
+});
 
 it('copies the path the panel shows, and announces it', async () => {
   const writeText = vi.fn().mockResolvedValue(undefined);

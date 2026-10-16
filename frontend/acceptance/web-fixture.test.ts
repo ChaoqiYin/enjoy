@@ -26,6 +26,7 @@
 import { describe, expect, it } from 'vitest';
 import { libraryApi, shareApi } from '../src/shared/api';
 import { acceptance } from './web-fixture';
+import { videos } from './records';
 import type { VideoQuery } from '../src/shared/api';
 
 /** The listing as a page asks for it: the whole description, and one page. */
@@ -122,6 +123,24 @@ describe('the fixture as a stand-in backend', () => {
     // one page follow another rather than merely look plausible.
     const seen = [...first.items, ...second.items].map((video) => video.id);
     expect(new Set(seen).size).toBe(36);
+  });
+
+  it('answers the fields a plugin wrote, and nothing for a record it did not', async () => {
+    // Asked the way the panel asks (`libraryApi.fields`), because the argument
+    // this command is keyed on is the path the interface sends: a fixture that
+    // read the record from somewhere else would answer for the wrong video and
+    // look exactly like one that answered correctly.
+    const written = await libraryApi.fields(1, videos[0].path);
+    expect(written).toEqual([
+      {
+        key: 'cover',
+        value: '/acceptance/covers/video-01.jpg',
+        source_plugin: 'cover-fetcher',
+      },
+    ]);
+    // No plugin has written anything about the record beside it, so the panel
+    // draws no row for it — the state most records are in.
+    expect(await libraryApi.fields(1, videos[1].path)).toEqual([]);
   });
 
   it('gives every listing more than one page to read', async () => {

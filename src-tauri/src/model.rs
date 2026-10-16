@@ -27,6 +27,21 @@ pub struct VideoFile {
     pub updated_at: i64,
 }
 
+/// One named thing a plugin has written about a record.
+///
+/// `source_plugin` is the id of the plugin that wrote the value, kept as a bare
+/// string: plugins live on disk and this library does not, so nothing ties the
+/// two together and a field outlives the plugin that wrote it (ADR 0045 §3).
+/// That is the whole reason the source is stored at all — the interface has to
+/// say who a value came from, including after the plugin has been uninstalled
+/// (User Story 10).
+#[derive(Debug, Clone, Serialize)]
+pub struct VideoField {
+    pub key: String,
+    pub value: String,
+    pub source_plugin: String,
+}
+
 /// One page of a space's records, and how many the same question holds.
 ///
 /// The two travel together because the interface draws them together: the

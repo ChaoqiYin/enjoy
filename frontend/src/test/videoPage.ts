@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { Video } from '../shared/api';
+import type { Video, VideoField } from '../shared/api';
 import * as doubles from './doubles';
 import { video as anyVideo } from './fixtures';
 
@@ -53,6 +53,17 @@ export const busy = doubles.busy();
 export const space = doubles.space({ name: 'Library' });
 
 /**
+ * What the plugins have written about the record the drawer has open.
+ *
+ * Not a slice of the library like the five above: it is a question about one
+ * video, asked by the drawer that knows which one is open. It is here for the
+ * same reason they are — one place to look for what a page's tests are given,
+ * and one place to reset — because the module that asks it is replaced at the
+ * module boundary in both files, exactly as the slices are.
+ */
+export const fields: VideoField[] = [];
+
+/**
  * Which page of the list the page is being drawn on.
  *
  * Held here rather than in either test file because it is one half of a pair:
@@ -89,6 +100,7 @@ export function resetVideoPage() {
   collection.videos.data = { items: [video], total: 1 };
   collection.videos.isPending = false;
   collection.pageKey = 'library page 1';
+  fields.length = 0;
   listing.index = 0;
   scan.status = undefined;
   busy.busy = false;
