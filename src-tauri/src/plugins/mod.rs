@@ -42,6 +42,7 @@ mod metrics;
 mod registry;
 mod runner;
 mod store;
+mod wasm;
 
 #[cfg(test)]
 mod dispatch_tests;
