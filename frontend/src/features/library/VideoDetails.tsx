@@ -6,10 +6,11 @@ import {
   FolderOpen,
   HardDrive,
   Monitor,
+  Puzzle,
   RefreshCw,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { ScanStatus, Video } from '../../shared/api';
+import type { ScanStatus, Video, VideoField } from '../../shared/api';
 import { displayPath, duration, fileSize } from '../../shared/format';
 import { Button } from '../../shared/ui/button';
 import { MaintenanceButton } from './MaintenanceButton';
@@ -44,17 +45,26 @@ function resolutionClass(height: number | null): string | undefined {
  *  through the action the caller hands in, because the two answers are told in
  *  two places — the short hint for a copy that landed, the notice for one that
  *  did not — and that split belongs to whoever is drawing those, not here.
+ *
+ *  `fields` are what the plugins wrote about this video, handed in rather than
+ *  fetched here: which video is open, and when it was opened, is the drawer's
+ *  business, and this panel is drawn the same way in a test as in the
+ *  application. They are drawn under the record's own terms because they are
+ *  not terms the record has, and each carries the plugin it came from — a value
+ *  a plugin wrote is not the kernel's to present as its own.
  */
 export function VideoDetails({
   video,
   scan,
   busy,
   actions,
+  fields = [],
 }: {
   video: Video;
   scan?: ScanStatus;
   busy: boolean;
   actions: VideoActionHandlers;
+  fields?: VideoField[];
 }) {
   const { t, i18n } = useTranslation();
   const rows: VideoMetaRow[] = [
@@ -87,6 +97,16 @@ export function VideoDetails({
         timeStyle: 'short',
       }).format(video.modified_at),
     },
+    // The plugin fields, in the order the backend handed them over — which is
+    // the order of their keys, so a panel read twice reads the same way. The
+    // puzzle piece is the same one the navigation marks the plugin page with:
+    // what this line is, is not this application's own.
+    ...fields.map((field) => ({
+      icon: <Puzzle size={15} aria-hidden="true" />,
+      label: field.key,
+      value: field.value,
+      source: field.source_plugin,
+    })),
   ];
   return (
     <>

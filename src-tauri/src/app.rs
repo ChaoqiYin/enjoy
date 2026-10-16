@@ -25,8 +25,9 @@ pub(crate) struct AppState {
     /// The one thing in the kernel that knows plugins exist. What reaches it is
     /// the mount points a command is about — the fields a video has, what a
     /// plugin needs the user to fill in — and nothing here knows a plugin's
-    /// name. The commands that reach it are the field ones (#88).
-    #[allow(dead_code)]
+    /// name. The field command reads it (#88); the install, enable and disable
+    /// ones (#86) read the store beside it, and reach this one only through the
+    /// interface half the host runs.
     pub(crate) plugins: Arc<PluginHost>,
     /// The plugins on disk: what is installed, which the user switched on, and
     /// what installing and uninstalling do to that. Held apart from the host

@@ -3,6 +3,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::model::VideoField;
+
 use super::Repository;
 
 /// The name a test database's first space is created with. Nothing in these
@@ -65,36 +67,21 @@ impl Drop for Fixture {
     }
 }
 
-/// Lays down `video_fields` and fills it, for the tests about what a plugin
-/// left behind.
+/// Fills a library with fields the plugins wrote, for the tests about what a
+/// plugin left behind.
 ///
-/// The table is #88's and joins `SCHEMA` when that lands; until then the only
-/// way to ask the queries in [`super::plugin_content`] anything is to put the
-/// table there, in the shape the spec writes it. That is the arrangement worth
-/// having: the queries are checked against the shape they are written for, and
-/// the day the table arrives in `SCHEMA` these tests keep passing untouched.
+/// `video_fields` is the real table — it is `SCHEMA`'s, and the migration that
+/// brings it is [`super::migrate`]'s — so nothing here creates anything. The
+/// rows go in through [`Repository::save_fields`], which is the one path a
+/// plugin's answer reaches the database by, so what these tests count is what
+/// that path actually wrote.
 ///
 /// Each row is `(video_id, key, value, source_plugin)`; the timestamp is not
-/// what any of these tests are about.
-///
-/// The videos those rows are about are laid down too, because the table
-/// references them and a library with fields pointing at nothing is not a
-/// library any of these tests would recognise. What a test names is the id it
-/// wants to talk about; the rest of the record is a placeholder.
-pub(crate) fn video_fields(repository: &Repository, rows: &[(i64, &str, &str, &str)]) {
-    repository
-        .connection
-        .execute_batch(
-            "CREATE TABLE video_fields (
-                video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
-                key TEXT NOT NULL,
-                value TEXT NOT NULL,
-                source_plugin TEXT NOT NULL,
-                updated_at INTEGER NOT NULL,
-                PRIMARY KEY (video_id, key)
-            )",
-        )
-        .unwrap();
+/// what any of these tests are about. The records the rows hang off are laid
+/// down directly rather than scanned in, because a field cannot exist without
+/// one and a record's own columns are not what any of this is about — what a
+/// test names is the id it wants to talk about.
+pub(crate) fn video_fields(repository: &mut Repository, rows: &[(i64, &str, &str, &str)]) {
     let space = repository.current_space().unwrap().id;
     for video in rows
         .iter()
@@ -118,11 +105,13 @@ pub(crate) fn video_fields(repository: &Repository, rows: &[(i64, &str, &str, &s
     }
     for (video, key, value, plugin) in rows {
         repository
-            .connection
-            .execute(
-                "INSERT INTO video_fields (video_id, key, value, source_plugin, updated_at) \
-                 VALUES (?1, ?2, ?3, ?4, 0)",
-                rusqlite::params![video, key, value, plugin],
+            .save_fields(
+                *video,
+                &[VideoField {
+                    key: (*key).into(),
+                    value: (*value).into(),
+                    source_plugin: (*plugin).into(),
+                }],
             )
             .unwrap();
     }

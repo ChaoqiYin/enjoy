@@ -1,7 +1,7 @@
 import { FileArchive, FolderOpen } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { pickPluginArchive, pickPluginFolder } from '../shared/api';
+import { pickPluginSource } from '../shared/api';
 import { errorMessage } from '../shared/errorMessage';
 import { useCommand } from '../shared/useCommand';
 import { Alert } from '../shared/ui/alert';
@@ -49,9 +49,10 @@ export function PluginInstallDialog({
   const [source, setSource] = useState<string | null>(null);
   const [preview, setPreview] = useState<PluginInstallPreview | null>(null);
 
-  function choose(pick: () => Promise<string | null>) {
+  /** Which of the two shapes the user is reaching for. */
+  function choose(shape: 'folder' | 'archive') {
     return run(undefined, async () => {
-      const chosen = await pick();
+      const chosen = await pickPluginSource(shape === 'archive');
       // A cancelled picker is not a choice: what was read before stays on
       // screen, so that opening the wrong one of the two buttons costs nothing.
       if (chosen === null) return;
@@ -88,7 +89,7 @@ export function PluginInstallDialog({
             variant="secondary"
             size="sm"
             disabled={busy}
-            onClick={() => void choose(pickPluginFolder)}
+            onClick={() => void choose('folder')}
           >
             <FolderOpen size={14} aria-hidden="true" />
             {t('pluginInstallFolder')}
@@ -97,7 +98,7 @@ export function PluginInstallDialog({
             variant="secondary"
             size="sm"
             disabled={busy}
-            onClick={() => void choose(pickPluginArchive)}
+            onClick={() => void choose('archive')}
           >
             <FileArchive size={14} aria-hidden="true" />
             {t('pluginInstallArchive')}

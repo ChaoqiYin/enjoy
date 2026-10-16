@@ -51,17 +51,15 @@ mod plugin_content_tests {
     /// A library holding three fields written by two plugins.
     fn with_fields() -> Fixture {
         let fixture = Fixture::new();
-        {
-            let library = fixture.library();
-            fixture::video_fields(
-                &library.repository,
-                &[
-                    (1, "cover", "/a.jpg", "cover-fetcher"),
-                    (1, "rating", "5", "ratings"),
-                    (2, "cover", "/b.jpg", "cover-fetcher"),
-                ],
-            );
-        }
+        let mut library = fixture.library();
+        fixture::video_fields(
+            &mut library.repository,
+            &[
+                (1, "cover", "/a.jpg", "cover-fetcher"),
+                (1, "rating", "5", "ratings"),
+                (2, "cover", "/b.jpg", "cover-fetcher"),
+            ],
+        );
         fixture
     }
 

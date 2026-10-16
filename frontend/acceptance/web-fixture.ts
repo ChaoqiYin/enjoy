@@ -9,6 +9,7 @@ import {
   reported as reportedCheck,
   setCheck,
 } from './update';
+import * as fields from './fields';
 import * as plugins from './plugins';
 import type {
   AppError,
@@ -366,6 +367,8 @@ mockIPC(
           params: {},
           errorId: 'acceptance-open-failure',
         };
+      case 'refresh_video_fields':
+        return fields.refresh(String(payload.path));
       case 'set_favorite':
         return markOn('favorite', payload);
       case 'set_shared':

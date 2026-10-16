@@ -106,6 +106,8 @@ const pairs = [
   // The listing: what one page of the library is asked for, and what comes back.
   { rust: 'src-tauri/src/model.rs', struct: 'VideoQuery', ts: 'VideoQuery' },
   { rust: 'src-tauri/src/model.rs', struct: 'VideoPage', ts: 'VideoPage' },
+  // What the plugins have written about one record, and who wrote each one.
+  { rust: 'src-tauri/src/model.rs', struct: 'VideoField', ts: 'VideoField' },
   // The plugins on disk: one plugin's row, why it is not usable, and what
   // installing a source would do. Three shapes rather than one because the
   // failure travels on its own — the host reports one for a plugin whose

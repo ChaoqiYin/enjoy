@@ -9,6 +9,9 @@
 //! holds only what all of them share: the type, the connection, and the two
 //! things no caller may pass around for itself.
 
+mod fields;
+#[cfg(test)]
+mod fields_tests;
 #[cfg(test)]
 pub(crate) mod fixture;
 #[cfg(test)]

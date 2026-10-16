@@ -14,7 +14,7 @@ import {
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { pickPluginArchive, pickPluginFolder } from '../shared/api';
+import { pickPluginSource } from '../shared/api';
 import { PluginsPage } from './PluginsPage';
 import { PluginHostProvider } from '../plugins/PluginHostProvider';
 import type { EntryLoader } from '../plugins/host';
@@ -36,8 +36,7 @@ vi.mock('../features/library/useNotices', () => ({
 // asks, not the picker it asks through.
 vi.mock('../shared/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../shared/api')>()),
-  pickPluginFolder: vi.fn(),
-  pickPluginArchive: vi.fn(),
+  pickPluginSource: vi.fn(),
 }));
 
 // What the plugin page is held to is the whole of what it has to do: one row
@@ -189,7 +188,7 @@ it('shows what installing would do before anything is copied', async () => {
     plugin: cover,
   }));
   const install = vi.fn(async () => [cover]);
-  vi.mocked(pickPluginFolder).mockResolvedValue('/downloads/cover');
+  vi.mocked(pickPluginSource).mockResolvedValue('/downloads/cover');
   page({ ...port, preview, install });
 
   fireEvent.click(
@@ -224,7 +223,7 @@ it('takes a .zip as readily as a folder, and installs nothing on cancel', async 
     plugin: plugin({ id: 'cover', name: 'Cover Fetcher', entry: 'index.js' }),
   }));
   const install = vi.fn(async () => []);
-  vi.mocked(pickPluginArchive).mockResolvedValue('/downloads/cover.zip');
+  vi.mocked(pickPluginSource).mockResolvedValue('/downloads/cover.zip');
   page({ ...port, preview, install });
 
   fireEvent.click(

@@ -16,6 +16,7 @@ import type {
   UpdateCheck,
   UpdateProgress,
   Video,
+  VideoField,
   VideoPage,
   VideoQuery,
 } from './apiTypes';
@@ -45,6 +46,7 @@ export type {
   UpdateCheck,
   UpdateProgress,
   Video,
+  VideoField,
   VideoPage,
   VideoQuery,
 } from './apiTypes';
@@ -124,6 +126,12 @@ export const libraryApi = {
     invoke<void>('open_video', { spaceId, path }),
   refreshInfo: (spaceId: number, path: string) =>
     invoke<void>('refresh_video_info', { spaceId, path }),
+  // The fields this video's plugins have written. Asking is what makes them
+  // current: the command puts the question to the plugins and stores what they
+  // answer, and the answer is the library afterwards rather than the chain's
+  // own reply — so what the panel draws is a row that is there.
+  fields: (spaceId: number, path: string) =>
+    invoke<VideoField[]>('refresh_video_fields', { spaceId, path }),
   checkForUpdate: () => invoke<UpdateCheck>('check_for_update'),
   // Answers with how the transfer ended, so a download that was paused or
   // cancelled is told apart from one that finished without reading an event.
@@ -140,14 +148,11 @@ export const libraryApi = {
 
 /**
  * The plugins installed on this machine: what is there, and what the user may do
- * about it.
- *
- * Two things about this group are decisions rather than plumbing.
+ * about it. Two things about this group are decisions rather than plumbing.
  *
  * **Every command that changes something answers with the whole list as it now
  * stands**, the way the space commands answer with the space to show afterwards.
- * A lifecycle action changes what the page lists, and a caller that had to ask
- * again could draw the two contradicting each other.
+ * A caller that had to ask again could draw the two contradicting each other.
  *
  * **None of them reaches the running plugin host.** Installing, switching and
  * uninstalling take effect on the next start (spec #82 「不做热插拔」), so what
@@ -156,14 +161,13 @@ export const libraryApi = {
  *
  * `preview` and `install` are one source read twice: the first says what
  * installing it would do and copies nothing, and the user is asked in between.
- * The source is a path the user picked — a plugin's folder, or a `.zip` holding
- * one — and there is no address that could be installed from: v1 has no network
- * install and no marketplace (spec #82 「安装」).
+ * The source is a path the user picked — a folder, or a `.zip` holding one — and
+ * there is no address to install from: v1 has no network install.
  *
  * `contentRows` is asked before an uninstall so that the question can say how
- * many rows of the library would go with the plugin. It is its own command
- * because it is asked before anything is decided, and because the answer is a
- * number the user reads rather than an action they take.
+ * many rows of the library would go with the plugin: its own command because it
+ * is asked before anything is decided, and its answer is a number the user reads
+ * rather than an action they take.
  */
 export const pluginApi = {
   list: () => invoke<PluginBootstrap[]>('list_plugins'),
@@ -338,21 +342,17 @@ export function pickDirectories(): Promise<string[] | null> {
 /**
  * The two shapes a plugin comes in, asked for through the platform's own picker.
  *
- * Two functions rather than one, because the platform's picker is one or the
- * other and never both: a plugin is a folder a user unpacked, or the `.zip` they
- * downloaded. Which of the two they have is a fact only they know, so it is
- * asked rather than guessed — and the dialog that asks shows what each one would
- * install before anything is copied.
+ * One function with a flag rather than two, because the platform's picker is one
+ * or the other and never both: a plugin is a folder a user unpacked, or the
+ * `.zip` they downloaded. Which of the two they have is a fact only they know,
+ * so it is asked rather than guessed — and the dialog that asks shows what each
+ * one would install before anything is copied.
  */
-export function pickPluginFolder(): Promise<string | null> {
-  return open({ directory: true, multiple: false });
-}
-
-export function pickPluginArchive(): Promise<string | null> {
-  return open({
-    multiple: false,
-    filters: [{ name: 'Plugin', extensions: ['zip'] }],
-  });
+export function pickPluginSource(archive: boolean): Promise<string | null> {
+  const filters = [{ name: 'Plugin', extensions: ['zip'] }];
+  return archive
+    ? open({ multiple: false, filters })
+    : open({ directory: true, multiple: false });
 }
 
 /**

@@ -202,7 +202,7 @@ fn uninstalling_removes_the_plugin_and_keeps_what_it_wrote() {
     let index = Fixture::new();
     {
         let mut repository = index.library().repository;
-        video_fields(&repository, &[(1, "cover", "/a.jpg", "cover")]);
+        video_fields(&mut repository, &[(1, "cover", "/a.jpg", "cover")]);
 
         let plugins = store.uninstall(&mut repository, "cover", false).unwrap();
 
@@ -223,7 +223,7 @@ fn uninstalling_with_the_content_takes_the_rows_with_it() {
     let index = Fixture::new();
     let mut repository = index.library().repository;
     video_fields(
-        &repository,
+        &mut repository,
         &[
             (1, "cover", "/a.jpg", "cover"),
             (1, "rating", "5", "ratings"),
