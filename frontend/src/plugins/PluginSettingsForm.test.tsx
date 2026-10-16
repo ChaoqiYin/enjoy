@@ -38,6 +38,13 @@ vi.mock('../shared/api', async (importOriginal) => ({
  * one control per kind, what was typed going to the kernel as the plugin's
  * fields and nothing else, the kernel's answer drawn afterwards, and a refusal
  * drawn **beside the field it is about** rather than at the top of the form.
+ *
+ * The two places a refusal can be drawn are the whole of them: what the form
+ * cannot put beside a field goes above the button — including a refusal naming
+ * a field **this form does not have**, which the kernel can answer because it
+ * checks against the declaration the plugin gave when the save was asked. A
+ * refusal drawn nowhere would be one the user never reads, so every case is
+ * held to landing in one of the two.
  */
 
 const i18n = createInstance();
@@ -171,6 +178,43 @@ it('draws a refusal beside the field it is about', async () => {
   expect(
     beside?.contains(screen.getByLabelText(/^notes/)),
     'the reason is about one value, so it is not drawn under the others',
+  ).toBe(false);
+});
+
+it('draws a refusal that names a field this form does not have above the button', async () => {
+  // The kernel checks the form against the declaration the plugin gave for the
+  // values it was handed when the save was asked, and that declaration is not
+  // always the one this form was drawn from — so the key in the refusal can be
+  // one this form has never shown. It still has to be read, and the field it
+  // names is not here to be drawn under.
+  const port = doubles.pluginPort([], {
+    saveSettings: async () => {
+      throw {
+        code: 'plugin.settings.required',
+        params: { plugin: 'cover-fetcher', field: 'token' },
+        errorId: 'one',
+      };
+    },
+  });
+  form(ASKED, port);
+
+  fireEvent.click(
+    screen.getByRole('button', { name: english.pluginSettingsSave }),
+  );
+
+  const message = await screen.findByText(errors['plugin.settings.required']);
+  expect(
+    screen.getByRole('alert').contains(message),
+    'a field this form does not have is one it cannot draw the reason under',
+  ).toBe(true);
+  expect(screen.getByLabelText(/^url/).closest('div')?.contains(message)).toBe(
+    false,
+  );
+  expect(
+    screen
+      .getByLabelText(/^wanted/)
+      .closest('div')
+      ?.contains(message),
   ).toBe(false);
 });
 

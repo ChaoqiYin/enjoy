@@ -28,12 +28,22 @@ import type {
  * (`mountPoints.ts`), each with its own control here, and the plugin only ever
  * sees the value as a string.
  *
- * **A refusal is drawn beside the field it is about.** The kernel answers a
- * refusal with the field's key in its params (`plugins/settings.rs`), and the
- * user's next act is to change that value — not to work out which of six
- * values was wrong. A failure that names no field — the picker would not open,
- * or the plugin stopped running between drawing and saving — is drawn above the
- * button instead, because there is no field to put it beside.
+ * **A refusal is drawn beside the field it is about — when this form has that
+ * field.** The kernel answers a refusal with the field's key in its params
+ * (`plugins/settings.rs`), and the user's next act is to change that value —
+ * not to work out which of six values was wrong.
+ *
+ * **There are three places a refusal can land, not two.** A failure that names
+ * no field (the picker would not open, or the plugin stopped running between
+ * drawing and saving) has no field to be put beside. And a failure can name a
+ * field **this form has never heard of**: the kernel checks the form against
+ * the declaration the plugin gave when the save was asked, which is not always
+ * the one the page was drawn from (`commands/plugin_settings.rs` says the two
+ * may differ), so the key in the refusal can be one of a declaration this form
+ * never showed. Both of those go above the button, and they have to: the two
+ * branches below are the whole of where a refusal is drawn, and **a refusal
+ * drawn nowhere is a refusal the user never sees** — the save failed, the form
+ * still holds what was typed, and nothing on screen says why.
  *
  * What is typed is the user's until they save: the draft lives here and not in
  * the answer, so a plugin whose declaration changes under a save does not
@@ -55,6 +65,12 @@ export function PluginSettingsForm({
   const [values, setValues] = useState(() => draft(group));
   const { busy, failure, run } = useCommand();
   const about = failure?.error.params.field;
+  // Whether the refusal names a field this form can put it beside. A key that is
+  // not one of these — an empty string included — has no field to be drawn
+  // under, and the alert above the button is where the rest of the refusals go:
+  // the two branches below cover every failure, so none of them is drawn
+  // nowhere.
+  const beside = group.fields.some((field) => field.key === about);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -96,7 +112,11 @@ export function PluginSettingsForm({
           )}
         </div>
       ))}
-      {failure !== null && about === undefined && (
+      {/* Everything the branch above did not draw, which is the refusals that
+          name no field and the refusals that name a field this form does not
+          have. `!beside` rather than "names no field": with the narrower test
+          the second kind landed nowhere at all. */}
+      {failure !== null && !beside && (
         <Alert variant="destructive">
           {errorMessage({ t, i18n }, failure.error)}
         </Alert>
