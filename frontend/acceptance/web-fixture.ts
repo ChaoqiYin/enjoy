@@ -409,7 +409,7 @@ mockIPC(
       case 'list_plugin_settings':
         // The space travels with the call — every mount point is named with one
         // (ADR 0012) — and the answer does not depend on it: a plugin's settings
-        // are the same ones whichever space is on screen (baseline §14.7).
+        // are the same ones whichever space is on screen (docs/插件系统.md §14.7).
         return plugins.listSettings();
       case 'save_plugin_settings':
         return plugins.saveSettings(

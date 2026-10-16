@@ -259,7 +259,7 @@ impl Store {
     /// so it goes with the plugin whichever way the content question was
     /// answered. Keeping it would leave the library holding a form for something
     /// that is no longer installed, which no page could ever show again
-    /// (baseline §14.7).
+    /// (docs/插件系统.md §14.7).
     pub(crate) fn uninstall(
         &self,
         repository: &mut Repository,

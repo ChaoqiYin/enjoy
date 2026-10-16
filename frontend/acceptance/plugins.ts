@@ -230,7 +230,7 @@ const declarations: [string, Declaration[]][] = [
  * What the user has filled in, by plugin and field key.
  *
  * One set for the whole library rather than one per space: a plugin's settings
- * are global (baseline §14.7), so the space a call names is carried to the
+ * are global (docs/插件系统.md §14.7), so the space a call names is carried to the
  * plugin and not into what is kept.
  */
 const answers = new Map<string, string>();

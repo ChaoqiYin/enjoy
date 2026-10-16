@@ -15,7 +15,7 @@
 //!   code: holding the lock across a call would let a slow plugin stop a scan
 //!   (ADR 0043 §2, and `commands::fields` says the same about the same lock).
 //! - **The space travels with every call.** A plugin's settings are global
-//!   (baseline §14.7) and the command still names the space, because that is
+//!   (docs/插件系统.md §14.7) and the command still names the space, because that is
 //!   what every mount point is called with (ADR 0012): a plugin is shown a
 //!   space's data, and what it asks the user for may well depend on which space
 //!   is on screen.
@@ -87,7 +87,7 @@ pub(crate) fn save(
     // answers. The second question is also the hand-over: asking a plugin what
     // it needs is how it is given what the user filled in, so the plugin that
     // was just saved receives it here, in the same call that redraws the page
-    // (baseline §14.8).
+    // (docs/插件系统.md §14.8).
     settings(state, space_id)
 }
 

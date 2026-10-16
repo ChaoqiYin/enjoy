@@ -189,7 +189,7 @@ export const pluginApi = {
     invoke<number>('plugin_content_rows', { pluginId }),
   // Every plugin is off now, and the page says so without asking again.
   safeMode: () => invoke<PluginBootstrap[]>('run_safe_mode'),
-  // The settings form, read and written: both name the space (§14.7).
+  // The settings form, read and written: both name the space (docs/插件系统.md §14.7).
   listSettings: (spaceId: number) =>
     invoke<PluginSettingsGroup[]>('list_plugin_settings', { spaceId }),
   saveSettings: (spaceId: number, pluginId: string, values: SettingValue[]) =>

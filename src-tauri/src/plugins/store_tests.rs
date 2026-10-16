@@ -271,7 +271,7 @@ fn uninstalling_takes_the_settings_with_it_either_way() {
     // Not a question, unlike the rows: what the plugin wrote into the library is
     // about the user's videos and they are asked about it, while a setting is
     // about the plugin the way its own data directory is — it goes with it, and
-    // `delete_content` does not reach it either way (baseline §14.7).
+    // `delete_content` does not reach it either way (docs/插件系统.md §14.7).
     store(&space)
         .uninstall(&mut repository, "cover", false)
         .unwrap();
