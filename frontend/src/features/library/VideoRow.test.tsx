@@ -33,7 +33,11 @@ beforeEach(async () => {
 
 afterEach(cleanup);
 
-function row(record: Partial<Video> = {}, lastPlayedId: number | null = null) {
+function row(
+  record: Partial<Video> = {},
+  lastPlayedId: number | null = null,
+  busy = false,
+) {
   const actions = {
     details: vi.fn(),
     play: vi.fn(),
@@ -51,7 +55,7 @@ function row(record: Partial<Video> = {}, lastPlayedId: number | null = null) {
       <ul>
         <VideoRow
           video={{ ...video, ...record }}
-          busy={false}
+          busy={busy}
           actions={actions}
           lastPlayedId={lastPlayedId}
           onMenu={vi.fn()}
@@ -89,4 +93,47 @@ it('carries the marks a record can wear into its own line', () => {
 it('falls back to the volume name when nobody says which video was played', () => {
   row();
   expect(screen.queryByText(english.lastPlayedMarker)).toBeNull();
+});
+
+// The picture plays and the rest of the row opens the panel, exactly as on the
+// card: one rule serves both (`pressOnPicture`), so the row's cases are the
+// card's cases. `detail` is written out because the browser counts the presses
+// of a gesture and `fireEvent` would otherwise leave it at 0.
+
+function picture() {
+  return document.querySelector('[data-slot="video-picture"]') as HTMLElement;
+}
+
+it('plays for a press on the picture and opens details for the rest of the row', () => {
+  const actions = row();
+  fireEvent.click(picture(), { detail: 1 });
+  expect(actions.play).toHaveBeenCalledWith(video);
+  // The press is the picture's; it does not also reach the row's own click.
+  expect(actions.details).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText('00:01:05'), { detail: 1 });
+  expect(actions.details).toHaveBeenCalledOnce();
+  expect(actions.play).toHaveBeenCalledOnce();
+});
+
+it('plays once however fast the picture is pressed twice', () => {
+  const actions = row();
+  fireEvent.click(picture(), { detail: 1 });
+  fireEvent.click(picture(), { detail: 2 });
+  expect(actions.play).toHaveBeenCalledOnce();
+  // The repeat press is claimed too: it neither replays nor falls through to
+  // the row and opens the panel behind the gesture.
+  expect(actions.details).not.toHaveBeenCalled();
+});
+
+it('leaves the picture to the row while a media task holds the library', () => {
+  const actions = row({}, null, true);
+  fireEvent.click(picture(), { detail: 1 });
+  expect(actions.play).not.toHaveBeenCalled();
+  // Claimed while unavailable as well, so nothing about the picture is the
+  // row's press either way.
+  expect(actions.details).not.toHaveBeenCalled();
+  expect(
+    (screen.getByRole('button', { name: english.play }) as HTMLButtonElement)
+      .disabled,
+  ).toBe(true);
 });

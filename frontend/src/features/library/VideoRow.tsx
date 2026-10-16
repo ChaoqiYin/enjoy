@@ -3,6 +3,7 @@ import type { ScanStatus, Video } from '../../shared/api';
 import { Tooltip } from '../../shared/Tooltip';
 import { duration, fileSize } from '../../shared/format';
 import { HoverPlayOverlay } from './HoverPlayOverlay';
+import { pressOnPicture } from './picturePress';
 import { Thumbnail } from './Thumbnail';
 import { VideoActions } from './VideoActions';
 import type { VideoActionHandlers } from './VideoActions';
@@ -19,9 +20,10 @@ import type { MenuTarget } from './VideoMenu';
  * under the name. The list is the view for comparing many records at once, so
  * each row is one line of a table of contents written without rules.
  *
- * The whole row is the click target for the details panel, exactly like the
- * card's block, and it answers Enter and Space the same way. The controls it
- * draws are the exception and claim their own presses.
+ * The row is the click target for the details panel, exactly like the card's
+ * block — the picture at its start excepted, which plays (ADR 0042) — and it
+ * answers Enter and Space the same way. The controls it draws are the exception
+ * and claim their own presses, and so does the picture.
  *
  * The marks are worn inline here rather than floated over the picture: the
  * picture is a 96-pixel thumbnail whose corner a sentence would cover whole,
@@ -80,7 +82,15 @@ export function VideoRow({
     >
       {/* The picture keeps the card's ratio at a fixed 96 pixels, so every row
           is the same height and the column of pictures reads as a stripe. */}
-      <div className="relative w-24 shrink-0">
+      <div
+        className="relative w-24 shrink-0"
+        data-slot="video-picture"
+        // The same press the card's picture takes, through the same rule: a
+        // press on the picture plays and does not reach the row's own click.
+        onClick={(event) =>
+          pressOnPicture(event, () => actions.play(video), !busy)
+        }
+      >
         <Thumbnail
           videoPath={video.path}
           scan={scan}

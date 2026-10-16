@@ -105,6 +105,7 @@ describe('video card actions', () => {
   function mount(
     lastPlayedId: number | null = null,
     overrides: Partial<Video> = {},
+    busy = false,
   ) {
     const actions = {
       play: vi.fn(),
@@ -122,7 +123,7 @@ describe('video card actions', () => {
         <VideoCard
           video={{ ...video, ...overrides }}
           onMenu={vi.fn()}
-          busy={false}
+          busy={busy}
           actions={actions}
           lastPlayedId={lastPlayedId}
         />
@@ -130,18 +131,63 @@ describe('video card actions', () => {
     );
     return actions;
   }
-  it('opens details on click and only plays through the explicit action', () => {
+  // The picture area, by the name both views give it. The presses below write
+  // `detail` out because the browser counts the presses of a gesture and
+  // `fireEvent` would otherwise leave the count at 0, which no browser sends.
+  function picture() {
+    return document.querySelector('[data-slot="video-picture"]') as HTMLElement;
+  }
+  it('plays for a press on the picture and opens details for the rest of the card', () => {
     const actions = mount();
-    fireEvent.click(screen.getByText('00:01:05'));
+    fireEvent.click(picture(), { detail: 1 });
+    expect(actions.play).toHaveBeenCalledWith(video);
+    // The press belongs to the picture: it does not also reach the card's own
+    // click and open the panel underneath the gesture.
+    expect(actions.details).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('00:01:05'), { detail: 1 });
     expect(actions.details).toHaveBeenCalledOnce();
-    fireEvent.doubleClick(screen.getByText('00:01:05'));
+    expect(actions.play).toHaveBeenCalledOnce();
+  });
+  it('plays once however fast the picture is pressed twice', () => {
+    const actions = mount();
+    // The browser numbers the presses of one gesture itself, and the second
+    // press of a double click is a press on the picture too. It must neither
+    // replay nor fall through to the card and open the panel behind the
+    // gesture the user made asking to play (ADR 0042).
+    fireEvent.click(picture(), { detail: 1 });
+    fireEvent.click(picture(), { detail: 2 });
+    expect(actions.play).toHaveBeenCalledOnce();
+    expect(actions.details).not.toHaveBeenCalled();
+  });
+  it('plays through its own control, and the press count stays with the picture', () => {
+    const actions = mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }), {
+      detail: 1,
+    });
+    expect(actions.play).toHaveBeenCalledOnce();
+    expect(actions.details).not.toHaveBeenCalled();
+    // Not a rate limit, and not a rule about presses in general: an action that
+    // is not a play is not deduplicated, and pressing it twice asks twice.
+    for (const detail of [1, 2]) {
+      fireEvent.click(screen.getByRole('button', { name: 'Favorites' }), {
+        detail,
+      });
+    }
+    expect(actions.favorite).toHaveBeenCalledTimes(2);
+    expect(actions.play).toHaveBeenCalledOnce();
+  });
+  it('leaves the picture to the card while a media task holds the library', () => {
+    const actions = mount(null, {}, true);
+    fireEvent.click(picture(), { detail: 1 });
     expect(actions.play).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    expect(actions.play).toHaveBeenCalledTimes(1);
-    fireEvent.doubleClick(screen.getByRole('button', { name: 'Favorites' }));
-    expect(actions.play).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Favorites' }));
-    expect(actions.favorite).toHaveBeenCalledOnce();
+    // Claimed while unavailable as well: nothing about the picture is the
+    // card's press, either way.
+    expect(actions.details).not.toHaveBeenCalled();
+    // The control standing on the picture says why, in its own way.
+    expect(
+      (screen.getByRole('button', { name: 'Play' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
   });
   it('draws its three controls a size tighter than the rest of the interface', () => {
     mount();
@@ -188,6 +234,12 @@ describe('video card actions', () => {
     // are confirmed by a desktop walkthrough.
     const card = screen.getByRole('article');
     expect(card.querySelectorAll('[tabindex="0"]')).toHaveLength(0);
+    // The picture takes a press from the pointer without becoming a control of
+    // its own: the keyboard's two acts stay at the two stops it already had —
+    // Enter and Space on the card, and the named play button over the picture —
+    // so there is no third stop and nothing a reader hears twice (ADR 0042).
+    expect(picture().getAttribute('tabindex')).toBeNull();
+    expect(picture().getAttribute('role')).toBeNull();
   });
   it('marks the card and its file name button as pointer targets', () => {
     mount();
@@ -313,9 +365,12 @@ describe('video card actions', () => {
     ).toBe(true);
   });
   it('does not gate play on any per-record availability state', () => {
-    const actions = mount();
-    fireEvent.doubleClick(screen.getByText('00:01:05'));
-    expect(actions.play).not.toHaveBeenCalled();
+    mount();
+    // Nothing about the record gates the play — no missing picture, no failure,
+    // no share. The media task's own state is the only thing that does, and the
+    // case above covers it. (This used to double-click the duration and read the
+    // play as uncalled; `doubleClick` raises `dblclick` alone, so the card's
+    // click handler never ran and that assertion proved nothing.)
     expect(
       (screen.getByRole('button', { name: 'Play' }) as HTMLButtonElement)
         .disabled,
