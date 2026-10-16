@@ -183,6 +183,10 @@ export function useVideoBoard() {
           <VideoDetails
             scan={status}
             video={detail.video}
+            // The space this record is in, as a plugin is told it: a block the
+            // plugins draw in the panel is handed the space and the video, and
+            // which space that is is the drawer's to know.
+            space={{ id: spaceId }}
             busy={busy}
             actions={actions}
             fields={fields}

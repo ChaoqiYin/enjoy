@@ -64,9 +64,13 @@ vi.mock('../space/SpaceProvider', () => ({
 }));
 // Which plugins can act on a video is the window's own list and is read from
 // the plugin host, which the page is drawn inside of in the application and
-// not in a test: what is here is the list it hands the menu.
+// not in a test: what is here is the list it hands the menu. The blocks a
+// plugin adds to the panel are the same kind of read, and a page with no
+// plugins has none of them — what a block is drawn as is `VideoDetails.test.tsx`'s
+// to say, and the panel is not what these cases are about.
 vi.mock('../../plugins/PluginHostProvider', () => ({
   usePluginActions: () => pluginActions,
+  usePluginPanels: () => [],
 }));
 
 beforeEach(async () => {
