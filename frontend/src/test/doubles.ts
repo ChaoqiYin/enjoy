@@ -178,6 +178,7 @@ export function pluginPort(
   return {
     bootstrap: async () => plugins,
     setEnabled: async () => plugins,
+    setOrder: async () => plugins,
     preview: async () => {
       throw new Error('this double has nothing to preview');
     },

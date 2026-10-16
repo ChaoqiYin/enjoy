@@ -127,6 +127,30 @@ export function setEnabled(
   return listed();
 }
 
+/**
+ * The order the user arranged, written down as it is given.
+ *
+ * The whole order rather than a move, which is what the kernel takes: the ids
+ * are a list of what is installed, and a walkthrough that reordered the rows
+ * and saw them come back in a different order would be reading this rather than
+ * the page. An id that is not installed is not refused here — that refusal is
+ * the kernel's, and it is held by its own Rust tests; what a walkthrough can
+ * reach is the page's own two buttons, which only ever name rows that are on
+ * screen.
+ */
+export function setOrder(order: readonly string[]): PluginBootstrap[] {
+  const placed = new Map(installed.map((entry) => [entry.id, entry]));
+  const arranged = order.flatMap((id) => {
+    const entry = placed.get(id);
+    return entry === undefined ? [] : [entry];
+  });
+  installed = [
+    ...arranged,
+    ...installed.filter((entry) => !order.includes(entry.id)),
+  ];
+  return listed();
+}
+
 export function preview(source: string): PluginInstallPreview {
   const entry = fromSource(source);
   if (installed.some((held) => held.id === entry.id)) {

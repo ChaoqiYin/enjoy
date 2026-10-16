@@ -229,5 +229,7 @@
   "pluginSafeModeQuestion": "停用所有插件，让应用起来时不加载任何一个。不会卸载任何东西——插件都留在原处，可以再启用回来",
   "pluginSafeModeEnter": "全部停用",
   "pluginsRestartHint": "插件改动在下次启动应用时生效",
-  "pluginEnable": "启用"
+  "pluginEnable": "启用",
+  "pluginMoveUp": "上移",
+  "pluginMoveDown": "下移"
 }
