@@ -160,6 +160,14 @@ it('renders independent pages with shared navigation and page-specific actions',
       name: english.foldersInSpace.replace('{{name}}', space.name),
     }),
   ).toBeTruthy();
+  navigate(english.plugins);
+  // The one place a plugin can be found, and permanent: with nothing installed
+  // it says so rather than drawing a blank page, and none of the library's own
+  // actions come with it.
+  expect(
+    screen.getByRole('heading', { name: english.pluginsEmpty }),
+  ).toBeTruthy();
+  expect(screen.queryByPlaceholderText(english.searchPlaceholder)).toBeNull();
   expect(screen.getByRole('navigation')).toBe(navigation);
   expect(headerSpace()).toBe(space.name);
 });

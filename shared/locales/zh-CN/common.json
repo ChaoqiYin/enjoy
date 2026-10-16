@@ -195,5 +195,13 @@
   "footerPort": "端口：{{port}}",
   "footerAccelerationOn": "编码加速：已激活",
   "footerAccelerationOff": "编码加速：未激活",
-  "footerAccelerationUnknown": "编码加速：未上报"
+  "footerAccelerationUnknown": "编码加速：未上报",
+  "plugins": "插件",
+  "pluginsEmpty": "还没有安装任何插件",
+  "pluginsEmptyHint": "装好的插件会列在这里，它自己加的页面会出现在顶部导航里",
+  "pluginEnabled": "已启用",
+  "pluginDisabled": "已停用",
+  "pluginFailed": "加载失败",
+  "pluginDoing": "正在：{{activity}}",
+  "pluginPageBy": "由插件 {{plugin}} 提供"
 }

@@ -56,5 +56,8 @@
   "share.already_running": "The share service is already running",
   "share.stop_failed": "The share service could not be stopped. Look up the reference in the log",
   "plugin.call.failed": "Plugin {{plugin}} failed at {{mountPoint}}, and the app carried on without it",
-  "plugin.call.timed_out": "Plugin {{plugin}} took too long at {{mountPoint}}, and the app carried on without it"
+  "plugin.call.timed_out": "Plugin {{plugin}} took too long at {{mountPoint}}, and the app carried on without it",
+  "plugin.interface.unreachable": "The interface of {{plugin}} could not be read. Install the plugin again",
+  "plugin.interface.no_factory": "The interface of {{plugin}} has nothing to start. The plugin may be damaged",
+  "plugin.interface.start_failed": "{{plugin}} failed to start. Look up the reference in the log"
 }

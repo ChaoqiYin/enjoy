@@ -56,5 +56,8 @@
   "share.already_running": "共享服务已经在运行",
   "share.stop_failed": "共享服务无法结束，请查看排查编号对应的日志",
   "plugin.call.failed": "插件 {{plugin}} 在 {{mountPoint}} 上出错，应用已跳过它继续",
-  "plugin.call.timed_out": "插件 {{plugin}} 在 {{mountPoint}} 上耗时过长，应用已跳过它继续"
+  "plugin.call.timed_out": "插件 {{plugin}} 在 {{mountPoint}} 上耗时过长，应用已跳过它继续",
+  "plugin.interface.unreachable": "读不到 {{plugin}} 的插件界面，请重新安装这个插件",
+  "plugin.interface.no_factory": "{{plugin}} 的插件界面里没有可启动的入口，插件可能已损坏",
+  "plugin.interface.start_failed": "{{plugin}} 启动失败，请查看排查编号对应的日志"
 }
