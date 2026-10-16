@@ -13,6 +13,7 @@ import type {
   UpdateCheck,
   UpdateProgress,
   Video,
+  VideoField,
   VideoPage,
   VideoQuery,
 } from './apiTypes';
@@ -39,6 +40,7 @@ export type {
   UpdateCheck,
   UpdateProgress,
   Video,
+  VideoField,
   VideoPage,
   VideoQuery,
 } from './apiTypes';
@@ -118,6 +120,12 @@ export const libraryApi = {
     invoke<void>('open_video', { spaceId, path }),
   refreshInfo: (spaceId: number, path: string) =>
     invoke<void>('refresh_video_info', { spaceId, path }),
+  // The fields this video's plugins have written. Asking is what makes them
+  // current: the command puts the question to the plugins and stores what they
+  // answer, and the answer is the library afterwards rather than the chain's
+  // own reply — so what the panel draws is a row that is there.
+  fields: (spaceId: number, path: string) =>
+    invoke<VideoField[]>('refresh_video_fields', { spaceId, path }),
   checkForUpdate: () => invoke<UpdateCheck>('check_for_update'),
   // Answers with how the transfer ended, so a download that was paused or
   // cancelled is told apart from one that finished without reading an event.

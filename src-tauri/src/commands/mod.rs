@@ -11,12 +11,15 @@
 //! The pattern to copy is `open_video` as it was written before this module
 //! existed: parse, delegate, and nothing more.
 
+pub(crate) mod fields;
 pub(crate) mod library;
 pub(crate) mod scan;
 pub(crate) mod share;
 pub(crate) mod space;
 pub(crate) mod window;
 
+#[cfg(test)]
+mod fields_tests;
 #[cfg(test)]
 mod share_tests;
 #[cfg(test)]

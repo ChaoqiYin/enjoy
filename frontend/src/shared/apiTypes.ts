@@ -253,3 +253,22 @@ export interface VideoPage {
   items: Video[];
   total: number;
 }
+
+/**
+ * One named thing a plugin has written about a record, and the plugin that
+ * wrote it.
+ *
+ * The source is a bare string rather than a reference to a plugin that exists:
+ * plugins live on disk and the library does not, so the two are not tied
+ * together and a field outlives the plugin that wrote it. That is the whole of
+ * why the interface is handed it — the panel has to say where a value came
+ * from, including after that plugin has been uninstalled (User Story 10).
+ *
+ * The key is the plugin's own name for the field and is drawn as the plugin
+ * wrote it: the kernel has no vocabulary for a plugin's fields to translate.
+ */
+export interface VideoField {
+  key: string;
+  value: string;
+  source_plugin: string;
+}

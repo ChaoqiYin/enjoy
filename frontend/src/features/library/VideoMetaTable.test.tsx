@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
-import { Clock, Monitor } from 'lucide-react';
+import { Clock, Monitor, Puzzle } from 'lucide-react';
 import { afterEach, expect, it } from 'vitest';
 import { VideoMetaTable } from './VideoMetaTable';
 
@@ -41,4 +41,35 @@ it('marks a class only on the row whose value has one', () => {
   expect(row('FHD')?.querySelector('[data-slot="badge"]')?.textContent).toBe(
     'FHD',
   );
+});
+
+it('says where a value came from, beside the value and apart from its class', () => {
+  render(
+    <VideoMetaTable
+      rows={[
+        ...rows,
+        {
+          icon: <Puzzle aria-hidden="true" />,
+          label: 'cover',
+          value: '/covers/1.jpg',
+          source: 'cover-fetcher',
+        },
+      ]}
+    />,
+  );
+  const row = (text: string) =>
+    screen.getByText(text).closest('[data-slot="video-meta-row"]');
+  // The provenance is drawn where the value is, like the class badge, because
+  // both are about that value and neither means anything at the table's edge.
+  const source = row('/covers/1.jpg')?.querySelector('[data-slot="badge"]');
+  expect(source?.textContent).toBe('cover-fetcher');
+  // And it is a different badge from the class one: a class says what a value
+  // *is* and a source says who wrote it, so a reader who has learnt one of the
+  // two has to be able to tell it from the other at a glance.
+  expect(source?.getAttribute('data-variant')).toBe('outline');
+  expect(
+    row('FHD')
+      ?.querySelector('[data-slot="badge"]')
+      ?.getAttribute('data-variant'),
+  ).toBe('secondary');
 });

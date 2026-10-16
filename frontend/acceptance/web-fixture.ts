@@ -15,6 +15,7 @@ import type {
   ShareStatus,
   Space,
   Video,
+  VideoField,
   VideoQuery,
 } from '../src/shared/api';
 
@@ -129,6 +130,24 @@ let servedList: { spaceId: number; ids: number[] } | null = null;
  * so it is the one nearest to hand.
  */
 const missingFromDisk = new Set([1]);
+
+/**
+ * What a plugin is pretending to have written about the first record.
+ *
+ * A declared lie, in the shape `missingFromDisk` is: there is no plugin loader
+ * yet (#86, #87), so nothing can put a field in the library for real — and
+ * without one, the panel's plugin row and the source badge beside it are drawn
+ * in no browser at all, which is the one thing jsdom cannot stand in for. The
+ * first record is the one nearest to hand, and the plugin it names is the cover
+ * plugin the whole design is written around.
+ */
+const pluginFields: VideoField[] = [
+  {
+    key: 'cover',
+    value: '/acceptance/covers/video-01.jpg',
+    source_plugin: 'cover-fetcher',
+  },
+];
 
 /** One space's 共享清单, in the order the backend would serve it. */
 function sharedIds(spaceId: number): number[] {
@@ -365,6 +384,13 @@ mockIPC(
           params: {},
           errorId: 'acceptance-open-failure',
         };
+      case 'refresh_video_fields':
+        // Nothing is stored: this copy keeps no library, so what it answers is
+        // what the plugins said about this record rather than what a table
+        // holds. Every other record answers with nothing, and the panel draws no
+        // row for an empty answer — so a walkthrough sees the panel it saw
+        // before, on all of them.
+        return payload.path === videos[0].path ? pluginFields : [];
       case 'set_favorite':
         return markOn('favorite', payload);
       case 'set_shared':

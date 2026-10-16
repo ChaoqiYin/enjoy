@@ -9,6 +9,7 @@ import { useBusy } from './useBusy';
 import { useNotices } from './useNotices';
 import { useScan } from './useScan';
 import { useVideoActions } from './useVideoActions';
+import { useVideoFields } from './useVideoFields';
 import { useVideos } from './useVideos';
 import { useSpace } from '../space/SpaceProvider';
 import { VideoMenu } from './VideoMenu';
@@ -69,6 +70,11 @@ export function useVideoBoard() {
   // which names the space, so the change reaches it on its own.
   const [detail, setDetail] = useState<Opened | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // What the plugins have written about the video being looked at. The open
+  // state is what is handed over, not the record the drawer still remembers:
+  // `detail` outlives the close, so a question read off it would be asked again
+  // by every later render of a shut drawer.
+  const fields = useVideoFields(detailsOpen ? (detail?.video ?? null) : null);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   const [remove, setRemove] = useState<Video | null>(null);
@@ -167,6 +173,7 @@ export function useVideoBoard() {
             video={detail.video}
             busy={busy}
             actions={actions}
+            fields={fields}
           />
         )}
       </Drawer>
