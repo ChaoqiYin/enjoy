@@ -51,6 +51,12 @@ pub(crate) enum MergeRule {
     FirstNonEmpty,
 }
 
+/// The space a call is made in. A plugin's own data directory is global, but the data it is shown always belongs to one space.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct SpaceRef {
+    pub id: i64,
+}
+
 /// The video a call is about, and everything a plugin is told about it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct VideoRef {
@@ -58,11 +64,20 @@ pub(crate) struct VideoRef {
     pub path: String,
 }
 
-/// One named field's value. The kernel adds the source plugin when it writes; an identity a plugin claims about itself does not count.
+/// One named field's value, as a plugin hands it back. The kernel adds the source plugin when it writes; an identity a plugin claims about itself does not count, which is why this shape has no source.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct FieldValue {
     pub key: String,
     pub value: String,
+}
+
+/// One named field's value as the kernel hands it to the next plugin in a chain: the same three facts, plus which plugin gave it. A separate shape from FieldValue on purpose — the source is the kernel's to say, and only on this side is there one.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SourcedFieldValue {
+    pub key: String,
+    pub value: String,
+    pub source_plugin: String,
 }
 
 /// One setting the kernel draws for a plugin, out of what the plugin says it needs.
@@ -84,9 +99,11 @@ pub(crate) enum SettingFieldKind {
     Directory,
 }
 
-/// What the kernel hands the contributions at `app.page`: nothing.
+/// What the kernel hands the contributions at `app.page`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct AppPageParams {}
+pub(crate) struct AppPageParams {
+    pub space: SpaceRef,
+}
 
 /// What the contributions at `app.page` hand back: nothing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,6 +112,7 @@ pub(crate) struct AppPageResult {}
 /// What the kernel hands the contributions at `video.panel`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct VideoPanelParams {
+    pub space: SpaceRef,
     pub video: VideoRef,
 }
 
@@ -105,7 +123,9 @@ pub(crate) struct VideoPanelResult {}
 /// What the kernel hands the contributions at `video.fields`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct VideoFieldsParams {
+    pub space: SpaceRef,
     pub video: VideoRef,
+    pub fields: Vec<SourcedFieldValue>,
 }
 
 /// What the contributions at `video.fields` hand back.
@@ -114,9 +134,11 @@ pub(crate) struct VideoFieldsResult {
     pub fields: Vec<FieldValue>,
 }
 
-/// What the kernel hands the contributions at `plugin.settings`: nothing.
+/// What the kernel hands the contributions at `plugin.settings`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PluginSettingsParams {}
+pub(crate) struct PluginSettingsParams {
+    pub space: SpaceRef,
+}
 
 /// What the contributions at `plugin.settings` hand back.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -127,6 +149,7 @@ pub(crate) struct PluginSettingsResult {
 /// What the kernel hands the contributions at `scan.completed`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct ScanCompletedParams {
+    pub space: SpaceRef,
     pub videos: Vec<VideoRef>,
 }
 
@@ -137,6 +160,7 @@ pub(crate) struct ScanCompletedResult {}
 /// What the kernel hands the contributions at `video.actions`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct VideoActionsParams {
+    pub space: SpaceRef,
     pub video: VideoRef,
 }
 

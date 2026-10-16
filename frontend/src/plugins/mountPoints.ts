@@ -18,16 +18,28 @@ export type MountScope = 'app' | 'video' | 'plugin' | 'scan';
 /** How the answers of several plugins become one. */
 export type MergeRule = 'overlay' | 'first-non-empty';
 
+/** The space a call is made in. A plugin's own data directory is global, but the data it is shown always belongs to one space. */
+export interface SpaceRef {
+  id: number;
+}
+
 /** The video a call is about, and everything a plugin is told about it. */
 export interface VideoRef {
   id: number;
   path: string;
 }
 
-/** One named field's value. The kernel adds the source plugin when it writes; an identity a plugin claims about itself does not count. */
+/** One named field's value, as a plugin hands it back. The kernel adds the source plugin when it writes; an identity a plugin claims about itself does not count, which is why this shape has no source. */
 export interface FieldValue {
   key: string;
   value: string;
+}
+
+/** One named field's value as the kernel hands it to the next plugin in a chain: the same three facts, plus which plugin gave it. A separate shape from FieldValue on purpose — the source is the kernel's to say, and only on this side is there one. */
+export interface SourcedFieldValue {
+  key: string;
+  value: string;
+  sourcePlugin: string;
 }
 
 /** One setting the kernel draws for a plugin, out of what the plugin says it needs. */
@@ -41,14 +53,17 @@ export interface SettingField {
 /** The four kinds of setting field the kernel draws. */
 export type SettingFieldKind = 'text' | 'textarea' | 'toggle' | 'directory';
 
-/** What the kernel hands the contributions at `app.page`: nothing. */
-export interface AppPageParams {}
+/** What the kernel hands the contributions at `app.page`. */
+export interface AppPageParams {
+  space: SpaceRef;
+}
 
 /** What the contributions at `app.page` hand back: nothing. */
 export interface AppPageResult {}
 
 /** What the kernel hands the contributions at `video.panel`. */
 export interface VideoPanelParams {
+  space: SpaceRef;
   video: VideoRef;
 }
 
@@ -57,7 +72,9 @@ export interface VideoPanelResult {}
 
 /** What the kernel hands the contributions at `video.fields`. */
 export interface VideoFieldsParams {
+  space: SpaceRef;
   video: VideoRef;
+  fields: SourcedFieldValue[];
 }
 
 /** What the contributions at `video.fields` hand back. */
@@ -65,8 +82,10 @@ export interface VideoFieldsResult {
   fields: FieldValue[];
 }
 
-/** What the kernel hands the contributions at `plugin.settings`: nothing. */
-export interface PluginSettingsParams {}
+/** What the kernel hands the contributions at `plugin.settings`. */
+export interface PluginSettingsParams {
+  space: SpaceRef;
+}
 
 /** What the contributions at `plugin.settings` hand back. */
 export interface PluginSettingsResult {
@@ -75,6 +94,7 @@ export interface PluginSettingsResult {
 
 /** What the kernel hands the contributions at `scan.completed`. */
 export interface ScanCompletedParams {
+  space: SpaceRef;
   videos: VideoRef[];
 }
 
@@ -83,6 +103,7 @@ export interface ScanCompletedResult {}
 
 /** What the kernel hands the contributions at `video.actions`. */
 export interface VideoActionsParams {
+  space: SpaceRef;
   video: VideoRef;
 }
 

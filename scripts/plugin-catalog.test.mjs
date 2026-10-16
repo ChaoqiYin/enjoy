@@ -105,4 +105,25 @@ describe('the mount point gate', () => {
     expect(status).toBe(1);
     expect(output).toContain('Missing');
   }, 30000);
+
+  it('fails when a mount point is called without the space it is in', () => {
+    const root = copyOfTheCatalog();
+    const catalog = JSON.parse(readFileSync(join(root, catalogPath), 'utf8'));
+    catalog.mountPoints.find((entry) => entry.key === 'app.page').params = [];
+    writeFileSync(join(root, catalogPath), JSON.stringify(catalog));
+    const { status, output } = runTheGate(root);
+    expect(status).toBe(1);
+    expect(output).toContain('SpaceRef');
+  }, 30000);
+
+  it('fails when a chain mount point is asked without the values it already has', () => {
+    const root = copyOfTheCatalog();
+    const catalog = JSON.parse(readFileSync(join(root, catalogPath), 'utf8'));
+    const fields = catalog.mountPoints.find((entry) => entry.key === 'video.fields');
+    fields.params = fields.params.filter((member) => member.type !== 'SourcedFieldValue[]');
+    writeFileSync(join(root, catalogPath), JSON.stringify(catalog));
+    const { status, output } = runTheGate(root);
+    expect(status).toBe(1);
+    expect(output).toContain('SourcedFieldValue');
+  }, 30000);
 });

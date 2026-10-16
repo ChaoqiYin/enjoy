@@ -25,6 +25,17 @@
     "first-non-empty": "依次问、取第一个非空"
   },
   "types": {
+    "SpaceRef": {
+      "comment": "The space a call is made in. A plugin's own data directory is global, but the data it is shown always belongs to one space.",
+      "doc": "本次调用所在的空间。插件自己的数据目录是全局的，但它看到的数据始终属于某个空间",
+      "fields": [
+        {
+          "name": "id",
+          "type": "number",
+          "doc": "空间 id；内核命令一律显式带它"
+        }
+      ]
+    },
     "VideoRef": {
       "comment": "The video a call is about, and everything a plugin is told about it.",
       "doc": "本次调用的视频，也是插件能看到的关于它的全部",
@@ -42,8 +53,8 @@
       ]
     },
     "FieldValue": {
-      "comment": "One named field's value. The kernel adds the source plugin when it writes; an identity a plugin claims about itself does not count.",
-      "doc": "一条具名字段的值。内核写库时补上来源插件，插件自报的身份不作数",
+      "comment": "One named field's value, as a plugin hands it back. The kernel adds the source plugin when it writes; an identity a plugin claims about itself does not count, which is why this shape has no source.",
+      "doc": "一条具名字段的值，插件交回来的那一侧。内核写库时补上来源插件，插件自报的身份不作数，因此这个形状不带来源",
       "fields": [
         {
           "name": "key",
@@ -54,6 +65,27 @@
           "name": "value",
           "type": "string",
           "doc": "字段值；封面是一个路径，图片由内核写进 covers/"
+        }
+      ]
+    },
+    "SourcedFieldValue": {
+      "comment": "One named field's value as the kernel hands it to the next plugin in a chain: the same three facts, plus which plugin gave it. A separate shape from FieldValue on purpose — the source is the kernel's to say, and only on this side is there one.",
+      "doc": "链上已经问到的字段值，带上是哪个插件给的。与结果那一侧的 FieldValue 是两个形状：来源只有内核说得准，因此只在这一侧出现",
+      "fields": [
+        {
+          "name": "key",
+          "type": "string",
+          "doc": "字段名"
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "doc": "字段值"
+        },
+        {
+          "name": "sourcePlugin",
+          "type": "string",
+          "doc": "这条值由哪个插件给出"
         }
       ]
     },
@@ -100,7 +132,12 @@
       "scope": "app",
       "merge": "overlay",
       "doc": "插件往顶部导航加一个自己的页面，做一件与视频库无关的事",
-      "params": [],
+      "params": [
+        {
+          "name": "space",
+          "type": "SpaceRef"
+        }
+      ],
       "result": [],
       "occupants": []
     },
@@ -113,6 +150,10 @@
       "merge": "overlay",
       "doc": "插件往视频详情面板里加一块自己的区域，查看某条视频时能看到它算出来的东西",
       "params": [
+        {
+          "name": "space",
+          "type": "SpaceRef"
+        },
         {
           "name": "video",
           "type": "VideoRef"
@@ -128,11 +169,19 @@
       "side": "body",
       "scope": "video",
       "merge": "first-non-empty",
-      "doc": "内核问插件要这条视频的具名字段。两个插件提供同一个字段时依次问、取第一个非空，因此后一个插件是补位而不是覆盖",
+      "doc": "内核问插件要这条视频的具名字段。两个插件提供同一个字段时依次问、取第一个非空，因此后一个插件是补位而不是覆盖。参数带上链上已经问到的字段值及其来源插件，据此补位而不必重复劳动",
       "params": [
+        {
+          "name": "space",
+          "type": "SpaceRef"
+        },
         {
           "name": "video",
           "type": "VideoRef"
+        },
+        {
+          "name": "fields",
+          "type": "SourcedFieldValue[]"
         }
       ],
       "result": [
@@ -151,7 +200,12 @@
       "scope": "plugin",
       "merge": "overlay",
       "doc": "内核问插件「用户必须填什么」，然后自己渲染、校验、保存；纯运行体的插件因此也能让用户填东西",
-      "params": [],
+      "params": [
+        {
+          "name": "space",
+          "type": "SpaceRef"
+        }
+      ],
       "result": [
         {
           "name": "fields",
@@ -170,6 +224,10 @@
       "doc": "一次扫描完成，内核把刚入库的视频交给插件。这是通知，插件此刻要做的事落在它自己的数据目录里",
       "params": [
         {
+          "name": "space",
+          "type": "SpaceRef"
+        },
+        {
           "name": "videos",
           "type": "VideoRef[]"
         }
@@ -186,6 +244,10 @@
       "merge": "overlay",
       "doc": "插件往视频的右键菜单和详情里加一个自己的动作。归运行体是必须的：没有插件界面的插件只有这一条路能触发自己",
       "params": [
+        {
+          "name": "space",
+          "type": "SpaceRef"
+        },
         {
           "name": "video",
           "type": "VideoRef"
