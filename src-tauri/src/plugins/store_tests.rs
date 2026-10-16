@@ -1,5 +1,11 @@
-//! What the kernel does to the plugins on disk: what it lists, what it
-//! switches on, what it copies in, and what it leaves behind.
+//! What the kernel does to the plugins already on disk: what it lists, what it
+//! switches on, what it leaves behind, and what safe mode sets aside.
+//!
+//! Bringing a plugin in — the pre-flight, installing from a folder, unpacking
+//! an archive — is the other command family and lives in
+//! `store_install_tests.rs`. It was split out when this file reached the line
+//! limit the repository keeps, and the five helpers both halves need stayed
+//! here, where they are written once and borrowed next door.
 //!
 //! Everything here is about a real directory, because that is what loading is
 //! about — which directories are there, what their manifests say, which of them
@@ -13,18 +19,19 @@ use std::path::Path;
 
 use serde_json::json;
 
+use crate::model::PluginSetting;
 use crate::plugins::fixture::{self, Installed};
 use crate::plugins::manifest::FILE as MANIFEST;
 use crate::plugins::store::{PluginBootstrap, Store};
 use crate::repository::fixture::{video_fields, Fixture};
 
 /// The store over a directory a test laid plugins out in.
-fn store(space: &Installed) -> Store {
+pub(super) fn store(space: &Installed) -> Store {
     Store::new(space.path().to_path_buf())
 }
 
 /// One row, by id.
-fn row<'a>(plugins: &'a [PluginBootstrap], id: &str) -> &'a PluginBootstrap {
+pub(super) fn row<'a>(plugins: &'a [PluginBootstrap], id: &str) -> &'a PluginBootstrap {
     plugins
         .iter()
         .find(|plugin| plugin.id == id)
@@ -32,14 +39,14 @@ fn row<'a>(plugins: &'a [PluginBootstrap], id: &str) -> &'a PluginBootstrap {
 }
 
 /// A manifest that will be copied in as `id`, with its own name spelled out.
-fn named(id: &str, name: &str) -> serde_json::Value {
+pub(super) fn named(id: &str, name: &str) -> serde_json::Value {
     let mut declared = fixture::manifest(id);
     declared["name"] = json!(name);
     declared
 }
 
 /// A zip holding these files, written the way an author's tool would.
-fn archive(path: &Path, entries: &[(&str, &str)]) {
+pub(super) fn archive(path: &Path, entries: &[(&str, &str)]) {
     let mut zip = zip::write::ZipWriter::new(fs::File::create(path).unwrap());
     let options =
         zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
@@ -51,7 +58,7 @@ fn archive(path: &Path, entries: &[(&str, &str)]) {
 }
 
 /// A source folder a user might point at, named the way a download is.
-fn source(id: &str, name: &str) -> Installed {
+pub(super) fn source(id: &str, name: &str) -> Installed {
     let space = Installed::new();
     space.plugin(id, &named(id, name));
     space
@@ -243,6 +250,41 @@ fn uninstalling_with_the_content_takes_the_rows_with_it() {
 }
 
 #[test]
+fn uninstalling_takes_the_settings_with_it_either_way() {
+    let space = Installed::new();
+    space.plugin("cover", &named("cover", "Cover Fetcher"));
+    space.plugin("ratings", &named("ratings", "Ratings"));
+    let index = Fixture::new();
+    let mut repository = index.library().repository;
+    for plugin in ["cover", "ratings"] {
+        repository
+            .save_plugin_settings(
+                plugin,
+                &[PluginSetting {
+                    key: "url".to_string(),
+                    value: "https://a.example".to_string(),
+                }],
+            )
+            .unwrap();
+    }
+
+    // Not a question, unlike the rows: what the plugin wrote into the library is
+    // about the user's videos and they are asked about it, while a setting is
+    // about the plugin the way its own data directory is — it goes with it, and
+    // `delete_content` does not reach it either way (baseline §14.7).
+    store(&space)
+        .uninstall(&mut repository, "cover", false)
+        .unwrap();
+
+    assert_eq!(repository.plugin_settings("cover").unwrap(), vec![]);
+    assert_eq!(
+        repository.plugin_settings("ratings").unwrap().len(),
+        1,
+        "one plugin's settings are not another's"
+    );
+}
+
+#[test]
 fn safe_mode_switches_everything_off_and_keeps_the_plugins() {
     let space = Installed::new();
     let first = space.plugin("cover", &named("cover", "Cover Fetcher"));
@@ -310,180 +352,3 @@ fn safe_mode_with_nothing_switched_on_is_not_a_failure() {
     assert!(!plugins[0].enabled);
 }
 
-#[test]
-fn a_preview_says_where_it_would_go_and_what_it_brings() {
-    let space = Installed::new();
-    let source = Installed::new();
-    let mut declared = named("cover", "Cover Fetcher");
-    declared["capabilities"] = json!(["fetch", "storage"]);
-    declared["body"] = json!("body.wasm");
-    source.plugin("cover", &declared);
-
-    let preview = store(&space).preview(&source.path().join("cover")).unwrap();
-
-    assert_eq!(
-        preview.destination,
-        space.path().join("cover").to_string_lossy(),
-        "the user is told where the plugin will land, which is the thing they cannot see"
-    );
-    assert_eq!(preview.plugin.name, "Cover Fetcher");
-    assert_eq!(preview.plugin.capabilities, vec!["fetch", "storage"]);
-    assert!(
-        preview.plugin.has_body,
-        "the preview says which halves it has"
-    );
-    assert!(preview.plugin.entry.is_some());
-    assert!(
-        !space.path().join("cover").exists(),
-        "a preview is a preview: nothing has been copied in"
-    );
-}
-
-#[test]
-fn installing_a_folder_copies_it_in_and_switches_it_on() {
-    let space = Installed::new();
-    let source = source("cover", "Cover Fetcher");
-    fs::write(
-        source.path().join("cover").join("index.js"),
-        "export default 1;",
-    )
-    .unwrap();
-
-    let plugins = store(&space).install(&source.path().join("cover")).unwrap();
-
-    assert!(
-        row(&plugins, "cover").enabled,
-        "installing is the user saying yes"
-    );
-    assert_eq!(
-        fs::read_to_string(space.path().join("cover").join("index.js")).unwrap(),
-        "export default 1;",
-        "the plugin's own files come with it"
-    );
-    assert_eq!(
-        row(&plugins, "cover")
-            .entry
-            .as_deref()
-            .map(|entry| Path::new(entry).exists()),
-        Some(true),
-        "and the entry the window is told to load is a file that is really there"
-    );
-}
-
-#[test]
-fn installing_from_an_archive_unpacks_it() {
-    let space = Installed::new();
-    let source = Installed::new();
-    let manifest = serde_json::to_string_pretty(&named("cover", "Cover Fetcher")).unwrap();
-    let zip_path = source.path().join("cover.zip");
-    archive(
-        &zip_path,
-        &[
-            (MANIFEST, manifest.as_str()),
-            ("index.js", "export default 1;"),
-        ],
-    );
-
-    let plugins = store(&space).install(&zip_path).unwrap();
-
-    assert_eq!(row(&plugins, "cover").name, "Cover Fetcher");
-    assert!(space.path().join("cover").join("index.js").is_file());
-}
-
-#[test]
-fn an_archive_that_holds_the_plugin_one_level_down_is_installed_too() {
-    let space = Installed::new();
-    let source = Installed::new();
-    let manifest = serde_json::to_string_pretty(&named("cover", "Cover Fetcher")).unwrap();
-    // What a repository's "download the source" zip looks like: everything
-    // inside a directory named after the project.
-    let zip_path = source.path().join("cover-fetcher-main.zip");
-    archive(
-        &zip_path,
-        &[
-            ("cover-fetcher-main/plugin.json", manifest.as_str()),
-            ("cover-fetcher-main/index.js", "export default 1;"),
-        ],
-    );
-
-    let plugins = store(&space).install(&zip_path).unwrap();
-
-    assert_eq!(row(&plugins, "cover").id, "cover");
-    assert!(space.path().join("cover").join(MANIFEST).is_file());
-}
-
-#[test]
-fn something_that_is_not_a_plugin_is_refused_before_anything_is_copied() {
-    let space = Installed::new();
-    let source = Installed::new();
-    fs::write(source.path().join("readme.txt"), "nothing to see").unwrap();
-
-    let failure = store(&space)
-        .install(&source.path().join("readme.txt"))
-        .unwrap_err();
-
-    assert_eq!(failure.code, "plugin.install.invalid_source");
-    assert_eq!(
-        failure.params.get("source").map(String::as_str),
-        Some(source.path().join("readme.txt").to_string_lossy().as_ref())
-    );
-    assert_eq!(
-        fs::read_dir(space.path()).unwrap().count(),
-        0,
-        "a source the kernel cannot read leaves the plugins directory as it was"
-    );
-}
-
-#[test]
-fn a_plugin_whose_manifest_did_not_validate_is_refused_before_anything_is_copied() {
-    let space = Installed::new();
-    let source = Installed::new();
-    let mut broken = named("cover", "Cover Fetcher");
-    broken["capabilities"] = json!(["filesystem"]);
-    source.plugin("cover", &broken);
-
-    let failure = store(&space)
-        .install(&source.path().join("cover"))
-        .unwrap_err();
-
-    assert_eq!(failure.code, "plugin.manifest.capability_not_allowed");
-    assert_eq!(
-        failure.params.get("plugin").map(String::as_str),
-        Some("cover")
-    );
-    assert!(!space.path().join("cover").exists());
-}
-
-#[test]
-fn installing_a_plugin_that_is_already_there_is_refused() {
-    let space = Installed::new();
-    space.plugin("cover", &named("cover", "Cover Fetcher"));
-    let source = source("cover", "Cover Fetcher");
-
-    let failure = store(&space)
-        .install(&source.path().join("cover"))
-        .unwrap_err();
-
-    assert_eq!(failure.code, "plugin.install.exists");
-    assert_eq!(
-        failure.params.get("plugin").map(String::as_str),
-        Some("cover")
-    );
-}
-
-#[test]
-fn a_plugin_with_a_body_and_no_interface_is_a_row_with_a_body() {
-    let space = Installed::new();
-    let mut declared = fixture::manifest("cover");
-    declared.as_object_mut().unwrap().remove("interface");
-    declared["body"] = json!("body.wasm");
-    space.plugin("cover", &declared);
-
-    let plugins = store(&space).list().unwrap();
-
-    assert!(plugins[0].has_body);
-    assert_eq!(
-        plugins[0].entry, None,
-        "a body-only plugin has nothing for the interface side to load, and is still a plugin"
-    );
-}

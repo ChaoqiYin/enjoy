@@ -3,12 +3,14 @@ import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener';
 import { open } from '@tauri-apps/plugin-dialog';
+import type { SettingValue } from '../plugins/mountPoints';
 import type {
   AppError,
   LanguageSettings,
   PluginBootstrap,
   PluginFailure,
   PluginInstallPreview,
+  PluginSettingsGroup,
   ScanStatus,
   SettingsState,
   ShareStatus,
@@ -39,6 +41,8 @@ export type {
   PluginBootstrap,
   PluginFailure,
   PluginInstallPreview,
+  PluginSettingField,
+  PluginSettingsGroup,
   ScanStatus,
   SettingsState,
   ShareStatus,
@@ -185,6 +189,15 @@ export const pluginApi = {
     invoke<number>('plugin_content_rows', { pluginId }),
   // Every plugin is off now, and the page says so without asking again.
   safeMode: () => invoke<PluginBootstrap[]>('run_safe_mode'),
+  // The settings form, read and written: both name the space (§14.7).
+  listSettings: (spaceId: number) =>
+    invoke<PluginSettingsGroup[]>('list_plugin_settings', { spaceId }),
+  saveSettings: (spaceId: number, pluginId: string, values: SettingValue[]) =>
+    invoke<PluginSettingsGroup[]>('save_plugin_settings', {
+      spaceId,
+      pluginId,
+      values,
+    }),
 };
 
 /**
@@ -340,6 +353,11 @@ export function pickDirectories(): Promise<string[] | null> {
   return open({ directory: true, multiple: true });
 }
 
+/** Asks the user for one folder — a plugin's setting is one path, not a set. */
+export function pickDirectory(): Promise<string | null> {
+  return open({ directory: true, multiple: false });
+}
+
 /**
  * The two shapes a plugin comes in, asked for through the platform's own picker.
  *
@@ -475,26 +493,7 @@ export function readTheme(): Promise<SettingsState['theme']> {
   return settingsApi.read().then((settings) => settings.theme);
 }
 
-export function normalizeError(error: unknown): AppError {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    typeof error.code === 'string' &&
-    'errorId' in error &&
-    typeof error.errorId === 'string'
-  ) {
-    const params: Record<string, string> = {};
-    if (
-      'params' in error &&
-      typeof error.params === 'object' &&
-      error.params !== null
-    ) {
-      for (const [key, value] of Object.entries(error.params)) {
-        if (typeof value === 'string') params[key] = value;
-      }
-    }
-    return { code: error.code, errorId: error.errorId, params };
-  }
-  return { code: 'app.unexpected', params: {}, errorId: crypto.randomUUID() };
-}
+// Moved to its own module, and handed on from here so that every existing
+// import path keeps working: the address the backend is reached at is at the
+// line limit its module keeps, and this function reaches nothing.
+export { normalizeError } from './normalizeError';

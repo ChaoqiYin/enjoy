@@ -73,6 +73,24 @@ pub struct VideoField {
     pub source_plugin: String,
 }
 
+/// One thing the user filled in for a plugin.
+///
+/// The plugin is not a field of this: a setting is always read and written for
+/// one named plugin, so the name is the call's argument rather than a column of
+/// every row it answers with. There is no space either, and that is the decision
+/// rather than an omission — a setting says how the plugin works, not what is in
+/// a space, so the same answers are in force in every one (baseline §14.7).
+///
+/// It is not the catalog's `SettingValue`, and deliberately: that shape is
+/// generated, and a generated file is not where a decision about what the
+/// library stores belongs. The two are the same two facts and the conversion is
+/// written out at the one place they meet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginSetting {
+    pub key: String,
+    pub value: String,
+}
+
 /// One page of a space's records, and how many the same question holds.
 ///
 /// The two travel together because the interface draws them together: the

@@ -230,6 +230,9 @@
   "pluginSafeModeEnter": "Switch them all off",
   "pluginsRestartHint": "Plugin changes take effect the next time the app starts",
   "pluginEnable": "Enabled",
+  "pluginSettingsSave": "Save",
+  "pluginSettingsRequired": "Required",
+  "pluginSettingsFolder": "Choose folder",
   "pluginMoveUp": "Move up",
   "pluginMoveDown": "Move down"
 }

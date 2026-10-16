@@ -230,6 +230,9 @@
   "pluginSafeModeEnter": "全部停用",
   "pluginsRestartHint": "插件改动在下次启动应用时生效",
   "pluginEnable": "启用",
+  "pluginSettingsSave": "保存",
+  "pluginSettingsRequired": "必填",
+  "pluginSettingsFolder": "选择文件夹",
   "pluginMoveUp": "上移",
   "pluginMoveDown": "下移"
 }

@@ -89,6 +89,13 @@ pub(crate) struct SettingField {
     pub required: bool,
 }
 
+/// One setting the user filled in, as the kernel hands it back to the plugin that asked for it. The value is a string whatever the field's kind was, because what a value means is the plugin's own business — the kernel draws four kinds of control and knows nothing about what is in them.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct SettingValue {
+    pub key: String,
+    pub value: String,
+}
+
 /// The four kinds of setting field the kernel draws.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -138,6 +145,7 @@ pub(crate) struct VideoFieldsResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PluginSettingsParams {
     pub space: SpaceRef,
+    pub values: Vec<SettingValue>,
 }
 
 /// What the contributions at `plugin.settings` hand back.

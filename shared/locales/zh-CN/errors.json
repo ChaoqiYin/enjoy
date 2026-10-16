@@ -74,5 +74,8 @@
   "plugin.install.failed": "复制插件失败：{{path}}",
   "plugin.uninstall.failed": "卸载 {{plugin}} 失败：{{path}}",
   "plugin.state.failed": "写入已启用插件那份记录失败：{{path}}",
-  "plugin.safe_mode.failed": "进入安全模式失败：{{path}}"
+  "plugin.safe_mode.failed": "进入安全模式失败：{{path}}",
+  "plugin.settings.required": "这一项必须填写",
+  "plugin.settings.directory_missing": "这个文件夹不在这台电脑上",
+  "plugin.settings.unavailable": "插件 {{plugin}} 没有运行，设置没有保存"
 }

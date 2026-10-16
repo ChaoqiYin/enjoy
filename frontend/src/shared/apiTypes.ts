@@ -15,6 +15,8 @@
  * every existing import path working.
  */
 
+import type { SettingFieldKind } from '../plugins/mountPoints';
+
 export interface Video {
   id: number;
   path: string;
@@ -335,4 +337,36 @@ export interface VideoField {
   key: string;
   value: string;
   source_plugin: string;
+}
+
+/**
+ * One setting as the plugin page draws it: what a plugin asked the user to fill
+ * in, and what the user filled in.
+ *
+ * The `label` is the plugin's own words and is drawn as they are — the kernel
+ * has no vocabulary for a plugin's settings to translate, the way it has none
+ * for a plugin's fields (`VideoField`). The `kind` says which of the four
+ * controls is drawn, and the kernel checks the answer against it before any of
+ * it is stored: a directory is a fact about the machine that only the kernel
+ * can look up.
+ */
+export interface PluginSettingField {
+  key: string;
+  kind: SettingFieldKind;
+  label: string;
+  required: boolean;
+  /** What the user filled in, or the empty string if they never have. */
+  value: string;
+}
+
+/**
+ * One plugin's settings, as the plugin page draws them.
+ *
+ * A group per plugin rather than one list of fields, because the page draws them
+ * inside the plugin's own row: the row already carries the plugin's name, so the
+ * group says which plugin it belongs to and nothing else.
+ */
+export interface PluginSettingsGroup {
+  plugin: string;
+  fields: PluginSettingField[];
 }

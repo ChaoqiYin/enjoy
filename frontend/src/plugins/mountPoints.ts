@@ -50,6 +50,12 @@ export interface SettingField {
   required: boolean;
 }
 
+/** One setting the user filled in, as the kernel hands it back to the plugin that asked for it. The value is a string whatever the field's kind was, because what a value means is the plugin's own business — the kernel draws four kinds of control and knows nothing about what is in them. */
+export interface SettingValue {
+  key: string;
+  value: string;
+}
+
 /** The four kinds of setting field the kernel draws. */
 export type SettingFieldKind = 'text' | 'textarea' | 'toggle' | 'directory';
 
@@ -85,6 +91,7 @@ export interface VideoFieldsResult {
 /** What the kernel hands the contributions at `plugin.settings`. */
 export interface PluginSettingsParams {
   space: SpaceRef;
+  values: SettingValue[];
 }
 
 /** What the contributions at `plugin.settings` hand back. */

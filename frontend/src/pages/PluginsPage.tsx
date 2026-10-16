@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -9,13 +9,16 @@ import {
   ShieldCheck,
   Trash2,
 } from 'lucide-react';
+import { useSpace } from '../features/space/SpaceProvider';
 import { EmptyState } from '../features/library/EmptyState';
 import { PageFrame } from '../features/library/PageFrame';
 import { useNotices } from '../features/library/useNotices';
 import { PluginInstallDialog } from '../plugins/PluginInstallDialog';
 import { usePluginHost } from '../plugins/PluginHostProvider';
 import { PluginSafeModeDialog } from '../plugins/PluginSafeModeDialog';
+import { PluginSettingsForm } from '../plugins/PluginSettingsForm';
 import { PluginUninstallDialog } from '../plugins/PluginUninstallDialog';
+import { normalizeError } from '../shared/api';
 import { useCommand } from '../shared/useCommand';
 import { Badge } from '../shared/ui/badge';
 import { Button } from '../shared/ui/button';
@@ -23,7 +26,11 @@ import { Checkbox } from '../shared/ui/checkbox';
 import { Tooltip } from '../shared/Tooltip';
 import { ScrollViewport } from '../shared/ScrollViewport';
 import { errorMessage } from '../shared/errorMessage';
-import type { PluginBootstrap, PluginStatus } from '../plugins/status';
+import type {
+  PluginBootstrap,
+  PluginSettingsGroup,
+  PluginStatus,
+} from '../plugins/status';
 
 /**
  * What is installed, what each plugin is doing, why one of them is not, and
@@ -56,11 +63,41 @@ const STATES = {
 
 export function PluginsPage() {
   const { t } = useTranslation();
-  const { statuses, refresh } = usePluginHost();
+  const { statuses, refresh, port } = usePluginHost();
+  const space = useSpace();
+  const notices = useNotices();
   const [installing, setInstalling] = useState(false);
   const [removing, setRemoving] = useState<PluginStatus | null>(null);
   const [safeMode, setSafeMode] = useState(false);
   const [changed, setChanged] = useState(false);
+  const [settings, setSettings] = useState<readonly PluginSettingsGroup[]>([]);
+
+  // What the plugins need filled in is asked once, for the space on screen.
+  // Only the plugins this window is running answer: a plugin the user has just
+  // switched on has not been asked anything yet and gets its form on the next
+  // start, which is the same line the rest of this page is on.
+  //
+  // A read that fails is a notice rather than a page that cannot be drawn:
+  // there is nothing beside a value to put it next to, and a plugin's settings
+  // are not what the user came here to look at.
+  useEffect(() => {
+    let live = true;
+    void port
+      .settings(space.id)
+      .then((groups) => {
+        if (live) setSettings(groups);
+      })
+      .catch((cause) => {
+        if (live) notices.setError(normalizeError(cause));
+      });
+    return () => {
+      live = false;
+    };
+    // The reporter is deliberately not in the list: what this effect asks is
+    // keyed to the space and the port, and a reporter that changed identity
+    // would make it ask a second time for an answer that has not moved.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [port, space.id]);
 
   // Every lifecycle command answers with the list as it now stands, so the page
   // redraws from that answer rather than from a second question — and it is
@@ -116,6 +153,9 @@ export function PluginsPage() {
               <PluginRow
                 key={status.id}
                 status={status}
+                settings={settings.find((group) => group.plugin === status.id)}
+                spaceId={space.id}
+                onSettingsSaved={setSettings}
                 first={at === 0}
                 last={at === statuses.length - 1}
                 onChanged={applied}
@@ -150,8 +190,8 @@ export function PluginsPage() {
 
 /**
  * One plugin: what it is called, what it is doing or why it is not, which of
- * the three states it is in, where it sits in the order, and the two things
- * that can be done to it.
+ * the three states it is in, where it sits in the order, what it needs filled
+ * in, and the two things that can be done to it.
  *
  * Both of the middle lines can be there at once, and both are drawn: a plugin
  * that said what it was doing and then failed is a row that has to say the
@@ -175,15 +215,28 @@ export function PluginsPage() {
  * way of drawing the page — the order decides who is asked first at a mount
  * point several plugins contribute to (ADR 0045 §3) — so the page redraws from
  * the answer, the way it does after every other lifecycle action.
+ *
+ * **A plugin that asks for something has its form under its own name**, in the
+ * same card rather than in a section of its own: the form is about this plugin,
+ * and the row is where the plugin's name is. The card is a column for that
+ * reason, and the header line is what the row was before there was a form — a
+ * plugin that asks for nothing is still that one line.
  */
 function PluginRow({
   status,
+  settings,
+  spaceId,
+  onSettingsSaved,
   first,
   last,
   onChanged,
   onRemove,
 }: {
   status: PluginStatus;
+  /** What this plugin needs filled in, or nothing when it asks for nothing. */
+  settings: PluginSettingsGroup | undefined;
+  spaceId: number;
+  onSettingsSaved: (groups: readonly PluginSettingsGroup[]) => void;
   first: boolean;
   last: boolean;
   onChanged: (plugins: readonly PluginBootstrap[]) => void;
@@ -207,83 +260,94 @@ function PluginRow({
     return ids;
   };
   return (
-    <li className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3">
-      <div className="min-w-0 space-y-1">
-        <p className="truncate font-medium">{status.name}</p>
-        {status.failure && (
-          <p className="text-sm text-muted-foreground">
-            {errorMessage(
-              { t, i18n },
-              {
-                code: status.failure.code,
-                params: status.failure.params,
-                errorId: status.id,
-              },
-            )}
-          </p>
-        )}
-        {status.activity !== undefined && (
-          // The plugin's own words, in the plugin's own language: they are
-          // shown as they are, under a phrase that says whose they are.
-          <p className="text-sm text-muted-foreground">
-            {t('pluginDoing', { activity: status.activity })}
-          </p>
-        )}
-      </div>
-      <div className="flex shrink-0 items-center gap-3">
-        {/* The icon-button group, in the shape the rest of the interface takes
-            (`outline`, `icon-sm`, a 14-pixel glyph, `gap-1.5`): the words move
-            into the tooltip, and `aria-label` keeps them either way. */}
-        <div className="flex items-center gap-1.5">
-          <MoveButton
-            word="pluginMoveUp"
-            icon={<ArrowUp size={14} aria-hidden="true" />}
-            disabled={busy || first}
-            onClick={() =>
-              void run(undefined, async () =>
-                onChanged(await port.setOrder(moved(-1))),
-              )
-            }
-          />
-          <MoveButton
-            word="pluginMoveDown"
-            icon={<ArrowDown size={14} aria-hidden="true" />}
-            disabled={busy || last}
-            onClick={() =>
-              void run(undefined, async () =>
-                onChanged(await port.setOrder(moved(1))),
-              )
-            }
-          />
+    <li className="flex flex-col gap-3 rounded-lg border border-border bg-card px-4 py-3">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 space-y-1">
+          <p className="truncate font-medium">{status.name}</p>
+          {status.failure && (
+            <p className="text-sm text-muted-foreground">
+              {errorMessage(
+                { t, i18n },
+                {
+                  code: status.failure.code,
+                  params: status.failure.params,
+                  errorId: status.id,
+                },
+              )}
+            </p>
+          )}
+          {status.activity !== undefined && (
+            // The plugin's own words, in the plugin's own language: they are
+            // shown as they are, under a phrase that says whose they are.
+            <p className="text-sm text-muted-foreground">
+              {t('pluginDoing', { activity: status.activity })}
+            </p>
+          )}
         </div>
-        <Checkbox
-          checked={on}
-          disabled={busy}
-          // One name whatever the state: a checkbox says whether it is ticked
-          // on its own, and a label that changed with the box would make the
-          // control a different thing each time it was pressed. The badge
-          // beside it says the same state to the eye.
-          aria-label={t('pluginEnable')}
-          onCheckedChange={(checked) =>
-            void run(undefined, async () =>
-              onChanged(await port.setEnabled(status.id, checked === true)),
-            )
-          }
-        />
-        <Badge variant={variant}>{t(word)}</Badge>
-        <Tooltip text={t('pluginUninstall')}>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="text-destructive"
-            aria-label={t('pluginUninstall')}
+        <div className="flex shrink-0 items-center gap-3">
+          {/* The icon-button group, in the shape the rest of the interface takes
+              (`outline`, `icon-sm`, a 14-pixel glyph, `gap-1.5`): the words move
+              into the tooltip, and `aria-label` keeps them either way. */}
+          <div className="flex items-center gap-1.5">
+            <MoveButton
+              word="pluginMoveUp"
+              icon={<ArrowUp size={14} aria-hidden="true" />}
+              disabled={busy || first}
+              onClick={() =>
+                void run(undefined, async () =>
+                  onChanged(await port.setOrder(moved(-1))),
+                )
+              }
+            />
+            <MoveButton
+              word="pluginMoveDown"
+              icon={<ArrowDown size={14} aria-hidden="true" />}
+              disabled={busy || last}
+              onClick={() =>
+                void run(undefined, async () =>
+                  onChanged(await port.setOrder(moved(1))),
+                )
+              }
+            />
+          </div>
+          <Checkbox
+            checked={on}
             disabled={busy}
-            onClick={onRemove}
-          >
-            <Trash2 size={14} aria-hidden="true" />
-          </Button>
-        </Tooltip>
+            // One name whatever the state: a checkbox says whether it is ticked
+            // on its own, and a label that changed with the box would make the
+            // control a different thing each time it was pressed. The badge
+            // beside it says the same state to the eye.
+            aria-label={t('pluginEnable')}
+            onCheckedChange={(checked) =>
+              void run(undefined, async () =>
+                onChanged(await port.setEnabled(status.id, checked === true)),
+              )
+            }
+          />
+          <Badge variant={variant}>{t(word)}</Badge>
+          <Tooltip text={t('pluginUninstall')}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-destructive"
+              aria-label={t('pluginUninstall')}
+              disabled={busy}
+              onClick={onRemove}
+            >
+              <Trash2 size={14} aria-hidden="true" />
+            </Button>
+          </Tooltip>
+        </div>
       </div>
+      {settings !== undefined && (
+        // Drawn under the row rather than in a section of its own: the form is
+        // about this plugin, and the row is where the plugin's name is.
+        <PluginSettingsForm
+          group={settings}
+          spaceId={spaceId}
+          onSaved={onSettingsSaved}
+        />
+      )}
     </li>
   );
 }

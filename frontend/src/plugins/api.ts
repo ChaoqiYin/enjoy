@@ -23,4 +23,7 @@ export const pluginPort: PluginPort = {
   uninstall: (id, deleteContent) => pluginApi.uninstall(id, deleteContent),
   contentRows: (id) => pluginApi.contentRows(id),
   safeMode: () => pluginApi.safeMode(),
+  settings: (spaceId) => pluginApi.listSettings(spaceId),
+  saveSettings: (spaceId, id, values) =>
+    pluginApi.saveSettings(spaceId, id, [...values]),
 };

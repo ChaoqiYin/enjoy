@@ -83,6 +83,8 @@ function header(path = '/', loadEntry = loader) {
             uninstall: async () => [],
             contentRows: async () => 0,
             safeMode: async () => [],
+            settings: async () => [],
+            saveSettings: async () => [],
           }}
           loadEntry={loadEntry}
         >

@@ -253,6 +253,13 @@ impl Store {
     /// The rows are the reason this is a question: they are not the plugin's
     /// any more once it is gone, and the user is the one who knows whether the
     /// covers behind them were worth keeping.
+    ///
+    /// What the user filled in for the plugin is the other half, and it is not a
+    /// question: a setting is about the plugin the way its own data directory is,
+    /// so it goes with the plugin whichever way the content question was
+    /// answered. Keeping it would leave the library holding a form for something
+    /// that is no longer installed, which no page could ever show again
+    /// (baseline §14.7).
     pub(crate) fn uninstall(
         &self,
         repository: &mut Repository,
@@ -263,6 +270,7 @@ impl Store {
         if delete_content {
             repository.forget_plugin_content(id)?;
         }
+        repository.forget_plugin_settings(id)?;
         fs::remove_dir_all(&directory).map_err(|error| {
             AppError::new("plugin.uninstall.failed", error)
                 .with_param("plugin", id)

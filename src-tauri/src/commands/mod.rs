@@ -14,6 +14,7 @@
 pub(crate) mod fields;
 pub(crate) mod library;
 pub(crate) mod plugin;
+pub(crate) mod plugin_settings;
 pub(crate) mod scan;
 pub(crate) mod share;
 pub(crate) mod space;
@@ -21,6 +22,8 @@ pub(crate) mod window;
 
 #[cfg(test)]
 mod fields_tests;
+#[cfg(test)]
+mod plugin_settings_tests;
 #[cfg(test)]
 mod share_tests;
 #[cfg(test)]

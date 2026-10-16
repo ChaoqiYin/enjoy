@@ -186,6 +186,8 @@ export function pluginPort(
     uninstall: async () => plugins,
     contentRows: async () => 0,
     safeMode: async () => [],
+    settings: async () => [],
+    saveSettings: async () => [],
     ...overrides,
   };
 }
