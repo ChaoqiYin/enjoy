@@ -1,6 +1,14 @@
 import { useCallback, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Puzzle, ShieldCheck, Trash2 } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Plus,
+  Puzzle,
+  ShieldCheck,
+  Trash2,
+} from 'lucide-react';
 import { EmptyState } from '../features/library/EmptyState';
 import { PageFrame } from '../features/library/PageFrame';
 import { useNotices } from '../features/library/useNotices';
@@ -104,10 +112,12 @@ export function PluginsPage() {
           />
         ) : (
           <ul className="space-y-3">
-            {statuses.map((status) => (
+            {statuses.map((status, at) => (
               <PluginRow
                 key={status.id}
                 status={status}
+                first={at === 0}
+                last={at === statuses.length - 1}
                 onChanged={applied}
                 onRemove={() => setRemoving(status)}
               />
@@ -140,7 +150,8 @@ export function PluginsPage() {
 
 /**
  * One plugin: what it is called, what it is doing or why it is not, which of
- * the three states it is in, and the two things that can be done to it.
+ * the three states it is in, where it sits in the order, and the two things
+ * that can be done to it.
  *
  * Both of the middle lines can be there at once, and both are drawn: a plugin
  * that said what it was doing and then failed is a row that has to say the
@@ -156,18 +167,30 @@ export function PluginsPage() {
  * `aria-label` names the state it is in rather than the one it would move to:
  * "enabled" beside a ticked box is what a screen reader says about it, and the
  * badge next to it says the same thing to the eye.
+ *
+ * **The two arrows move the plugin, and only within the list that is on
+ * screen.** What they send is the whole order with the two ids swapped, which
+ * is what the kernel takes; the ends have nothing to move towards and their
+ * arrows are disabled rather than left to do nothing. Moving a plugin is not a
+ * way of drawing the page — the order decides who is asked first at a mount
+ * point several plugins contribute to (ADR 0045 §3) — so the page redraws from
+ * the answer, the way it does after every other lifecycle action.
  */
 function PluginRow({
   status,
+  first,
+  last,
   onChanged,
   onRemove,
 }: {
   status: PluginStatus;
+  first: boolean;
+  last: boolean;
   onChanged: (plugins: readonly PluginBootstrap[]) => void;
   onRemove: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const { port } = usePluginHost();
+  const { port, statuses } = usePluginHost();
   const notices = useNotices();
   // The failure goes to the notice rather than under the row: it is about the
   // plugin as a whole and not about a value the user typed, and a row has no
@@ -175,6 +198,14 @@ function PluginRow({
   const { busy, run } = useCommand(notices.setError);
   const { word, variant } = STATES[status.state];
   const on = status.state !== 'disabled';
+  // Where this row sits, and the order as it would be with it moved one place.
+  const at = statuses.findIndex((row) => row.id === status.id);
+  const moved = (by: number) => {
+    const ids = statuses.map((row) => row.id);
+    const [moved] = ids.splice(at, 1);
+    ids.splice(at + by, 0, moved);
+    return ids;
+  };
   return (
     <li className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3">
       <div className="min-w-0 space-y-1">
@@ -200,6 +231,31 @@ function PluginRow({
         )}
       </div>
       <div className="flex shrink-0 items-center gap-3">
+        {/* The icon-button group, in the shape the rest of the interface takes
+            (`outline`, `icon-sm`, a 14-pixel glyph, `gap-1.5`): the words move
+            into the tooltip, and `aria-label` keeps them either way. */}
+        <div className="flex items-center gap-1.5">
+          <MoveButton
+            word="pluginMoveUp"
+            icon={<ArrowUp size={14} aria-hidden="true" />}
+            disabled={busy || first}
+            onClick={() =>
+              void run(undefined, async () =>
+                onChanged(await port.setOrder(moved(-1))),
+              )
+            }
+          />
+          <MoveButton
+            word="pluginMoveDown"
+            icon={<ArrowDown size={14} aria-hidden="true" />}
+            disabled={busy || last}
+            onClick={() =>
+              void run(undefined, async () =>
+                onChanged(await port.setOrder(moved(1))),
+              )
+            }
+          />
+        </div>
         <Checkbox
           checked={on}
           disabled={busy}
@@ -229,5 +285,38 @@ function PluginRow({
         </Tooltip>
       </div>
     </li>
+  );
+}
+
+/**
+ * One of a row's two arrows: an icon button whose name is the only place its
+ * word can be said, in a tooltip and in `aria-label` both — the tooltip is not
+ * a substitute for the name.
+ */
+function MoveButton({
+  word,
+  icon,
+  disabled,
+  onClick,
+}: {
+  word: 'pluginMoveUp' | 'pluginMoveDown';
+  icon: ReactNode;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  const { t } = useTranslation();
+  const label = t(word);
+  return (
+    <Tooltip text={label}>
+      <Button
+        variant="outline"
+        size="icon-sm"
+        disabled={disabled}
+        aria-label={label}
+        onClick={onClick}
+      >
+        {icon}
+      </Button>
+    </Tooltip>
   );
 }

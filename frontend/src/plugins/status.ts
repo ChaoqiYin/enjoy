@@ -29,12 +29,21 @@ export type { PluginBootstrap, PluginFailure, PluginInstallPreview };
  * kernel is being talked to.
  */
 export interface PluginPort {
-  /** Every installed plugin, by id. */
+  /** Every installed plugin, in the order the user arranged them. */
   bootstrap(): Promise<readonly PluginBootstrap[]>;
   setEnabled(
     id: PluginId,
     enabled: boolean,
   ): Promise<readonly PluginBootstrap[]>;
+  /**
+   * Writes down the order the user arranged the plugins in.
+   *
+   * The whole order rather than a move: which plugin a position belongs to is
+   * the kernel's to check — an id it never handed out is refused — and a page
+   * that sent "swap these two" would be deciding a rule that is not its own.
+   * Reading the current order is `bootstrap`, which already answers it.
+   */
+  setOrder(ids: readonly PluginId[]): Promise<readonly PluginBootstrap[]>;
   /** What installing this source would do, without doing any of it. */
   preview(source: string): Promise<PluginInstallPreview>;
   install(source: string): Promise<readonly PluginBootstrap[]>;
@@ -73,13 +82,14 @@ export interface PluginStatus {
  *
  * An empty list is not a placeholder for a missing answer — it is the answer,
  * and it is what a window with no backend behind it shows. What it cannot do is
- * change anything: the four lifecycle methods say so rather than resolving, so
- * that a control pressed against this stand-in reports a failure instead of
- * appearing to have worked.
+ * change anything: the lifecycle methods say so rather than resolving, so that a
+ * control pressed against this stand-in reports a failure instead of appearing
+ * to have worked.
  */
 export const noPlugins: PluginPort = {
   bootstrap: async () => [],
   setEnabled: () => nothingToChange(),
+  setOrder: () => nothingToChange(),
   preview: () => nothingToChange(),
   install: () => nothingToChange(),
   uninstall: () => nothingToChange(),

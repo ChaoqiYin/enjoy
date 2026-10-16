@@ -388,6 +388,10 @@ mockIPC(
           String(payload.pluginId),
           Boolean(payload.enabled),
         );
+      case 'set_plugin_order':
+        return plugins.setOrder(
+          (payload.order as unknown[]).map((id) => String(id)),
+        );
       case 'preview_plugin_install':
         return plugins.preview(String(payload.source));
       case 'install_plugin':

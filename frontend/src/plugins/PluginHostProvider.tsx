@@ -9,7 +9,7 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import { createPluginHost } from './host';
-import type { BaselineModules, EntryLoader } from './host';
+import type { BaselineModules, EntryLoader, PluginOrder } from './host';
 import { createRegistry } from './registry';
 import type { DrawnKey, PluginId, PluginRegistry } from './registry';
 import { noPlugins } from './status';
@@ -110,7 +110,12 @@ export function PluginHostProvider({
   // host is what holds a plugin's registrations, so a host rebuilt on a render
   // would be one that drops them.
   const { host, registry } = useMemo(() => {
-    const registry = createRegistry();
+    // The one box, made here and given to both: the host writes each answer's
+    // order into it, and the registration point reads it whenever a page reads a
+    // position. Neither of them can hand it to the other — the registry is built
+    // first and handed over, and a position is read long after the list arrived.
+    const order: PluginOrder = { ids: [] };
+    const registry = createRegistry({ order: () => order.ids });
     return {
       registry,
       host: createPluginHost({
@@ -118,6 +123,7 @@ export function PluginHostProvider({
         port,
         baseline,
         positions: DRAWN_HERE,
+        order,
         loadEntry,
       }),
     };

@@ -156,8 +156,7 @@ export const libraryApi = {
  *
  * **None of them reaches the running plugin host.** Installing, switching and
  * uninstalling take effect on the next start (spec #82 「不做热插拔」), so what
- * these answer with is the state of the disk — which is why `pluginsRestartHint`
- * is on the page rather than a live update.
+ * these answer with is the state of the disk rather than what this window runs.
  *
  * `preview` and `install` are one source read twice: the first says what
  * installing it would do and copies nothing, and the user is asked in between.
@@ -165,14 +164,17 @@ export const libraryApi = {
  * there is no address to install from: v1 has no network install.
  *
  * `contentRows` is asked before an uninstall so that the question can say how
- * many rows of the library would go with the plugin: its own command because it
- * is asked before anything is decided, and its answer is a number the user reads
- * rather than an action they take.
+ * many rows of the library would go with the plugin: its own command, because it
+ * is asked before anything is decided and its answer is a number the user reads.
  */
 export const pluginApi = {
   list: () => invoke<PluginBootstrap[]>('list_plugins'),
   setEnabled: (pluginId: string, enabled: boolean) =>
     invoke<PluginBootstrap[]>('set_plugin_enabled', { pluginId, enabled }),
+  // The whole order rather than a move, so that which ids are installed is the
+  // kernel's to check: an id it never handed out is refused rather than written.
+  setOrder: (order: string[]) =>
+    invoke<PluginBootstrap[]>('set_plugin_order', { order }),
   preview: (source: string) =>
     invoke<PluginInstallPreview>('preview_plugin_install', { source }),
   install: (source: string) =>
@@ -181,8 +183,7 @@ export const pluginApi = {
     invoke<PluginBootstrap[]>('uninstall_plugin', { pluginId, deleteContent }),
   contentRows: (pluginId: string) =>
     invoke<number>('plugin_content_rows', { pluginId }),
-  // Answers with the list after it, like the rest: every plugin is off now, and
-  // the page says so without asking again.
+  // Every plugin is off now, and the page says so without asking again.
   safeMode: () => invoke<PluginBootstrap[]>('run_safe_mode'),
 };
 

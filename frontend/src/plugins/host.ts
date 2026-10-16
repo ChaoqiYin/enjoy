@@ -94,6 +94,22 @@ export type EntryLoader = (entry: string) => Promise<PluginInterfaceModule>;
  */
 export type BaselineModules = Readonly<Record<string, () => Promise<unknown>>>;
 
+/**
+ * Where the order the kernel answered with is kept, for the registration point
+ * to read.
+ *
+ * A box rather than a value, and that is the direction the two are built in: the
+ * registry is handed to the host, so the host cannot hand the registry anything,
+ * and a position is read long after the list arrived — when a page draws, which
+ * is any time. The host writes each answer's order into it; the registry reads it
+ * whenever a position is read. `PluginHostProvider` is where the one box is made
+ * and given to both.
+ */
+export interface PluginOrder {
+  /** The plugins, in the order the kernel last answered with. */
+  ids: readonly PluginId[];
+}
+
 export interface PluginHostOptions {
   registry: PluginRegistry;
   /** Where the rows come from. The stand-in is a kernel with nothing installed. */
@@ -107,6 +123,15 @@ export interface PluginHostOptions {
    * rather than a silent nothing.
    */
   positions: readonly DrawnKey[];
+  /**
+   * Where the order each answer has is put, for the registration point to read.
+   *
+   * Left out, nothing is written down and every position keeps the order its
+   * plugins registered in — which is what a host built without a registry to
+   * order has to do. The provider always gives one: the order is part of what a
+   * row is, not a detail of how the page draws it.
+   */
+  order?: PluginOrder;
   loadEntry?: EntryLoader;
 }
 
@@ -159,6 +184,7 @@ export function createPluginHost({
   port = noPlugins,
   baseline = {},
   positions,
+  order,
   loadEntry = importPluginInterface,
 }: PluginHostOptions): PluginHost {
   const collector = createDisposerCollector();
@@ -201,6 +227,29 @@ export function createPluginHost({
       hasBody: entry.hasBody,
       failure: { code, params: { plugin: entry.name } },
     };
+  }
+
+  /**
+   * One plugin's row, as a list the kernel answered with has it.
+   *
+   * `activity` is carried in rather than read off the map, so that what a plugin
+   * said it is doing survives its row being rewritten: a plugin that reports
+   * progress and then fails is a row that says both.
+   */
+  function rowFor(entry: PluginBootstrap, activity?: string): PluginStatus {
+    const row = {
+      id: entry.id,
+      name: entry.name,
+      hasBody: entry.hasBody,
+      activity,
+    };
+    // A manifest the kernel would not accept is the one failure a row can carry
+    // before anything of the plugin is reached for; the rest are the loading
+    // failures `start` writes down.
+    if (entry.failure !== null) {
+      return { ...row, state: 'failed', failure: entry.failure };
+    }
+    return { ...row, state: entry.enabled ? 'enabled' : 'disabled' };
   }
 
   // Asked for by name and loaded once: every plugin that asks for React gets
@@ -275,42 +324,30 @@ export function createPluginHost({
    * A plugin that is gone loses its row, which is the one thing a lifecycle
    * action can do that no plugin of its own can: uninstalling it. Everything
    * else is what the kernel answered.
+   *
+   * The rows come out in the order the answer has them, and that is not the same
+   * thing as rewriting them where they stand: a `Map` keeps the place of a key it
+   * already holds, so a plugin the user has just moved up would go on being drawn
+   * below the ones it has passed. The order *is* the answer — it is what decides
+   * who is asked first at a mount point several plugins contribute to (ADR 0045
+   * §3) — so the page draws it rather than the order the rows happened to be made
+   * in. A plugin with no interface — a body-only one — is on, and has nothing for
+   * this side to load; one that has an interface is written down as on here and
+   * loaded below, so that a window which never loads it (a lifecycle action,
+   * which is not a load) still says the right thing.
    */
   function refresh(plugins: readonly PluginBootstrap[]): void {
-    const listed = new Set(plugins.map((entry) => entry.id));
-    for (const id of [...statuses.keys()]) {
-      if (!listed.has(id)) statuses.delete(id);
-    }
+    const rows = new Map<PluginId, PluginStatus>();
     for (const entry of plugins) {
-      if (entry.failure !== null) {
-        put({
-          id: entry.id,
-          name: entry.name,
-          state: 'failed',
-          hasBody: entry.hasBody,
-          failure: entry.failure,
-        });
-      } else if (!entry.enabled) {
-        put({
-          id: entry.id,
-          name: entry.name,
-          state: 'disabled',
-          hasBody: entry.hasBody,
-        });
-      } else {
-        // A plugin with no interface — a body-only one — is on, and has
-        // nothing for this side to load; one that has an interface is written
-        // down as on here and loaded below, so that a window which never loads
-        // it (a lifecycle action, which is not a load) still says the right
-        // thing.
-        put({
-          id: entry.id,
-          name: entry.name,
-          state: 'enabled',
-          hasBody: entry.hasBody,
-        });
-      }
+      rows.set(entry.id, rowFor(entry, statuses.get(entry.id)?.activity));
     }
+    statuses.clear();
+    for (const [id, row] of rows) statuses.set(id, row);
+    // Written here rather than where the plugins are loaded, because this is
+    // every answer there is: the first one, and each one a lifecycle action
+    // answers with. A position a plugin reads while it is loading reads the
+    // order that came with the list it was loaded from.
+    if (order !== undefined) order.ids = plugins.map((entry) => entry.id);
     changed();
   }
 
