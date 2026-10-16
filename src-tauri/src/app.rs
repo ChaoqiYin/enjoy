@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::events::AppEvents;
 use crate::i18n::{language, native};
-use crate::plugins::{loading, PluginHost, Store};
+use crate::plugins::{loading, settings, PluginHost, Store};
 use crate::repository::Repository;
 use crate::scan::control::ScanControl;
 use crate::share::ShareControl;
@@ -130,6 +130,20 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
     // plugins directory the kernel cannot make sense of costs the user their
     // plugins and not their application (ADR 0044 §7).
     loading::load(&plugin_store, &plugins);
+    // Then what the user filled in is handed to the plugins that have something
+    // saved, and for the reason loading is: a plugin that works from a video's
+    // menu would otherwise never see the user's settings, because the only other
+    // moment the kernel hands them over is when the plugin page is open — which
+    // is not where such a plugin is ever used (`plugins::settings` says the rest,
+    // baseline §14.7). A library that cannot be read costs the user their
+    // plugins' settings and not their application, the same bargain loading
+    // makes with a plugins directory it cannot read.
+    if let Err(error) = settings::hand_over(&plugins, &repository) {
+        tracing::warn!(
+            code = error.code,
+            "the saved plugin settings could not be read; the plugins start without them"
+        );
+    }
     app.manage(AppState {
         repository: Arc::new(Mutex::new(repository)),
         scan: Arc::new(ScanControl::default()),

@@ -5,10 +5,11 @@
 //! chain is asked in a sequence where each plugin can see what the ones before
 //! it already said.
 
+use crate::model::PluginSetting;
 use crate::plugins::fixture::{self, FakeBody};
 use crate::plugins::mount_points::{
-    self, PluginSettingsResult, ScanCompletedParams, SettingField, SettingFieldKind,
-    SourcedFieldValue, VideoActionsParams, VideoFieldsParams,
+    self, PluginSettingsParams, PluginSettingsResult, ScanCompletedParams, SettingField,
+    SettingFieldKind, SourcedFieldValue, VideoActionsParams, VideoFieldsParams,
 };
 
 /// What a chain handed back, as the three facts a reader cares about.
@@ -116,7 +117,7 @@ fn settings_are_grouped_by_the_plugin_that_gave_them() {
     host.enable("first", FakeBody::answering(one));
     host.enable("second", FakeBody::answering(two));
 
-    let groups = host.plugin_settings(&fixture::space());
+    let groups = host.plugin_settings(&fixture::space(), &[]);
 
     assert_eq!(
         groups
@@ -129,6 +130,49 @@ fn settings_are_grouped_by_the_plugin_that_gave_them() {
 }
 
 #[test]
+fn each_plugin_is_asked_with_its_own_values_and_no_others() {
+    let (host, _) = fixture::host();
+    let first = FakeBody::answering(fixture::settings(&[("url", SettingFieldKind::Text)]));
+    let second = FakeBody::answering(fixture::settings(&[("folder", SettingFieldKind::Directory)]));
+    let third = FakeBody::answering(fixture::settings(&[("note", SettingFieldKind::Text)]));
+    host.enable("first", first.clone());
+    host.enable("second", second.clone());
+    host.enable("third", third.clone());
+
+    host.plugin_settings(
+        &fixture::space(),
+        &[
+            ("first".to_string(), vec![setting("url", "https://a.example")]),
+            ("second".to_string(), vec![setting("folder", "/library")]),
+        ],
+    );
+
+    let said = |body: &FakeBody| {
+        body.params_of::<PluginSettingsParams>(mount_points::PLUGIN_SETTINGS, 0)
+            .values
+            .into_iter()
+            .map(|value| value.value)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(said(&first), vec!["https://a.example".to_string()]);
+    assert_eq!(said(&second), vec!["/library".to_string()]);
+    assert_eq!(
+        said(&third),
+        Vec::<String>::new(),
+        "a plugin with nothing saved is still asked, with nothing: the values are part of the \
+         question rather than an event of their own"
+    );
+}
+
+/// One saved value, as the library hands it over.
+fn setting(key: &str, value: &str) -> PluginSetting {
+    PluginSetting {
+        key: key.to_string(),
+        value: value.to_string(),
+    }
+}
+
+#[test]
 fn a_plugin_with_nothing_to_ask_for_gets_no_group() {
     let (host, _) = fixture::host();
     host.enable("quiet", FakeBody::answering(fixture::settings(&[])));
@@ -137,7 +181,7 @@ fn a_plugin_with_nothing_to_ask_for_gets_no_group() {
         FakeBody::answering(fixture::settings(&[("url", SettingFieldKind::Text)])),
     );
 
-    let groups = host.plugin_settings(&fixture::space());
+    let groups = host.plugin_settings(&fixture::space(), &[]);
 
     assert_eq!(
         groups

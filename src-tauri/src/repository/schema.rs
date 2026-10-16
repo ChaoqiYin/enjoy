@@ -5,7 +5,7 @@ use crate::error::AppError;
 use super::now;
 
 /// The schema this build writes.
-pub(crate) const VERSION: i64 = 7;
+pub(crate) const VERSION: i64 = 8;
 
 /// The version that gave the library its spaces (ADR 0011).
 ///
@@ -44,6 +44,15 @@ const SPACES: i64 = 5;
 /// still readable afterwards — which is the whole of why the column is text
 /// (ADR 0045 §3). It hangs off `videos` rather than off a space, because a
 /// field is about one record and a record is already in one space.
+///
+/// `plugin_settings` is the other direction: what the user filled in for a
+/// plugin, which the kernel keeps because the plugin cannot (`plugin.settings`,
+/// baseline §14.6). It hangs off nothing at all — not off `videos`, because a
+/// setting is not about a record, and not off a space, because it says how the
+/// plugin works rather than what is in a space, so the same answers are in force
+/// in every one. `plugin_id` is a bare string for the reason `source_plugin` is,
+/// and the rows go when the plugin is uninstalled, which the uninstall path does
+/// deliberately rather than by a cascade.
 pub(crate) const SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS spaces (
         id INTEGER PRIMARY KEY, name TEXT NOT NULL, created_at INTEGER NOT NULL,
@@ -77,6 +86,10 @@ pub(crate) const SCHEMA: &str = "
         key TEXT NOT NULL, value TEXT NOT NULL,
         source_plugin TEXT NOT NULL, updated_at INTEGER NOT NULL,
         PRIMARY KEY (video_id, key));
+    CREATE TABLE IF NOT EXISTS plugin_settings (
+        plugin_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (plugin_id, key));
 ";
 
 /// A record's own columns, in the order a migration copies them.
@@ -100,14 +113,15 @@ last_played_at,created_at,updated_at";
 
 /// Brings a database of any version to the current one, in place.
 ///
-/// Three upgrades are written here, and they are different in kind rather than
+/// Four upgrades are written here, and they are different in kind rather than
 /// in degree. The oldest carries a library that predates spaces into the first
 /// space. Its name is chosen here, once, from the interface language in force at
 /// the moment of the upgrade — the person reading it is looking at that language
 /// now — and is an ordinary name from then on, free to change. The middle one
 /// moves a library that already has its spaces from version 5 to 6, and creates
 /// nothing: the spaces are already there, and every row keeps the `space_id` it
-/// had. The newest adds a table, `video_fields`, and touches no row at all.
+/// had. The two newest add a table each — `video_fields` at 7, `plugin_settings`
+/// at 8 — and touch no row at all.
 ///
 /// The two that touch `videos` rebuild rather than alter. SQLite can add a column
 /// in place, and this file could have done that in one statement — but the shape
@@ -165,6 +179,12 @@ pub(crate) fn migrate(
         // arriving from version 6 is one every branch above leaves alone, and a
         // reader asking what version 7 changed should find the answer where each
         // other version's answer is.
+    }
+    if version < 8 {
+        // The same shape as the branch above, one version later: version 8
+        // brings `plugin_settings`, which never existed before, so there is
+        // nothing to carry and no old table to copy out of. A database arriving
+        // from version 7 is left alone by every branch above this one.
     }
     tx.execute_batch(SCHEMA)?;
     if version < SPACES {

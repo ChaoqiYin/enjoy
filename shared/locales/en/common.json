@@ -229,5 +229,8 @@
   "pluginSafeModeQuestion": "Switch every plugin off, so the app starts without loading any of them. Nothing is uninstalled — the plugins stay on disk, and you can switch them back on",
   "pluginSafeModeEnter": "Switch them all off",
   "pluginsRestartHint": "Plugin changes take effect the next time the app starts",
-  "pluginEnable": "Enabled"
+  "pluginEnable": "Enabled",
+  "pluginSettingsSave": "Save",
+  "pluginSettingsRequired": "Required",
+  "pluginSettingsFolder": "Choose folder"
 }

@@ -188,7 +188,7 @@ fn a_version_4_database_becomes_the_first_space_and_keeps_everything_it_held() {
     assert_eq!(space.name, "默认空间");
     assert_eq!(space.id, 1);
     assert_library_survived(&repository, space.id);
-    assert_eq!(version_of(&database), 7);
+    assert_eq!(version_of(&database), 8);
     drop(repository);
     // Opening it again finds the current version and touches nothing.
     let repository = Repository::open(&database, "Ignored").unwrap();
@@ -205,7 +205,7 @@ fn a_version_3_database_is_carried_forward_and_loses_the_hash_column() {
     let repository = Repository::open(&database, "First").unwrap();
     let space = repository.current_space().unwrap();
     assert_library_survived(&repository, space.id);
-    assert_eq!(version_of(&database), 7);
+    assert_eq!(version_of(&database), 8);
     assert!(!column_present(&database, "videos", "file_md5"));
 }
 
@@ -217,7 +217,7 @@ fn a_version_2_database_is_carried_forward_and_loses_both_legacy_columns() {
     let repository = Repository::open(&database, "First").unwrap();
     let space = repository.current_space().unwrap();
     assert_library_survived(&repository, space.id);
-    assert_eq!(version_of(&database), 7);
+    assert_eq!(version_of(&database), 8);
     assert!(!column_present(&database, "videos", "file_md5"));
     assert!(!column_present(&database, "videos", "available"));
 }
@@ -233,7 +233,7 @@ fn a_database_whose_version_lags_behind_its_columns_still_opens() {
     let repository = Repository::open(&database, "First").unwrap();
     let space = repository.current_space().unwrap();
     assert_library_survived(&repository, space.id);
-    assert_eq!(version_of(&database), 7);
+    assert_eq!(version_of(&database), 8);
 }
 
 #[test]
@@ -265,7 +265,7 @@ fn a_version_5_database_keeps_its_spaces_and_arrives_unshared() {
     // The name is not read: this library already has its spaces, so none is
     // created and there is nothing to name.
     let repository = Repository::open(&database, "Ignored").unwrap();
-    assert_eq!(version_of(&database), 7);
+    assert_eq!(version_of(&database), 8);
 
     let spaces = repository.spaces().unwrap();
     let space_named = |name: &str| {
@@ -318,7 +318,7 @@ fn a_version_6_database_keeps_its_library_and_gains_the_field_table() {
     // Nothing is named: this library already has its spaces, and the upgrade
     // creates none.
     let repository = Repository::open(&database, "Ignored").unwrap();
-    assert_eq!(version_of(&database), 7);
+    assert_eq!(version_of(&database), 8);
 
     // The records are in the spaces they were in, with the marks they had. Two
     // spaces holding the same path as two different records is what tells an
@@ -362,7 +362,7 @@ fn a_version_6_database_keeps_its_library_and_gains_the_field_table() {
     // Opened again: the library is the current version, the upgrade does
     // nothing a second time, and the field written in between is still there.
     let repository = Repository::open(&database, "Ignored").unwrap();
-    assert_eq!(version_of(&database), 7);
+    assert_eq!(version_of(&database), 8);
     let connection = rusqlite::Connection::open(&database).unwrap();
     let stored: (String, String, String) = connection
         .query_row(
@@ -379,6 +379,90 @@ fn a_version_6_database_keeps_its_library_and_gains_the_field_table() {
             "cover-fetcher".to_string()
         )
     );
+    assert_eq!(repository.records(movies.id).unwrap().len(), 1);
+}
+
+/// Writes the shape version 7 shipped: what version 6 had, plus the
+/// `video_fields` table the version between them gained.
+///
+/// A change on top of the version-6 shape rather than a fourth copy of the same
+/// SQL, for the reason `write_version_6_library` gives: one table is the whole
+/// difference between the two versions, and a copy could disagree with its
+/// neighbour about the rest of them without anyone noticing.
+fn write_version_7_library(database: &Path) {
+    write_version_6_library(database);
+    let connection = rusqlite::Connection::open(database).unwrap();
+    connection
+        .execute_batch(
+            "CREATE TABLE video_fields (
+                video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+                key TEXT NOT NULL, value TEXT NOT NULL,
+                source_plugin TEXT NOT NULL, updated_at INTEGER NOT NULL,
+                PRIMARY KEY (video_id, key));
+             INSERT INTO video_fields VALUES (1,'cover','/covers/1.jpg','cover-fetcher',99);
+             PRAGMA user_version=7;",
+        )
+        .unwrap();
+}
+
+/// The second upgrade that adds a table and nothing else.
+///
+/// Version 8 brings `plugin_settings`, which is the same kind of change version
+/// 7 was: no table is moved aside, no row is touched, and the create statement in
+/// [`super::schema::SCHEMA`] is the whole of it. What such an upgrade can still
+/// get wrong is the same two things — that the library it did not touch is the
+/// library it started with, and that the table it did add is usable — so the
+/// setting written below is the half a test that only counted records would not
+/// see. The field a plugin wrote before the upgrade is read back too, because the
+/// one thing a migration must never do is lose what the previous version kept.
+#[test]
+fn a_version_7_database_keeps_its_library_and_gains_the_settings_table() {
+    let fixture = Fixture::new();
+    let database = fixture.0.join("library.db");
+    write_version_7_library(&database);
+    let repository = Repository::open(&database, "Ignored").unwrap();
+    assert_eq!(version_of(&database), 8);
+
+    let archive = repository.current_space().unwrap();
+    assert_eq!(archive.name, "Archive");
+    let movies = repository
+        .spaces()
+        .unwrap()
+        .into_iter()
+        .find(|space| space.name == "Movies")
+        .expect("the library kept its first space");
+    let kept = repository.records(movies.id).unwrap().remove(0);
+    assert_eq!(kept.path, "/movies/kept.mp4");
+    assert!(kept.shared && kept.favorite);
+    assert_eq!(
+        repository.fields(kept.id).unwrap()[0].value,
+        "/covers/1.jpg",
+        "the field the previous version stored is still there"
+    );
+
+    // The table arrived with the columns the write path is built on. Written
+    // into directly rather than through the repository, because what is being
+    // asked here is what the database has: a write through the repository would
+    // pass against a table only the repository knew about.
+    assert!(column_present(&database, "plugin_settings", "plugin_id"));
+    let connection = rusqlite::Connection::open(&database).unwrap();
+    connection
+        .execute(
+            "INSERT INTO plugin_settings (plugin_id,key,value,updated_at)
+             VALUES ('cover-fetcher','url','https://a.example',99)",
+            [],
+        )
+        .unwrap();
+    drop(connection);
+    drop(repository);
+
+    // Opened again: the library is the current version, the upgrade does nothing
+    // a second time, and the setting written in between is still there.
+    let repository = Repository::open(&database, "Ignored").unwrap();
+    assert_eq!(version_of(&database), 8);
+    let settings = repository.plugin_settings("cover-fetcher").unwrap();
+    assert_eq!(settings.len(), 1);
+    assert_eq!(settings[0].value, "https://a.example");
     assert_eq!(repository.records(movies.id).unwrap().len(), 1);
 }
 

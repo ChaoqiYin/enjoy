@@ -61,6 +61,10 @@ mod manifest_tests;
 #[cfg(test)]
 mod metrics_tests;
 #[cfg(test)]
+mod settings_tests;
+#[cfg(test)]
+mod store_install_tests;
+#[cfg(test)]
 mod store_tests;
 
 // The catalog is generated (`npm run generate:plugins`, held in place by
@@ -71,17 +75,20 @@ mod store_tests;
 // the module holds more than the host reads.
 pub(crate) mod mount_points;
 
-// The two the rest of the kernel reaches for rather than through: `loading` is
+// The three the rest of the kernel reaches for rather than through: `loading` is
 // what the application calls once at startup to put the plugins on disk into the
-// rotation, and `cover` is what a field command calls for the one field name the
-// kernel knows. Both are the kernel's own work around the host rather than
-// anything a plugin is asked.
+// rotation, `settings` is what it calls right after to hand each of them what the
+// user filled in, and `cover` is what a field command calls for the one field
+// name the kernel knows. All three are the kernel's own work around the host
+// rather than anything a plugin is asked.
 pub(crate) mod cover;
 pub(crate) mod loading;
+pub(crate) mod settings;
 
-pub(crate) use dispatch::PluginSettings;
+pub(crate) use dispatch::{saved_for, PluginSettings};
 pub(crate) use metrics::{CallOutcome, CallRecord};
 pub(crate) use runner::{Runner, RunnerError};
+pub(crate) use settings::{PluginSettingField, PluginSettingsGroup};
 pub(crate) use store::{PluginBootstrap, PluginInstallPreview, Store};
 
 use std::sync::{Arc, Mutex, MutexGuard};

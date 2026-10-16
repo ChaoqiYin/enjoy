@@ -24,6 +24,12 @@ import errors from '../../../shared/locales/en/errors.json';
 
 // The page's frame is the library's — it carries the notices and the scan the
 // whole window shares — and neither is what this file is about.
+// The space is the provider stack's, and this file is about the page rather
+// than about where the space comes from — but the settings form asks the kernel
+// under the space on screen, so the id has to be one this file knows.
+vi.mock('../features/space/SpaceProvider', () => ({
+  useSpace: () => ({ id: 7, name: 'Films' }),
+}));
 vi.mock('../features/library/useScan', () => ({
   useScan: () => doubles.scan(),
 }));
@@ -378,4 +384,55 @@ it('puts every plugin aside from one question, and says so on every row', async 
   expect(safeMode).toHaveBeenCalled();
   // Nothing was uninstalled: the rows are all still there.
   expect(screen.getAllByRole('listitem')).toHaveLength(2);
+});
+
+it('draws what a plugin needs filled in inside its own row, and saves it', async () => {
+  const status = plugin({ id: 'cover-fetcher', name: 'Cover fetcher' });
+  const settings = vi.fn(async () => [
+    {
+      plugin: 'cover-fetcher',
+      fields: [
+        {
+          key: 'url',
+          kind: 'text' as const,
+          label: 'Site',
+          required: true,
+          value: 'https://a.example',
+        },
+      ],
+    },
+  ]);
+  const saveSettings = vi.fn(async () => [
+    {
+      plugin: 'cover-fetcher',
+      fields: [
+        {
+          key: 'url',
+          kind: 'text' as const,
+          label: 'Site',
+          required: true,
+          value: 'https://b.example',
+        },
+      ],
+    },
+  ]);
+  page(doubles.pluginPort([status], { settings, saveSettings }));
+
+  // The form is the plugin's own row and not a section of its own: the row is
+  // where the plugin's name is.
+  await waitFor(() => expect(rowText('Cover fetcher')).toContain('Site'));
+  expect(settings).toHaveBeenCalledWith(7);
+
+  fireEvent.change(screen.getByLabelText(/^Site/), {
+    target: { value: 'https://b.example' },
+  });
+  fireEvent.click(
+    screen.getByRole('button', { name: english.pluginSettingsSave }),
+  );
+
+  await waitFor(() =>
+    expect(saveSettings).toHaveBeenCalledWith(7, 'cover-fetcher', [
+      { key: 'url', value: 'https://b.example' },
+    ]),
+  );
 });

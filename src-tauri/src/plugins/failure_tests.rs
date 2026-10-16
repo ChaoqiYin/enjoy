@@ -186,7 +186,7 @@ fn a_failure_at_one_mount_point_does_not_stop_the_other() {
         .video_fields(&fixture::space(), &fixture::video())
         .is_empty());
     assert_eq!(
-        host.plugin_settings(&fixture::space())
+        host.plugin_settings(&fixture::space(), &[])
             .iter()
             .map(|group| group.plugin.as_str())
             .collect::<Vec<_>>(),
@@ -225,7 +225,7 @@ fn a_mount_call_answers_even_when_every_plugin_fails() {
     assert!(host
         .video_fields(&fixture::space(), &fixture::video())
         .is_empty());
-    assert!(host.plugin_settings(&fixture::space()).is_empty());
+    assert!(host.plugin_settings(&fixture::space(), &[]).is_empty());
     host.scan_completed(&fixture::space(), &[fixture::video()]);
     for id in ["one", "two", "three"] {
         host.video_action(id, &fixture::space(), &fixture::video());

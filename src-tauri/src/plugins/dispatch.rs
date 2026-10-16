@@ -22,11 +22,12 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::error::AppError;
+use crate::model::PluginSetting;
 use crate::plugins::metrics::CallOutcome;
 use crate::plugins::mount_points::{
     self, FieldValue, PluginSettingsParams, PluginSettingsResult, ScanCompletedParams,
-    ScanCompletedResult, SettingField, SourcedFieldValue, SpaceRef, VideoActionsParams,
-    VideoActionsResult, VideoFieldsParams, VideoFieldsResult, VideoRef,
+    ScanCompletedResult, SettingField, SettingValue, SourcedFieldValue, SpaceRef,
+    VideoActionsParams, VideoActionsResult, VideoFieldsParams, VideoFieldsResult, VideoRef,
 };
 use crate::plugins::runner::{Runner, RunnerError};
 use crate::plugins::PluginHost;
@@ -39,6 +40,23 @@ use crate::plugins::PluginHost;
 pub(crate) struct PluginSettings {
     pub plugin: String,
     pub fields: Vec<SettingField>,
+}
+
+/// What one plugin has been filled in with, out of the library's rows.
+///
+/// The rows arrive as one list for every plugin being asked, because that is how
+/// they are read; picking one plugin's out of it is this call, written once
+/// rather than at each of the three places that need it — the question here, the
+/// grouping beside it, and the page the command draws.
+pub(crate) fn saved_for<'a>(
+    saved: &'a [(String, Vec<PluginSetting>)],
+    plugin: &str,
+) -> &'a [PluginSetting] {
+    saved
+        .iter()
+        .find(|(asked, _)| asked == plugin)
+        .map(|(_, values)| values.as_slice())
+        .unwrap_or(&[])
 }
 
 impl PluginHost {
@@ -81,31 +99,77 @@ impl PluginHost {
         answered
     }
 
-    /// `plugin.settings`: what each plugin needs the user to fill in.
+    /// `plugin.settings`: what each plugin needs the user to fill in, asked with
+    /// what the user has already filled in.
     ///
     /// A plugin that needs nothing filled in gets no group rather than an empty
     /// one: the kernel draws one section per group, and a section with a
     /// plugin's name and nothing under it is a section that says nothing.
-    pub(crate) fn plugin_settings(&self, space: &SpaceRef) -> Vec<PluginSettings> {
-        let params = PluginSettingsParams {
-            space: space.clone(),
-        };
+    ///
+    /// `saved` is what the library holds for the plugins being asked, one entry
+    /// per plugin. It travels **with the question** rather than being pushed at
+    /// a plugin when it changes: a body is resident and remembers what it was
+    /// told, but remembering is not having been told. The first time a plugin is
+    /// asked it has nothing, and a plugin switched on after the user filled the
+    /// form in never saw the values arrive — so every question carries them, and
+    /// a plugin has one way to get them rather than two (baseline §14.7).
+    pub(crate) fn plugin_settings(
+        &self,
+        space: &SpaceRef,
+        saved: &[(String, Vec<PluginSetting>)],
+    ) -> Vec<PluginSettings> {
         self.asking()
             .into_iter()
             .filter_map(|(plugin, body)| {
-                let answer = self.ask::<PluginSettingsResult>(
-                    &plugin,
-                    &body,
-                    mount_points::PLUGIN_SETTINGS,
-                    &params,
-                )?;
-                let fields = answer.fields;
+                let fields = self.ask_settings(&plugin, &body, space, saved_for(saved, &plugin))?;
                 if fields.is_empty() {
                     return None;
                 }
                 Some(PluginSettings { plugin, fields })
             })
             .collect()
+    }
+
+    /// `plugin.settings`, asked of one named plugin.
+    ///
+    /// One plugin rather than all of them, for the startup hand-over: what that
+    /// needs is to give a plugin the values the user filled in for it, and the
+    /// only way to give a plugin anything is to ask it something. A plugin the
+    /// host is not asking answers nothing, which is not a failure — the reason
+    /// [`PluginHost::video_action`] gives.
+    pub(crate) fn plugin_settings_for(
+        &self,
+        plugin: &str,
+        space: &SpaceRef,
+        values: &[PluginSetting],
+    ) -> Option<Vec<SettingField>> {
+        let body = self.asking_one(plugin)?;
+        self.ask_settings(plugin, &body, space, values)
+    }
+
+    /// One plugin's declaration, asked with the values it has been handed.
+    ///
+    /// The two callers above differ only in which plugins they ask and in what
+    /// they do with the answer, so the question itself is written once.
+    fn ask_settings(
+        &self,
+        plugin: &str,
+        body: &Arc<dyn Runner>,
+        space: &SpaceRef,
+        values: &[PluginSetting],
+    ) -> Option<Vec<SettingField>> {
+        let params = PluginSettingsParams {
+            space: space.clone(),
+            values: values
+                .iter()
+                .map(|setting| SettingValue {
+                    key: setting.key.clone(),
+                    value: setting.value.clone(),
+                })
+                .collect(),
+        };
+        self.ask::<PluginSettingsResult>(plugin, body, mount_points::PLUGIN_SETTINGS, &params)
+            .map(|answer| answer.fields)
     }
 
     /// `scan.completed`: tells every plugin what a scan just took in.

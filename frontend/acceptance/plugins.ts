@@ -1,8 +1,11 @@
 import exampleEntry from '../../examples/plugins/hello-page/interface.js?raw';
+import type { SettingValue } from '../src/plugins/mountPoints';
 import type {
   AppError,
   PluginBootstrap,
   PluginInstallPreview,
+  PluginSettingField,
+  PluginSettingsGroup,
 } from '../src/shared/api';
 
 /**
@@ -161,6 +164,135 @@ export function uninstall(
 
 export function contentRows(pluginId: string): number {
   return rows.get(pluginId) ?? 0;
+}
+
+/** One field as a plugin declares it, which is a field without a value: the
+ *  declaration is what the plugin says and the value is what the user said, and
+ *  folding them into one record would mean rewriting the declaration every time
+ *  a walkthrough typed in a box. */
+type Declaration = Omit<PluginSettingField, 'value'>;
+
+/**
+ * What each plugin asks the user to fill in.
+ *
+ * The kernel draws the form from what the plugin itself declares, and this
+ * stand-in has no plugin to ask — so the one declaration a walkthrough needs is
+ * written out here, on the plugin that is running from the start. The others ask
+ * for nothing, and that is what they really are: a plugin with no body cannot be
+ * asked anything (the example one is an interface and nothing else), one that is
+ * switched off is not running, and one whose manifest did not validate never
+ * started.
+ *
+ * The field labels are the fixture's own words rather than translations: a
+ * plugin's declaration arrives from the plugin, and the plugin is not in this
+ * application's translation files.
+ */
+const declarations: [string, Declaration[]][] = [
+  [
+    'cover-fetcher',
+    [
+      { key: 'site', kind: 'text', label: 'Site', required: true },
+      {
+        key: 'folder',
+        kind: 'directory',
+        label: 'Covers folder',
+        required: false,
+      },
+    ],
+  ],
+];
+
+/**
+ * What the user has filled in, by plugin and field key.
+ *
+ * One set for the whole library rather than one per space: a plugin's settings
+ * are global (baseline §14.6), so the space a call names is carried to the
+ * plugin and not into what is kept.
+ */
+const answers = new Map<string, string>();
+
+/**
+ * The plugins the window is running, which is not the same thing as the ones
+ * that are switched on: nothing hot-plugs (spec #82 「不做热插拔」), so the
+ * running set is fixed when the application starts and every lifecycle command
+ * only changes what the next start will run. Read once, here, from the list this
+ * file opens with — a copy taken at load is what that sentence means, and
+ * reading `installed` at each question instead would make switching a plugin off
+ * stop it in this window, which is the one thing the page promises it does not
+ * do.
+ *
+ * A plugin has to be switched on, loadable, and holding a body to answer
+ * through: the example plugin is an interface and nothing else, so it is never
+ * asked anything, and the one whose manifest did not validate never started.
+ */
+const running = new Set(
+  installed
+    .filter((entry) => entry.enabled && entry.failure === null && entry.hasBody)
+    .map((entry) => entry.id),
+);
+
+export function listSettings(): PluginSettingsGroup[] {
+  return declarations
+    .filter(([pluginId]) => running.has(pluginId))
+    .map(([pluginId, fields]) => ({
+      plugin: pluginId,
+      fields: fields.map((field) => ({
+        ...field,
+        value: answers.get(`${pluginId}/${field.key}`) ?? '',
+      })),
+    }));
+}
+
+/**
+ * The user's form, checked and kept.
+ *
+ * One rule of the kernel's check is repeated here, and it is repeated because
+ * the refusal is drawn **beside the field it is about**: without a rule that can
+ * refuse one value, no walkthrough could reach the place a reason is put, and
+ * the one thing this feature is for — telling the user which box to fix — would
+ * be the one thing a browser never shows. The rest of the check is the kernel's
+ * and is held by its own Rust tests; nothing here looks at what a kind means.
+ *
+ * The refusal for a plugin that is not running is kept as well, though no
+ * walkthrough can reach it: nothing hot-plugs, so the plugin a form was drawn
+ * for is still running when the form is saved. It is answered here because the
+ * kernel would answer it, and a copy that saved for a plugin nobody asked would
+ * be a copy of a backend this application does not have.
+ */
+export function saveSettings(
+  pluginId: string,
+  values: SettingValue[],
+): PluginSettingsGroup[] {
+  if (!running.has(pluginId)) {
+    throw {
+      code: 'plugin.settings.unavailable',
+      params: { plugin: pluginId },
+      errorId: 'acceptance',
+    } satisfies AppError;
+  }
+  const fields = declarations.find(([held]) => held === pluginId)?.[1] ?? [];
+  const blank = fields.find(
+    (field) =>
+      field.required &&
+      (values.find((value) => value.key === field.key)?.value ?? '').trim() ===
+        '',
+  );
+  if (blank !== undefined) {
+    throw {
+      code: 'plugin.settings.required',
+      params: { plugin: pluginId, field: blank.key },
+      errorId: 'acceptance',
+    } satisfies AppError;
+  }
+  // Only the declared fields are kept, which is what the kernel does with a
+  // value for a field the plugin no longer asks for.
+  for (const field of fields) {
+    answers.set(
+      `${pluginId}/${field.key}`,
+      values.find((value) => value.key === field.key)?.value ?? '',
+    );
+  }
+  return listSettings();
 }
 
 /**

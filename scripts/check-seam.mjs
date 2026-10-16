@@ -127,6 +127,19 @@ const pairs = [
     struct: 'PluginInstallPreview',
     ts: 'PluginInstallPreview',
   },
+  // The settings form: one plugin's fields as the page draws them, and one
+  // plugin's worth of them. Two shapes rather than one because the page draws
+  // them per plugin, and the grouping is the kernel's.
+  {
+    rust: 'src-tauri/src/plugins/settings.rs',
+    struct: 'PluginSettingField',
+    ts: 'PluginSettingField',
+  },
+  {
+    rust: 'src-tauri/src/plugins/settings.rs',
+    struct: 'PluginSettingsGroup',
+    ts: 'PluginSettingsGroup',
+  },
 ];
 
 const failures = [];

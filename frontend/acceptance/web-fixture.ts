@@ -13,6 +13,7 @@ import * as assets from './assets';
 import * as fields from './fields';
 import { markOn, recordsOf, sharedIds } from './marks';
 import * as plugins from './plugins';
+import type { SettingValue } from '../src/plugins/mountPoints';
 import type {
   AppError,
   SettingsState,
@@ -401,6 +402,16 @@ mockIPC(
         return plugins.contentRows(String(payload.pluginId));
       case 'run_safe_mode':
         return plugins.safeMode();
+      case 'list_plugin_settings':
+        // The space travels with the call — every mount point is named with one
+        // (ADR 0012) — and the answer does not depend on it: a plugin's settings
+        // are the same ones whichever space is on screen (baseline §14.6).
+        return plugins.listSettings();
+      case 'save_plugin_settings':
+        return plugins.saveSettings(
+          String(payload.pluginId),
+          payload.values as SettingValue[],
+        );
       case 'check_for_update':
         return reportedCheck();
       case 'install_update':

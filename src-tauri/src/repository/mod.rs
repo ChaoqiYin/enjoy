@@ -26,6 +26,10 @@ mod migration_tests;
 // counting a plugin's rows for the uninstall question, and forgetting them if
 // the user says so.
 mod plugin_content;
+// What the user filled in for a plugin, which is the other half of the plugin
+// system's storage: `plugin_content` is what a plugin left in the library,
+// this is what the library holds about the plugin.
+mod plugin_settings;
 mod scans;
 pub(crate) mod schema;
 mod spaces;

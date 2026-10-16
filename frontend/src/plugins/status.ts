@@ -2,7 +2,10 @@ import type {
   PluginBootstrap,
   PluginFailure,
   PluginInstallPreview,
+  PluginSettingField,
+  PluginSettingsGroup,
 } from '../shared/api';
+import type { SettingValue } from './mountPoints';
 import type { PluginId } from './registry';
 
 /**
@@ -18,7 +21,14 @@ import type { PluginId } from './registry';
  * crosses the seam is declared, and handed on from here so that a reader of the
  * plugin modules finds them under the name they use.
  */
-export type { PluginBootstrap, PluginFailure, PluginInstallPreview };
+export type {
+  PluginBootstrap,
+  PluginFailure,
+  PluginInstallPreview,
+  PluginSettingField,
+  PluginSettingsGroup,
+};
+export type { SettingValue } from './mountPoints';
 
 /**
  * What the plugin page may do to the plugins on disk.
@@ -46,6 +56,24 @@ export interface PluginPort {
   contentRows(id: PluginId): Promise<number>;
   /** Puts the enable record aside: nothing is switched on, everything stays. */
   safeMode(): Promise<readonly PluginBootstrap[]>;
+  /**
+   * What the plugins need the user to fill in, with what the user has.
+   *
+   * Only the plugins this window is asking appear, which is the running window's
+   * rotation rather than the disk: a plugin switched on since the window opened
+   * has not been asked anything and has no form until the next start.
+   */
+  settings(spaceId: number): Promise<readonly PluginSettingsGroup[]>;
+  /**
+   * Checks and saves one plugin's form, answering with every group as it now
+   * stands — the same shape `settings` answers with, so the page redraws from
+   * the answer instead of working out what changed.
+   */
+  saveSettings(
+    spaceId: number,
+    id: PluginId,
+    values: readonly SettingValue[],
+  ): Promise<readonly PluginSettingsGroup[]>;
 }
 
 /** What one row of the plugin page says. */
@@ -85,6 +113,11 @@ export const noPlugins: PluginPort = {
   uninstall: () => nothingToChange(),
   contentRows: () => nothingToChange(),
   safeMode: () => nothingToChange(),
+  // Reading answers with nothing, which is the truth about a window with no
+  // backend: there are no plugins to need anything filled in. Saving says so
+  // rather than resolving, like the four lifecycle methods above.
+  settings: async () => [],
+  saveSettings: () => nothingToChange(),
 };
 
 function nothingToChange(): Promise<never> {

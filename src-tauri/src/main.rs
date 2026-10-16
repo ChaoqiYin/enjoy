@@ -92,6 +92,8 @@ fn main() {
             commands::plugin::uninstall_plugin,
             commands::plugin::plugin_content_rows,
             commands::plugin::run_safe_mode,
+            commands::plugin_settings::list_plugin_settings,
+            commands::plugin_settings::save_plugin_settings,
             commands::window::show_window,
             commands::window::close_window,
             commands::window::minimize_window,
