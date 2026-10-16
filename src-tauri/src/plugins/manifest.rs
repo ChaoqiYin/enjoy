@@ -240,7 +240,13 @@ fn required(field: &'static str, value: Option<String>) -> Result<String, Proble
     }
 }
 
-fn valid_id(id: &str) -> bool {
+/// Whether this is a name a plugin may have.
+///
+/// The same rule the manifest is held to, and `pub(crate)` because the store
+/// holds an id that came from the window rather than out of a manifest to it
+/// too, before joining it onto anything: what an id may be is one rule, and it
+/// is this one.
+pub(crate) fn valid_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= LONGEST_ID
         && id

@@ -46,6 +46,8 @@ mod store;
 #[cfg(test)]
 mod dispatch_tests;
 #[cfg(test)]
+mod escape_tests;
+#[cfg(test)]
 mod failure_tests;
 #[cfg(test)]
 pub(crate) mod fixture;

@@ -288,9 +288,27 @@ impl Store {
     }
 
     /// The directory of one installed plugin, or the failure that names it.
+    ///
+    /// The id is held to [`manifest::valid_id`] *before* it is joined onto
+    /// anything, because this one comes from the window and not from a manifest
+    /// that already passed the rule. A valid id is a single ordinary path
+    /// component — no separator, no `.`, no `..` — which is what makes the join
+    /// below stay inside the plugins directory. Without that, `..` would name
+    /// the plugins directory's parent, `$APPDATA` itself, and `../..` would
+    /// name its parent in turn, while every caller of this hands the answer to
+    /// something that removes or writes: `uninstall` would delete the
+    /// application's whole data directory — database, thumbnails and all — for
+    /// a plugin id of two characters. A plugin's interface runs in this window's
+    /// own origin (Q43), so an id is not an identity to be trusted; it is a name
+    /// this kernel handed out, and a name it never handed out is not installed.
+    ///
+    /// A directory whose name is not a valid id is refused too, and that is the
+    /// same rule rather than a second one: such a directory can never hold a
+    /// manifest that matches it ([`manifest::read`] compares the two), so it is
+    /// a row that says it failed, not a plugin any lifecycle action is about.
     fn installed_plugin(&self, id: &str) -> Result<PathBuf, AppError> {
         let directory = self.directory.join(id);
-        if id.is_empty() || !directory.is_dir() {
+        if !manifest::valid_id(id) || !directory.is_dir() {
             return Err(
                 AppError::new("plugin.not_found", format!("no plugin named {id}"))
                     .with_param("plugin", id),

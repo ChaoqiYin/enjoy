@@ -152,20 +152,47 @@ fn failed(path: &Path, source: impl std::fmt::Display) -> AppError {
 /// An archive unpacked into a directory of ours, which goes when this does.
 struct Unpacked(PathBuf);
 
+/// A directory of ours that is new and empty, under this name if it is free.
+///
+/// `fs::create_dir` and not `create_dir_all`, and that is the whole point: the
+/// creation is what decides whether the name was free, so a name that is taken
+/// is left alone rather than unpacked into. The numbers after it are the same
+/// name asked again.
+fn free_directory(wanted: &str) -> Result<PathBuf, AppError> {
+    let mut candidate = std::env::temp_dir().join(wanted);
+    let mut attempt = 1;
+    loop {
+        match fs::create_dir(&candidate) {
+            Ok(()) => return Ok(candidate),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                candidate = std::env::temp_dir().join(format!("{wanted}-{attempt}"));
+                attempt += 1;
+            }
+            Err(error) => return Err(failed(&candidate, error)),
+        }
+    }
+}
+
 impl Unpacked {
     fn open(archive: &Path) -> Result<Self, AppError> {
         if !is_archive(archive) {
             return Err(invalid_source(archive));
         }
-        let directory = std::env::temp_dir().join(format!(
+        let wanted = format!(
             "enjoy-plugin-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
+        );
         // A directory that is new and empty: what is unpacked into it is
         // whatever the archive says, and nothing of ours is in there to be
-        // overwritten.
-        fs::create_dir_all(&directory).map_err(|error| failed(&directory, error))?;
+        // overwritten. That is why the name is not simply taken: `NEXT` starts
+        // at 0 in every run, so a directory left behind by a process that was
+        // killed meets a recycled pid and the name comes up again — and
+        // unpacking into that one would put this archive's files among the
+        // previous plugin's, with the preview then reading *that* one's
+        // manifest, since a plugin's own directory is what is read from its
+        // root. A taken name is not reused; the next number is.
+        let directory = free_directory(&wanted)?;
         let unpacked = Self(directory);
         let file = fs::File::open(archive).map_err(|error| failed(archive, error))?;
         let mut zip = zip::ZipArchive::new(file).map_err(|error| failed(archive, error))?;
@@ -197,4 +224,35 @@ impl Drop for Unpacked {
 fn is_archive(path: &Path) -> bool {
     path.extension()
         .is_some_and(|extension| extension.eq_ignore_ascii_case("zip"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A name that is taken is left alone, and the next one is used.
+    ///
+    /// This is the case the comment in `Unpacked::open` is about: `NEXT` starts
+    /// at 0 in every run, so a directory left behind by a process that was
+    /// killed meets a recycled pid and the same name comes up again.
+    #[test]
+    fn a_taken_name_is_not_unpacked_into() {
+        let taken = free_directory("enjoy-plugin-test-taken").unwrap();
+        fs::write(taken.join("from-the-last-run.js"), "somebody else's code").unwrap();
+
+        let next = free_directory("enjoy-plugin-test-taken").unwrap();
+
+        assert_ne!(next, taken);
+        assert!(
+            !next.join("from-the-last-run.js").exists(),
+            "what is unpacked into the new directory is this archive's files and nothing else"
+        );
+        assert!(
+            taken.join("from-the-last-run.js").exists(),
+            "the directory that was already there is not written into"
+        );
+
+        fs::remove_dir_all(&taken).unwrap();
+        fs::remove_dir_all(&next).unwrap();
+    }
 }
