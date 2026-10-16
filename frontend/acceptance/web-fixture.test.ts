@@ -24,7 +24,7 @@
 // what the walkthrough asks, or it is reading the stand-in.
 
 import { describe, expect, it } from 'vitest';
-import { libraryApi, shareApi } from '../src/shared/api';
+import { libraryApi, pluginApi, shareApi } from '../src/shared/api';
 import { acceptance } from './web-fixture';
 import { videos } from './records';
 import type { VideoQuery } from '../src/shared/api';
@@ -229,6 +229,84 @@ describe('the fixture as a stand-in backend', () => {
     acceptance.setScan('complete');
     await expect(started).resolves.toHaveLength(36);
     expect((await libraryApi.scanStatus()).phase).toBe('complete');
+  });
+
+  it('answers the plugin lifecycle the way the kernel does', async () => {
+    // Asked through `pluginApi`, the address the page itself asks from, for the
+    // reason the listing above is: a fixture asked in another spelling is a
+    // fixture answering a question nobody asks.
+    //
+    // The three seeded plugins are the three states a row can be in — on with an
+    // interface, switched off, and refused by its own manifest — because a
+    // walkthrough of the plugin page that could only reach one of them would be
+    // a reading of a third of the page.
+    const seeded = await pluginApi.list();
+    expect(
+      seeded.map((plugin) => [
+        plugin.id,
+        plugin.enabled,
+        plugin.failure === null,
+      ]),
+    ).toEqual([
+      ['cover-fetcher', true, true],
+      ['watch-log', false, true],
+      ['broken-one', true, false],
+    ]);
+    expect(seeded[2].entry).toBeNull();
+
+    // A pre-flight reads a source and copies nothing: what it answers is where
+    // the plugin would land and what it declares, and the list is what it was.
+    const preview = await pluginApi.preview('/downloads/new-one');
+    expect(preview.destination).toBe('/acceptance/plugins/new-one');
+    expect(preview.plugin.capabilities).toEqual(['fetch']);
+    expect(await pluginApi.list()).toHaveLength(3);
+    // And the one refusal a pre-flight can hit: an id is what a plugin is found
+    // under, and two plugins cannot share one.
+    await expect(
+      pluginApi.preview('/downloads/watch-log'),
+    ).rejects.toMatchObject({ code: 'plugin.install.exists' });
+
+    // Installing adds a row and uninstalling takes it away — the two ends of the
+    // one path a plugin reaches the list by, each answering with the whole list
+    // as it now stands.
+    const added = await pluginApi.install('/downloads/new-one');
+    expect(added.map((plugin) => plugin.id)).toEqual([
+      'cover-fetcher',
+      'watch-log',
+      'broken-one',
+      'new-one',
+    ]);
+    const removed = await pluginApi.uninstall('new-one', false);
+    expect(removed.map((plugin) => plugin.id)).toEqual([
+      'cover-fetcher',
+      'watch-log',
+      'broken-one',
+    ]);
+
+    // Switching one off answers with the whole list, and only that one moved.
+    const off = await pluginApi.setEnabled('cover-fetcher', false);
+    expect(off.map((plugin) => [plugin.id, plugin.enabled])).toEqual([
+      ['cover-fetcher', false],
+      ['watch-log', false],
+      ['broken-one', true],
+    ]);
+
+    // What the uninstall question is asked with: the rows this plugin wrote, and
+    // nothing for a plugin that wrote none.
+    expect(await pluginApi.contentRows('cover-fetcher')).toBe(128);
+    expect(await pluginApi.contentRows('watch-log')).toBe(0);
+
+    // Safe mode: every plugin off, and none of them gone.
+    const aside = await pluginApi.safeMode();
+    expect(aside.map((plugin) => [plugin.id, plugin.enabled])).toEqual([
+      ['cover-fetcher', false],
+      ['watch-log', false],
+      ['broken-one', false],
+    ]);
+
+    // Put back the one thing this moved: the fixture is the page's, and the page
+    // a walkthrough opens is seeded from it.
+    await pluginApi.setEnabled('cover-fetcher', true);
   });
 
   it('refuses a rescan that was cancelled, the way the backend does', async () => {
