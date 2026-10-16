@@ -179,6 +179,17 @@ pub(crate) struct MountPoint {
     pub merge: MergeRule,
 }
 
+/// The catalog key of each mount point, spelled once. The host dispatches on
+/// these rather than typing a key again: a mount point key is shaped like an
+/// error code (`plugin.settings`), and a second copy of one is the drift this
+/// catalog exists to prevent (docs/adr/0045-挂载点分两半且是封闭集.md §6).
+pub(crate) const APP_PAGE: &str = "app.page";
+pub(crate) const VIDEO_PANEL: &str = "video.panel";
+pub(crate) const VIDEO_FIELDS: &str = "video.fields";
+pub(crate) const PLUGIN_SETTINGS: &str = "plugin.settings";
+pub(crate) const SCAN_COMPLETED: &str = "scan.completed";
+pub(crate) const VIDEO_ACTIONS: &str = "video.actions";
+
 /// The six mount points, in catalog order.
 pub(crate) const MOUNT_POINTS: [MountPoint; 6] = [
     MountPoint {

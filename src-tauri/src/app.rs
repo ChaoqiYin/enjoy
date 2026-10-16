@@ -1,5 +1,7 @@
 use crate::error::AppError;
+use crate::events::AppEvents;
 use crate::i18n::{language, native};
+use crate::plugins::PluginHost;
 use crate::repository::Repository;
 use crate::scan::control::ScanControl;
 use crate::share::ShareControl;
@@ -20,6 +22,13 @@ pub(crate) struct AppState {
     pub(crate) repository: Arc<Mutex<Repository>>,
     pub(crate) update: Arc<UpdateControl>,
     pub(crate) share: Arc<ShareControl>,
+    /// The one thing in the kernel that knows plugins exist. What reaches it is
+    /// the mount points a command is about — the fields a video has, what a
+    /// plugin needs the user to fill in — and nothing here knows a plugin's
+    /// name. Nothing reads it yet: the commands that will are the install,
+    /// enable and disable ones (#86) and the field ones (#88).
+    #[allow(dead_code)]
+    pub(crate) plugins: Arc<PluginHost>,
 }
 
 /// A state a test can hold. It lives here rather than beside any one test
@@ -39,6 +48,12 @@ pub(crate) fn test_state(fixture: &crate::repository::fixture::Fixture) -> AppSt
         repository: Arc::new(Mutex::new(repository)),
         update: Arc::new(UpdateControl::default()),
         share: Arc::new(ShareControl::default()),
+        // No plugin is enabled, and none can be until there is a loader to
+        // enable one (#86): a host a test holds is a host with an empty
+        // rotation, which is also what the application itself starts with.
+        plugins: Arc::new(PluginHost::new(
+            Arc::new(crate::events::Recorded::default()),
+        )),
     }
 }
 
@@ -74,6 +89,7 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
         scan: Arc::new(ScanControl::default()),
         update: Arc::new(UpdateControl::default()),
         share: Arc::new(ShareControl::default()),
+        plugins: Arc::new(PluginHost::new(Arc::new(AppEvents(app.clone())))),
     });
     Ok(())
 }

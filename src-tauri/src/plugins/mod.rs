@@ -1,15 +1,165 @@
 //! The plugin host: the one place in the kernel that knows plugins exist.
 //!
-//! Only the mount point catalog is here so far. It is a generated file
-//! (`npm run generate:plugins`, held in place by `npm run check`) because the
-//! six mount points are also written down in the interface's types and in the
-//! page a plugin author reads; `mount_points.rs` says where it comes from.
+//! Everything else in the kernel asks this, and asks nothing else about
+//! plugins: a flow that has something a plugin might want hands it over here
+//! and is handed back what the plugins said. No kernel code names a plugin, and
+//! none of it can be made to wait on one — a mount call answers, whatever the
+//! plugins did.
 //!
-//! The dispatch that reads this table, the manifest validation and the
-//! install/enable/uninstall cycle arrive with #84 and #86, and they are what
-//! will consume it. Until then nothing in the kernel calls it, which is what the
-//! allowance below is for — a warning that the whole catalog is dead code says
-//! nothing a reader does not already know from this comment.
+//! Three rules are the whole of the host:
+//!
+//! - **A plugin can only add** (ADR 0043 §2). A mount call hands back
+//!   contributions. There is no way for a plugin to remove, replace, block or
+//!   veto anything the kernel does, and no mount method returns an error.
+//! - **A failure is not an event** (ADR 0043 §5). A body that throws, is
+//!   interrupted, or answers something the kernel cannot read has said nothing:
+//!   this call goes on without it, the kernel goes on, and the user gets one
+//!   notification naming the plugin and the mount point. Five failed calls take
+//!   the plugin out of the rotation, because the alternative is a notification
+//!   per render.
+//! - **The catalog is the one copy of the mount points** (ADR 0045 §6). The
+//!   keys, the params and the results all come out of [`mount_points`], which
+//!   is generated from `shared/plugins/mount-points.json`.
+//!
+//! The files beside this one hold one responsibility each: [`registry`] who is
+//! asked and in what order, [`dispatch`] the mount points themselves,
+//! [`metrics`] what each call cost, [`runner`] the port a plugin's working half
+//! is reached through. This file holds only what they share: the type, its two
+//! locks, and the order a call is written down in.
+//!
+//! Where a call's interruption comes from: not here. A body that runs past its
+//! deadline is stopped by the deadline inside its own store (ADR 0044 §4) and
+//! reports [`RunnerError::TimedOut`]; the host does not spawn a thread per call
+//! to keep one of its own, because a plugin's body is already a dedicated
+//! thread with a resident store (ADR 0044 §2) and because a wasm blocked inside
+//! a host function is a blind spot this design writes down instead of papering
+//! over (ADR 0044 §6). What the host owes is what happens after, and that is
+//! the same as for any other failure: the call said nothing.
 
-#[allow(dead_code)]
+mod dispatch;
+mod metrics;
+mod registry;
+mod runner;
+
+#[cfg(test)]
+mod dispatch_tests;
+#[cfg(test)]
+mod failure_tests;
+#[cfg(test)]
+pub(crate) mod fixture;
+#[cfg(test)]
+mod metrics_tests;
+
+// The catalog is generated (`npm run generate:plugins`, held in place by
+// `npm run check`) because the six mount points are also written down in the
+// interface's types and in the page a plugin author reads; `mount_points.rs`
+// says where it comes from. Part of what it declares is for the interface half
+// rather than this one — the two interface mount points and their params — so
+// the module holds more than the host reads.
 pub(crate) mod mount_points;
+
+pub(crate) use dispatch::PluginSettings;
+pub(crate) use metrics::{CallOutcome, CallRecord};
+pub(crate) use runner::{Runner, RunnerError};
+
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Duration;
+
+use crate::events::Events;
+
+use metrics::Metrics;
+use registry::Registry;
+
+/// The plugins the kernel asks, what each call cost, and who is told when one
+/// fails.
+///
+/// Held by [`crate::app::AppState`]. It is made once and shared, because the
+/// order the user arranged and the count of failures behind a plugin that has
+/// stopped answering are the same facts for every thread that asks.
+pub(crate) struct PluginHost {
+    events: Arc<dyn Events>,
+    /// The plugins the kernel asks, in the user's order.
+    plugins: Mutex<Registry>,
+    /// The calls that have been made, for the status line and the diagnostics.
+    calls: Mutex<Metrics>,
+}
+
+impl PluginHost {
+    pub(crate) fn new(events: Arc<dyn Events>) -> Self {
+        Self {
+            events,
+            plugins: Mutex::new(Registry::default()),
+            calls: Mutex::new(Metrics::default()),
+        }
+    }
+
+    /// Puts a plugin into the rotation, or back into it, with the body the
+    /// kernel will ask.
+    ///
+    /// The body arrives here rather than being built here: which half a plugin
+    /// has, and what a body is made of, is what loading decides (#86) and what
+    /// the runtime knows (#87). The host's part is only that it will be asked.
+    pub(crate) fn enable(&self, plugin: &str, body: Arc<dyn Runner>) {
+        self.registry().enable(plugin, body);
+    }
+
+    /// Stops asking a plugin, keeping its place in the order.
+    pub(crate) fn disable(&self, plugin: &str) {
+        self.registry().disable(plugin);
+    }
+
+    /// Puts the plugins in the order the user arranged them.
+    pub(crate) fn reorder(&self, order: &[String]) {
+        self.registry().reorder(order);
+    }
+
+    /// The plugins the kernel asks, in order.
+    pub(crate) fn enabled(&self) -> Vec<String> {
+        self.registry().enabled()
+    }
+
+    /// The calls that have been made, oldest first.
+    pub(crate) fn calls(&self) -> Vec<CallRecord> {
+        self.metrics().recent()
+    }
+
+    /// The plugins the kernel asks, in order, as (id, body).
+    fn asking(&self) -> Vec<(String, Arc<dyn Runner>)> {
+        self.registry().asking()
+    }
+
+    /// Writes down how one call ended and what it cost.
+    fn write_down(
+        &self,
+        plugin: &str,
+        mount_point: &'static str,
+        outcome: CallOutcome,
+        elapsed: Duration,
+    ) {
+        self.metrics().record(CallRecord {
+            plugin: plugin.to_string(),
+            mount_point,
+            outcome,
+            elapsed,
+        });
+    }
+
+    /// The registry.
+    ///
+    /// A poisoned lock is taken back rather than raised: no plugin call happens
+    /// while either lock is held, so nothing a plugin does can poison one, and
+    /// a panic somewhere else must not turn into a plugin system that throws on
+    /// every mount. That would be the opposite of what this module is for.
+    fn registry(&self) -> MutexGuard<'_, Registry> {
+        self.plugins
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// The calls that have been made.
+    fn metrics(&self) -> MutexGuard<'_, Metrics> {
+        self.calls
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}

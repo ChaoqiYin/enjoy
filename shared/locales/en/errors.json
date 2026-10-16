@@ -54,5 +54,7 @@
   "share.port.in_use": "The {{count}} ports from {{port}} on are all taken by other programs, so the share service could not start",
   "share.start.failed": "The share service could not start. Look up the reference in the log",
   "share.already_running": "The share service is already running",
-  "share.stop_failed": "The share service could not be stopped. Look up the reference in the log"
+  "share.stop_failed": "The share service could not be stopped. Look up the reference in the log",
+  "plugin.call.failed": "Plugin {{plugin}} failed at {{mountPoint}}, and the app carried on without it",
+  "plugin.call.timed_out": "Plugin {{plugin}} took too long at {{mountPoint}} and was stopped"
 }

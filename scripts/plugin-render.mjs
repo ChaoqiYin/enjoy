@@ -30,6 +30,14 @@ const variant = (value) =>
     .map((part) => part[0].toUpperCase() + part.slice(1))
     .join('');
 
+// A mount point key as a Rust constant name: `video.fields` becomes
+// `VIDEO_FIELDS`. The key itself is spelled once, in the constant's value.
+const constant = (key) =>
+  key
+    .split('.')
+    .map((part) => part.toUpperCase())
+    .join('_');
+
 const rustType = (type) =>
   type.endsWith('[]')
     ? `Vec<${rustType(type.slice(0, -2))}>`
@@ -173,6 +181,18 @@ export function rustSource(catalog) {
     '    pub merge: MergeRule,',
     '}',
     '',
+  );
+  lines.push(
+    '/// The catalog key of each mount point, spelled once. The host dispatches on',
+    '/// these rather than typing a key again: a mount point key is shaped like an',
+    '/// error code (`plugin.settings`), and a second copy of one is the drift this',
+    '/// catalog exists to prevent (docs/adr/0045-挂载点分两半且是封闭集.md §6).',
+  );
+  for (const entry of catalog.mountPoints) {
+    lines.push(`pub(crate) const ${constant(entry.key)}: &str = "${entry.key}";`);
+  }
+  lines.push('');
+  lines.push(
     '/// The six mount points, in catalog order.',
     `pub(crate) const MOUNT_POINTS: [MountPoint; ${catalog.mountPoints.length}] = [`,
   );
