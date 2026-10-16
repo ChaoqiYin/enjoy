@@ -9,6 +9,7 @@ mod logging;
 mod media;
 mod model;
 mod player;
+mod plugins;
 #[cfg(test)]
 mod ports;
 mod preferences;

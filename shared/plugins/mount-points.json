@@ -1,0 +1,198 @@
+{
+  "version": 1,
+  "categories": {
+    "interface": "界面类",
+    "data": "数据类",
+    "flow": "流程类",
+    "action": "动作类"
+  },
+  "kinds": {
+    "list": "叠加",
+    "chain": "串问"
+  },
+  "sides": {
+    "interface": "插件界面",
+    "body": "运行体"
+  },
+  "scopes": {
+    "app": "整窗",
+    "video": "一条视频",
+    "plugin": "插件自己",
+    "scan": "一次扫描"
+  },
+  "mergeRules": {
+    "overlay": "叠加",
+    "first-non-empty": "依次问、取第一个非空"
+  },
+  "types": {
+    "VideoRef": {
+      "comment": "The video a call is about, and everything a plugin is told about it.",
+      "doc": "本次调用的视频，也是插件能看到的关于它的全部",
+      "fields": [
+        {
+          "name": "id",
+          "type": "number",
+          "doc": "视频在主库里的 id"
+        },
+        {
+          "name": "path",
+          "type": "string",
+          "doc": "视频文件的绝对路径"
+        }
+      ]
+    },
+    "FieldValue": {
+      "comment": "One named field's value. The kernel adds the source plugin when it writes; an identity a plugin claims about itself does not count.",
+      "doc": "一条具名字段的值。内核写库时补上来源插件，插件自报的身份不作数",
+      "fields": [
+        {
+          "name": "key",
+          "type": "string",
+          "doc": "字段名，比如 cover"
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "doc": "字段值；封面是一个路径，图片由内核写进 covers/"
+        }
+      ]
+    },
+    "SettingField": {
+      "comment": "One setting the kernel draws for a plugin, out of what the plugin says it needs.",
+      "doc": "内核替插件画的一个设置项，插件只声明它要什么，不画控件",
+      "fields": [
+        {
+          "name": "key",
+          "type": "string",
+          "doc": "设置项的名字"
+        },
+        {
+          "name": "kind",
+          "type": "SettingFieldKind",
+          "doc": "要哪一种控件"
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "doc": "显示给用户的标题"
+        },
+        {
+          "name": "required",
+          "type": "boolean",
+          "doc": "用户必须填才能用这个插件"
+        }
+      ]
+    }
+  },
+  "enums": {
+    "SettingFieldKind": {
+      "comment": "The four kinds of setting field the kernel draws.",
+      "doc": "内核画得出的四种设置项",
+      "values": ["text", "textarea", "toggle", "directory"]
+    }
+  },
+  "mountPoints": [
+    {
+      "key": "app.page",
+      "category": "interface",
+      "kind": "list",
+      "side": "interface",
+      "scope": "app",
+      "merge": "overlay",
+      "doc": "插件往顶部导航加一个自己的页面，做一件与视频库无关的事",
+      "params": [],
+      "result": [],
+      "occupants": []
+    },
+    {
+      "key": "video.panel",
+      "category": "interface",
+      "kind": "list",
+      "side": "interface",
+      "scope": "video",
+      "merge": "overlay",
+      "doc": "插件往视频详情面板里加一块自己的区域，查看某条视频时能看到它算出来的东西",
+      "params": [
+        {
+          "name": "video",
+          "type": "VideoRef"
+        }
+      ],
+      "result": [],
+      "occupants": []
+    },
+    {
+      "key": "video.fields",
+      "category": "data",
+      "kind": "chain",
+      "side": "body",
+      "scope": "video",
+      "merge": "first-non-empty",
+      "doc": "内核问插件要这条视频的具名字段。两个插件提供同一个字段时依次问、取第一个非空，因此后一个插件是补位而不是覆盖",
+      "params": [
+        {
+          "name": "video",
+          "type": "VideoRef"
+        }
+      ],
+      "result": [
+        {
+          "name": "fields",
+          "type": "FieldValue[]"
+        }
+      ],
+      "occupants": []
+    },
+    {
+      "key": "plugin.settings",
+      "category": "data",
+      "kind": "list",
+      "side": "body",
+      "scope": "plugin",
+      "merge": "overlay",
+      "doc": "内核问插件「用户必须填什么」，然后自己渲染、校验、保存；纯运行体的插件因此也能让用户填东西",
+      "params": [],
+      "result": [
+        {
+          "name": "fields",
+          "type": "SettingField[]"
+        }
+      ],
+      "occupants": []
+    },
+    {
+      "key": "scan.completed",
+      "category": "flow",
+      "kind": "list",
+      "side": "body",
+      "scope": "scan",
+      "merge": "overlay",
+      "doc": "一次扫描完成，内核把刚入库的视频交给插件。这是通知，插件此刻要做的事落在它自己的数据目录里",
+      "params": [
+        {
+          "name": "videos",
+          "type": "VideoRef[]"
+        }
+      ],
+      "result": [],
+      "occupants": []
+    },
+    {
+      "key": "video.actions",
+      "category": "action",
+      "kind": "list",
+      "side": "body",
+      "scope": "video",
+      "merge": "overlay",
+      "doc": "插件往视频的右键菜单和详情里加一个自己的动作。归运行体是必须的：没有插件界面的插件只有这一条路能触发自己",
+      "params": [
+        {
+          "name": "video",
+          "type": "VideoRef"
+        }
+      ],
+      "result": [],
+      "occupants": []
+    }
+  ]
+}
