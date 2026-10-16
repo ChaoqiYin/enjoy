@@ -81,17 +81,21 @@ function Actions() {
   );
 }
 
-it('gives the window a position to read before any plugin has loaded', () => {
+it('gives the window its positions to read before any plugin has loaded', () => {
   // The navigation reads `app.page` while it is being rendered for the first
   // time, so the positions have to be declared by then — a position declared
   // when the first plugin arrives would be a page missing from the navigation
-  // until something else happened.
+  // until something else happened. `video.panel` is read the same way, by the
+  // details panel, and it is the one position whose absence is not a gap in a
+  // page but a plugin that cannot load at all: a registration at a position
+  // nobody declared is refused while the interface is loading (ADR 0045 §4).
   render(
     <PluginHostProvider>
       <Probe />
     </PluginHostProvider>,
   );
   expect(held.registry.drawsAt('app.page', KERNEL)).toEqual([]);
+  expect(held.registry.drawsAt('video.panel', KERNEL)).toEqual([]);
 });
 
 it('says the plugins are still being loaded until every answer is in', async () => {
