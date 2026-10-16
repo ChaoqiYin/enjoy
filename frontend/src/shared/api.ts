@@ -6,6 +6,9 @@ import { open } from '@tauri-apps/plugin-dialog';
 import type {
   AppError,
   LanguageSettings,
+  PluginBootstrap,
+  PluginFailure,
+  PluginInstallPreview,
   ScanStatus,
   SettingsState,
   ShareStatus,
@@ -32,6 +35,9 @@ export type {
   Device,
   IndexChanges,
   LanguageSettings,
+  PluginBootstrap,
+  PluginFailure,
+  PluginInstallPreview,
   ScanStatus,
   SettingsState,
   ShareStatus,
@@ -130,6 +136,50 @@ export const libraryApi = {
   // Installing hands the update to the platform installer and exits, so this
   // never answers a restart that worked; the caller swallows the rejection.
   restartApp: () => invoke<void>('restart_app'),
+};
+
+/**
+ * The plugins installed on this machine: what is there, and what the user may do
+ * about it.
+ *
+ * Two things about this group are decisions rather than plumbing.
+ *
+ * **Every command that changes something answers with the whole list as it now
+ * stands**, the way the space commands answer with the space to show afterwards.
+ * A lifecycle action changes what the page lists, and a caller that had to ask
+ * again could draw the two contradicting each other.
+ *
+ * **None of them reaches the running plugin host.** Installing, switching and
+ * uninstalling take effect on the next start (spec #82 「不做热插拔」), so what
+ * these answer with is the state of the disk — which is why `pluginsRestartHint`
+ * is on the page rather than a live update.
+ *
+ * `preview` and `install` are one source read twice: the first says what
+ * installing it would do and copies nothing, and the user is asked in between.
+ * The source is a path the user picked — a plugin's folder, or a `.zip` holding
+ * one — and there is no address that could be installed from: v1 has no network
+ * install and no marketplace (spec #82 「安装」).
+ *
+ * `contentRows` is asked before an uninstall so that the question can say how
+ * many rows of the library would go with the plugin. It is its own command
+ * because it is asked before anything is decided, and because the answer is a
+ * number the user reads rather than an action they take.
+ */
+export const pluginApi = {
+  list: () => invoke<PluginBootstrap[]>('list_plugins'),
+  setEnabled: (pluginId: string, enabled: boolean) =>
+    invoke<PluginBootstrap[]>('set_plugin_enabled', { pluginId, enabled }),
+  preview: (source: string) =>
+    invoke<PluginInstallPreview>('preview_plugin_install', { source }),
+  install: (source: string) =>
+    invoke<PluginBootstrap[]>('install_plugin', { source }),
+  uninstall: (pluginId: string, deleteContent: boolean) =>
+    invoke<PluginBootstrap[]>('uninstall_plugin', { pluginId, deleteContent }),
+  contentRows: (pluginId: string) =>
+    invoke<number>('plugin_content_rows', { pluginId }),
+  // Answers with the list after it, like the rest: every plugin is off now, and
+  // the page says so without asking again.
+  safeMode: () => invoke<PluginBootstrap[]>('run_safe_mode'),
 };
 
 /**
@@ -283,6 +333,26 @@ export const backendEvents = {
 /** Asks the user for folders, through the platform's own picker. */
 export function pickDirectories(): Promise<string[] | null> {
   return open({ directory: true, multiple: true });
+}
+
+/**
+ * The two shapes a plugin comes in, asked for through the platform's own picker.
+ *
+ * Two functions rather than one, because the platform's picker is one or the
+ * other and never both: a plugin is a folder a user unpacked, or the `.zip` they
+ * downloaded. Which of the two they have is a fact only they know, so it is
+ * asked rather than guessed — and the dialog that asks shows what each one would
+ * install before anything is copied.
+ */
+export function pickPluginFolder(): Promise<string | null> {
+  return open({ directory: true, multiple: false });
+}
+
+export function pickPluginArchive(): Promise<string | null> {
+  return open({
+    multiple: false,
+    filters: [{ name: 'Plugin', extensions: ['zip'] }],
+  });
 }
 
 /**

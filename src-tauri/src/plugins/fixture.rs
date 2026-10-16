@@ -5,7 +5,15 @@
 //! wasm module, a thread, or a deadline. What a body can do to the kernel is
 //! four things, and there is one constructor for each of them: answer, throw,
 //! run past its deadline, or answer something the kernel cannot read.
+//!
+//! It also holds the loading tests' half of the harness: [`Installed`], a
+//! directory with plugins laid out in it, because what loading is about is what
+//! is on disk. Two doubles for two sides of the same module is what this file
+//! is, and neither of them is written by the application.
 
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -160,4 +168,87 @@ impl Runner for FakeBody {
             .push((method.to_string(), payload.to_string()));
         (self.answer)(method, payload)
     }
+}
+
+static NEXT: AtomicU64 = AtomicU64::new(0);
+
+/// A plugins directory a test lays plugins out in, removed when it drops.
+///
+/// The application never writes a plugin's directory — that is the user's, or
+/// the installer's — so a test builds the disk it wants to be looking at, one
+/// call per plugin, rather than driving the install path to get there. A test
+/// about installing is the one exception, and it builds its source the same
+/// way.
+pub(crate) struct Installed(PathBuf);
+
+impl Installed {
+    pub(crate) fn new() -> Self {
+        let path = std::env::temp_dir().join(format!(
+            "enjoy-plugins-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&path).unwrap();
+        Self(path)
+    }
+
+    /// The directory itself, for the calls that take one.
+    pub(crate) fn path(&self) -> &Path {
+        &self.0
+    }
+
+    /// Writes one plugin's directory, manifest and all.
+    pub(crate) fn plugin(&self, id: &str, manifest: &serde_json::Value) -> PathBuf {
+        self.plugin_text(id, &serde_json::to_string_pretty(manifest).unwrap())
+    }
+
+    /// The same, with the manifest's text given rather than built — for the
+    /// tests whose subject is a manifest that is not JSON at all.
+    pub(crate) fn plugin_text(&self, id: &str, manifest: &str) -> PathBuf {
+        let directory = self.0.join(id);
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join(super::manifest::FILE), manifest).unwrap();
+        directory
+    }
+
+    /// A directory with no manifest in it: something else the user left in the
+    /// plugins directory, which is not a plugin.
+    pub(crate) fn stray(&self, name: &str) -> PathBuf {
+        let directory = self.0.join(name);
+        fs::create_dir_all(&directory).unwrap();
+        directory
+    }
+
+    /// What is in the plugins directory now, sorted, directories only.
+    pub(crate) fn contents(&self) -> Vec<String> {
+        let mut names: Vec<String> = fs::read_dir(&self.0)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.path().is_dir())
+            .map(|entry| entry.file_name().to_string_lossy().to_string())
+            .collect();
+        names.sort();
+        names
+    }
+}
+
+impl Drop for Installed {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+/// A manifest that passes every check, as a test starts from it.
+///
+/// A test changes the one thing it is about, so that what it is testing is the
+/// difference it made rather than the twenty lines around it.
+pub(crate) fn manifest(id: &str) -> serde_json::Value {
+    serde_json::json!({
+        "id": id,
+        "name": id,
+        "author": "someone",
+        "apiVersion": super::manifest::API_VERSION,
+        "capabilities": [],
+        "interface": "index.js",
+    })
 }

@@ -13,7 +13,7 @@ import type { BaselineModules, EntryLoader } from './host';
 import { createRegistry } from './registry';
 import type { DrawnKey, PluginRegistry } from './registry';
 import { noPlugins } from './status';
-import type { PluginBootstrapPort, PluginStatus } from './status';
+import type { PluginBootstrap, PluginPort, PluginStatus } from './status';
 
 /**
  * The plugin host, as the rest of the interface sees it.
@@ -64,6 +64,22 @@ export interface PluginHostValue {
   /** One row per installed plugin, newest first as the kernel listed them. */
   statuses: readonly PluginStatus[];
   /**
+   * What the plugin page may do to the plugins on disk.
+   *
+   * Handed down rather than reached for, so that a page is drawn against
+   * whatever kernel the window was given — the real one in the application, and
+   * a test's own in a test.
+   */
+  port: PluginPort;
+  /**
+   * Redraws the rows from a list a lifecycle action has just answered with.
+   *
+   * The page calls this instead of loading anything: a plugin the user has just
+   * switched on is on from the next start, and this window goes on without it
+   * (spec #82 「不做热插拔」).
+   */
+  refresh: (plugins: readonly PluginBootstrap[]) => void;
+  /**
    * Whether the plugins are still being loaded.
    *
    * A page a plugin registered is not there until its plugin is, so a page that
@@ -83,7 +99,7 @@ export function PluginHostProvider({
   children,
 }: {
   /** Where the rows come from. The stand-in is a kernel with nothing installed. */
-  port?: PluginBootstrapPort;
+  port?: PluginPort;
   /** What a plugin may ask for by name. */
   baseline?: BaselineModules;
   /** How an entry is reached. Replaced in tests, where there is no disk. */
@@ -132,8 +148,8 @@ export function PluginHostProvider({
     host.statuses,
   );
   const value = useMemo(
-    () => ({ registry, statuses, loading }),
-    [registry, statuses, loading],
+    () => ({ registry, statuses, loading, port, refresh: host.refresh }),
+    [registry, statuses, loading, port, host],
   );
   return (
     <PluginHostContext.Provider value={value}>

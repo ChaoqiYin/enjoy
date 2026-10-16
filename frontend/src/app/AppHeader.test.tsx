@@ -67,10 +67,22 @@ function header(path = '/', loadEntry = loader) {
               {
                 id: 'a-plugin',
                 name: 'A plugin',
+                author: 'someone',
+                capabilities: [],
                 enabled: true,
                 entry: 'a/interface.js',
+                hasBody: false,
+                failure: null,
               },
             ],
+            setEnabled: async () => [],
+            preview: async () => {
+              throw new Error('unused');
+            },
+            install: async () => [],
+            uninstall: async () => [],
+            contentRows: async () => 0,
+            safeMode: async () => [],
           }}
           loadEntry={loadEntry}
         >

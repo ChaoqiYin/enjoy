@@ -11,11 +11,7 @@ import type {
   PluginRegistry,
 } from './registry';
 import { noPlugins } from './status';
-import type {
-  PluginBootstrap,
-  PluginBootstrapPort,
-  PluginStatus,
-} from './status';
+import type { PluginBootstrap, PluginPort, PluginStatus } from './status';
 
 /**
  * The plugin host, interface side.
@@ -101,7 +97,7 @@ export type BaselineModules = Readonly<Record<string, () => Promise<unknown>>>;
 export interface PluginHostOptions {
   registry: PluginRegistry;
   /** Where the rows come from. The stand-in is a kernel with nothing installed. */
-  port?: PluginBootstrapPort;
+  port?: PluginPort;
   baseline?: BaselineModules;
   /**
    * The positions this interface draws, declared before any plugin is loaded.
@@ -117,6 +113,17 @@ export interface PluginHostOptions {
 export interface PluginHost {
   /** Declares the positions, then loads every enabled interface. Resolves whatever happens. */
   load(): Promise<void>;
+  /**
+   * Redraws the rows from a list the kernel has just answered with, without
+   * loading anything.
+   *
+   * This is what a lifecycle action answers with. Installing, switching and
+   * uninstalling take effect on the next start (spec #82 「不做热插拔」), so
+   * what changes here is what the page says about the plugins — not what this
+   * window is running. Loading the entry of a plugin the user has just switched
+   * on would be the hot-plug the spec does not have.
+   */
+  refresh(plugins: readonly PluginBootstrap[]): void;
   /** One row per installed plugin. The same value until something changes. */
   statuses(): readonly PluginStatus[];
   /** Told when a row changes — a plugin saying what it is doing, or failing. */
@@ -256,9 +263,20 @@ export function createPluginHost({
     }
   }
 
-  async function load(): Promise<void> {
-    for (const entry of await port.bootstrap()) {
-      if (entry.failure !== undefined) {
+  /**
+   * The rows a list of plugins says there should be, without loading anything.
+   *
+   * A plugin that is gone loses its row, which is the one thing a lifecycle
+   * action can do that no plugin of its own can: uninstalling it. Everything
+   * else is what the kernel answered.
+   */
+  function refresh(plugins: readonly PluginBootstrap[]): void {
+    const listed = new Set(plugins.map((entry) => entry.id));
+    for (const id of [...statuses.keys()]) {
+      if (!listed.has(id)) statuses.delete(id);
+    }
+    for (const entry of plugins) {
+      if (entry.failure !== null) {
         put({
           id: entry.id,
           name: entry.name,
@@ -267,11 +285,23 @@ export function createPluginHost({
         });
       } else if (!entry.enabled) {
         put({ id: entry.id, name: entry.name, state: 'disabled' });
-      } else if (entry.entry === undefined) {
-        // A plugin with no interface — a body-only one — is on, and has
-        // nothing for this side to load.
-        put({ id: entry.id, name: entry.name, state: 'enabled' });
       } else {
+        // A plugin with no interface — a body-only one — is on, and has
+        // nothing for this side to load; one that has an interface is written
+        // down as on here and loaded below, so that a window which never loads
+        // it (a lifecycle action, which is not a load) still says the right
+        // thing.
+        put({ id: entry.id, name: entry.name, state: 'enabled' });
+      }
+    }
+    changed();
+  }
+
+  async function load(): Promise<void> {
+    const plugins = await port.bootstrap();
+    refresh(plugins);
+    for (const entry of plugins) {
+      if (entry.failure === null && entry.enabled && entry.entry !== null) {
         await start({ ...entry, entry: entry.entry });
       }
     }
@@ -279,6 +309,7 @@ export function createPluginHost({
 
   return {
     load,
+    refresh,
     statuses: () => snapshot,
     subscribe(listener) {
       listeners.add(listener);

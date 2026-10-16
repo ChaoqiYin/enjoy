@@ -35,10 +35,13 @@
 //! and it is the same for a call that failed and a call that ran past its
 //! deadline: the call said nothing.
 
+mod archive;
 mod dispatch;
+mod manifest;
 mod metrics;
 mod registry;
 mod runner;
+mod store;
 
 #[cfg(test)]
 mod dispatch_tests;
@@ -47,7 +50,11 @@ mod failure_tests;
 #[cfg(test)]
 pub(crate) mod fixture;
 #[cfg(test)]
+mod manifest_tests;
+#[cfg(test)]
 mod metrics_tests;
+#[cfg(test)]
+mod store_tests;
 
 // The catalog is generated (`npm run generate:plugins`, held in place by
 // `npm run check`) because the six mount points are also written down in the
@@ -60,6 +67,7 @@ pub(crate) mod mount_points;
 pub(crate) use dispatch::PluginSettings;
 pub(crate) use metrics::{CallOutcome, CallRecord};
 pub(crate) use runner::{Runner, RunnerError};
+pub(crate) use store::{PluginBootstrap, PluginInstallPreview, Store};
 
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;

@@ -3,7 +3,8 @@ import { afterEach, expect, it } from 'vitest';
 import { KERNEL } from './registry';
 import { PluginHostProvider, usePluginHost } from './PluginHostProvider';
 import type { PluginContext } from './host';
-import type { PluginBootstrapPort } from './status';
+import type { PluginPort } from './status';
+import { pluginPort } from '../test/doubles';
 
 // The provider is where the interface's registration point meets React: the one
 // host for the window, the rows the plugin page reads, and the teardown when the
@@ -34,10 +35,19 @@ function portOf(
     id: string;
     name: string;
     enabled: boolean;
-    entry?: string;
+    entry?: string | null;
   }[]
-): PluginBootstrapPort {
-  return { bootstrap: async () => plugins };
+): PluginPort {
+  return pluginPort(
+    plugins.map((entry) => ({
+      author: 'someone',
+      capabilities: [],
+      entry: null,
+      hasBody: false,
+      failure: null,
+      ...entry,
+    })),
+  );
 }
 
 it('gives the window a position to read before any plugin has loaded', () => {

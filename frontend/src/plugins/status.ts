@@ -1,3 +1,8 @@
+import type {
+  PluginBootstrap,
+  PluginFailure,
+  PluginInstallPreview,
+} from '../shared/api';
 import type { PluginId } from './registry';
 
 /**
@@ -7,49 +12,40 @@ import type { PluginId } from './registry';
  * which of them the user switched off, and which arrived with a manifest that
  * did not validate are all facts the kernel holds before anything of the plugin
  * is loaded. They arrive over a port, and the interface only draws what it is
- * given — `#86` is what fills the port from the manifest and the enable record.
- * Until then the stand-in at the bottom of this file is what the page is given,
- * which is the honest answer: nothing is installed yet.
- */
-
-/**
- * Why a plugin is not usable, in the kernel's error protocol rather than a
- * sentence somebody wrote: a code the interface has words for in both
- * languages, and the parameters those words ask for. A message from the plugin
- * itself would be text the interface cannot translate, cannot test, and cannot
- * hold to anything.
- */
-export interface PluginFailure {
-  code: string;
-  params: Record<string, string>;
-}
-
-/**
- * One plugin as the kernel knows it **before** any interface is loaded.
+ * given.
  *
- * This is the bootstrap graph: which plugins there are, which of them the user
- * switched on, and where each one's interface lives. A plugin with no interface
- * — a body-only plugin, which is what the cover fetcher is — has no `entry` and
- * is still a row on the page.
+ * The three shapes they arrive in are declared where every other shape that
+ * crosses the seam is declared, and handed on from here so that a reader of the
+ * plugin modules finds them under the name they use.
  */
-export interface PluginBootstrap {
-  id: PluginId;
-  /** The name the plugin gives itself in its manifest. */
-  name: string;
-  enabled: boolean;
-  /**
-   * The interface's entry, a path inside that plugin's own directory. Only
-   * this file is ever reached for, which is the other half of the interface's
-   * import rule (see `pluginEntryUrl`).
-   */
-  entry?: string;
-  /** Set when the kernel would not accept the plugin at all. */
-  failure?: PluginFailure;
-}
+export type { PluginBootstrap, PluginFailure, PluginInstallPreview };
 
-/** Where the plugin page's rows come from. */
-export interface PluginBootstrapPort {
+/**
+ * What the plugin page may do to the plugins on disk.
+ *
+ * One port rather than two, because reading the list and changing it are the
+ * same conversation: every method that changes something answers with the list
+ * as it now stands, and a second port would only be a second way to say which
+ * kernel is being talked to.
+ */
+export interface PluginPort {
+  /** Every installed plugin, by id. */
   bootstrap(): Promise<readonly PluginBootstrap[]>;
+  setEnabled(
+    id: PluginId,
+    enabled: boolean,
+  ): Promise<readonly PluginBootstrap[]>;
+  /** What installing this source would do, without doing any of it. */
+  preview(source: string): Promise<PluginInstallPreview>;
+  install(source: string): Promise<readonly PluginBootstrap[]>;
+  uninstall(
+    id: PluginId,
+    deleteContent: boolean,
+  ): Promise<readonly PluginBootstrap[]>;
+  /** How many rows of the library this plugin wrote. */
+  contentRows(id: PluginId): Promise<number>;
+  /** Puts the enable record aside: nothing is switched on, everything stays. */
+  safeMode(): Promise<readonly PluginBootstrap[]>;
 }
 
 /** What one row of the plugin page says. */
@@ -64,10 +60,24 @@ export interface PluginStatus {
 }
 
 /**
- * The stand-in: a kernel that knows of no plugins. An empty list is not a
- * placeholder for a missing answer — it is the answer, and it is what every
- * window shows until #86 lands.
+ * The stand-in: a kernel that knows of no plugins.
+ *
+ * An empty list is not a placeholder for a missing answer — it is the answer,
+ * and it is what a window with no backend behind it shows. What it cannot do is
+ * change anything: the four lifecycle methods say so rather than resolving, so
+ * that a control pressed against this stand-in reports a failure instead of
+ * appearing to have worked.
  */
-export const noPlugins: PluginBootstrapPort = {
+export const noPlugins: PluginPort = {
   bootstrap: async () => [],
+  setEnabled: () => nothingToChange(),
+  preview: () => nothingToChange(),
+  install: () => nothingToChange(),
+  uninstall: () => nothingToChange(),
+  contentRows: () => nothingToChange(),
+  safeMode: () => nothingToChange(),
 };
+
+function nothingToChange(): Promise<never> {
+  return Promise.reject(new Error('no plugin kernel is behind this window'));
+}

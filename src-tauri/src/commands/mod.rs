@@ -12,6 +12,7 @@
 //! existed: parse, delegate, and nothing more.
 
 pub(crate) mod library;
+pub(crate) mod plugin;
 pub(crate) mod scan;
 pub(crate) mod share;
 pub(crate) mod space;

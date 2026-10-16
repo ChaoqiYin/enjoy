@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -61,5 +62,68 @@ pub(crate) struct Library {
 impl Drop for Fixture {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Lays down `video_fields` and fills it, for the tests about what a plugin
+/// left behind.
+///
+/// The table is #88's and joins `SCHEMA` when that lands; until then the only
+/// way to ask the queries in [`super::plugin_content`] anything is to put the
+/// table there, in the shape the spec writes it. That is the arrangement worth
+/// having: the queries are checked against the shape they are written for, and
+/// the day the table arrives in `SCHEMA` these tests keep passing untouched.
+///
+/// Each row is `(video_id, key, value, source_plugin)`; the timestamp is not
+/// what any of these tests are about.
+///
+/// The videos those rows are about are laid down too, because the table
+/// references them and a library with fields pointing at nothing is not a
+/// library any of these tests would recognise. What a test names is the id it
+/// wants to talk about; the rest of the record is a placeholder.
+pub(crate) fn video_fields(repository: &Repository, rows: &[(i64, &str, &str, &str)]) {
+    repository
+        .connection
+        .execute_batch(
+            "CREATE TABLE video_fields (
+                video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                source_plugin TEXT NOT NULL,
+                updated_at INTEGER NOT NULL,
+                PRIMARY KEY (video_id, key)
+            )",
+        )
+        .unwrap();
+    let space = repository.current_space().unwrap().id;
+    for video in rows
+        .iter()
+        .map(|(video, ..)| *video)
+        .collect::<BTreeSet<_>>()
+    {
+        repository
+            .connection
+            .execute(
+                "INSERT INTO videos (id,space_id,path,file_name,folder_path,file_size,modified_at,created_at,updated_at) \
+                 VALUES (?1,?2,?3,?4,?5,0,0,0,0)",
+                rusqlite::params![
+                    video,
+                    space,
+                    format!("/videos/{video}.mkv"),
+                    format!("{video}.mkv"),
+                    "/videos"
+                ],
+            )
+            .unwrap();
+    }
+    for (video, key, value, plugin) in rows {
+        repository
+            .connection
+            .execute(
+                "INSERT INTO video_fields (video_id, key, value, source_plugin, updated_at) \
+                 VALUES (?1, ?2, ?3, ?4, 0)",
+                rusqlite::params![video, key, value, plugin],
+            )
+            .unwrap();
     }
 }

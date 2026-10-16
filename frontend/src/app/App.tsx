@@ -13,6 +13,7 @@ import { HistoryPage } from '../pages/HistoryPage';
 import { SharePage } from '../pages/SharePage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { PluginsPage } from '../pages/PluginsPage';
+import { pluginPort } from '../plugins/api';
 import { PluginHostProvider } from '../plugins/PluginHostProvider';
 import { PluginPageView } from '../plugins/PluginPageView';
 import { AppFooter } from '../shared/AppFooter';
@@ -53,7 +54,11 @@ export function App({ initialSpace }: { initialSpace: Space }) {
                       the navigation draws a plugin's pages and a plugin's page
                       draws itself: one host, one registration point, for the
                       header and the routes both. */}
-                  <PluginHostProvider>
+                  {/* The kernel's own plugin commands, rather than the
+                      stand-in the provider falls back to: the window is the
+                      application's, and the plugins on disk are the ones it is
+                      to show. */}
+                  <PluginHostProvider port={pluginPort}>
                     <Window />
                   </PluginHostProvider>
                 </ShareProvider>

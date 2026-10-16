@@ -59,5 +59,20 @@
   "plugin.call.timed_out": "插件 {{plugin}} 在 {{mountPoint}} 上耗时过长，应用已跳过它继续",
   "plugin.interface.unreachable": "读不到 {{plugin}} 的插件界面，请重新安装这个插件",
   "plugin.interface.no_factory": "{{plugin}} 的插件界面里没有可启动的入口，插件可能已损坏",
-  "plugin.interface.start_failed": "{{plugin}} 启动失败，请查看排查编号对应的日志"
+  "plugin.interface.start_failed": "{{plugin}} 启动失败，请查看排查编号对应的日志",
+  "plugin.manifest.unreadable": "{{plugin}} 没有可读的插件清单。插件是一个目录，里面要有 plugin.json",
+  "plugin.manifest.incomplete": "{{plugin}} 没说清自己是什么：清单里缺 {{field}}",
+  "plugin.manifest.no_halves": "{{plugin}} 既没有插件界面也没有运行体，没有可加载的东西",
+  "plugin.manifest.invalid_id": "{{plugin}} 要求自己叫 {{id}}，这个名字找不到它所在的目录",
+  "plugin.manifest.invalid_entry": "{{plugin}} 指向了 {{entry}}，那在插件自己的目录之外",
+  "plugin.manifest.api_too_new": "{{plugin}} 要求的内核太新：它要的是挂载点接口 {{required}}，这个内核说的是 {{supported}}",
+  "plugin.manifest.api_unsupported": "{{plugin}} 要的是挂载点接口 {{required}}，这个内核已经不支持了（它说的是 {{supported}}）",
+  "plugin.manifest.capability_not_allowed": "{{plugin}} 申请 {{capability}} 能力，这个内核不授予它",
+  "plugin.not_found": "{{plugin}} 没有安装",
+  "plugin.install.invalid_source": "{{source}} 里没有可安装的插件。请选一个插件目录，或一个装着插件的 .zip",
+  "plugin.install.exists": "{{plugin}} 已经安装过了。要换掉它，先卸载",
+  "plugin.install.failed": "复制插件失败：{{path}}",
+  "plugin.uninstall.failed": "卸载 {{plugin}} 失败：{{path}}",
+  "plugin.state.failed": "写入已启用插件那份记录失败：{{path}}",
+  "plugin.safe_mode.failed": "进入安全模式失败：{{path}}"
 }

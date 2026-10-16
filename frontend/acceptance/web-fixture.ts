@@ -9,6 +9,7 @@ import {
   reported as reportedCheck,
   setCheck,
 } from './update';
+import * as plugins from './plugins';
 import type {
   AppError,
   SettingsState,
@@ -428,6 +429,26 @@ mockIPC(
       case 'regenerate_share_password':
         sharePassword = `drawn-${String(++drawnPasswords)}`;
         return share(Number(payload.spaceId));
+      case 'list_plugins':
+        return plugins.list();
+      case 'set_plugin_enabled':
+        return plugins.setEnabled(
+          String(payload.pluginId),
+          Boolean(payload.enabled),
+        );
+      case 'preview_plugin_install':
+        return plugins.preview(String(payload.source));
+      case 'install_plugin':
+        return plugins.install(String(payload.source));
+      case 'uninstall_plugin':
+        return plugins.uninstall(
+          String(payload.pluginId),
+          Boolean(payload.deleteContent),
+        );
+      case 'plugin_content_rows':
+        return plugins.contentRows(String(payload.pluginId));
+      case 'run_safe_mode':
+        return plugins.safeMode();
       case 'check_for_update':
         return reportedCheck();
       case 'install_update':

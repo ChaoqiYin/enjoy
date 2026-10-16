@@ -2,7 +2,8 @@ import { expect, it, vi } from 'vitest';
 import { createPluginHost } from './host';
 import type { PluginContext, PluginInterfaceModule } from './host';
 import { createRegistry } from './registry';
-import type { PluginBootstrap, PluginBootstrapPort } from './status';
+import type { PluginBootstrap, PluginPort } from './status';
+import { pluginPort } from '../test/doubles';
 
 // The host is the seam between the kernel and a plugin interface: it declares
 // what the interface draws, reaches for each plugin's entry, hands the factory
@@ -13,13 +14,17 @@ import type { PluginBootstrap, PluginBootstrapPort } from './status';
 const plugin = (overrides: Partial<PluginBootstrap> = {}): PluginBootstrap => ({
   id: 'a-plugin',
   name: 'A plugin',
+  author: 'someone',
+  capabilities: [],
   enabled: true,
   entry: 'a-plugin/interface.js',
+  hasBody: false,
+  failure: null,
   ...overrides,
 });
 
-function portOf(...plugins: PluginBootstrap[]): PluginBootstrapPort {
-  return { bootstrap: async () => plugins };
+function portOf(...plugins: PluginBootstrap[]): PluginPort {
+  return pluginPort(plugins);
 }
 
 it('declares the positions the interface draws before it loads anything', async () => {
@@ -294,4 +299,59 @@ it('hands the entry path to the loader as the kernel gave it', async () => {
   });
   await host.load();
   expect(loadEntry).toHaveBeenCalledWith('a-plugin/interface.js');
+});
+
+it('redraws the rows from a list without loading anything', async () => {
+  // What a lifecycle action answers with. Switching a plugin on takes effect on
+  // the next start (spec #82 「不做热插拔」), so the row changes and the entry is
+  // not reached for — loading it here would be the hot-plug the spec does not
+  // have.
+  const registry = createRegistry();
+  const loadEntry = vi.fn(async () => ({ default: () => {} }));
+  const host = createPluginHost({
+    registry,
+    port: portOf(),
+    baseline: {},
+    positions: [],
+    loadEntry,
+  });
+  await host.load();
+  expect(host.statuses()).toEqual([]);
+
+  host.refresh([
+    plugin({ id: 'cover', name: 'Cover Fetcher' }),
+    plugin({ id: 'off', name: 'Switched off', enabled: false }),
+  ]);
+  expect(host.statuses().map((row) => `${row.id}:${row.state}`)).toEqual([
+    'cover:enabled',
+    'off:disabled',
+  ]);
+  expect(loadEntry).not.toHaveBeenCalled();
+});
+
+it('drops the row of a plugin that is gone, and keeps what a plugin said', async () => {
+  const registry = createRegistry();
+  let said: ((activity: string) => void) | undefined;
+  const host = createPluginHost({
+    registry,
+    port: portOf(plugin({ id: 'cover', name: 'Cover Fetcher' })),
+    baseline: {},
+    positions: [],
+    loadEntry: async () => ({
+      default: (_baseline, context) => {
+        said = context.status;
+      },
+    }),
+  });
+  await host.load();
+  said!('fetching a cover');
+  expect(host.statuses()[0].activity).toBe('fetching a cover');
+
+  // Uninstalling is the one thing a lifecycle action does that no plugin of its
+  // own can: the row goes. Everything else is the kernel's answer, and a row
+  // that is still there keeps saying what its plugin is doing.
+  host.refresh([plugin({ id: 'cover', name: 'Cover Fetcher' })]);
+  expect(host.statuses()[0].activity).toBe('fetching a cover');
+  host.refresh([]);
+  expect(host.statuses()).toEqual([]);
 });

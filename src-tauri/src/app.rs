@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::events::AppEvents;
 use crate::i18n::{language, native};
-use crate::plugins::PluginHost;
+use crate::plugins::{PluginHost, Store};
 use crate::repository::Repository;
 use crate::scan::control::ScanControl;
 use crate::share::ShareControl;
@@ -25,10 +25,15 @@ pub(crate) struct AppState {
     /// The one thing in the kernel that knows plugins exist. What reaches it is
     /// the mount points a command is about — the fields a video has, what a
     /// plugin needs the user to fill in — and nothing here knows a plugin's
-    /// name. Nothing reads it yet: the commands that will are the install,
-    /// enable and disable ones (#86) and the field ones (#88).
+    /// name. The commands that reach it are the field ones (#88).
     #[allow(dead_code)]
     pub(crate) plugins: Arc<PluginHost>,
+    /// The plugins on disk: what is installed, which the user switched on, and
+    /// what installing and uninstalling do to that. Held apart from the host
+    /// because the two are read at different times and mean different things —
+    /// the host is what this window is asking *now*, the store is what the next
+    /// start will load.
+    pub(crate) plugin_store: Arc<Store>,
 }
 
 /// A state a test can hold. It lives here rather than beside any one test
@@ -54,6 +59,9 @@ pub(crate) fn test_state(fixture: &crate::repository::fixture::Fixture) -> AppSt
         plugins: Arc::new(PluginHost::new(
             Arc::new(crate::events::Recorded::default()),
         )),
+        // Beside the fixture's own database, so that a test which installs a
+        // plugin installs it into a directory that goes when the fixture does.
+        plugin_store: Arc::new(Store::new(fixture.0.join("plugins"))),
     }
 }
 
@@ -76,6 +84,14 @@ pub(crate) fn thumbnail_cache(database: &std::path::Path) -> PathBuf {
     database.with_file_name("thumbnails")
 }
 
+/// The plugins directory, which lives beside the index the same way and for the
+/// same reason: where a plugin is installed is a fact about *this* installation
+/// of the application, and the database's own path is the only thing that knows
+/// it.
+pub(crate) fn plugin_store(database: &std::path::Path) -> PathBuf {
+    database.with_file_name("plugins")
+}
+
 pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError> {
     // The first space is named in the language the person is looking at right
     // now: the upgrade happens once, on a machine whose interface language is a
@@ -90,6 +106,7 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
         update: Arc::new(UpdateControl::default()),
         share: Arc::new(ShareControl::default()),
         plugins: Arc::new(PluginHost::new(Arc::new(AppEvents(app.clone())))),
+        plugin_store: Arc::new(Store::new(plugin_store(&path))),
     });
     Ok(())
 }

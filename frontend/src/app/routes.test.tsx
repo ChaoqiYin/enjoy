@@ -54,6 +54,11 @@ vi.mock('../i18n/LanguageSetting', () => ({
   LanguageFocusSync: () => null,
   LanguageSetting: () => null,
 }));
+// The plugin port is the kernel's, and there is no kernel in a test: the
+// application reaches it the moment it mounts, because the plugin page's rows
+// are asked for at start. Answered with nothing installed, which is what this
+// file reads of it — the page saying so rather than drawing a blank.
+vi.mock('../plugins/api', () => ({ pluginPort: doubles.pluginPort([]) }));
 // The one subscription left in the real tree: the sharing state follows the
 // close question for the life of the interface (`ShareProvider`). The library's
 // own subscriptions are out with its provider, above.

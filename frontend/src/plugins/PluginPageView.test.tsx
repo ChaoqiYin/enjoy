@@ -7,7 +7,8 @@ import { PluginHostProvider } from './PluginHostProvider';
 import { PluginPageView, pluginPagePath } from './PluginPageView';
 import type { PluginContext } from './host';
 import type { AppPageParams } from './mountPoints';
-import type { PluginBootstrap, PluginBootstrapPort } from './status';
+import type { PluginBootstrap, PluginPort } from './status';
+import { pluginPort } from '../test/doubles';
 import english from '../../../shared/locales/en/common.json';
 
 // The space is the provider stack's, and this file is about the page rather
@@ -32,12 +33,16 @@ afterEach(cleanup);
 const plugin: PluginBootstrap = {
   id: 'a-plugin',
   name: 'A plugin',
+  author: 'someone',
+  capabilities: [],
   enabled: true,
   entry: 'a/interface.js',
+  hasBody: false,
+  failure: null,
 };
 
-function portOf(...plugins: PluginBootstrap[]): PluginBootstrapPort {
-  return { bootstrap: async () => plugins };
+function portOf(...plugins: PluginBootstrap[]): PluginPort {
+  return pluginPort(plugins);
 }
 
 /** A plugin interface that registers one page, which draws the space it was

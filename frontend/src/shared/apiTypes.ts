@@ -253,3 +253,57 @@ export interface VideoPage {
   items: Video[];
   total: number;
 }
+
+/**
+ * Why a plugin is not usable, in the kernel's error protocol rather than a
+ * sentence somebody wrote: a code the interface has words for in both
+ * languages, and the parameters those words ask for. A message from the plugin
+ * itself would be text the interface cannot translate, cannot test, and cannot
+ * hold to anything.
+ */
+export interface PluginFailure {
+  code: string;
+  params: Record<string, string>;
+}
+
+/**
+ * One plugin as the kernel knows it **before** any interface is loaded.
+ *
+ * This is the bootstrap graph: which plugins there are, which of them the user
+ * switched on, and where each one's interface lives. A plugin with no interface
+ * — a body-only plugin, which is what the cover fetcher is — has a `null`
+ * `entry` and is still a row on the page.
+ *
+ * `failure` is set when the kernel would not accept the plugin at all, and it
+ * is a row rather than a silence: a plugin whose manifest does not validate is
+ * listed with the reason, and the kernel goes on as though it were not
+ * installed (spec #82 「清单校验」).
+ */
+export interface PluginBootstrap {
+  id: string;
+  /** The name the plugin gives itself, or its id when the manifest did not get
+   *  far enough to give one. */
+  name: string;
+  author: string;
+  /** The capabilities the manifest declares — what the user is told before they
+   *  let the plugin in. */
+  capabilities: string[];
+  /** The interface's entry, as the absolute path the window loads it from. */
+  entry: string | null;
+  /** Whether the plugin declares a body half, which the runtime would run. */
+  hasBody: boolean;
+  enabled: boolean;
+  failure: PluginFailure | null;
+}
+
+/**
+ * What the user is shown before a plugin is copied in.
+ *
+ * The destination is the whole reason for the pre-flight: the user does not
+ * know where plugins live, and "where will this land" is the first thing they
+ * would ask.
+ */
+export interface PluginInstallPreview {
+  destination: string;
+  plugin: PluginBootstrap;
+}

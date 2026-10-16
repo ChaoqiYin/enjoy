@@ -19,6 +19,10 @@ mod listing_tests;
 mod metadata_tests;
 #[cfg(test)]
 mod migration_tests;
+// What the plugins wrote into the library, which is one table and two queries:
+// counting a plugin's rows for the uninstall question, and forgetting them if
+// the user says so.
+mod plugin_content;
 mod scans;
 pub(crate) mod schema;
 mod spaces;
