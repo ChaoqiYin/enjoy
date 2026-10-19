@@ -249,3 +249,27 @@ pub(crate) const MOUNT_POINTS: [MountPoint; 6] = [
         merge: MergeRule::Overlay,
     },
 ];
+
+/// The closed set of field keys a plugin may hand back, spelled once.
+/// The kernel drops anything outside this set before it writes, so a key
+/// that is not here never reaches `video_fields` (spec #96 section 9).
+pub(crate) const FIELD_KEYS: [&str; 13] = [
+    "cover",
+    "title",
+    "number",
+    "actors",
+    "genres",
+    "studio",
+    "label",
+    "series",
+    "director",
+    "releaseDate",
+    "duration",
+    "rating",
+    "plot",
+];
+
+/// Whether a field key is in the closed set.
+pub(crate) fn is_field_key(key: &str) -> bool {
+    FIELD_KEYS.contains(&key)
+}

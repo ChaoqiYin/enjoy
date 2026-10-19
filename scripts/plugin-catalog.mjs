@@ -84,6 +84,29 @@ export function catalogFailures(catalog) {
     checkMembers(`type ${name}`, shape.fields);
   }
 
+  // The field keys are a closed set too (spec #96 §9): the kernel drops
+  // anything outside them before it writes, and the three files generated from
+  // this catalog are what both sides and the plugin author read. A fourteenth
+  // key is a change to that decision, so it is reported here rather than
+  // slipping in with a line of data.
+  const fieldKeys = catalog.fieldKeys;
+  if (!Array.isArray(fieldKeys) || fieldKeys.length === 0) {
+    fail('the fieldKeys list is missing or empty');
+  } else {
+    if (fieldKeys.length !== 13) {
+      fail(`the field keys are a closed set of thirteen, found ${fieldKeys.length}`);
+    }
+    const declared = new Set();
+    for (const key of fieldKeys) {
+      if (typeof key !== 'string' || !/^[a-z][A-Za-z0-9]*$/.test(key)) {
+        fail(`"${key}" is not a lowerCamelCase field key`);
+        continue;
+      }
+      if (declared.has(key)) fail(`${key} is declared twice as a field key`);
+      declared.add(key);
+    }
+  }
+
   const mountPoints = catalog.mountPoints;
   if (!Array.isArray(mountPoints)) {
     fail('mountPoints is missing');
