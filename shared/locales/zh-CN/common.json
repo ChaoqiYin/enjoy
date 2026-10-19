@@ -247,5 +247,6 @@
   "field.releaseDate": "发行日期",
   "field.duration": "时长",
   "field.rating": "评分",
-  "field.plot": "简介"
+  "field.plot": "简介",
+  "tasks": "任务"
 }

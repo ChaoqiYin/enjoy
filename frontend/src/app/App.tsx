@@ -13,6 +13,7 @@ import { HistoryPage } from '../pages/HistoryPage';
 import { SharePage } from '../pages/SharePage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { PluginsPage } from '../pages/PluginsPage';
+import { TasksPage } from '../pages/TasksPage';
 import { pluginPort } from '../plugins/api';
 import { PluginHostProvider } from '../plugins/PluginHostProvider';
 import { PluginPageView } from '../plugins/PluginPageView';
@@ -99,6 +100,7 @@ function Window() {
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/share" element={<SharePage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/tasks" element={<TasksPage />} />
         <Route path="/plugins" element={<PluginsPage />} />
         {/* A page a plugin registered, under the address `MainNav` builds for
             it. The pattern is the one thing here the plugin does not decide:

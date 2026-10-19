@@ -247,5 +247,6 @@
   "field.releaseDate": "Release Date",
   "field.duration": "Duration",
   "field.rating": "Rating",
-  "field.plot": "Plot"
+  "field.plot": "Plot",
+  "tasks": "Tasks"
 }
