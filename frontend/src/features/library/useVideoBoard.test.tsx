@@ -136,7 +136,7 @@ it('draws the fields the plugins wrote for the video that is open', () => {
   // The term is the plugin's own name for the field and the badge is the plugin
   // that wrote it, drawn in the panel the record's own facts are in — one list,
   // because the user is reading one video.
-  const row = screen.getByText('cover').closest('[data-slot="video-meta-row"]');
+  const row = screen.getByText('Cover').closest('[data-slot="video-meta-row"]');
   expect(row?.querySelector('dd')?.textContent).toBe(
     '/covers/1.jpgcover-fetcher',
   );
