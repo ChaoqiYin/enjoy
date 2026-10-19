@@ -234,5 +234,18 @@
   "pluginSettingsRequired": "Required",
   "pluginSettingsFolder": "Choose folder",
   "pluginMoveUp": "Move up",
-  "pluginMoveDown": "Move down"
+  "pluginMoveDown": "Move down",
+  "field.cover": "Cover",
+  "field.title": "Title",
+  "field.number": "ID",
+  "field.actors": "Actors",
+  "field.genres": "Genres",
+  "field.studio": "Studio",
+  "field.label": "Label",
+  "field.series": "Series",
+  "field.director": "Director",
+  "field.releaseDate": "Release Date",
+  "field.duration": "Duration",
+  "field.rating": "Rating",
+  "field.plot": "Plot"
 }

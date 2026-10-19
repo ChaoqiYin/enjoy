@@ -17,6 +17,7 @@ import { PluginHostProvider } from '../../plugins/PluginHostProvider';
 import type { VideoPanelParams } from '../../plugins/mountPoints';
 import { VideoDetails } from './VideoDetails';
 import english from '../../../../shared/locales/en/common.json';
+import chineseMessages from '../../../../shared/locales/zh-CN/common.json';
 import errors from '../../../../shared/locales/en/errors.json';
 
 const i18n = createInstance();
@@ -138,16 +139,17 @@ it('reads out the fields the plugins wrote, each beside the plugin that wrote it
   // After the record's own terms, because they are not terms the record has:
   // the panel reads the file out first, and what the plugins added comes after
   // it in the order the backend handed them over. The key is drawn as the
-  // plugin wrote it — a field's name is the plugin's, and the kernel has no
-  // vocabulary for it to translate.
+  // label the closed set of field keys carries (`field.<key>` in the
+  // translations), so the term reads as a word rather than as the key a
+  // plugin filed the value under (spec #96 §9).
   expect(metaRows().map(([term]) => term)).toEqual([
     english.duration,
     english.resolution,
     english.codec,
     english.fileSize,
     english.modifiedAt,
-    'cover',
-    'rating',
+    english['field.cover'],
+    english['field.rating'],
   ]);
   // And the source is readable, which is the whole of what it is there for: the
   // user can tell whose value they are looking at, including after the plugin
@@ -158,6 +160,50 @@ it('reads out the fields the plugins wrote, each beside the plugin that wrote it
     ),
   ).map((badge) => badge.textContent);
   expect(sources).toEqual(['cover-fetcher', 'metadata-fetcher']);
+});
+
+it('draws the same field label in the language the window is in', async () => {
+  const chinese = createInstance();
+  await chinese.init({
+    lng: 'zh-CN',
+    resources: { 'zh-CN': { translation: chineseMessages } },
+  });
+  render(
+    <I18nextProvider i18n={chinese}>
+      <VideoDetails
+        video={video}
+        space={{ id: 1 }}
+        actions={actions()}
+        busy={false}
+        fields={[
+          {
+            key: 'cover',
+            value: '/covers/1.jpg',
+            source_plugin: 'cover-fetcher',
+          },
+        ]}
+      />
+    </I18nextProvider>,
+  );
+  // The label is the translated word in both languages, never the key itself:
+  // `field.cover` reads 封面 here and Cover in the test above.
+  expect(metaRows().map(([term]) => term)).toContain(
+    chineseMessages['field.cover'],
+  );
+  expect(chineseMessages['field.cover']).not.toBe('cover');
+});
+
+it('falls back to the key itself when a stored field has no label', () => {
+  render(
+    view(actions(), false, video, undefined, [
+      { key: 'year', value: '1999', source_plugin: 'metadata-fetcher' },
+    ]),
+  );
+  // Rows written before the field keys were closed stay in the library — the
+  // kernel drops unknown keys on the way in, it does not migrate what is
+  // already there — and a label the translations do not have must read as the
+  // key rather than as nothing at all.
+  expect(metaRows().map(([term]) => term)).toContain('year');
 });
 
 it('draws the block a plugin registered in the panel, with the space and the video it is about', async () => {

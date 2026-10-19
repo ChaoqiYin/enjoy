@@ -115,11 +115,14 @@ export function VideoDetails({
     },
     // The plugin fields, in the order the backend handed them over — which is
     // the order of their keys, so a panel read twice reads the same way. The
-    // puzzle piece is the same one the navigation marks the plugin page with:
-    // what this line is, is not this application's own.
+    // label is the field key's own word in the window's language (`field.<key>`
+    // in the translations), falling back to the key for a row filed before the
+    // set of keys was closed; the puzzle piece is the same one the navigation
+    // marks the plugin page with — what this line is, is not this
+    // application's own.
     ...fields.map((field) => ({
       icon: <Puzzle size={15} aria-hidden="true" />,
-      label: field.key,
+      label: t('field.' + field.key, field.key),
       value: field.value,
       source: field.source_plugin,
     })),
