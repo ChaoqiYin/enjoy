@@ -9,8 +9,10 @@ import { useBusy } from './useBusy';
 import { useNotices } from './useNotices';
 import { useScan } from './useScan';
 import { useVideoActions } from './useVideoActions';
+import { useVideoFields } from './useVideoFields';
 import { useVideos } from './useVideos';
 import { useSpace } from '../space/SpaceProvider';
+import { usePluginActions } from '../../plugins/PluginHostProvider';
 import { VideoMenu } from './VideoMenu';
 import type { MenuTarget } from './VideoMenu';
 import { VideoDetails } from './VideoDetails';
@@ -57,6 +59,11 @@ export function useVideoBoard() {
   const notices = useNotices();
   const videoActions = useVideoActions();
   const { id: spaceId } = useSpace();
+  // The plugins that can act on a video, read once for the menu below. It is a
+  // read of the window's plugins and not of this page's: which of them are
+  // installed is not something a listing knows, and a page drawn with none —
+  // a window that has no plugin host above it — draws the menu it always did.
+  const plugins = usePluginActions();
   // What the open drawer is describing, together with the answer it was read
   // from: the list, the page of it, and how long it was then. The panel needs
   // the video; the removal rule below needs the other two, and neither is
@@ -69,6 +76,11 @@ export function useVideoBoard() {
   // which names the space, so the change reaches it on its own.
   const [detail, setDetail] = useState<Opened | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // What the plugins have written about the video being looked at. The open
+  // state is what is handed over, not the record the drawer still remembers:
+  // `detail` outlives the close, so a question read off it would be asked again
+  // by every later render of a shut drawer.
+  const fields = useVideoFields(detailsOpen ? (detail?.video ?? null) : null);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   const [remove, setRemove] = useState<Video | null>(null);
@@ -153,6 +165,12 @@ export function useVideoBoard() {
     regenerate: videoActions.regenerateThumbnail,
     refreshInfo: videoActions.refreshInfo,
   };
+  // The menu closes on its own when an item is chosen, so nothing here has to:
+  // what the errand leaves behind is the fields of this record and the card's
+  // picture, and both are read again by the action itself.
+  const runPlugin = (video: Video, pluginId: string) => {
+    void videoActions.runPlugin(video, pluginId);
+  };
   const overlays = (
     <>
       <Drawer
@@ -165,8 +183,13 @@ export function useVideoBoard() {
           <VideoDetails
             scan={status}
             video={detail.video}
+            // The space this record is in, as a plugin is told it: a block the
+            // plugins draw in the panel is handed the space and the video, and
+            // which space that is is the drawer's to know.
+            space={{ id: spaceId }}
             busy={busy}
             actions={actions}
+            fields={fields}
           />
         )}
       </Drawer>
@@ -185,6 +208,8 @@ export function useVideoBoard() {
           target={menu}
           busy={busy}
           actions={actions}
+          plugins={plugins}
+          onPlugin={runPlugin}
           onClose={closeMenu}
         />
       )}

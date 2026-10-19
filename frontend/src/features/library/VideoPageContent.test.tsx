@@ -4,6 +4,7 @@
 import {
   busy,
   collection,
+  fields,
   listing,
   notices,
   resetVideoPage,
@@ -44,6 +45,10 @@ vi.mock('./useScan', () => ({ useScan: () => scan }));
 vi.mock('./useNotices', () => ({ useNotices: () => notices }));
 vi.mock('./useVideoActions', () => ({ useVideoActions: () => videoActions }));
 vi.mock('./useBusy', () => ({ useBusy: () => busy }));
+// The drawer asks the plugins about the video it has open; nothing in this file
+// opens one, and the module is replaced here so that the page can be mounted
+// without a query client behind it.
+vi.mock('./useVideoFields', () => ({ useVideoFields: () => fields }));
 
 vi.mock('../space/SpaceProvider', () => ({
   useSpace: () => space,

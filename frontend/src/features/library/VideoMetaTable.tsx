@@ -8,6 +8,8 @@ export type VideoMetaRow = {
   label: string;
   value: string;
   badge?: string;
+  /** Who wrote the value, where it did not come from the record itself. */
+  source?: string;
 };
 
 /**
@@ -19,6 +21,12 @@ export type VideoMetaRow = {
  * survive, and `dl` is the element that says so. A badge belongs to the value
  * beside it and is drawn there, so that which line it qualifies is read off the
  * line rather than guessed from the table's edge.
+ *
+ * Two badges can stand beside a value and they are not the same claim: the
+ * class says what the value *is* and wears the quiet fill the rest of the
+ * interface uses for that, while the source says who wrote it and is drawn as
+ * an outline so that the two are told apart at a glance. Neither is a fact
+ * about the row's position, so both are drawn inside the row they belong to.
  */
 export function VideoMetaTable({ rows }: { rows: VideoMetaRow[] }) {
   return (
@@ -43,6 +51,11 @@ export function VideoMetaTable({ rows }: { rows: VideoMetaRow[] }) {
             {row.badge && (
               <Badge variant="secondary" size="sm">
                 {row.badge}
+              </Badge>
+            )}
+            {row.source && (
+              <Badge variant="outline" size="sm">
+                {row.source}
               </Badge>
             )}
           </dd>

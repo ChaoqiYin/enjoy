@@ -30,6 +30,7 @@ const video: Video = {
   height: 1080,
   codec: 'h264',
   thumbnail_path: null,
+  cover_path: null,
   favorite: false,
   shared: false,
   play_count: 0,
@@ -393,12 +394,7 @@ it('shows preparation only for the current file and clears it after termination'
   };
   const preview = (status: ScanStatus) => (
     <I18nextProvider i18n={i18n}>
-      <Thumbnail
-        path={null}
-        name={video.file_name}
-        videoPath={video.path}
-        scan={status}
-      />
+      <Thumbnail video={video} scan={status} />
     </I18nextProvider>
   );
   const { rerender } = render(preview(scan));

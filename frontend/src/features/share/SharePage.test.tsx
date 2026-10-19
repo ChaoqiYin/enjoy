@@ -62,6 +62,11 @@ vi.mock('../library/useVideoActions', () => ({
 vi.mock('../library/useBusy', () => ({ useBusy: () => busy }));
 vi.mock('../library/useScan', () => ({ useScan: () => scan }));
 vi.mock('../library/useNotices', () => ({ useNotices: () => notices }));
+// The cards here open the same drawer the library's do, and that drawer asks the
+// plugins what they have written about the video in it. No drawer is opened in
+// this file, and the question is a query — so it is answered with nothing here
+// rather than with a query client behind the page.
+vi.mock('../library/useVideoFields', () => ({ useVideoFields: () => [] }));
 // The page reads the current space to name it when starting the service. What
 // the space *is* belongs to the space provider's own tests; what this file is
 // about is which space the command was told.

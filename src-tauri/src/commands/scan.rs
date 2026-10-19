@@ -7,6 +7,7 @@ use crate::error::AppError;
 use crate::events::{AppEvents, Events};
 use crate::media::MediaProcessor;
 use crate::model::VideoFile;
+use crate::plugins::mount_points::{SpaceRef, VideoRef};
 use crate::repository::Repository;
 use crate::scan::control::{ScanControl, ScanGuard, ScanStatus};
 use crate::scan::session;
@@ -78,7 +79,7 @@ pub(crate) async fn rescan_directories(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<VideoFile>, AppError> {
-    media_job(
+    let videos = media_job(
         app,
         &state,
         "media.scan.failed",
@@ -86,7 +87,20 @@ pub(crate) async fn rescan_directories(
             session::rescan(guard, space_id, repository, control, media, events)
         },
     )
-    .await
+    .await?;
+
+    let video_refs: Vec<VideoRef> = videos
+        .iter()
+        .map(|v| VideoRef {
+            id: v.id,
+            path: v.path.clone(),
+        })
+        .collect();
+    state
+        .plugins
+        .scan_completed(&SpaceRef { id: space_id }, &video_refs);
+
+    Ok(videos)
 }
 
 #[tauri::command]

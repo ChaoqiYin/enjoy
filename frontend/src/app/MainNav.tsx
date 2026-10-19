@@ -1,12 +1,22 @@
 import { Fragment } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { Clapperboard, Heart, History, Settings, Share2 } from 'lucide-react';
+import {
+  Clapperboard,
+  Heart,
+  History,
+  Puzzle,
+  Settings,
+  Share2,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, useLocation } from 'react-router';
 import { Tabs, TabsList, TabsTrigger } from '../shared/ui/tabs';
+import { usePluginHost } from '../plugins/PluginHostProvider';
+import { pluginPagePath } from '../plugins/PluginPageView';
+import { KERNEL } from '../plugins/registry';
 
-/// The five places the interface goes, in the order the prototype lists them.
+/// The six places the interface goes, in the order the prototype lists them.
 /// The label is the translation key rather than the words, so the list is read
 /// once and the words come from the language the user picked.
 ///
@@ -24,6 +34,12 @@ const entries = [
   { to: '/history', label: 'history', icon: History },
   { to: '/share', label: 'sharing', icon: Share2 },
   { to: '/settings', label: 'settings', icon: Settings },
+  // 插件 is not one of the prototype's five, and it is here rather than behind
+  // one of them because it is a place of its own: what is installed, and what
+  // each of them is doing. It is permanent — it is the one place a plugin can
+  // be found, switched off or explained — so it does not come and go with what
+  // happens to be installed, unlike the pages below it.
+  { to: '/plugins', label: 'plugins', icon: Puzzle },
 ] as const;
 
 /// How far apart two characters start their turn, and the ceiling on the whole
@@ -101,6 +117,14 @@ function splitLabel(label: string) {
 export function MainNav() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
+  const { registry } = usePluginHost();
+  // The pages plugins added, after the interface's own: the six are the same
+  // six in the same order whatever is installed, so the row a user has learned
+  // does not move under them. Each is read out of the position the kernel
+  // declared and draws — this is the render side of `app.page`, and the route
+  // below it is built from the same two facts, through the one function that
+  // spells the address.
+  const pages = registry.drawsAt('app.page', KERNEL);
   return (
     <nav aria-label={t('nav')} className="flex h-full flex-1">
       <Tabs value={pathname} className="h-full">
@@ -115,6 +139,17 @@ export function MainNav() {
               label={t(entry.label)}
               icon={entry.icon}
               isActive={pathname === entry.to}
+            />
+          ))}
+          {pages.map(({ owner, contribution }) => (
+            <MainNavItem
+              key={pluginPagePath(owner, contribution.key)}
+              to={pluginPagePath(owner, contribution.key)}
+              // The plugin's own words, in the plugin's own language: the
+              // kernel does not translate them and does not guess at them.
+              label={contribution.label}
+              icon={Puzzle}
+              isActive={pathname === pluginPagePath(owner, contribution.key)}
             />
           ))}
         </TabsList>

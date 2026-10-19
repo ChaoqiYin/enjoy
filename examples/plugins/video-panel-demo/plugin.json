@@ -1,0 +1,8 @@
+{
+  "id": "video-panel-demo",
+  "name": "Video panel demo",
+  "author": "Enjoy",
+  "apiVersion": 1,
+  "capabilities": [],
+  "interface": "interface.js"
+}

@@ -106,6 +106,40 @@ const pairs = [
   // The listing: what one page of the library is asked for, and what comes back.
   { rust: 'src-tauri/src/model.rs', struct: 'VideoQuery', ts: 'VideoQuery' },
   { rust: 'src-tauri/src/model.rs', struct: 'VideoPage', ts: 'VideoPage' },
+  // What the plugins have written about one record, and who wrote each one.
+  { rust: 'src-tauri/src/model.rs', struct: 'VideoField', ts: 'VideoField' },
+  // The plugins on disk: one plugin's row, why it is not usable, and what
+  // installing a source would do. Three shapes rather than one because the
+  // failure travels on its own — the host reports one for a plugin whose
+  // interface would not load, which never passed through the store.
+  {
+    rust: 'src-tauri/src/plugins/store.rs',
+    struct: 'PluginBootstrap',
+    ts: 'PluginBootstrap',
+  },
+  {
+    rust: 'src-tauri/src/plugins/store.rs',
+    struct: 'PluginFailure',
+    ts: 'PluginFailure',
+  },
+  {
+    rust: 'src-tauri/src/plugins/store.rs',
+    struct: 'PluginInstallPreview',
+    ts: 'PluginInstallPreview',
+  },
+  // The settings form: one plugin's fields as the page draws them, and one
+  // plugin's worth of them. Two shapes rather than one because the page draws
+  // them per plugin, and the grouping is the kernel's.
+  {
+    rust: 'src-tauri/src/plugins/settings.rs',
+    struct: 'PluginSettingField',
+    ts: 'PluginSettingField',
+  },
+  {
+    rust: 'src-tauri/src/plugins/settings.rs',
+    struct: 'PluginSettingsGroup',
+    ts: 'PluginSettingsGroup',
+  },
 ];
 
 const failures = [];

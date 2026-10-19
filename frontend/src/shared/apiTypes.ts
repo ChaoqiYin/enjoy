@@ -15,6 +15,8 @@
  * every existing import path working.
  */
 
+import type { SettingFieldKind } from '../plugins/mountPoints';
+
 export interface Video {
   id: number;
   path: string;
@@ -27,6 +29,16 @@ export interface Video {
   height: number | null;
   codec: string | null;
   thumbnail_path: string | null;
+  /**
+   * The picture a plugin found for this record, if one did.
+   *
+   * It wins over `thumbnail_path` where a picture is drawn: the user installed
+   * the plugin and asked it for *this* video, while the thumbnail was written by
+   * the media pass on its way past. The value is a path under the application's
+   * covers directory, put there by the kernel — a plugin answers with an address
+   * and the kernel is what fetches and keeps the image.
+   */
+  cover_path: string | null;
   favorite: boolean;
   /** 共享清单: one of the videos this space offers over the share service. */
   shared: boolean;
@@ -252,4 +264,109 @@ export interface VideoQuery {
 export interface VideoPage {
   items: Video[];
   total: number;
+}
+
+/**
+ * Why a plugin is not usable, in the kernel's error protocol rather than a
+ * sentence somebody wrote: a code the interface has words for in both
+ * languages, and the parameters those words ask for. A message from the plugin
+ * itself would be text the interface cannot translate, cannot test, and cannot
+ * hold to anything.
+ */
+export interface PluginFailure {
+  code: string;
+  params: Record<string, string>;
+}
+
+/**
+ * One plugin as the kernel knows it **before** any interface is loaded.
+ *
+ * This is the bootstrap graph: which plugins there are, which of them the user
+ * switched on, and where each one's interface lives. A plugin with no interface
+ * — a body-only plugin, which is what the cover fetcher is — has a `null`
+ * `entry` and is still a row on the page.
+ *
+ * `failure` is set when the kernel would not accept the plugin at all, and it
+ * is a row rather than a silence: a plugin whose manifest does not validate is
+ * listed with the reason, and the kernel goes on as though it were not
+ * installed (spec #82 「清单校验」).
+ */
+export interface PluginBootstrap {
+  id: string;
+  /** The name the plugin gives itself, or its id when the manifest did not get
+   *  far enough to give one. */
+  name: string;
+  author: string;
+  /** The capabilities the manifest declares — what the user is told before they
+   *  let the plugin in. */
+  capabilities: string[];
+  /** The interface's entry, as the absolute path the window loads it from. */
+  entry: string | null;
+  /** Whether the plugin declares a body half, which the runtime would run. */
+  hasBody: boolean;
+  enabled: boolean;
+  failure: PluginFailure | null;
+}
+
+/**
+ * What the user is shown before a plugin is copied in.
+ *
+ * The destination is the whole reason for the pre-flight: the user does not
+ * know where plugins live, and "where will this land" is the first thing they
+ * would ask.
+ */
+export interface PluginInstallPreview {
+  destination: string;
+  plugin: PluginBootstrap;
+}
+
+/**
+ * One named thing a plugin has written about a record, and the plugin that
+ * wrote it.
+ *
+ * The source is a bare string rather than a reference to a plugin that exists:
+ * plugins live on disk and the library does not, so the two are not tied
+ * together and a field outlives the plugin that wrote it. That is the whole of
+ * why the interface is handed it — the panel has to say where a value came
+ * from, including after that plugin has been uninstalled (User Story 10).
+ *
+ * The key is the plugin's own name for the field and is drawn as the plugin
+ * wrote it: the kernel has no vocabulary for a plugin's fields to translate.
+ */
+export interface VideoField {
+  key: string;
+  value: string;
+  source_plugin: string;
+}
+
+/**
+ * One setting as the plugin page draws it: what a plugin asked the user to fill
+ * in, and what the user filled in.
+ *
+ * The `label` is the plugin's own words and is drawn as they are — the kernel
+ * has no vocabulary for a plugin's settings to translate, the way it has none
+ * for a plugin's fields (`VideoField`). The `kind` says which of the four
+ * controls is drawn, and the kernel checks the answer against it before any of
+ * it is stored: a directory is a fact about the machine that only the kernel
+ * can look up.
+ */
+export interface PluginSettingField {
+  key: string;
+  kind: SettingFieldKind;
+  label: string;
+  required: boolean;
+  /** What the user filled in, or the empty string if they never have. */
+  value: string;
+}
+
+/**
+ * One plugin's settings, as the plugin page draws them.
+ *
+ * A group per plugin rather than one list of fields, because the page draws them
+ * inside the plugin's own row: the row already carries the plugin's name, so the
+ * group says which plugin it belongs to and nothing else.
+ */
+export interface PluginSettingsGroup {
+  plugin: string;
+  fields: PluginSettingField[];
 }

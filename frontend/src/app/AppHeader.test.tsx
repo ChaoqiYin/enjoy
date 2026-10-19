@@ -15,6 +15,8 @@ import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { AppHeader } from './AppHeader';
+import { PluginHostProvider } from '../plugins/PluginHostProvider';
+import type { PluginContext } from '../plugins/host';
 import english from '../../../shared/locales/en/common.json';
 
 const share = doubles.share();
@@ -39,11 +41,55 @@ beforeEach(async () => {
 
 afterEach(cleanup);
 
-function header(path = '/') {
+/** A plugin interface that registers one page of its own. */
+async function loader() {
+  return {
+    default: (_baseline: unknown, pluginContext: PluginContext) => {
+      pluginContext.draw('app.page', {
+        key: 'covers',
+        label: 'Covers',
+        draw: () => null,
+      });
+    },
+  };
+}
+
+function header(path = '/', loadEntry = loader) {
   return render(
     <I18nextProvider i18n={i18n}>
       <MemoryRouter initialEntries={[path]}>
-        <AppHeader />
+        {/* The row carries the pages plugins registered, so the header is
+            rendered inside the host that loads them — the same place the app
+            puts it. */}
+        <PluginHostProvider
+          port={{
+            bootstrap: async () => [
+              {
+                id: 'a-plugin',
+                name: 'A plugin',
+                author: 'someone',
+                capabilities: [],
+                enabled: true,
+                entry: 'a/interface.js',
+                hasBody: false,
+                failure: null,
+              },
+            ],
+            setEnabled: async () => [],
+            preview: async () => {
+              throw new Error('unused');
+            },
+            install: async () => [],
+            uninstall: async () => [],
+            contentRows: async () => 0,
+            safeMode: async () => [],
+            settings: async () => [],
+            saveSettings: async () => [],
+          }}
+          loadEntry={loadEntry}
+        >
+          <AppHeader />
+        </PluginHostProvider>
       </MemoryRouter>
     </I18nextProvider>,
   );
@@ -60,6 +106,7 @@ const entries = [
   english.history,
   english.sharing,
   english.settings,
+  english.plugins,
 ];
 
 it('marks the page the user is on, and only that one', () => {
@@ -144,6 +191,20 @@ it('turns the words of every entry a character at a time', () => {
     });
     expect(delays.at(-1)).toBeLessThanOrEqual(240);
   }
+});
+
+it('carries the pages plugins added, after the interface own six', async () => {
+  // The row is the render side of `app.page`: a page a plugin registered is
+  // reached from here and from nowhere else, and it is named in the plugin's
+  // own words rather than in a translation the kernel does not have.
+  header();
+  const pluginEntry = await screen.findByRole('tab', { name: 'Covers' });
+  expect(pluginEntry.getAttribute('href')).toBe('/plugins/a-plugin/covers');
+  const row = screen
+    .getAllByRole('tab')
+    .map((entry) => entry.getAttribute('aria-label'));
+  expect(row.slice(0, 6)).toEqual(entries);
+  expect(row.at(-1)).toBe('Covers');
 });
 
 it('names the navigation for a reader that cannot see the row', () => {

@@ -25,6 +25,70 @@ pub struct VideoFile {
     pub last_played_at: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,
+    /// The picture a plugin gave this record, if one did: the path of a file
+    /// under `$APPDATA/covers/`.
+    ///
+    /// It is not a column of `videos` and is never written to one. The cover is
+    /// a plugin's answer stored in `video_fields` like every other field
+    /// ([`COVER_FIELD`]), and this is that row read back out by the listing —
+    /// one fact, one place it is kept. Last in the struct because it is the
+    /// last column the listing's own read selects, which is the only read that
+    /// asks for it.
+    pub cover_path: Option<String>,
+}
+
+/// The one field name the kernel knows.
+///
+/// A plugin's fields are the plugin's own vocabulary and the kernel draws them
+/// without understanding them (`VideoField::key` says so). This one is the
+/// exception, and it is a deliberate one: `cover` is not one plugin's word for
+/// something, it is *the picture of this video*, which the interface draws in
+/// the same place it draws a thumbnail. So the kernel knows this name — it is
+/// what the listing is joined on and what the download in
+/// [`crate::plugins::cover`] is keyed by — and knows no other.
+///
+/// It is not a plugin's name, so it does not break the rule that the kernel
+/// never names a plugin (ADR 0043 §2): whichever plugin answers with it, and
+/// whatever else that plugin calls its own fields, the kernel is being told the
+/// same thing.
+///
+/// The value is a path, and the image behind it is the kernel's to fetch and
+/// write: a plugin can reach its own data directory and nothing else, so a
+/// plugin that answered with an address could not put the picture anywhere the
+/// window can draw it. `plugins::cover` is where the address becomes a file.
+pub(crate) const COVER_FIELD: &str = "cover";
+
+/// One named thing a plugin has written about a record.
+///
+/// `source_plugin` is the id of the plugin that wrote the value, kept as a bare
+/// string: plugins live on disk and this library does not, so nothing ties the
+/// two together and a field outlives the plugin that wrote it (ADR 0045 §3).
+/// That is the whole reason the source is stored at all — the interface has to
+/// say who a value came from, including after the plugin has been uninstalled
+/// (User Story 10).
+#[derive(Debug, Clone, Serialize)]
+pub struct VideoField {
+    pub key: String,
+    pub value: String,
+    pub source_plugin: String,
+}
+
+/// One thing the user filled in for a plugin.
+///
+/// The plugin is not a field of this: a setting is always read and written for
+/// one named plugin, so the name is the call's argument rather than a column of
+/// every row it answers with. There is no space either, and that is the decision
+/// rather than an omission — a setting says how the plugin works, not what is in
+/// a space, so the same answers are in force in every one (docs/插件系统.md §14.7).
+///
+/// It is not the catalog's `SettingValue`, and deliberately: that shape is
+/// generated, and a generated file is not where a decision about what the
+/// library stores belongs. The two are the same two facts and the conversion is
+/// written out at the one place they meet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PluginSetting {
+    pub key: String,
+    pub value: String,
 }
 
 /// One page of a space's records, and how many the same question holds.

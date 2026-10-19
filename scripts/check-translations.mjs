@@ -59,7 +59,17 @@ function* rustFiles(directory) {
   }
 }
 
+// One Rust file holds data rather than code: the generated mount point catalog,
+// whose literals are mount point keys. `app.page` is shaped like an error code
+// because `app` is a family, and no key of it is one — so this file is left out.
+// Named rather than recognised by its header, so that a second file full of keys
+// has to be added here deliberately instead of slipping in under a pattern.
+const notErrorCodes = new Set([
+  join('src-tauri', 'src', 'plugins', 'mount_points.rs'),
+]);
+
 for (const file of rustFiles(join('src-tauri', 'src'))) {
+  if (notErrorCodes.has(file)) continue;
   const source = readFileSync(file, 'utf8');
   for (const match of source.matchAll(errorCode)) {
     assert.ok(errors[match[1]], `Missing error translation: ${match[1]}`);

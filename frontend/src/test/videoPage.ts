@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { Video } from '../shared/api';
+import type { Video, VideoField } from '../shared/api';
 import * as doubles from './doubles';
 import { video as anyVideo } from './fixtures';
 
@@ -38,6 +38,7 @@ export const actionMocks = {
   removeVideo: vi.fn(),
   regenerateThumbnail: vi.fn(),
   refreshInfo: vi.fn(),
+  runPlugin: vi.fn(),
 };
 
 // One double per module the page reads, built from that module's own declared
@@ -51,6 +52,27 @@ export const notices = doubles.notices({ setError, showCopyHint });
 export const videoActions = doubles.videoActions(actionMocks);
 export const busy = doubles.busy();
 export const space = doubles.space({ name: 'Library' });
+
+/**
+ * What the plugins have written about the record the drawer has open.
+ *
+ * Not a slice of the library like the five above: it is a question about one
+ * video, asked by the drawer that knows which one is open. It is here for the
+ * same reason they are — one place to look for what a page's tests are given,
+ * and one place to reset — because the module that asks it is replaced at the
+ * module boundary in both files, exactly as the slices are.
+ */
+export const fields: VideoField[] = [];
+
+/**
+ * The plugins that can act on a video, as the window's own list would have them.
+ *
+ * The page reads them from the plugin host, which is a module boundary like the
+ * five slices above and is replaced at it in the file that opens a video's menu.
+ * A plugin with no body is not in here: it has no action to run, and the list is
+ * the caller's to filter (`usePluginActions`).
+ */
+export const pluginActions = [{ id: 'cover-fetcher', name: 'Cover Fetcher' }];
 
 /**
  * Which page of the list the page is being drawn on.
@@ -89,6 +111,7 @@ export function resetVideoPage() {
   collection.videos.data = { items: [video], total: 1 };
   collection.videos.isPending = false;
   collection.pageKey = 'library page 1';
+  fields.length = 0;
   listing.index = 0;
   scan.status = undefined;
   busy.busy = false;
