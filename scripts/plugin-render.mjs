@@ -209,6 +209,20 @@ export function rustSource(catalog) {
     );
   }
   lines.push('];', '');
+
+  lines.push(
+    '/// The closed set of field keys a plugin may hand back, spelled once.',
+    '/// The kernel drops anything outside this set before it writes, so a key',
+    '/// that is not here never reaches `video_fields` (spec #96 section 9).',
+    `pub(crate) const FIELD_KEYS: [&str; ${catalog.fieldKeys.length}] = [`,
+  );
+  for (const key of catalog.fieldKeys) lines.push(`    "${key}",`);
+  lines.push('];', '');
+  lines.push('/// Whether a field key is in the closed set.');
+  lines.push('pub(crate) fn is_field_key(key: &str) -> bool {');
+  lines.push('    FIELD_KEYS.contains(&key)');
+  lines.push('}');
+  lines.push('');
   return lines.join('\n');
 }
 
@@ -264,6 +278,12 @@ export function typescriptSource(catalog) {
     }
   }
   lines.push(
+    '/** The closed set of field keys a plugin may hand back. */',
+    `export type FieldKey = ${catalog.fieldKeys.map((key) => `'${key}'`).join(' | ')};`,
+    '',
+    '/** The closed set of field keys, in catalog order. */',
+    `export const FIELD_KEYS: readonly FieldKey[] = [${catalog.fieldKeys.map((key) => `'${key}'`).join(', ')}];`,
+    '',
     '/** One entry of the catalog, as the registry reads it. */',
     'export interface MountPoint {',
     '  readonly key: MountPointKey;',
@@ -365,5 +385,17 @@ export function markdownSource(catalog) {
       '',
     );
   }
+  lines.push(
+    '## 字段键封闭集',
+    '',
+    `插件在 \`video.fields\` 上能交回的字段键是**封闭的十三个**，事实来源同样是 \`shared/plugins/mount-points.json\` 的 \`fieldKeys\`，本文件这一节也由它生成。内核在写库前只认这十三个：**集合外的键被丢弃并记一行日志，不会进 \`video_fields\`**，交一个集合外的键等于什么都没说。`,
+    '',
+    catalog.fieldKeys.map((key) => `\`${key}\``).join('、'),
+    '',
+    '- **值一律是字符串**；演员、类型这类多值用 `, ` 连接，v1 不拆成标签。',
+    '- **`cover` 是内核唯一认识的键**：值是一个网址，内核把它下载成路径再写进库（`plugins/cover.rs`）。',
+    '- **界面按 `field.<键>` 画标签**，翻译在 `shared/locales/{zh-CN,en}/common.json` 的 `field.*` 一组里；那一组缺一个键时界面退回显示键名本身。',
+    '',
+  );
   return lines.join('\n');
 }

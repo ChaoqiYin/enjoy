@@ -132,6 +132,21 @@
       ]
     }
   },
+  "fieldKeys": [
+    "cover",
+    "title",
+    "number",
+    "actors",
+    "genres",
+    "studio",
+    "label",
+    "series",
+    "director",
+    "releaseDate",
+    "duration",
+    "rating",
+    "plot"
+  ],
   "enums": {
     "SettingFieldKind": {
       "comment": "The four kinds of setting field the kernel draws.",

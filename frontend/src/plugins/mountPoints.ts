@@ -117,6 +117,39 @@ export interface VideoActionsParams {
 /** What the contributions at `video.actions` hand back: nothing. */
 export interface VideoActionsResult {}
 
+/** The closed set of field keys a plugin may hand back. */
+export type FieldKey =
+  | 'cover'
+  | 'title'
+  | 'number'
+  | 'actors'
+  | 'genres'
+  | 'studio'
+  | 'label'
+  | 'series'
+  | 'director'
+  | 'releaseDate'
+  | 'duration'
+  | 'rating'
+  | 'plot';
+
+/** The closed set of field keys, in catalog order. */
+export const FIELD_KEYS: readonly FieldKey[] = [
+  'cover',
+  'title',
+  'number',
+  'actors',
+  'genres',
+  'studio',
+  'label',
+  'series',
+  'director',
+  'releaseDate',
+  'duration',
+  'rating',
+  'plot',
+];
+
 /** One entry of the catalog, as the registry reads it. */
 export interface MountPoint {
   readonly key: MountPointKey;
