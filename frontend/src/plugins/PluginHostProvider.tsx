@@ -41,9 +41,16 @@ import type { PluginBootstrap, PluginPort, PluginStatus } from './status';
  * Only the ones something here actually draws. That is what makes 「this plugin
  * is registered at a place nothing shows」 a load-time error rather than a
  * silent nothing: a position nobody declared is one a registration is refused
- * on. `video.fields` joins this list when the video page draws it, and
- * `plugin.settings`, `scan.completed` and `video.actions` when the pages that
- * ask them do.
+ * on.
+ *
+ * **This list is complete, and it can only ever hold these two.** The other four
+ * mount points are the body's (`shared/plugins/mount-points.json` says
+ * `side: body`), so no page of this interface registers them and listing one
+ * would be a promise made on behalf of a half that cannot register. Two of them
+ * are drawn all the same — the video page draws `video.fields` and the plugin
+ * page draws `plugin.settings` — but the kernel is what draws them: it writes
+ * the field row and renders the settings form itself, and neither goes through
+ * the registry.
  */
 const DRAWN_HERE = [
   'app.page',

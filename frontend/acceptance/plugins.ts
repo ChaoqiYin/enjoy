@@ -1,4 +1,5 @@
-import exampleEntry from '../../examples/plugins/hello-page/interface.js?raw';
+import helloEntry from '../../examples/plugins/hello-page/interface.js?raw';
+import panelEntry from '../../examples/plugins/video-panel-demo/interface.js?raw';
 import type { SettingValue } from '../src/plugins/mountPoints';
 import type {
   AppError,
@@ -24,34 +25,42 @@ import type {
  * named after, which is how a pre-flight is reachable without a real plugin on
  * disk to point the picker at.
  *
- * Four plugins are here from the start, because those are the four rows the
- * page is a page of: the cover plugin (on, body half only), the example plugin
- * (on, interface half), one the user switched off, and one whose manifest did
- * not validate. A fixture holding only the first would leave three quarters of
- * the page unreachable to a walkthrough — and one holding no plugin with an
- * interface would leave the interface half unreachable to the window, which is
- * the half a page can mount and a body-only plugin cannot.
+ * Five plugins are here from the start, because those are the five rows the
+ * page is a page of: the cover plugin (on, body half only), the two example
+ * plugins (on, interface half, one at each of the two interface mount points),
+ * one the user switched off, and one whose manifest did not validate. A fixture
+ * holding only the first would leave three quarters of the page unreachable to
+ * a walkthrough — and one holding no plugin with an interface would leave the
+ * interface half unreachable to the window, which is the half a page can mount
+ * and a body-only plugin cannot. Two interface plugins rather than one, for the
+ * same reason: `app.page` and `video.panel` are drawn in two different places,
+ * and a fixture with only the first leaves the second one undrawn — a block
+ * nothing registers is a block no walkthrough can tell from a block that failed
+ * to register.
  */
 
 /**
- * The example plugin's entry, and the one path this copy can really serve.
+ * The two example plugins' entries, and the paths this copy can really serve.
  *
- * `examples/plugins/hello-page/` is in this repository and is what a plugin
- * author copies; reading its text here is what makes the interface a
- * walkthrough mounts the plugin that ships rather than a second copy of it
- * written for the fixture, which would be free to drift from the thing an
- * author is given. `assets.ts` turns the text into a module a browser will
- * import, in place of the file the kernel would read off a disk.
+ * Both directories in `examples/plugins/` are in this repository and are what a
+ * plugin author copies; reading their text here is what makes the interfaces a
+ * walkthrough mounts the plugins that ship rather than second copies written for
+ * the fixture, which would be free to drift from the thing an author is given.
+ * `assets.ts` turns the text into a module a browser will import, in place of
+ * the file the kernel would read off a disk.
  *
- * The plugin is body-less on purpose, and so is the cover plugin: a plugin has
- * one half or the other, and a fixture that gave both to one of them would be
+ * Both are body-less on purpose, and so is the cover plugin: a plugin has one
+ * half or the other, and a fixture that gave both to one of them would be
  * showing a shape the kernel does not have.
  */
-const EXAMPLE_ENTRY = 'hello-page/interface.js';
+const HELLO_ENTRY = 'hello-page/interface.js';
+const PANEL_ENTRY = 'video-panel-demo/interface.js';
 
 /** The source of a plugin's interface, for the paths this copy has one for. */
 export function entrySource(path: string): string | undefined {
-  return path === EXAMPLE_ENTRY ? exampleEntry : undefined;
+  if (path === HELLO_ENTRY) return helloEntry;
+  if (path === PANEL_ENTRY) return panelEntry;
+  return undefined;
 }
 
 function plugin(
@@ -85,7 +94,11 @@ let installed: PluginBootstrap[] = [
   }),
   plugin('hello-page', 'Hello page', {
     author: 'Enjoy',
-    entry: EXAMPLE_ENTRY,
+    entry: HELLO_ENTRY,
+  }),
+  plugin('video-panel-demo', 'Video panel demo', {
+    author: 'Enjoy',
+    entry: PANEL_ENTRY,
   }),
   plugin('watch-log', 'Watch log', { enabled: false }),
   plugin('broken-one', 'Broken one', {
