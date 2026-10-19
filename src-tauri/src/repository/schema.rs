@@ -5,7 +5,7 @@ use crate::error::AppError;
 use super::now;
 
 /// The schema this build writes.
-pub(crate) const VERSION: i64 = 8;
+pub(crate) const VERSION: i64 = 9;
 
 /// The version that gave the library its spaces (ADR 0011).
 ///
@@ -53,6 +53,20 @@ const SPACES: i64 = 5;
 /// in every one. `plugin_id` is a bare string for the reason `source_plugin` is,
 /// and the rows go when the plugin is uninstalled, which the uninstall path does
 /// deliberately rather than by a cascade.
+///
+/// `tasks` is the queue both the kernel and the plugins put work into (spec
+/// #96 §1). One table for both owners, told apart by `plugin`: NULL is the
+/// kernel's own work — scan, thumbnails, refresh — and a string is the plugin
+/// that queued it, kept bare for the reason `source_plugin` is. `space_id` is
+/// required because a task always belongs to one space and its rows cascade
+/// when the space goes; `video_id` is nullable because a scan has no single
+/// record. `kind` and `payload` are the owner's own vocabulary — the kernel
+/// stores them and hands them back without interpreting either. The two
+/// `*_requested` columns carry a pause or cancel asked for while the task is
+/// running: the request is a mark on the row, and the running task acts on it
+/// at its next checkpoint rather than being preempted. The index serves the
+/// one read the queue is built on — an owner asking for its earliest runnable
+/// task — and follows the owner index convention of (owner, state, order).
 pub(crate) const SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS spaces (
         id INTEGER PRIMARY KEY, name TEXT NOT NULL, created_at INTEGER NOT NULL,
@@ -90,6 +104,27 @@ pub(crate) const SCHEMA: &str = "
         plugin_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
         updated_at INTEGER NOT NULL,
         PRIMARY KEY (plugin_id, key));
+    CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY,
+        plugin TEXT,
+        space_id INTEGER NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+        video_id INTEGER REFERENCES videos(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        state TEXT NOT NULL,
+        pause_requested INTEGER NOT NULL DEFAULT 0,
+        cancel_requested INTEGER NOT NULL DEFAULT 0,
+        progress_current INTEGER,
+        progress_total INTEGER,
+        progress_label TEXT,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        available_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        started_at INTEGER,
+        finished_at INTEGER);
+    CREATE INDEX IF NOT EXISTS tasks_by_owner ON tasks(plugin, state, available_at);
 ";
 
 /// A record's own columns, in the order a migration copies them.
@@ -113,24 +148,24 @@ last_played_at,created_at,updated_at";
 
 /// Brings a database of any version to the current one, in place.
 ///
-/// Four upgrades are written here, and they are different in kind rather than
+/// Five upgrades are written here, and they are different in kind rather than
 /// in degree. The oldest carries a library that predates spaces into the first
 /// space. Its name is chosen here, once, from the interface language in force at
 /// the moment of the upgrade — the person reading it is looking at that language
 /// now — and is an ordinary name from then on, free to change. The middle one
 /// moves a library that already has its spaces from version 5 to 6, and creates
 /// nothing: the spaces are already there, and every row keeps the `space_id` it
-/// had. The two newest add a table each — `video_fields` at 7, `plugin_settings`
-/// at 8 — and touch no row at all.
+/// had. The three newest add a table each — `video_fields` at 7,
+/// `plugin_settings` at 8, `tasks` at 9 — and touch no row at all.
 ///
 /// The two that touch `videos` rebuild rather than alter. SQLite can add a column
 /// in place, and this file could have done that in one statement — but the shape
 /// is written down once, in [`SCHEMA`], and an `ALTER` here would put a second,
 /// partial copy of it in this function. The price is that a rename has to be
 /// spelled out for every table, including the ones whose shape did not change.
-/// The newest upgrade pays no such price and so moves nothing: a table that never
-/// existed has no rows to carry across and no old table to be copied out of, and
-/// the create statement in [`SCHEMA`] is the whole of it.
+/// The three newest upgrades pay no such price and so move nothing: a table that
+/// never existed has no rows to carry across and no old table to be copied out
+/// of, and the create statement in [`SCHEMA`] is the whole of it.
 pub(crate) fn migrate(
     tx: &Connection,
     version: i64,
@@ -185,6 +220,12 @@ pub(crate) fn migrate(
         // brings `plugin_settings`, which never existed before, so there is
         // nothing to carry and no old table to copy out of. A database arriving
         // from version 7 is left alone by every branch above this one.
+    }
+    if version < 9 {
+        // The same shape once more: version 9 brings `tasks`, which never
+        // existed before, so there is nothing to carry and no old table to copy
+        // out of. A database arriving from version 8 is left alone by every
+        // branch above this one.
     }
     tx.execute_batch(SCHEMA)?;
     if version < SPACES {

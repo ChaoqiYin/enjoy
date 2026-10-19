@@ -305,3 +305,128 @@ impl FileStamp {
         })
     }
 }
+
+/// One unit of queued work, as the table holds it (spec #96 §1).
+///
+/// The kernel's own work and a plugin's are the same shape in one table, told
+/// apart by `plugin`: `None` is the kernel's queue — scan, thumbnails, refresh
+/// — and `Some` is the plugin that queued the task, kept as a bare string for
+/// the reason `VideoField::source_plugin` is: a plugin lives on disk and the
+/// library does not follow it there. The kernel stores `kind` and `payload`
+/// and hands them back without interpreting either; they are the owner's own
+/// vocabulary.
+///
+/// The two `*_requested` columns are how a pause or cancel reaches a task that
+/// is already running: the request is a mark on the row, and the running task
+/// acts on it at its next checkpoint rather than being preempted — pausing is
+/// cooperative, and a task that never checkpoints never stops (spec #96 §2,
+/// the accepted blind spot).
+///
+/// This shape and the two vocabularies below it are written down and read by the
+/// repository's own tests before anything in the kernel constructs one: the
+/// commands and the host loop that hand a task out are later issues of the same
+/// spec (#98 and its neighbours), and the queue's rules are part of the model
+/// from the first day rather than something bolted on with the wiring. Each
+/// therefore carries `#[allow(dead_code)]` until then, the way `Events::plugin_failed`
+/// does (spec #82).
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Task {
+    pub id: i64,
+    pub plugin: Option<String>,
+    pub space_id: i64,
+    pub video_id: Option<i64>,
+    pub kind: String,
+    pub payload: String,
+    pub state: TaskState,
+    pub pause_requested: bool,
+    pub cancel_requested: bool,
+    pub progress_current: Option<i64>,
+    pub progress_total: Option<i64>,
+    pub progress_label: Option<String>,
+    pub attempts: i64,
+    pub last_error: Option<String>,
+    pub available_at: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub started_at: Option<i64>,
+    pub finished_at: Option<i64>,
+}
+
+/// The states a task moves through (spec #96 §2).
+///
+/// Closed, like every vocabulary the backend refuses to guess at: a row whose
+/// state this build has never heard of is not a state to fall back from but
+/// data that cannot be answered for, and [`TaskState::from_stored`] says so by
+/// returning nothing rather than picking a neighbour.
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskState {
+    /// Runnable once `available_at` arrives; the only state an owner claims
+    /// from.
+    Pending,
+    /// Claimed by its owner. A task is in this state one claim at a time, and
+    /// an application exit that leaves one here is put back to `Pending` at
+    /// the next start.
+    Running,
+    /// Stepped out of the queue by the user, or stopped at a checkpoint after
+    /// a pause was requested. Never claimed.
+    Paused,
+    /// Finished, and the work it asked for stands.
+    Done,
+    /// Finished without standing. The one terminal state the task page offers
+    /// a retry from.
+    Failed,
+    /// Finished by the user, not by the work.
+    Cancelled,
+}
+
+impl TaskState {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Running => "running",
+            Self::Paused => "paused",
+            Self::Done => "done",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    /// The state a stored column holds, or nothing if this build does not know
+    /// that word.
+    pub(crate) fn from_stored(raw: &str) -> Option<Self> {
+        match raw {
+            "pending" => Some(Self::Pending),
+            "running" => Some(Self::Running),
+            "paused" => Some(Self::Paused),
+            "done" => Some(Self::Done),
+            "failed" => Some(Self::Failed),
+            "cancelled" => Some(Self::Cancelled),
+            _ => None,
+        }
+    }
+
+    /// Whether the task is finished, in whichever way it finished. The dedup
+    /// question and the task page's both-read-it sense of "not running any
+    /// more" are this predicate and nothing else: a finished task frees its
+    /// key, and a task that is not finished holds it.
+    #[allow(dead_code)]
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Done | Self::Failed | Self::Cancelled)
+    }
+}
+
+/// What a checkpoint finds out about the task it was called for: keep going,
+/// stop for a pause, or stop for good.
+///
+/// The answer is read off the row and is deliberately sticky — a request stays
+/// requested until the task page changes it, so a checkpoint asked the same
+/// question twice gets the same answer (spec #96 §5).
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskSignal {
+    Run,
+    Pause,
+    Cancel,
+}
