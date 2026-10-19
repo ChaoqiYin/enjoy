@@ -195,6 +195,22 @@ export function useLibrary(): Library {
     run(() => libraryApi.regenerate(spaceId, null));
   const removeVideo = (video: Video) =>
     run(() => libraryApi.remove(spaceId, video.path));
+  // What a plugin's own menu item does. The command is the plugin's errand and
+  // then a refresh of that video's fields, so what the panel is drawing when
+  // the menu closes is what the plugin has just written — and the fields are
+  // read again here rather than left to `run`'s own sweep, which is about the
+  // space's lists and does not know which record this was.
+  //
+  // The list itself is swept by `run` like any other action, and it has to be:
+  // a cover a plugin fetched is part of the record the cards are drawn from, so
+  // a refresh is what puts the new picture on the card the menu was opened on.
+  const runPlugin = (video: Video, pluginId: string) =>
+    run(async () => {
+      await libraryApi.runAction(spaceId, video.path, pluginId);
+      await client.invalidateQueries({
+        queryKey: ['fields', spaceId, video.id],
+      });
+    });
   const addDirectories = (paths: string[]) =>
     run(async () => {
       for (const path of paths) await libraryApi.addDirectory(spaceId, path);
@@ -326,6 +342,7 @@ export function useLibrary(): Library {
       refreshInfo,
       regenerateThumbnail,
       removeVideo,
+      runPlugin,
     },
     // 忙闲
     busy: { busy },

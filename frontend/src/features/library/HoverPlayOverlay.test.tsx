@@ -29,8 +29,21 @@ it('offers the play the card block would otherwise swallow', () => {
   // Named as the control it is, so a reader that sees no picture still meets it.
   fireEvent.click(screen.getByRole('button', { name: english.play }));
   expect(onPlay).toHaveBeenCalledOnce();
-  // The whole card is a click target for the details panel, so pressing this
-  // button must not also open the panel underneath it.
+  // `onCard` stands for the picture area this overlay covers, which takes the
+  // same press and plays. Pressing the button must not also play through the
+  // picture: one action, one call.
+  expect(onCard).not.toHaveBeenCalled();
+});
+
+it('plays once for one press gesture on the button', () => {
+  const { onPlay, onCard } = overlay();
+  // The button runs the picture's own rule, and that rule counts the presses of
+  // a gesture rather than the presses of a control: double-clicking this button
+  // is one play, as double-clicking the picture is (ADR 0042).
+  const button = screen.getByRole('button', { name: english.play });
+  fireEvent.click(button, { detail: 1 });
+  fireEvent.click(button, { detail: 2 });
+  expect(onPlay).toHaveBeenCalledOnce();
   expect(onCard).not.toHaveBeenCalled();
 });
 

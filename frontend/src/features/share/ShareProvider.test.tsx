@@ -58,6 +58,11 @@ vi.mock('../library/useVideoActions', () => ({
 vi.mock('../library/useBusy', () => ({ useBusy: () => busy }));
 vi.mock('../library/useScan', () => ({ useScan: () => scan }));
 vi.mock('../library/useNotices', () => ({ useNotices: () => notices }));
+// The page mounted below is the sharing one, whose drawer asks the plugins what
+// they have written about the video in it; nothing here opens a drawer, and the
+// question is a query, so it is answered with nothing rather than with a query
+// client behind the page.
+vi.mock('../library/useVideoFields', () => ({ useVideoFields: () => [] }));
 vi.mock('../space/SpaceProvider', () => ({
   useSpace: () => ({ id: 7, name: 'Acceptance' }),
 }));

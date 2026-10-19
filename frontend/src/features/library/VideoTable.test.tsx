@@ -27,6 +27,7 @@ const video: Video = {
   height: 1080,
   codec: 'h264',
   thumbnail_path: null,
+  cover_path: null,
   favorite: false,
   shared: false,
   play_count: 0,
@@ -91,6 +92,16 @@ it('lays the facts out as the eight columns the design settled on', () => {
   expect(
     screen.queryByRole('columnheader', { name: english.format }),
   ).toBeNull();
+});
+
+it('has no picture area, so its whole row stays the details target', () => {
+  const actions = table();
+  // The table draws no picture for a video. That is the whole reason the press
+  // that plays from a picture lives in the other two views only (ADR 0042):
+  // here every cell is the details target and the play is the action row's own.
+  expect(document.querySelector('[data-slot="video-picture"]')).toBeNull();
+  fireEvent.click(screen.getByText('00:01:05'), { detail: 1 });
+  expect(actions.details).toHaveBeenCalledOnce();
 });
 
 it('writes every fact of the record into its row', () => {

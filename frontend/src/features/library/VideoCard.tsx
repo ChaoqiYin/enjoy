@@ -4,6 +4,7 @@ import { Tooltip } from '../../shared/Tooltip';
 import { duration } from '../../shared/format';
 import { BorderGlow } from '../../shared/ui/border-glow';
 import { HoverPlayOverlay } from './HoverPlayOverlay';
+import { pressOnPicture } from './picturePress';
 import { Thumbnail } from './Thumbnail';
 import { VideoActions } from './VideoActions';
 import type { VideoActionHandlers } from './VideoActions';
@@ -14,10 +15,16 @@ import type { MenuTarget } from './VideoMenu';
  * One video as the grid draws it: its picture, its name and its duration, with
  * the marks it wears floating over the picture's corners.
  *
- * The card is the click target for the details panel — the whole block, not a
- * link inside it — so it is a tab stop of its own and answers Enter and Space
- * the way a press does. The controls it draws are the exception, and they claim
- * their own presses (`VideoActions`, `HoverPlayOverlay`).
+ * The card is the click target for the details panel — the whole block except
+ * the picture area, and not a link inside it — so it is a tab stop of its own
+ * and answers Enter and Space the way a press does. The controls it draws are
+ * the exception, and they claim their own presses (`VideoActions`,
+ * `HoverPlayOverlay`); so does the picture, whose press plays (ADR 0042).
+ *
+ * The picture adds no tab stop and no role of its own. Both acts stay at the
+ * two stops the keyboard already had — Enter and Space on the card open the
+ * panel, the named play button over the picture plays it — and the picture is a
+ * pointer shortcut across a surface whose keyboard story is already complete.
  *
  * The cursor, the outline and the card's surfaces are CSS; the press scale is
  * the animation library's. That split is not a preference: two writers of one
@@ -61,6 +68,12 @@ export function VideoCard({
   // outline and the glow are untouched either way: one is a CSS transition on
   // this element, the other changes colour and opacity only, and neither is a
   // target value handed to the library.
+  //
+  // A press on the picture dips the card like any other press on the card. The
+  // picture is card surface rather than a control standing on it, so nothing
+  // claims the tap away from the card the way the overlay and `VideoActions`
+  // claim theirs, and claiming it here would take a third motion element inside
+  // the card — one more writer of `transform` (ADR 0008).
   const reduceMotion = useReducedMotion();
   // The card's surfaces are the glow's rather than this element's: `glow-card`
   // brings the resting border and the elevation from the theme, the component
@@ -134,13 +147,18 @@ export function VideoCard({
           first child because that is where the eye goes, not because anything
           clips it from there: the card clips itself, and the picture area being
           first no longer carries a rule with it (ADR 0017). */}
-        <div className="relative">
-          <Thumbnail
-            videoPath={video.path}
-            scan={scan}
-            path={video.thumbnail_path}
-            name={video.file_name}
-          />
+        <div
+          className="relative"
+          data-slot="video-picture"
+          // The picture area is the play target and not only the button drawn
+          // over it: a press here plays, and it is claimed before the card's own
+          // click can read it (ADR 0042). The one rule both this and the row's
+          // picture run is `pressOnPicture`.
+          onClick={(event) =>
+            pressOnPicture(event, () => actions.play(video), !busy)
+          }
+        >
+          <Thumbnail video={video} scan={scan} />
           <HoverPlayOverlay
             disabled={busy}
             onPlay={() => actions.play(video)}

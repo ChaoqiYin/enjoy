@@ -5,7 +5,7 @@ use crate::error::AppError;
 use super::now;
 
 /// The schema this build writes.
-pub(crate) const VERSION: i64 = 6;
+pub(crate) const VERSION: i64 = 8;
 
 /// The version that gave the library its spaces (ADR 0011).
 ///
@@ -35,6 +35,24 @@ const SPACES: i64 = 5;
 /// a column buys the three properties a table would have had to be told: the
 /// list is per space because the record is, the mark goes when the record does,
 /// and no row can point at a video that is gone.
+///
+/// `video_fields` is what the plugins have written about a record. It is keyed
+/// by the pair, so one field is one row and which plugin's value stands is
+/// decided when the chain is asked rather than stacked up here. `source_plugin`
+/// is a bare string with no reference to follow: plugins live on disk and this
+/// table does not, so a field outlives the plugin that gave it and the source is
+/// still readable afterwards — which is the whole of why the column is text
+/// (ADR 0045 §3). It hangs off `videos` rather than off a space, because a
+/// field is about one record and a record is already in one space.
+///
+/// `plugin_settings` is the other direction: what the user filled in for a
+/// plugin, which the kernel keeps because the plugin cannot (`plugin.settings`,
+/// docs/插件系统.md §14.7). It hangs off nothing at all — not off `videos`, because a
+/// setting is not about a record, and not off a space, because it says how the
+/// plugin works rather than what is in a space, so the same answers are in force
+/// in every one. `plugin_id` is a bare string for the reason `source_plugin` is,
+/// and the rows go when the plugin is uninstalled, which the uninstall path does
+/// deliberately rather than by a cascade.
 pub(crate) const SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS spaces (
         id INTEGER PRIMARY KEY, name TEXT NOT NULL, created_at INTEGER NOT NULL,
@@ -63,17 +81,27 @@ pub(crate) const SCHEMA: &str = "
         PRIMARY KEY(space_id, directory_path, video_id),
         FOREIGN KEY(space_id, directory_path)
             REFERENCES directories(space_id, path) ON DELETE CASCADE);
+    CREATE TABLE IF NOT EXISTS video_fields (
+        video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+        key TEXT NOT NULL, value TEXT NOT NULL,
+        source_plugin TEXT NOT NULL, updated_at INTEGER NOT NULL,
+        PRIMARY KEY (video_id, key));
+    CREATE TABLE IF NOT EXISTS plugin_settings (
+        plugin_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (plugin_id, key));
 ";
 
 /// A record's own columns, in the order a migration copies them.
 ///
-/// Two columns are absent on purpose, and both absences are what makes the same
-/// list serve both upgrades.
+/// Two columns are absent on purpose, and both absences are what makes one list
+/// serve both copies that use it.
 ///
-/// `shared` is not in either shape a migration carries forward — it arrived with
-/// the version this build writes. Leaving it out of the copy is what fills it
-/// in: the new table's `DEFAULT 0` applies, so every record already in a space
-/// is 未加入共享清单, which is the only answer an upgrade could give.
+/// `shared` is in neither shape a copy reads: it arrived with version 6, and
+/// every database carried forward here is older than that. Leaving it out of the
+/// copy is what fills it in — the new table's `DEFAULT 0` applies, so every
+/// record already in a space is 未加入共享清单, which is the only answer an
+/// upgrade could give.
 ///
 /// `space_id` has no counterpart in the older shape, whose copy supplies the
 /// first space's id as a literal. The version-5 shape does have one, and its
@@ -85,20 +113,24 @@ last_played_at,created_at,updated_at";
 
 /// Brings a database of any version to the current one, in place.
 ///
-/// Two upgrades are written here, and they are different in kind rather than in
-/// degree. The older one carries a library that predates spaces into the first
+/// Four upgrades are written here, and they are different in kind rather than
+/// in degree. The oldest carries a library that predates spaces into the first
 /// space. Its name is chosen here, once, from the interface language in force at
 /// the moment of the upgrade — the person reading it is looking at that language
-/// now — and is an ordinary name from then on, free to change. The newer one
+/// now — and is an ordinary name from then on, free to change. The middle one
 /// moves a library that already has its spaces from version 5 to 6, and creates
 /// nothing: the spaces are already there, and every row keeps the `space_id` it
-/// had.
+/// had. The two newest add a table each — `video_fields` at 7, `plugin_settings`
+/// at 8 — and touch no row at all.
 ///
-/// Both rebuild rather than alter. SQLite can add a column in place, and this
-/// file could have done that in one statement — but the shape is written down
-/// once, in [`SCHEMA`], and an `ALTER` here would put a second, partial copy of
-/// it in this function. The price is that a rename has to be spelled out for
-/// every table, including the ones whose shape did not change.
+/// The two that touch `videos` rebuild rather than alter. SQLite can add a column
+/// in place, and this file could have done that in one statement — but the shape
+/// is written down once, in [`SCHEMA`], and an `ALTER` here would put a second,
+/// partial copy of it in this function. The price is that a rename has to be
+/// spelled out for every table, including the ones whose shape did not change.
+/// The newest upgrade pays no such price and so moves nothing: a table that never
+/// existed has no rows to carry across and no old table to be copied out of, and
+/// the create statement in [`SCHEMA`] is the whole of it.
 pub(crate) fn migrate(
     tx: &Connection,
     version: i64,
@@ -138,6 +170,21 @@ pub(crate) fn migrate(
              ALTER TABLE directories RENAME TO directories_v5;
              ALTER TABLE directory_videos RENAME TO directory_videos_v5;",
         )?;
+    }
+    if version < 7 {
+        // A table, and nothing else. Version 7 brings `video_fields`, and a
+        // table that never existed has no rows to carry across and no old table
+        // to be copied out of, so the create statement in `SCHEMA` below is the
+        // whole of this upgrade. The branch is written out anyway: a database
+        // arriving from version 6 is one every branch above leaves alone, and a
+        // reader asking what version 7 changed should find the answer where each
+        // other version's answer is.
+    }
+    if version < 8 {
+        // The same shape as the branch above, one version later: version 8
+        // brings `plugin_settings`, which never existed before, so there is
+        // nothing to carry and no old table to copy out of. A database arriving
+        // from version 7 is left alone by every branch above this one.
     }
     tx.execute_batch(SCHEMA)?;
     if version < SPACES {

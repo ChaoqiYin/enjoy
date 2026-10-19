@@ -36,6 +36,9 @@ fn video(name: &str) -> VideoFile {
         last_played_at: None,
         created_at: 0,
         updated_at: 0,
+        // The pass never draws a picture: this is the list of work, and the
+        // cover is read by the listing ([`crate::repository::videos`]).
+        cover_path: None,
     }
 }
 

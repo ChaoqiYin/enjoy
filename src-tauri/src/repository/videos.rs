@@ -30,9 +30,31 @@ use crate::model::{FileStamp, VideoFile, VideoFilter, VideoPage, VideoQuery, Vid
 use super::{not_indexed, now, Repository};
 
 /// The columns a record is read from, in the order [`video_row`] reads them.
-const COLUMNS: &str = "id,path,file_name,folder_path,file_size,modified_at,duration_ms,width,height,codec,thumbnail_path,favorite,shared,play_count,last_played_at,created_at,updated_at,media_complete";
+///
+/// Every one is qualified by the table it comes from, because the listing joins
+/// `video_fields` to `videos` to reach the cover and `updated_at` is a column of
+/// both — an unqualified one would be a name the query language refuses rather
+/// than a column it reads.
+const COLUMNS: &str = "videos.id,videos.path,videos.file_name,videos.folder_path,\
+videos.file_size,videos.modified_at,videos.duration_ms,videos.width,videos.height,\
+videos.codec,videos.thumbnail_path,videos.favorite,videos.shared,videos.play_count,\
+videos.last_played_at,videos.created_at,videos.updated_at,videos.media_complete";
+
+/// The cover, as the listing reaches it: the one field the kernel knows, read
+/// out of the table every plugin field lives in ([`crate::model::COVER_FIELD`]).
+///
+/// An outer join rather than a second question per row, and a join rather than a
+/// column of `videos`: the value belongs to the plugin that answered, it is
+/// written by the same path as every other field, and a copy of it on `videos`
+/// would be a second truth about one thing — the copy that stops matching the
+/// moment a plugin answers again.
+const COVER: &str = "cover.value";
 
 /// One record, off a row the [`COLUMNS`] above were selected in.
+///
+/// The row holds one column more than the struct has fields for every read but
+/// the listing's, which is why the cover is read last and why both reads supply
+/// something for that position.
 fn video_row(row: &Row<'_>) -> rusqlite::Result<VideoFile> {
     Ok(VideoFile {
         id: row.get(0)?,
@@ -53,6 +75,7 @@ fn video_row(row: &Row<'_>) -> rusqlite::Result<VideoFile> {
         created_at: row.get(15)?,
         updated_at: row.get(16)?,
         media_complete: row.get(17)?,
+        cover_path: row.get(18)?,
     })
 }
 
@@ -132,8 +155,12 @@ impl Repository {
             |row| row.get(0),
         )?;
         let sql = format!(
-            "SELECT {COLUMNS} FROM videos WHERE {where_clause} ORDER BY {} LIMIT ? OFFSET ?",
-            order(query)
+            "SELECT {COLUMNS},{COVER} FROM videos \
+             LEFT JOIN video_fields AS cover \
+                ON cover.video_id = videos.id AND cover.key = '{field}' \
+             WHERE {where_clause} ORDER BY {} LIMIT ? OFFSET ?",
+            order(query),
+            field = crate::model::COVER_FIELD
         );
         let mut statement = self.connection.prepare(&sql)?;
         // Both are clamped rather than handed over as they came. A negative
@@ -157,8 +184,12 @@ impl Repository {
     /// reads the library through [`Repository::list`], which is the question a
     /// user asks; this is the question the application asks about its own work.
     pub fn records(&self, space_id: i64) -> Result<Vec<VideoFile>, AppError> {
+        // `NULL` in the cover's place rather than the join: this read is the
+        // media pass's list of work, which never draws a picture, and the one
+        // row reader serves both. The column is there so that it can.
         let mut query = self.connection.prepare(&format!(
-            "SELECT {COLUMNS} FROM videos WHERE space_id=?1 ORDER BY created_at DESC, id DESC"
+            "SELECT {COLUMNS},NULL FROM videos WHERE space_id=?1 \
+             ORDER BY created_at DESC, id DESC"
         ))?;
         let rows = query.query_map([space_id], video_row)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)

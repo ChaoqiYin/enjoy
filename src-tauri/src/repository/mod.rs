@@ -9,6 +9,9 @@
 //! holds only what all of them share: the type, the connection, and the two
 //! things no caller may pass around for itself.
 
+mod fields;
+#[cfg(test)]
+mod fields_tests;
 #[cfg(test)]
 pub(crate) mod fixture;
 #[cfg(test)]
@@ -19,6 +22,14 @@ mod listing_tests;
 mod metadata_tests;
 #[cfg(test)]
 mod migration_tests;
+// What the plugins wrote into the library, which is one table and two queries:
+// counting a plugin's rows for the uninstall question, and forgetting them if
+// the user says so.
+mod plugin_content;
+// What the user filled in for a plugin, which is the other half of the plugin
+// system's storage: `plugin_content` is what a plugin left in the library,
+// this is what the library holds about the plugin.
+mod plugin_settings;
 mod scans;
 pub(crate) mod schema;
 mod spaces;

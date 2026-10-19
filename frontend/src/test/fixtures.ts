@@ -47,6 +47,7 @@ export function video(overrides: Partial<Video> = {}): Video {
     height: 1080,
     codec: 'h264',
     thumbnail_path: null,
+    cover_path: null,
     favorite: false,
     shared: false,
     play_count: 0,

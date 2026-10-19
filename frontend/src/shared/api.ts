@@ -3,9 +3,14 @@ import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener';
 import { open } from '@tauri-apps/plugin-dialog';
+import type { SettingValue } from '../plugins/mountPoints';
 import type {
   AppError,
   LanguageSettings,
+  PluginBootstrap,
+  PluginFailure,
+  PluginInstallPreview,
+  PluginSettingsGroup,
   ScanStatus,
   SettingsState,
   ShareStatus,
@@ -13,6 +18,7 @@ import type {
   UpdateCheck,
   UpdateProgress,
   Video,
+  VideoField,
   VideoPage,
   VideoQuery,
 } from './apiTypes';
@@ -32,6 +38,11 @@ export type {
   Device,
   IndexChanges,
   LanguageSettings,
+  PluginBootstrap,
+  PluginFailure,
+  PluginInstallPreview,
+  PluginSettingField,
+  PluginSettingsGroup,
   ScanStatus,
   SettingsState,
   ShareStatus,
@@ -39,6 +50,7 @@ export type {
   UpdateCheck,
   UpdateProgress,
   Video,
+  VideoField,
   VideoPage,
   VideoQuery,
 } from './apiTypes';
@@ -85,10 +97,9 @@ export const libraryApi = {
   regenerate: (spaceId: number, path: string | null) =>
     invoke<void>('regenerate_thumbnails', { spaceId, path }),
   // One page of the library, as described by the query. The command name is the
-  // same one it always was while what it takes is not, because the listing is
-  // one thing the interface asks for however many questions the answer is made
-  // of — and a second name beside it would be a second way to ask for the same
-  // records (ADR 0016).
+  // same one it always was while what it takes is not, because the listing is one
+  // thing the interface asks for however many questions its answer is made of —
+  // and a second name would be a second way to ask for the same records (ADR 0016).
   list: (query: VideoQuery) => invoke<VideoPage>('list_videos', { query }),
   directories: (spaceId: number) =>
     invoke<string[]>('list_directories', { spaceId }),
@@ -100,8 +111,7 @@ export const libraryApi = {
   favorite: (spaceId: number, path: string, favorite: boolean) =>
     invoke<void>('set_favorite', { spaceId, path, favorite }),
   // A mark on a record, as a favorite is, so it is addressed and answered the
-  // same way. Which videos it marks is the space's business; what it means is
-  // the share service's.
+  // same way. Which videos it marks is the space's; what it means, the service's.
   shared: (spaceId: number, path: string, shared: boolean) =>
     invoke<void>('set_shared', { spaceId, path, shared }),
   remove: (spaceId: number, path: string) =>
@@ -118,6 +128,14 @@ export const libraryApi = {
     invoke<void>('open_video', { spaceId, path }),
   refreshInfo: (spaceId: number, path: string) =>
     invoke<void>('refresh_video_info', { spaceId, path }),
+  // The fields this video's plugins have written, and one plugin's own action on
+  // it. Asking is what makes them current: the command puts the question to the
+  // plugins and stores what they answer. An action is that question again, once
+  // the plugin has been told to go and find something, and answers the same way.
+  fields: (spaceId: number, path: string) =>
+    invoke<VideoField[]>('refresh_video_fields', { spaceId, path }),
+  runAction: (spaceId: number, path: string, pluginId: string) =>
+    invoke<VideoField[]>('run_video_action', { spaceId, path, pluginId }),
   checkForUpdate: () => invoke<UpdateCheck>('check_for_update'),
   // Answers with how the transfer ended, so a download that was paused or
   // cancelled is told apart from one that finished without reading an event.
@@ -130,6 +148,56 @@ export const libraryApi = {
   // Installing hands the update to the platform installer and exits, so this
   // never answers a restart that worked; the caller swallows the rejection.
   restartApp: () => invoke<void>('restart_app'),
+};
+
+/**
+ * The plugins installed on this machine: what is there, and what the user may do
+ * about it. Two things about this group are decisions rather than plumbing.
+ *
+ * **Every command that changes something answers with the whole list as it now
+ * stands**, the way the space commands answer with the space to show afterwards.
+ * A caller that had to ask again could draw the two contradicting each other.
+ *
+ * **None of them reaches the running plugin host.** Installing, switching and
+ * uninstalling take effect on the next start (spec #82 「不做热插拔」), so what
+ * these answer with is the state of the disk rather than what this window runs.
+ *
+ * `preview` and `install` are one source read twice: the first says what
+ * installing it would do and copies nothing, and the user is asked in between.
+ * The source is a path the user picked — a folder, or a `.zip` holding one — and
+ * there is no address to install from: v1 has no network install.
+ *
+ * `contentRows` is asked before an uninstall so that the question can say how
+ * many rows of the library would go with the plugin: its own command, because it
+ * is asked before anything is decided and its answer is a number the user reads.
+ */
+export const pluginApi = {
+  list: () => invoke<PluginBootstrap[]>('list_plugins'),
+  setEnabled: (pluginId: string, enabled: boolean) =>
+    invoke<PluginBootstrap[]>('set_plugin_enabled', { pluginId, enabled }),
+  // The whole order rather than a move, so that which ids are installed is the
+  // kernel's to check: an id it never handed out is refused rather than written.
+  setOrder: (order: string[]) =>
+    invoke<PluginBootstrap[]>('set_plugin_order', { order }),
+  preview: (source: string) =>
+    invoke<PluginInstallPreview>('preview_plugin_install', { source }),
+  install: (source: string) =>
+    invoke<PluginBootstrap[]>('install_plugin', { source }),
+  uninstall: (pluginId: string, deleteContent: boolean) =>
+    invoke<PluginBootstrap[]>('uninstall_plugin', { pluginId, deleteContent }),
+  contentRows: (pluginId: string) =>
+    invoke<number>('plugin_content_rows', { pluginId }),
+  // Every plugin is off now, and the page says so without asking again.
+  safeMode: () => invoke<PluginBootstrap[]>('run_safe_mode'),
+  // The settings form, read and written: both name the space (docs/插件系统.md §14.7).
+  listSettings: (spaceId: number) =>
+    invoke<PluginSettingsGroup[]>('list_plugin_settings', { spaceId }),
+  saveSettings: (spaceId: number, pluginId: string, values: SettingValue[]) =>
+    invoke<PluginSettingsGroup[]>('save_plugin_settings', {
+      spaceId,
+      pluginId,
+      values,
+    }),
 };
 
 /**
@@ -285,6 +353,27 @@ export function pickDirectories(): Promise<string[] | null> {
   return open({ directory: true, multiple: true });
 }
 
+/** Asks the user for one folder — a plugin's setting is one path, not a set. */
+export function pickDirectory(): Promise<string | null> {
+  return open({ directory: true, multiple: false });
+}
+
+/**
+ * The two shapes a plugin comes in, asked for through the platform's own picker.
+ *
+ * One function with a flag rather than two, because the platform's picker is one
+ * or the other and never both: a plugin is a folder a user unpacked, or the
+ * `.zip` they downloaded. Which of the two they have is a fact only they know,
+ * so it is asked rather than guessed — and the dialog that asks shows what each
+ * one would install before anything is copied.
+ */
+export function pickPluginSource(archive: boolean): Promise<string | null> {
+  const filters = [{ name: 'Plugin', extensions: ['zip'] }];
+  return archive
+    ? open({ multiple: false, filters })
+    : open({ directory: true, multiple: false });
+}
+
 /**
  * Opens a page in the browser the user already has, rather than in this window.
  *
@@ -322,6 +411,20 @@ export function openExternal(url: string): Promise<void> {
  */
 export function thumbnailUrl(path: string): string {
   return convertFileSrc(path);
+}
+
+/**
+ * The URL a plugin interface's entry is loaded from.
+ *
+ * The same conversion as a thumbnail's, and here for the same reason: it is the
+ * backend that hands out the URL a file on disk stands for, and this file is the
+ * one address the backend is reached at (`check-commands.mjs`). The plugin host
+ * imports this by name, and it is the name the source check holds the interface's
+ * one dynamic import to — a plugin is a directory outside this build, so its
+ * entry is reached for at run time, and this is what says where.
+ */
+export function pluginEntryUrl(entry: string): string {
+  return convertFileSrc(entry);
 }
 
 /**
@@ -390,26 +493,7 @@ export function readTheme(): Promise<SettingsState['theme']> {
   return settingsApi.read().then((settings) => settings.theme);
 }
 
-export function normalizeError(error: unknown): AppError {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    typeof error.code === 'string' &&
-    'errorId' in error &&
-    typeof error.errorId === 'string'
-  ) {
-    const params: Record<string, string> = {};
-    if (
-      'params' in error &&
-      typeof error.params === 'object' &&
-      error.params !== null
-    ) {
-      for (const [key, value] of Object.entries(error.params)) {
-        if (typeof value === 'string') params[key] = value;
-      }
-    }
-    return { code: error.code, errorId: error.errorId, params };
-  }
-  return { code: 'app.unexpected', params: {}, errorId: crypto.randomUUID() };
-}
+// Moved to its own module, and handed on from here so that every existing
+// import path keeps working: the address the backend is reached at is at the
+// line limit its module keeps, and this function reaches nothing.
+export { normalizeError } from './normalizeError';

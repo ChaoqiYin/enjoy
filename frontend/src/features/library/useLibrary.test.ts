@@ -32,6 +32,7 @@ const video: Video = {
   height: 1080,
   codec: 'h264',
   thumbnail_path: null,
+  cover_path: null,
   favorite: false,
   shared: false,
   play_count: 0,
@@ -275,6 +276,26 @@ it('remembers the played marker for the space it was played in', async () => {
   switchTo.mockResolvedValue(space);
   await act(() => result.current.spaceCommands.switchSpace(space.id));
   expect(result.current.videos.lastPlayedId).toBe(video.id);
+});
+
+it('runs the plugin the user picked, and reads that video’s fields again', async () => {
+  const runAction = vi
+    .spyOn(libraryApi, 'runAction')
+    .mockResolvedValue([
+      { key: 'cover', value: '/covers/7.jpg', source_plugin: 'cover-fetcher' },
+    ]);
+  // The panel reads the fields through this key, and the action is what writes
+  // them: a key left alone would be the panel drawing the record as the plugins
+  // left it the last time anyone looked.
+  const invalidate = vi.spyOn(client, 'invalidateQueries');
+  const { result } = mount();
+  await act(() =>
+    result.current.videoActions.runPlugin(video, 'cover-fetcher'),
+  );
+  expect(runAction).toHaveBeenCalledWith(space.id, video.path, 'cover-fetcher');
+  expect(invalidate).toHaveBeenCalledWith({
+    queryKey: ['fields', space.id, video.id],
+  });
 });
 
 it('leaves the played marker alone when the launch fails', async () => {

@@ -86,12 +86,42 @@ if-addrs="0.15"
 # version line. Nowhere but Windows 11 (build 22000) does it do anything: below
 # that, and on macOS, every call of it is a no-op.
 tauri-plugin-snap-layout="1"
+zip = { version = "4", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+# The runtime a plugin's working half runs in (ADR 0044). Pinned to a major
+# because this is the one dependency here whose API moves under it between
+# releases; `Cargo.lock` holds the exact 47.0.4.
+#
+# `default-features` is off and the list is written out, because the defaults
+# are the whole of wasmtime: the component model, garbage collection, a pooling
+# allocator, profiling, threads, a stack-switching engine. What this application
+# does is instantiate one small module per plugin and call one exported function
+# on it, so what it needs is three things:
+#
+# - `cranelift`, the compiler. Without a compiler there is nothing to run.
+# - `runtime`, which is `Engine`, `Store`, `Linker` and `Func` themselves.
+# - `async`, the host functions and `Func::call_async` they are called through
+#   (ADR 0044 §5). Async is a one-way door — a store that has any async host
+#   function is an async store throughout — and it is what makes a plugin that
+#   is waiting on the network a wait that can be cut off.
+# - `std`, because this is a program and not a `no_std` one.
+#
+# `wat` is deliberately not here: nothing in the application ever loads a module
+# as text. The tests do, and they take it as a dev-dependency of their own, so
+# the shipped binary carries no WAT parser.
+wasmtime= {version="47",default-features=false,features= ["cranelift", "runtime", "async", "std"] }
 
 [dev-dependencies]
 # Only for the signature tests, which have to bring a key of their own: a valid
 # minisign signature cannot be made without the private key that makes it, and
 # the one that signs our releases is not in this repository.
 ring="0.17"
+# Only for the plugin runtime's tests, which write their wasm modules as text
+# rather than committing a `.wasm` beside them: `wasm32` is not a target this
+# repository builds for, and a fixture that has to be compiled by another
+# toolchain before the test can run is a fixture that stops being run. Declared
+# apart from `wasmtime`'s own `wat` feature so that the parser stays out of the
+# binary — see the note on `wasmtime` above.
+wat="1"
 
 [build-dependencies]
 tauri-build= {version="2", features = [] }

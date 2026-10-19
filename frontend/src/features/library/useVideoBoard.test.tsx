@@ -5,8 +5,10 @@ import {
   actionMocks,
   busy,
   collection,
+  fields,
   listing,
   notices,
+  pluginActions,
   resetVideoPage,
   scan,
   space,
@@ -26,6 +28,7 @@ import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { VideoPageContent } from './VideoPageContent';
+import { useVideoFields } from './useVideoFields';
 import type { useVideoPageView } from './useVideoPageView';
 import type { ViewMode } from './listing';
 import english from '../../../../shared/locales/en/common.json';
@@ -49,9 +52,25 @@ vi.mock('./useScan', () => ({ useScan: () => scan }));
 vi.mock('./useNotices', () => ({ useNotices: () => notices }));
 vi.mock('./useVideoActions', () => ({ useVideoActions: () => videoActions }));
 vi.mock('./useBusy', () => ({ useBusy: () => busy }));
+// The fields are a question about the one video that is open, and this file is
+// about which video that is: what the hook is handed is the assertion below, and
+// what it answers with is `fields`.
+vi.mock('./useVideoFields', () => ({
+  useVideoFields: vi.fn(() => fields),
+}));
 
 vi.mock('../space/SpaceProvider', () => ({
   useSpace: () => space,
+}));
+// Which plugins can act on a video is the window's own list and is read from
+// the plugin host, which the page is drawn inside of in the application and
+// not in a test: what is here is the list it hands the menu. The blocks a
+// plugin adds to the panel are the same kind of read, and a page with no
+// plugins has none of them — what a block is drawn as is `VideoDetails.test.tsx`'s
+// to say, and the panel is not what these cases are about.
+vi.mock('../../plugins/PluginHostProvider', () => ({
+  usePluginActions: () => pluginActions,
+  usePluginPanels: () => [],
 }));
 
 beforeEach(async () => {
@@ -106,6 +125,38 @@ function setClipboard(writeText?: (text: string) => Promise<void>) {
   });
 }
 
+it('draws the fields the plugins wrote for the video that is open', () => {
+  fields.push({
+    key: 'cover',
+    value: '/covers/1.jpg',
+    source_plugin: 'cover-fetcher',
+  });
+  render(page());
+  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
+  // The term is the plugin's own name for the field and the badge is the plugin
+  // that wrote it, drawn in the panel the record's own facts are in — one list,
+  // because the user is reading one video.
+  const row = screen.getByText('cover').closest('[data-slot="video-meta-row"]');
+  expect(row?.querySelector('dd')?.textContent).toBe(
+    '/covers/1.jpgcover-fetcher',
+  );
+});
+
+it('hands the open video to the fields hook, and nothing once the drawer is shut', () => {
+  const handed = vi.mocked(useVideoFields);
+  render(page());
+  // Nothing is open, so nothing is asked: the drawer is mounted either way, and
+  // a question tied to the mount would be a plugin call per rendered page.
+  expect(handed).toHaveBeenLastCalledWith(null);
+  fireEvent.click(screen.getByRole('button', { name: video.file_name }));
+  expect(handed).toHaveBeenLastCalledWith(video);
+  // The panel keeps the video it was describing after it closes — it is the
+  // open state that says whether anything is being looked at, not the last
+  // thing that was.
+  fireEvent.click(screen.getByRole('button', { name: english.closeDetails }));
+  expect(handed).toHaveBeenLastCalledWith(null);
+});
+
 it('copies the path the panel shows, and announces it', async () => {
   const writeText = vi.fn().mockResolvedValue(undefined);
   setClipboard(writeText);
@@ -149,6 +200,21 @@ it('asks the library to play the video the click landed on', () => {
     }),
   );
   expect(actionMocks.play).toHaveBeenCalledWith(video);
+});
+
+it('runs the plugin whose menu item was picked, on the record the menu is about', () => {
+  render(page());
+  fireEvent.contextMenu(screen.getByRole('article'));
+  fireEvent.click(
+    screen.getByRole('menuitem', { name: pluginActions[0].name }),
+  );
+  // The record the right-click landed on, and the plugin the user picked out of
+  // it: the menu names a plugin, and the action has to reach that one and not
+  // whichever plugin the window happens to list first.
+  expect(actionMocks.runPlugin).toHaveBeenCalledWith(
+    video,
+    pluginActions[0].id,
+  );
 });
 
 it('closes what was opened onto the old space when the space changes', async () => {

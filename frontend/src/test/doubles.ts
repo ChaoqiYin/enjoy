@@ -9,6 +9,7 @@ import type { Directories } from '../features/library/useDirectories';
 import type { VideoActions } from '../features/library/useVideoActions';
 import type { SpaceCommands } from '../features/library/useSpaceCommands';
 import type { Share } from '../features/share/useShare';
+import type { PluginBootstrap, PluginPort } from '../plugins/status';
 
 /**
  * A stand-in for each slice of the library, as a page sees one.
@@ -109,6 +110,7 @@ export function videoActions(
     refreshInfo: vi.fn(async () => {}),
     regenerateThumbnail: vi.fn(async () => {}),
     removeVideo: vi.fn(async () => {}),
+    runPlugin: vi.fn(async () => {}),
     ...overrides,
   };
 }
@@ -154,6 +156,38 @@ export function share(overrides: Partial<Share> = {}): Share {
     start: vi.fn(async () => true),
     stop: vi.fn(async () => true),
     regeneratePassword: vi.fn(async () => true),
+    ...overrides,
+  };
+}
+
+/**
+ * The plugin port over a fixed list.
+ *
+ * The list is what most of these tests are about — which plugins there are and
+ * what each one's row says. The lifecycle half of the port is here because it
+ * is one interface and not two: a builder that left it out would be a double
+ * the provider could not be handed. Its methods answer with the same list, so a
+ * press a test did not mean to make leaves the rows where they were instead of
+ * failing for a reason the test never stated; a test that is about one of them
+ * overrides it.
+ */
+export function pluginPort(
+  plugins: readonly PluginBootstrap[],
+  overrides: Partial<PluginPort> = {},
+): PluginPort {
+  return {
+    bootstrap: async () => plugins,
+    setEnabled: async () => plugins,
+    setOrder: async () => plugins,
+    preview: async () => {
+      throw new Error('this double has nothing to preview');
+    },
+    install: async () => plugins,
+    uninstall: async () => plugins,
+    contentRows: async () => 0,
+    safeMode: async () => [],
+    settings: async () => [],
+    saveSettings: async () => [],
     ...overrides,
   };
 }

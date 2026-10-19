@@ -1,5 +1,7 @@
 use crate::error::AppError;
+use crate::events::AppEvents;
 use crate::i18n::{language, native};
+use crate::plugins::{loading, settings, PluginHost, Store};
 use crate::repository::Repository;
 use crate::scan::control::ScanControl;
 use crate::share::ShareControl;
@@ -20,6 +22,26 @@ pub(crate) struct AppState {
     pub(crate) repository: Arc<Mutex<Repository>>,
     pub(crate) update: Arc<UpdateControl>,
     pub(crate) share: Arc<ShareControl>,
+    /// The one thing in the kernel that knows plugins exist. What reaches it is
+    /// the mount points a command is about — the fields a video has, what a
+    /// plugin needs the user to fill in — and nothing here knows a plugin's
+    /// name. The field command reads it (#88); the install, enable and disable
+    /// ones (#86) read the store beside it, and reach this one only through the
+    /// interface half the host runs.
+    pub(crate) plugins: Arc<PluginHost>,
+    /// The plugins on disk: what is installed, which the user switched on, and
+    /// what installing and uninstalling do to that. Held apart from the host
+    /// because the two are read at different times and mean different things —
+    /// the host is what this window is asking *now*, the store is what the next
+    /// start will load.
+    pub(crate) plugin_store: Arc<Store>,
+    /// Where the covers a plugin found are written, which is the one directory
+    /// outside the plugin's own that a plugin's answer puts a file in
+    /// ([`crate::plugins::cover`]). Held here rather than asked of the
+    /// application at the point of use, for the reason the store is: a command
+    /// is handed the state and not an `AppHandle`, which is what makes the rule
+    /// behind it reachable from a test.
+    pub(crate) covers: PathBuf,
 }
 
 /// A state a test can hold. It lives here rather than beside any one test
@@ -39,6 +61,16 @@ pub(crate) fn test_state(fixture: &crate::repository::fixture::Fixture) -> AppSt
         repository: Arc::new(Mutex::new(repository)),
         update: Arc::new(UpdateControl::default()),
         share: Arc::new(ShareControl::default()),
+        // No plugin is enabled, and none can be until there is a loader to
+        // enable one (#86): a host a test holds is a host with an empty
+        // rotation, which is also what the application itself starts with.
+        plugins: Arc::new(PluginHost::new(
+            Arc::new(crate::events::Recorded::default()),
+        )),
+        // Beside the fixture's own database, so that a test which installs a
+        // plugin installs it into a directory that goes when the fixture does.
+        plugin_store: Arc::new(Store::new(fixture.0.join("plugins"))),
+        covers: fixture.0.join("covers"),
     }
 }
 
@@ -61,6 +93,27 @@ pub(crate) fn thumbnail_cache(database: &std::path::Path) -> PathBuf {
     database.with_file_name("thumbnails")
 }
 
+/// The plugins directory, which lives beside the index the same way and for the
+/// same reason: where a plugin is installed is a fact about *this* installation
+/// of the application, and the database's own path is the only thing that knows
+/// it.
+pub(crate) fn plugin_store(database: &std::path::Path) -> PathBuf {
+    database.with_file_name("plugins")
+}
+
+/// The covers a plugin found, beside the index for the third time and the same
+/// reason: they are this installation's, and the database's path is what knows
+/// where this installation is.
+///
+/// One directory for every plugin's covers rather than one per plugin, because a
+/// cover is not kept per plugin: the chain takes the first plugin that has one
+/// and the field records which plugin that was, so a directory per plugin would
+/// be a second copy of a fact the library already holds — and a copy that goes
+/// wrong the moment the user reorders the plugins.
+pub(crate) fn covers_dir(database: &std::path::Path) -> PathBuf {
+    database.with_file_name("covers")
+}
+
 pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError> {
     // The first space is named in the language the person is looking at right
     // now: the upgrade happens once, on a machine whose interface language is a
@@ -69,11 +122,36 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
     let language = language::current(app)?;
     let path = database_path(app)?;
     let repository = Repository::open(&path, native::translate(&language, "defaultSpace"))?;
+    let plugins = Arc::new(PluginHost::new(Arc::new(AppEvents(app.clone()))));
+    let plugin_store = Arc::new(Store::new(plugin_store(&path)));
+    // What the user installed and switched on is put into the rotation before
+    // the window is shown. It cannot fail: `loading::load` answers with nothing
+    // and writes a line in the log for every plugin it could not build, so a
+    // plugins directory the kernel cannot make sense of costs the user their
+    // plugins and not their application (ADR 0044 §7).
+    loading::load(&plugin_store, &plugins);
+    // Then what the user filled in is handed to the plugins that have something
+    // saved, and for the reason loading is: a plugin that works from a video's
+    // menu would otherwise never see the user's settings, because the only other
+    // moment the kernel hands them over is when the plugin page is open — which
+    // is not where such a plugin is ever used (`plugins::settings` says the rest,
+    // docs/插件系统.md §14.8). A library that cannot be read costs the user their
+    // plugins' settings and not their application, the same bargain loading
+    // makes with a plugins directory it cannot read.
+    if let Err(error) = settings::hand_over(&plugins, &repository) {
+        tracing::warn!(
+            code = error.code,
+            "the saved plugin settings could not be read; the plugins start without them"
+        );
+    }
     app.manage(AppState {
         repository: Arc::new(Mutex::new(repository)),
         scan: Arc::new(ScanControl::default()),
         update: Arc::new(UpdateControl::default()),
         share: Arc::new(ShareControl::default()),
+        plugins,
+        plugin_store,
+        covers: covers_dir(&path),
     });
     Ok(())
 }

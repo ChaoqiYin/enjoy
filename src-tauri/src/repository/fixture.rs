@@ -1,6 +1,9 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
+
+use crate::model::VideoField;
 
 use super::Repository;
 
@@ -61,5 +64,55 @@ pub(crate) struct Library {
 impl Drop for Fixture {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Fills a library with fields the plugins wrote, for the tests about what a
+/// plugin left behind.
+///
+/// `video_fields` is the real table — it is `SCHEMA`'s, and the migration that
+/// brings it is [`super::migrate`]'s — so nothing here creates anything. The
+/// rows go in through [`Repository::save_fields`], which is the one path a
+/// plugin's answer reaches the database by, so what these tests count is what
+/// that path actually wrote.
+///
+/// Each row is `(video_id, key, value, source_plugin)`; the timestamp is not
+/// what any of these tests are about. The records the rows hang off are laid
+/// down directly rather than scanned in, because a field cannot exist without
+/// one and a record's own columns are not what any of this is about — what a
+/// test names is the id it wants to talk about.
+pub(crate) fn video_fields(repository: &mut Repository, rows: &[(i64, &str, &str, &str)]) {
+    let space = repository.current_space().unwrap().id;
+    for video in rows
+        .iter()
+        .map(|(video, ..)| *video)
+        .collect::<BTreeSet<_>>()
+    {
+        repository
+            .connection
+            .execute(
+                "INSERT INTO videos (id,space_id,path,file_name,folder_path,file_size,modified_at,created_at,updated_at) \
+                 VALUES (?1,?2,?3,?4,?5,0,0,0,0)",
+                rusqlite::params![
+                    video,
+                    space,
+                    format!("/videos/{video}.mkv"),
+                    format!("{video}.mkv"),
+                    "/videos"
+                ],
+            )
+            .unwrap();
+    }
+    for (video, key, value, plugin) in rows {
+        repository
+            .save_fields(
+                *video,
+                &[VideoField {
+                    key: (*key).into(),
+                    value: (*value).into(),
+                    source_plugin: (*plugin).into(),
+                }],
+            )
+            .unwrap();
     }
 }

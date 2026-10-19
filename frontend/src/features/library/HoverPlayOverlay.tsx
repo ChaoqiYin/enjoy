@@ -2,6 +2,7 @@ import { Play } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../shared/ui/button';
+import { pressOnPicture } from './picturePress';
 
 // Motion only creates the press gesture that can claim the pointer press for an
 // element that declares one, so this object stays empty on purpose: being truthy
@@ -21,9 +22,12 @@ const CLAIM_TAP = {};
  * with opacity alone so that the motion preference has nothing to drop.
  *
  * The scrim spans the picture and lets everything through it except the button
- * itself, so the pointer can still reach the card underneath and open the
- * details panel — the button is the one place on the picture where a press
- * means play.
+ * itself. The button is no longer the only place on the picture where a press
+ * means play — the picture area carries that press itself (ADR 0042) — it is
+ * the place that says so: the picture's named control, the one a reader that
+ * never sees the picture still meets and the one the keyboard reaches. Both
+ * presses go through `pressOnPicture`, so both are claimed from the card and
+ * both drop the second press of a double click.
  *
  * The press has to be claimed the way `VideoActions` claims it: the button sits
  * inside the card's own press gesture, and without a nested motion element
@@ -51,10 +55,9 @@ export function HoverPlayOverlay({
         disabled={disabled}
         aria-label={t('play')}
         className="pointer-events-auto rounded-full opacity-0 shadow-lg transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100"
-        onClick={(event) => {
-          event.stopPropagation();
-          onPlay();
-        }}
+        // No `available` to pass: a disabled native button never sees a click,
+        // which is how this control's own disabling already works.
+        onClick={(event) => pressOnPicture(event, onPlay)}
       >
         <Play size={18} aria-hidden="true" />
       </Button>

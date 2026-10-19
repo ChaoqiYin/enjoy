@@ -6,12 +6,15 @@ import {
   FolderOpen,
   HardDrive,
   Monitor,
+  Puzzle,
   RefreshCw,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { ScanStatus, Video } from '../../shared/api';
+import type { ScanStatus, Video, VideoField } from '../../shared/api';
 import { displayPath, duration, fileSize } from '../../shared/format';
 import { Button } from '../../shared/ui/button';
+import { usePluginPanels } from '../../plugins/PluginHostProvider';
+import type { SpaceRef } from '../../plugins/mountPoints';
 import { MaintenanceButton } from './MaintenanceButton';
 import { Thumbnail } from './Thumbnail';
 import { VideoActions } from './VideoActions';
@@ -44,19 +47,42 @@ function resolutionClass(height: number | null): string | undefined {
  *  through the action the caller hands in, because the two answers are told in
  *  two places — the short hint for a copy that landed, the notice for one that
  *  did not — and that split belongs to whoever is drawing those, not here.
+ *
+ *  `fields` are what the plugins wrote about this video, handed in rather than
+ *  fetched here: which video is open, and when it was opened, is the drawer's
+ *  business, and this panel is drawn the same way in a test as in the
+ *  application. They are drawn under the record's own terms because they are
+ *  not terms the record has, and each carries the plugin it came from — a value
+ *  a plugin wrote is not the kernel's to present as its own.
+ *
+ *  `space` is handed in for the same reason and is the one thing here that is
+ *  not about this video: a block a plugin draws is told which space the window
+ *  is in (`VideoPanelParams`), and which space that is belongs to the drawer
+ *  that opened the video rather than to the panel.
  */
 export function VideoDetails({
   video,
+  space,
   scan,
   busy,
   actions,
+  fields = [],
 }: {
   video: Video;
+  space: SpaceRef;
   scan?: ScanStatus;
   busy: boolean;
   actions: VideoActionHandlers;
+  fields?: VideoField[];
 }) {
   const { t, i18n } = useTranslation();
+  // The blocks the plugins registered at `video.panel`, in plugin order. This
+  // is the render side of that mount point, and the position is this panel's
+  // own decision: the file's own header stays together — picture, name, path
+  // and the actions on it — the plugins' own area comes next, and the record's
+  // terms follow. A library with no plugins reads exactly as it always did,
+  // because the position is empty and draws nothing (User Story 13).
+  const panels = usePluginPanels();
   const rows: VideoMetaRow[] = [
     {
       icon: <Clock size={15} aria-hidden="true" />,
@@ -87,15 +113,20 @@ export function VideoDetails({
         timeStyle: 'short',
       }).format(video.modified_at),
     },
+    // The plugin fields, in the order the backend handed them over — which is
+    // the order of their keys, so a panel read twice reads the same way. The
+    // puzzle piece is the same one the navigation marks the plugin page with:
+    // what this line is, is not this application's own.
+    ...fields.map((field) => ({
+      icon: <Puzzle size={15} aria-hidden="true" />,
+      label: field.key,
+      value: field.value,
+      source: field.source_plugin,
+    })),
   ];
   return (
     <>
-      <Thumbnail
-        path={video.thumbnail_path}
-        name={video.file_name}
-        videoPath={video.path}
-        scan={scan}
-      />
+      <Thumbnail video={video} scan={scan} />
       <h3 className="text-lg font-semibold break-all">{video.file_name}</h3>
       <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2">
         <p className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
@@ -118,6 +149,19 @@ export function VideoDetails({
         iconOnly
         hideRemove
       />
+      {/* One block per plugin, each handed the space and the video it is
+          about. Nothing is drawn around them: what a block looks like is the
+          plugin's own business, and the panel only gives it the room. */}
+      {panels.map(({ owner, contribution }) => {
+        const Drawn = contribution.draw;
+        return (
+          <Drawn
+            key={`${owner}:${contribution.key}`}
+            space={space}
+            video={{ id: video.id, path: video.path }}
+          />
+        );
+      })}
       <VideoMetaTable rows={rows} />
       <section className="space-y-3">
         <h3 className="font-semibold">{t('fileMaintenance')}</h3>

@@ -9,6 +9,16 @@ mod logging;
 mod media;
 mod model;
 mod player;
+// The one place in the kernel that knows plugins exist (#84). What reaches it
+// so far is one command — the fields a video has (#88) — which is the order this
+// work lands in rather than the whole of it: the plugin page (#85), the install
+// and enable commands and the loader (#86) and the runtime (#87) arrive beside
+// it. Until they do, most of the module is unreached in this binary — the tests
+// beside it are what holds those rules still — so the lints that would say so
+// are turned off at the one place the fact is created rather than sprinkled over
+// the module. The re-exports are dead for the same reason and go with them.
+#[allow(dead_code, unused_imports)]
+mod plugins;
 #[cfg(test)]
 mod ports;
 mod preferences;
@@ -63,6 +73,8 @@ fn main() {
             commands::library::set_favorite,
             commands::library::set_shared,
             commands::library::open_video,
+            commands::fields::refresh_video_fields,
+            commands::fields::run_video_action,
             commands::share::open_share,
             commands::share::close_share,
             commands::share::share_status,
@@ -73,6 +85,16 @@ fn main() {
             commands::space::rename_space,
             commands::space::delete_space,
             commands::space::switch_space,
+            commands::plugin::list_plugins,
+            commands::plugin::set_plugin_order,
+            commands::plugin::set_plugin_enabled,
+            commands::plugin::preview_plugin_install,
+            commands::plugin::install_plugin,
+            commands::plugin::uninstall_plugin,
+            commands::plugin::plugin_content_rows,
+            commands::plugin::run_safe_mode,
+            commands::plugin_settings::list_plugin_settings,
+            commands::plugin_settings::save_plugin_settings,
             commands::window::show_window,
             commands::window::close_window,
             commands::window::minimize_window,
