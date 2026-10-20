@@ -89,7 +89,13 @@ fn the_same_key_enqueues_only_once() {
         .push_task(Some("scraper"), space, Some(7), "scrape", "{}")
         .unwrap();
     let second = repository
-        .push_task(Some("scraper"), space, Some(7), "scrape", "{\"path\":\"x\"}")
+        .push_task(
+            Some("scraper"),
+            space,
+            Some(7),
+            "scrape",
+            "{\"path\":\"x\"}",
+        )
         .unwrap();
 
     assert_eq!(
@@ -143,21 +149,24 @@ fn a_task_without_a_video_dedups_on_its_own_key() {
         space,
     } = fixture.library();
 
-    let first = repository.push_task(None, space, None, "scan", "{}").unwrap();
+    let first = repository
+        .push_task(None, space, None, "scan", "{}")
+        .unwrap();
     let second = repository
         .push_task(None, space, None, "scan", "{\"x\":1}")
         .unwrap();
 
-    assert_eq!(first, second, "no video is a key of its own, not a wildcard");
+    assert_eq!(
+        first, second,
+        "no video is a key of its own, not a wildcard"
+    );
 }
 
 #[test]
 fn any_state_that_is_not_finished_holds_the_key() {
     for state in ["pending", "running", "paused"] {
         let fixture = Fixture::new();
-        let Library {
-            mut repository, ..
-        } = fixture.library();
+        let Library { mut repository, .. } = fixture.library();
         video(&repository, 7);
         let held = insert_state(&repository, Some("scraper"), Some(7), "scrape", state, 0);
         let space = repository.current_space().unwrap().id;
@@ -175,9 +184,7 @@ fn any_state_that_is_not_finished_holds_the_key() {
 fn a_finished_task_frees_its_key() {
     for state in ["done", "failed", "cancelled"] {
         let fixture = Fixture::new();
-        let Library {
-            mut repository, ..
-        } = fixture.library();
+        let Library { mut repository, .. } = fixture.library();
         video(&repository, 7);
         let held = insert_state(&repository, Some("scraper"), Some(7), "scrape", state, 0);
         let space = repository.current_space().unwrap().id;
@@ -199,7 +206,9 @@ fn claiming_marks_the_task_running_and_counts_the_attempt() {
         space,
     } = fixture.library();
 
-    let id = repository.push_task(None, space, None, "scan", "{}").unwrap();
+    let id = repository
+        .push_task(None, space, None, "scan", "{}")
+        .unwrap();
     let before = crate::repository::now();
     let claimed = repository.claim_task(None).unwrap();
     let after = crate::repository::now();
@@ -222,9 +231,7 @@ fn claiming_marks_the_task_running_and_counts_the_attempt() {
 #[test]
 fn every_claim_counts_another_attempt() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
 
     let id = insert_state(&repository, None, None, "scan", "pending", 0);
     let first = repository.claim_task(None).unwrap().unwrap();
@@ -233,10 +240,7 @@ fn every_claim_counts_another_attempt() {
     // this read's to make, not the state machine's to preserve.
     repository
         .connection
-        .execute(
-            "UPDATE tasks SET state='pending' WHERE id=?1",
-            [id],
-        )
+        .execute("UPDATE tasks SET state='pending' WHERE id=?1", [id])
         .unwrap();
 
     let second = repository.claim_task(None).unwrap().unwrap();
@@ -247,9 +251,7 @@ fn every_claim_counts_another_attempt() {
 #[test]
 fn the_earliest_ready_task_is_the_one_claimed() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
 
     let now = crate::repository::now();
     let earlier = insert_state(&repository, None, None, "scan", "pending", now - 1000);
@@ -258,16 +260,17 @@ fn the_earliest_ready_task_is_the_one_claimed() {
     let first = repository.claim_task(None).unwrap().unwrap();
     let second = repository.claim_task(None).unwrap().unwrap();
 
-    assert_eq!(first.id, earlier, "the one that has waited longest goes first");
+    assert_eq!(
+        first.id, earlier,
+        "the one that has waited longest goes first"
+    );
     assert_eq!(second.id, later);
 }
 
 #[test]
 fn a_task_scheduled_for_later_is_not_claimed_yet() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
 
     insert_state(
         &repository,
@@ -287,9 +290,7 @@ fn a_task_scheduled_for_later_is_not_claimed_yet() {
 #[test]
 fn paused_tasks_are_never_claimed() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
 
     let paused = insert_state(&repository, None, None, "thumbnails", "paused", 0);
     let pending = insert_state(&repository, None, None, "scan", "pending", 0);
@@ -300,18 +301,13 @@ fn paused_tasks_are_never_claimed() {
         repository.claim_task(None).unwrap().is_none(),
         "and stays out until it is resumed"
     );
-    assert_eq!(
-        repository.task(paused).unwrap().state,
-        TaskState::Paused
-    );
+    assert_eq!(repository.task(paused).unwrap().state, TaskState::Paused);
 }
 
 #[test]
 fn each_owner_claims_only_its_own_work() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
 
     let kernel = insert_state(&repository, None, None, "scan", "pending", 0);
     let plugin = insert_state(&repository, Some("scraper"), None, "scrape", "pending", 0);
@@ -319,10 +315,19 @@ fn each_owner_claims_only_its_own_work() {
     let claimed_by_kernel = repository.claim_task(None).unwrap().unwrap();
     let claimed_by_plugin = repository.claim_task(Some("scraper")).unwrap().unwrap();
 
-    assert_eq!(claimed_by_kernel.id, kernel, "the kernel never sees plugin work");
-    assert_eq!(claimed_by_plugin.id, plugin, "a plugin never sees the kernel's");
+    assert_eq!(
+        claimed_by_kernel.id, kernel,
+        "the kernel never sees plugin work"
+    );
+    assert_eq!(
+        claimed_by_plugin.id, plugin,
+        "a plugin never sees the kernel's"
+    );
     assert!(
-        repository.claim_task(Some("other-plugin")).unwrap().is_none(),
+        repository
+            .claim_task(Some("other-plugin"))
+            .unwrap()
+            .is_none(),
         "and never another plugin's"
     );
 }
@@ -351,9 +356,7 @@ fn removing_a_video_takes_its_tasks_with_it() {
 #[test]
 fn deleting_a_space_takes_its_tasks_with_it() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let second = repository.create_space("Second").unwrap().id;
     let id = repository
         .push_task(Some("scraper"), second, None, "scrape", "{}")

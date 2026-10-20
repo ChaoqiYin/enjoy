@@ -33,9 +33,9 @@ impl Repository {
     /// whichever field was filled in first would move a user's rows around while
     /// they changed nothing.
     pub(crate) fn plugin_settings(&self, plugin: &str) -> Result<Vec<PluginSetting>, AppError> {
-        let mut query = self.connection.prepare(
-            "SELECT key,value FROM plugin_settings WHERE plugin_id=?1 ORDER BY key",
-        )?;
+        let mut query = self
+            .connection
+            .prepare("SELECT key,value FROM plugin_settings WHERE plugin_id=?1 ORDER BY key")?;
         let rows = query.query_map([plugin], |row| {
             Ok(PluginSetting {
                 key: row.get(0)?,
@@ -148,7 +148,10 @@ mod plugin_settings_tests {
         let fixture = Fixture::new();
         let mut repository = fixture.library().repository;
         repository
-            .save_plugin_settings("cover-fetcher", &values(&[("url", "one"), ("size", "small")]))
+            .save_plugin_settings(
+                "cover-fetcher",
+                &values(&[("url", "one"), ("size", "small")]),
+            )
             .unwrap();
         repository
             .save_plugin_settings("ratings", &values(&[("scale", "5")]))
@@ -180,7 +183,9 @@ mod plugin_settings_tests {
             .save_plugin_settings("cover-fetcher", &values(&[("url", "one")]))
             .unwrap();
 
-        repository.save_plugin_settings("cover-fetcher", &[]).unwrap();
+        repository
+            .save_plugin_settings("cover-fetcher", &[])
+            .unwrap();
 
         assert_eq!(held(&repository, "cover-fetcher"), vec![]);
     }
@@ -190,7 +195,10 @@ mod plugin_settings_tests {
         let fixture = Fixture::new();
         let mut repository = fixture.library().repository;
         repository
-            .save_plugin_settings("cover-fetcher", &values(&[("url", "one"), ("size", "small")]))
+            .save_plugin_settings(
+                "cover-fetcher",
+                &values(&[("url", "one"), ("size", "small")]),
+            )
             .unwrap();
         repository
             .save_plugin_settings("ratings", &values(&[("scale", "5")]))

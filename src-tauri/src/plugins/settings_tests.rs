@@ -105,7 +105,8 @@ fn a_required_field_left_blank_is_refused_beside_that_field() {
     ];
 
     // Whitespace is blank: a field the user pressed space in is not filled in.
-    let refusal = settings::check("cover-fetcher", &declared, &submitted(&[("url", "   ")])).unwrap_err();
+    let refusal =
+        settings::check("cover-fetcher", &declared, &submitted(&[("url", "   ")])).unwrap_err();
 
     assert_eq!(refusal.code, "plugin.settings.required");
     assert_eq!(
@@ -201,7 +202,12 @@ fn a_directory_a_plugin_does_not_require_may_be_left_blank_but_not_wrong() {
 fn a_toggle_is_kept_as_one_of_two_words() {
     let declared = [field("wanted", SettingFieldKind::Toggle, false)];
 
-    let on = settings::check("cover-fetcher", &declared, &submitted(&[("wanted", "true")])).unwrap();
+    let on = settings::check(
+        "cover-fetcher",
+        &declared,
+        &submitted(&[("wanted", "true")]),
+    )
+    .unwrap();
     let off = settings::check("cover-fetcher", &declared, &submitted(&[])).unwrap();
 
     assert_eq!(pairs(&on), vec![("wanted".to_string(), "true".to_string())]);
@@ -244,10 +250,7 @@ fn a_plugin_with_saved_values_is_asked_with_them_when_the_application_starts() {
     let fixture = library_with("cover-fetcher", &[("url", "https://a.example")]);
     let repository = fixture.library().repository;
     let (host, _) = fixture::host();
-    let body = FakeBody::answering(fixture::settings(&[(
-        "url",
-        SettingFieldKind::Text,
-    )]));
+    let body = FakeBody::answering(fixture::settings(&[("url", SettingFieldKind::Text)]));
     host.enable("cover-fetcher", body.clone());
 
     settings::hand_over(&host, &repository).unwrap();

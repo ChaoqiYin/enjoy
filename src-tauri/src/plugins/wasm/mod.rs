@@ -79,12 +79,19 @@
 //!   usual. That is why a plugin that timed out once is still in the rotation —
 //!   it has failed once, not finished.
 
+mod fetch;
 mod imports;
+mod memory;
+mod resident;
+mod storage;
+mod tasks;
 
 #[cfg(test)]
 mod fixture;
 #[cfg(test)]
 mod imports_tests;
+#[cfg(test)]
+mod tasks_tests;
 #[cfg(test)]
 mod tests;
 
@@ -95,9 +102,13 @@ use std::time::Duration;
 
 use wasmtime::{Config, Engine, Instance, Memory, Module, Store, Trap, TypedFunc};
 
+use crate::repository::Repository;
+
 use super::runner::{Runner, RunnerError};
 
 use imports::Guest;
+use resident::Resident;
+use tasks::Queue;
 
 /// How long one call to a plugin may take.
 ///
@@ -189,7 +200,7 @@ fn advance_the_epoch(engine: Engine) -> Result<(), String> {
 /// is relative to the epoch at the moment it is set, so each one has to be put
 /// back before every call — and before instantiation, which runs the module's
 /// start function.
-fn arm(store: &mut Store<Guest>) -> Result<(), String> {
+pub(in crate::plugins::wasm) fn arm(store: &mut Store<Guest>) -> Result<(), String> {
     store
         .set_fuel(FUEL_PER_CALL)
         .map_err(|error| format!("the plugin's store took no fuel: {error}"))?;
@@ -208,6 +219,11 @@ pub(crate) struct WasmBody {
     /// would reach only after the one before it. That wait is bounded by the
     /// call in front of it, which is bounded by [`CALL_DEADLINE`].
     calls: Mutex<Sender<Job>>,
+    /// The plugin's queue, kept out here as well as inside the instance so that
+    /// [`Runner::stop`] can reach a `task_wait` the thread is blocked in: the
+    /// stop has to arrive without a call going through the channel above, which
+    /// is exactly the case where the thread is busy.
+    queue: Arc<Queue>,
 }
 
 /// One call, on its way to the plugin's thread.
@@ -226,15 +242,18 @@ impl WasmBody {
     /// The module's bytes come from a plugin's directory (#86 reads them); what
     /// is decided here is only how it runs.
     ///
-    /// `plugin` is the plugin's id, and it is here for one reason: a line the
-    /// body logs has to say whose it is, and the instance's own thread is the
-    /// only place that knows. `data_dir` is the one directory its `storage`
-    /// capability can reach, which is the kernel's to choose — a plugin does
-    /// not get to say where it lives.
+    /// `plugin` is the plugin's id, and it is here for two reasons: a line the
+    /// body logs has to say whose it is, and the queue the body's `task_*`
+    /// imports reach is this plugin's own — the identity every one of those
+    /// calls is answered in terms of. `data_dir` is the one directory its
+    /// `storage` capability can reach, which is the kernel's to choose — a
+    /// plugin does not get to say where it lives. `repository` is the library
+    /// the plugin's tasks are rows in, shared with every other user of it.
     pub(crate) fn load(
         plugin: &str,
         module: &[u8],
         data_dir: PathBuf,
+        repository: Arc<Mutex<Repository>>,
     ) -> Result<Arc<Self>, RunnerError> {
         let engine = engine()?;
         let module = Module::new(engine, module).map_err(|error| {
@@ -242,18 +261,31 @@ impl WasmBody {
                 "the plugin's module could not be compiled: {error}"
             ))
         })?;
+        let queue = Queue::new(plugin, repository);
         let (jobs, work) = mpsc::channel();
         let (ready, started) = mpsc::channel();
         let plugin = plugin.to_string();
+        let starting = Arc::clone(&queue);
         std::thread::Builder::new()
             .name("enjoy-plugin-body".to_string())
-            .spawn(move || run(engine.clone(), &plugin, module, data_dir, work, ready))
+            .spawn(move || {
+                run(
+                    engine.clone(),
+                    &plugin,
+                    module,
+                    data_dir,
+                    starting,
+                    work,
+                    ready,
+                )
+            })
             .map_err(|error| {
                 RunnerError::Failed(format!("the plugin's thread could not be started: {error}"))
             })?;
         match started.recv_timeout(STARTUP_DEADLINE) {
             Ok(Ok(())) => Ok(Arc::new(Self {
                 calls: Mutex::new(jobs),
+                queue,
             })),
             Ok(Err(reason)) => Err(RunnerError::Failed(reason)),
             Err(_) => Err(RunnerError::Failed(
@@ -289,6 +321,19 @@ impl Runner for WasmBody {
             )),
         }
     }
+
+    /// Wakes a `task_wait` the plugin's thread is blocked in and tells the loop
+    /// it is over, so a plugin that is switched off finishes rather than
+    /// waiting out a timeout nobody is counting on any more.
+    ///
+    /// This does not go through the call channel, and deliberately: the one
+    /// moment the host needs to reach the plugin is the moment the plugin is
+    /// busy inside a call, which is when that channel is held. What it sets is
+    /// read by the waiting call itself, and read again the next time a call
+    /// asks — so a stop that lands between two waits is not lost either.
+    fn stop(&self) {
+        self.queue.stop();
+    }
 }
 
 /// The plugin's thread: build the instance, then answer calls until the body is
@@ -298,6 +343,7 @@ fn run(
     plugin: &str,
     module: Module,
     data_dir: PathBuf,
+    queue: Arc<Queue>,
     work: Receiver<Job>,
     ready: Sender<Result<(), String>>,
 ) {
@@ -313,7 +359,7 @@ fn run(
             return;
         }
     };
-    let mut store = Store::new(&engine, Guest::new(plugin, data_dir));
+    let mut store = Store::new(&engine, Guest::new(plugin, data_dir, queue));
     store.limiter(|guest| &mut guest.limits);
     // Instantiating runs the module's own start function, so the store has to
     // be armed before it happens and not only before a call: a store that
@@ -353,122 +399,5 @@ fn run(
     while let Ok(job) = work.recv() {
         let answer = resident.answer(&runtime, &job.method, &job.payload);
         let _ = job.answer.send(answer);
-    }
-}
-
-/// The instance, and the three things this side of it needs.
-struct Resident {
-    store: Store<Guest>,
-    memory: Memory,
-    /// The guest's own idea of where the host may write: `alloc(size)` answers
-    /// with a pointer it will keep valid until `handle` returns. The host never
-    /// allocates in the guest's memory itself, which is what keeps the two
-    /// allocators from disagreeing about it.
-    alloc: TypedFunc<i32, i32>,
-    /// `handle(method_ptr, method_len, payload_ptr, payload_len)`, answering
-    /// with a pointer and a length packed into one integer — high half the
-    /// pointer, low half the length.
-    handle: TypedFunc<(i32, i32, i32, i32), i64>,
-}
-
-impl Resident {
-    fn of(mut store: Store<Guest>, instance: &Instance) -> Result<Self, String> {
-        let memory = instance
-            .get_memory(&mut store, "memory")
-            .ok_or_else(|| "the plugin's module exports no memory".to_string())?;
-        let alloc = instance
-            .get_typed_func::<i32, i32>(&mut store, "alloc")
-            .map_err(|error| format!("the plugin's module has no usable `alloc`: {error}"))?;
-        let handle = instance
-            .get_typed_func::<(i32, i32, i32, i32), i64>(&mut store, "handle")
-            .map_err(|error| format!("the plugin's module has no usable `handle`: {error}"))?;
-        Ok(Self {
-            store,
-            memory,
-            alloc,
-            handle,
-        })
-    }
-
-    /// One call, inside its deadline.
-    fn answer(
-        &mut self,
-        runtime: &tokio::runtime::Runtime,
-        method: &str,
-        payload: &str,
-    ) -> Result<String, RunnerError> {
-        // What this call is about, for the plugin to read through
-        // `video_info`. Set before the limits so that a call cut off by them
-        // still leaves the guest knowing what it was asked, rather than the
-        // answer to the one before it.
-        self.store.data_mut().about_to_call(payload);
-        arm(&mut self.store).map_err(RunnerError::Failed)?;
-        let deadline = tokio::time::Instant::now() + CALL_DEADLINE + EPOCH_TICK;
-        let outcome = runtime.block_on(async {
-            tokio::time::timeout_at(deadline, self.call(method, payload)).await
-        });
-        match outcome {
-            Ok(answer) => answer,
-            // The third mechanism: the call was cut off while the plugin was
-            // inside a host function, where neither epoch nor fuel reaches.
-            Err(_) => Err(RunnerError::TimedOut),
-        }
-    }
-
-    async fn call(&mut self, method: &str, payload: &str) -> Result<String, RunnerError> {
-        let size = method.len() + payload.len();
-        let at = self
-            .alloc
-            .call_async(&mut self.store, size as i32)
-            .await
-            .map_err(|error| self.why(error))?;
-        let at = at as usize;
-        self.memory
-            .write(&mut self.store, at, method.as_bytes())
-            .map_err(|error| RunnerError::Failed(error.to_string()))?;
-        self.memory
-            .write(&mut self.store, at + method.len(), payload.as_bytes())
-            .map_err(|error| RunnerError::Failed(error.to_string()))?;
-        let packed = self
-            .handle
-            .call_async(
-                &mut self.store,
-                (
-                    at as i32,
-                    method.len() as i32,
-                    (at + method.len()) as i32,
-                    payload.len() as i32,
-                ),
-            )
-            .await
-            .map_err(|error| self.why(error))?;
-        let answer_at = (packed >> 32) as u32 as usize;
-        // How long the answer is, is the guest's number, and a guest can say
-        // anything: the low half of what it returned reaches four gibibytes,
-        // and this side would have to allocate that much before the read below
-        // could tell it that no such thing is there. What the guest has is its
-        // own memory, so that is what the claim is held to — `MEMORY_LIMIT`
-        // bounds the instance, and this bounds the allocation made outside it.
-        let answer_len =
-            ((packed & 0xffff_ffff) as u32 as usize).min(self.memory.data_size(&self.store));
-        let mut answer = vec![0u8; answer_len];
-        self.memory
-            .read(&self.store, answer_at, &mut answer)
-            .map_err(|error| RunnerError::Failed(error.to_string()))?;
-        String::from_utf8(answer)
-            .map_err(|error| RunnerError::Failed(format!("the answer was not text: {error}")))
-    }
-
-    /// Why a call did not finish.
-    ///
-    /// The two traps the limits raise are the call's deadline arriving, not a
-    /// fault of the plugin's, and the host reads them the same way it reads the
-    /// other two mechanisms: the call said nothing. Everything else is the
-    /// plugin's own code failing, and keeps its text for the log.
-    fn why(&self, error: wasmtime::Error) -> RunnerError {
-        match error.root_cause().downcast_ref::<Trap>() {
-            Some(Trap::Interrupt) | Some(Trap::OutOfFuel) => RunnerError::TimedOut,
-            _ => RunnerError::Failed(error.to_string()),
-        }
     }
 }

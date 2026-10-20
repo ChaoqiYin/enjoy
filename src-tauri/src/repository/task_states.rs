@@ -123,13 +123,15 @@ impl Repository {
             [id],
             task_row,
         )?;
-        Ok(if task.cancel_requested || task.state == TaskState::Cancelled {
-            TaskSignal::Cancel
-        } else if task.pause_requested || task.state == TaskState::Paused {
-            TaskSignal::Pause
-        } else {
-            TaskSignal::Run
-        })
+        Ok(
+            if task.cancel_requested || task.state == TaskState::Cancelled {
+                TaskSignal::Cancel
+            } else if task.pause_requested || task.state == TaskState::Paused {
+                TaskSignal::Pause
+            } else {
+                TaskSignal::Run
+            },
+        )
     }
 
     /// Carries out a pause a checkpoint reported: the running task steps out

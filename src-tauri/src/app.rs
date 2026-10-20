@@ -2,7 +2,7 @@ use crate::error::AppError;
 use crate::events::AppEvents;
 use crate::i18n::{language, native};
 use crate::plugins::{loading, settings, PluginHost, Store};
-use crate::repository::Repository;
+use crate::repository::{lock_shared, Repository};
 use crate::scan::control::ScanControl;
 use crate::share::ShareControl;
 use crate::update::UpdateControl;
@@ -121,7 +121,13 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
     // also why this reads the language before it opens the database.
     let language = language::current(app)?;
     let path = database_path(app)?;
-    let repository = Repository::open(&path, native::translate(&language, "defaultSpace"))?;
+    // Wrapped before anything reads it, because the plugins are built with it:
+    // a body's `task_*` imports reach the library through this same handle, so
+    // a plugin's queue is rows in the one database every other thread uses.
+    let repository = Arc::new(Mutex::new(Repository::open(
+        &path,
+        native::translate(&language, "defaultSpace"),
+    )?));
     let plugins = Arc::new(PluginHost::new(Arc::new(AppEvents(app.clone()))));
     let plugin_store = Arc::new(Store::new(plugin_store(&path)));
     // What the user installed and switched on is put into the rotation before
@@ -129,7 +135,7 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
     // and writes a line in the log for every plugin it could not build, so a
     // plugins directory the kernel cannot make sense of costs the user their
     // plugins and not their application (ADR 0044 §7).
-    loading::load(&plugin_store, &plugins);
+    loading::load(&plugin_store, &plugins, &repository);
     // Then what the user filled in is handed to the plugins that have something
     // saved, and for the reason loading is: a plugin that works from a video's
     // menu would otherwise never see the user's settings, because the only other
@@ -138,14 +144,17 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
     // docs/插件系统.md §14.8). A library that cannot be read costs the user their
     // plugins' settings and not their application, the same bargain loading
     // makes with a plugins directory it cannot read.
-    if let Err(error) = settings::hand_over(&plugins, &repository) {
-        tracing::warn!(
-            code = error.code,
-            "the saved plugin settings could not be read; the plugins start without them"
-        );
+    {
+        let library = lock_shared(&repository)?;
+        if let Err(error) = settings::hand_over(&plugins, &library) {
+            tracing::warn!(
+                code = error.code,
+                "the saved plugin settings could not be read; the plugins start without them"
+            );
+        }
     }
     app.manage(AppState {
-        repository: Arc::new(Mutex::new(repository)),
+        repository,
         scan: Arc::new(ScanControl::default()),
         update: Arc::new(UpdateControl::default()),
         share: Arc::new(ShareControl::default()),

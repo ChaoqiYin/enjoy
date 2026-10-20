@@ -70,7 +70,10 @@ pub(crate) fn not_found() -> AppError {
 /// in — a progress report after the task finished, a retry of a task that did
 /// not fail, a pause of one that is done.
 pub(crate) fn invalid_state() -> AppError {
-    AppError::new("task.invalid_state", "Task is not in a state this action applies to")
+    AppError::new(
+        "task.invalid_state",
+        "Task is not in a state this action applies to",
+    )
 }
 
 impl Repository {
@@ -123,7 +126,15 @@ impl Repository {
             "INSERT INTO tasks (plugin,space_id,video_id,kind,payload,state,\
              available_at,created_at,updated_at) \
              VALUES (?1,?2,?3,?4,?5,?6,?7,?7,?7)",
-            params![plugin, space_id, video_id, kind, payload, TaskState::Pending.as_str(), at],
+            params![
+                plugin,
+                space_id,
+                video_id,
+                kind,
+                payload,
+                TaskState::Pending.as_str(),
+                at
+            ],
         )?;
         let id = tx.last_insert_rowid();
         tx.commit()?;
@@ -141,10 +152,7 @@ impl Repository {
     /// cannot be handed the kernel's work or another plugin's, and the
     /// identity binding the host layer does is echoed by what this read asks
     /// for.
-    pub(crate) fn claim_task(
-        &mut self,
-        plugin: Option<&str>,
-    ) -> Result<Option<Task>, AppError> {
+    pub(crate) fn claim_task(&mut self, plugin: Option<&str>) -> Result<Option<Task>, AppError> {
         let at = now();
         let tx = self.connection.transaction()?;
         let claimed: Option<i64> = tx
