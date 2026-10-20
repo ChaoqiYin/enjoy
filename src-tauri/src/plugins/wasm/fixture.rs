@@ -11,20 +11,54 @@ use std::thread;
 
 use crate::plugins::runner::{Runner, RunnerError};
 use crate::repository::fixture::Fixture;
+use crate::repository::Repository;
 
 use super::WasmBody;
 
 /// The name every body in these tests is loaded under.
 pub(super) const PLUGIN: &str = "com.example.one";
 
+/// The temporary directories built for the run, kept so a body that outlives
+/// the test that made it still has somewhere to read and write.
+static KEPT: OnceLock<Mutex<Vec<Fixture>>> = OnceLock::new();
+
+fn keep(home: Fixture) {
+    KEPT.get_or_init(|| Mutex::new(Vec::new()))
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .push(home);
+}
+
 /// A body made out of WAT text, on a data directory the caller keeps.
 ///
 /// The text is assembled here rather than committed as a `.wasm`: `wasm32` is
 /// not a target this repository builds for, and a fixture that needs another
 /// toolchain to have run first is a fixture that stops being run.
-pub(super) fn load(directory: &Fixture, source: &str) -> Result<Arc<dyn Runner>, RunnerError> {
+pub(super) fn load(
+    directory: &Fixture,
+    source: &str,
+    repository: &Arc<Mutex<Repository>>,
+) -> Result<Arc<dyn Runner>, RunnerError> {
     let module = wat::parse_str(source).unwrap();
-    Ok(WasmBody::load(PLUGIN, &module, directory.0.clone())?)
+    Ok(WasmBody::load(
+        PLUGIN,
+        &module,
+        directory.0.clone(),
+        Arc::clone(repository),
+    )?)
+}
+
+/// A library for a body to run against, and one that outlives it.
+///
+/// Kept rather than dropped, for the reason the directories below are: the
+/// plugin's thread reads rows through this handle long after the test that made
+/// it returns. A fresh one per call, so a test that seeds or inspects a task is
+/// looking at its own library and no other test's.
+pub(super) fn library() -> Arc<Mutex<Repository>> {
+    let home = Fixture::new();
+    let library = home.library();
+    keep(home);
+    Arc::new(Mutex::new(library.repository))
 }
 
 /// The same, on a directory of its own that outlives this call.
@@ -32,13 +66,21 @@ pub(super) fn load(directory: &Fixture, source: &str) -> Result<Arc<dyn Runner>,
 /// Kept rather than dropped: a fixture removes what it made when it goes, and
 /// the plugin's thread is still using that directory long after this returns.
 pub(super) fn try_body(source: &str) -> Result<Arc<dyn Runner>, RunnerError> {
-    static KEPT: OnceLock<Mutex<Vec<Fixture>>> = OnceLock::new();
     let directory = Fixture::new();
-    let body = load(&directory, source);
-    KEPT.get_or_init(|| Mutex::new(Vec::new()))
-        .lock()
-        .unwrap()
-        .push(directory);
+    let body = load(&directory, source, &library());
+    keep(directory);
+    body
+}
+
+/// A body on the given library, outliving this call, for the tests that ask
+/// what a plugin's `task_*` calls left in it.
+pub(super) fn body_on(
+    source: &str,
+    repository: &Arc<Mutex<Repository>>,
+) -> Result<Arc<dyn Runner>, RunnerError> {
+    let directory = Fixture::new();
+    let body = load(&directory, source, repository);
+    keep(directory);
     body
 }
 
@@ -56,6 +98,52 @@ pub(super) fn serving(response: &'static str) -> String {
             let Ok(mut stream) = stream else { break };
             let mut request = [0u8; 1024];
             let _ = stream.read(&mut request);
+            let _ = stream.write_all(response.as_bytes());
+        }
+    });
+    address
+}
+
+/// A server on the loopback that answers every request with the request head
+/// it received, as the body of a well-formed response.
+///
+/// What a test needs to see is what went out on the wire — the headers, which
+/// are the whole point of the caller-supplied ones — and the only place that
+/// fact exists is the request the server read. The body is cut at the blank
+/// line: the rest would be the request body, and `fetch` is a `GET`. The
+/// answer is wrapped in a `Content-Length` so the client reads it and stops,
+/// rather than waiting for a close that this server does not do.
+pub(super) fn echoing() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("a port on the loopback");
+    let address = format!("http://{}", listener.local_addr().expect("a bound address"));
+    thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { break };
+            let mut request = Vec::new();
+            let mut chunk = [0u8; 1024];
+            loop {
+                let Ok(read) = stream.read(&mut chunk) else {
+                    break;
+                };
+                if read == 0 {
+                    break;
+                }
+                request.extend_from_slice(&chunk[..read]);
+                if request.windows(4).any(|window| window == b"\r\n\r\n") || request.len() > 8192 {
+                    break;
+                }
+            }
+            let head = String::from_utf8_lossy(&request).into_owned();
+            let head = head
+                .split("\r\n\r\n")
+                .next()
+                .unwrap_or_default()
+                .to_string();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                head.len(),
+                head
+            );
             let _ = stream.write_all(response.as_bytes());
         }
     });

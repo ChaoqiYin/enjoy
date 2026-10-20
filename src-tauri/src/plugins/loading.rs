@@ -37,7 +37,9 @@
 
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+
+use crate::repository::Repository;
 
 use super::manifest;
 use super::runner::Runner;
@@ -63,7 +65,7 @@ pub(crate) const DATA: &str = "data";
 /// order matters — a mount point several plugins contribute to (ADR 0045 §3) —
 /// and leaving it to whatever order the loop happened to walk would make it an
 /// accident of the file system.
-pub(crate) fn load(store: &Store, host: &PluginHost) {
+pub(crate) fn load(store: &Store, host: &PluginHost, repository: &Arc<Mutex<Repository>>) {
     let rows = match store.list() {
         Ok(rows) => rows,
         Err(error) => {
@@ -82,7 +84,7 @@ pub(crate) fn load(store: &Store, host: &PluginHost) {
         if !row.enabled || row.failure.is_some() || !row.has_body {
             continue;
         }
-        match body(store, &row.id) {
+        match body(store, &row.id, repository) {
             Ok(body) => host.enable(&row.id, body),
             Err(reason) => tracing::warn!(
                 plugin = %row.id,
@@ -106,7 +108,11 @@ pub(crate) fn load(store: &Store, host: &PluginHost) {
 /// because what that call answers with is a row for the page — the plugin's name,
 /// its capabilities, whether it has a body — and a module's path is not one of
 /// those facts. Re-reading is one file per plugin, once, at startup.
-fn body(store: &Store, id: &str) -> Result<Arc<dyn Runner>, String> {
+fn body(
+    store: &Store,
+    id: &str,
+    repository: &Arc<Mutex<Repository>>,
+) -> Result<Arc<dyn Runner>, String> {
     let directory = store
         .installed_plugin(id)
         .map_err(|error| format!("{error:?}"))?;
@@ -121,7 +127,8 @@ fn body(store: &Store, id: &str) -> Result<Arc<dyn Runner>, String> {
     // cache something would fail once and succeed from the second call on, which
     // is a bug a user would report as "sometimes".
     fs::create_dir_all(&data).map_err(|error| format!("{error:?}"))?;
-    let body = WasmBody::load(id, &module, data).map_err(|error| format!("{error:?}"))?;
+    let body = WasmBody::load(id, &module, data, Arc::clone(repository))
+        .map_err(|error| format!("{error:?}"))?;
     Ok(body)
 }
 
