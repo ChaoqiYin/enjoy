@@ -32,9 +32,7 @@ fn insert(
 #[test]
 fn a_task_the_exit_interrupted_goes_back_to_waiting() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let started_at = now() - 60_000;
     let id = insert(&repository, "running", started_at, Some(started_at), None);
 
@@ -62,9 +60,7 @@ fn a_task_the_exit_interrupted_goes_back_to_waiting() {
 #[test]
 fn recovery_leaves_every_other_state_alone() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
 
     let pending = insert(&repository, "pending", 0, None, None);
     let paused = insert(&repository, "paused", 0, None, None);
@@ -80,9 +76,7 @@ fn recovery_leaves_every_other_state_alone() {
 #[test]
 fn finished_tasks_that_are_over_a_week_old_are_removed() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let week = 7 * 24 * 60 * 60 * 1000;
     let old_done = insert(&repository, "done", 0, None, Some(now() - week - 1));
     let old_failed = insert(&repository, "failed", 0, None, Some(now() - week - 1));

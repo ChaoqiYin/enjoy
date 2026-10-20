@@ -11,7 +11,9 @@ use crate::repository::Repository;
 /// about work it is doing.
 fn running(repository: &mut Repository) -> i64 {
     let space = repository.current_space().unwrap().id;
-    let id = repository.push_task(None, space, None, "scan", "{}").unwrap();
+    let id = repository
+        .push_task(None, space, None, "scan", "{}")
+        .unwrap();
     let claimed = repository.claim_task(None).unwrap().unwrap();
     assert_eq!(claimed.id, id);
     id
@@ -24,9 +26,7 @@ fn error_code(result: Result<(), crate::error::AppError>) -> String {
 #[test]
 fn progress_lands_on_a_running_task() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let id = running(&mut repository);
 
     repository
@@ -42,9 +42,7 @@ fn progress_lands_on_a_running_task() {
 #[test]
 fn progress_after_the_attempt_is_over_is_refused() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let id = running(&mut repository);
     repository.complete_task(id).unwrap();
 
@@ -56,9 +54,7 @@ fn progress_after_the_attempt_is_over_is_refused() {
 #[test]
 fn progress_on_a_task_that_does_not_exist_says_so() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
 
     let refused = repository.set_task_progress(404, 1, None, None);
 
@@ -68,9 +64,7 @@ fn progress_on_a_task_that_does_not_exist_says_so() {
 #[test]
 fn finishing_marks_the_task_done_and_stamps_the_end() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let id = running(&mut repository);
     let claimed = repository.task(id).unwrap();
 
@@ -95,7 +89,9 @@ fn a_task_that_was_never_claimed_cannot_be_finished() {
         mut repository,
         space,
     } = fixture.library();
-    let id = repository.push_task(None, space, None, "scan", "{}").unwrap();
+    let id = repository
+        .push_task(None, space, None, "scan", "{}")
+        .unwrap();
 
     let refused = repository.complete_task(id);
 
@@ -105,12 +101,12 @@ fn a_task_that_was_never_claimed_cannot_be_finished() {
 #[test]
 fn a_failure_without_a_retry_time_is_terminal() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let id = running(&mut repository);
 
-    repository.fail_task(id, "无法从文件名识别番号", None).unwrap();
+    repository
+        .fail_task(id, "无法从文件名识别番号", None)
+        .unwrap();
 
     let task = repository.task(id).unwrap();
     assert_eq!(task.state, TaskState::Failed);
@@ -125,9 +121,7 @@ fn a_failure_without_a_retry_time_is_terminal() {
 #[test]
 fn a_failure_with_a_retry_time_goes_back_to_waiting() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let id = running(&mut repository);
     let retry_at = crate::repository::now() + 5_000;
 
@@ -156,9 +150,7 @@ fn a_failure_with_a_retry_time_goes_back_to_waiting() {
 #[test]
 fn a_scheduled_failure_can_be_claimed_again_when_its_time_comes() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let id = running(&mut repository);
 
     repository
@@ -181,7 +173,9 @@ fn pausing_a_queued_task_moves_it_now() {
         mut repository,
         space,
     } = fixture.library();
-    let id = repository.push_task(None, space, None, "scan", "{}").unwrap();
+    let id = repository
+        .push_task(None, space, None, "scan", "{}")
+        .unwrap();
 
     repository.request_task_pause(id).unwrap();
 
@@ -195,9 +189,7 @@ fn pausing_a_queued_task_moves_it_now() {
 #[test]
 fn pausing_a_running_task_is_carried_out_at_the_checkpoint() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let id = running(&mut repository);
 
     repository.request_task_pause(id).unwrap();
@@ -229,9 +221,7 @@ fn pausing_a_running_task_is_carried_out_at_the_checkpoint() {
 #[test]
 fn a_paused_task_can_be_resumed_and_claimed_again() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let id = running(&mut repository);
     repository.request_task_pause(id).unwrap();
     repository.apply_task_pause(id).unwrap();
@@ -241,7 +231,10 @@ fn a_paused_task_can_be_resumed_and_claimed_again() {
     let claimed = repository.claim_task(None).unwrap().unwrap();
     assert_eq!(claimed.id, id);
     assert_eq!(claimed.state, TaskState::Running);
-    assert_eq!(claimed.attempts, 2, "resuming is another attempt at the work");
+    assert_eq!(
+        claimed.attempts, 2,
+        "resuming is another attempt at the work"
+    );
 }
 
 #[test]
@@ -251,7 +244,9 @@ fn resuming_a_task_that_is_not_paused_is_refused() {
         mut repository,
         space,
     } = fixture.library();
-    let id = repository.push_task(None, space, None, "scan", "{}").unwrap();
+    let id = repository
+        .push_task(None, space, None, "scan", "{}")
+        .unwrap();
 
     let refused = repository.resume_task(id);
 
@@ -266,13 +261,17 @@ fn cancelling_a_queued_or_paused_task_finishes_it_now() {
         space,
     } = fixture.library();
 
-    let queued = repository.push_task(None, space, None, "scan", "{}").unwrap();
+    let queued = repository
+        .push_task(None, space, None, "scan", "{}")
+        .unwrap();
     repository.request_task_cancel(queued).unwrap();
     let cancelled = repository.task(queued).unwrap();
     assert_eq!(cancelled.state, TaskState::Cancelled);
     assert!(cancelled.finished_at.is_some());
 
-    let paused = repository.push_task(None, space, None, "scan", "{}").unwrap();
+    let paused = repository
+        .push_task(None, space, None, "scan", "{}")
+        .unwrap();
     repository.request_task_pause(paused).unwrap();
     repository.request_task_cancel(paused).unwrap();
     assert_eq!(
@@ -285,9 +284,7 @@ fn cancelling_a_queued_or_paused_task_finishes_it_now() {
 #[test]
 fn cancelling_a_running_task_is_carried_out_at_the_checkpoint() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let id = running(&mut repository);
 
     repository.request_task_cancel(id).unwrap();
@@ -307,9 +304,7 @@ fn cancelling_a_running_task_is_carried_out_at_the_checkpoint() {
 #[test]
 fn the_checkpoint_says_run_when_nothing_was_asked() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let id = running(&mut repository);
 
     assert_eq!(repository.task_checkpoint(id).unwrap(), TaskSignal::Run);
@@ -318,9 +313,7 @@ fn the_checkpoint_says_run_when_nothing_was_asked() {
 #[test]
 fn a_cancel_outranks_a_pause_when_both_were_asked() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let id = running(&mut repository);
 
     repository.request_task_pause(id).unwrap();
@@ -336,11 +329,11 @@ fn a_cancel_outranks_a_pause_when_both_were_asked() {
 #[test]
 fn retrying_a_terminal_failure_clears_the_error_and_makes_it_runnable() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let id = running(&mut repository);
-    repository.fail_task(id, "站点页面结构可能变了", None).unwrap();
+    repository
+        .fail_task(id, "站点页面结构可能变了", None)
+        .unwrap();
 
     repository.retry_task(id).unwrap();
 
@@ -358,9 +351,7 @@ fn retrying_a_terminal_failure_clears_the_error_and_makes_it_runnable() {
 #[test]
 fn retrying_a_task_that_did_not_fail_is_refused() {
     let fixture = Fixture::new();
-    let Library {
-        mut repository, ..
-    } = fixture.library();
+    let Library { mut repository, .. } = fixture.library();
     let id = running(&mut repository);
 
     let refused = repository.retry_task(id);

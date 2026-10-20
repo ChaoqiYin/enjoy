@@ -351,4 +351,3 @@ fn safe_mode_with_nothing_switched_on_is_not_a_failure() {
     assert_eq!(plugins.len(), 1);
     assert!(!plugins[0].enabled);
 }
-
