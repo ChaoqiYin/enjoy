@@ -79,6 +79,7 @@
 //!   usual. That is why a plugin that timed out once is still in the rotation —
 //!   it has failed once, not finished.
 
+mod background;
 mod fetch;
 mod imports;
 mod memory;
@@ -86,6 +87,8 @@ mod resident;
 mod storage;
 mod tasks;
 
+#[cfg(test)]
+mod background_tests;
 #[cfg(test)]
 mod fixture;
 #[cfg(test)]
@@ -98,6 +101,7 @@ mod tests;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, OnceLock};
+use std::thread::JoinHandle;
 use std::time::Duration;
 
 use wasmtime::{Config, Engine, Instance, Memory, Module, Store, Trap, TypedFunc};
@@ -199,12 +203,15 @@ fn advance_the_epoch(engine: Engine) -> Result<(), String> {
 /// Both are per stretch rather than once: fuel is spent, and the epoch deadline
 /// is relative to the epoch at the moment it is set, so each one has to be put
 /// back before every call — and before instantiation, which runs the module's
-/// start function.
-pub(in crate::plugins::wasm) fn arm(store: &mut Store<Guest>) -> Result<(), String> {
-    store
-        .set_fuel(FUEL_PER_CALL)
+/// start function — and again each time a host call returns, because a host call
+/// can outlast the deadline while no wasm is running (see [`imports`]).
+pub(in crate::plugins::wasm) fn arm<T: wasmtime::AsContextMut<Data = Guest>>(
+    store: &mut T,
+) -> Result<(), String> {
+    let mut ctx = store.as_context_mut();
+    ctx.set_fuel(FUEL_PER_CALL)
         .map_err(|error| format!("the plugin's store took no fuel: {error}"))?;
-    store.set_epoch_deadline(CALL_DEADLINE.as_millis() as u64 / EPOCH_TICK.as_millis() as u64);
+    ctx.set_epoch_deadline(CALL_DEADLINE.as_millis() as u64 / EPOCH_TICK.as_millis() as u64);
     Ok(())
 }
 
@@ -218,12 +225,21 @@ pub(crate) struct WasmBody {
     /// finish rather than leaving a job in the channel that the plugin's thread
     /// would reach only after the one before it. That wait is bounded by the
     /// call in front of it, which is bounded by [`CALL_DEADLINE`].
-    calls: Mutex<Sender<Job>>,
+    ///
+    /// An `Option` so that [`Runner::stop`] can take the sender out and drop
+    /// it, which is what closes the channel and ends the plugin's thread; the
+    /// `None` a stopped body is left holding is why a call after the stop is
+    /// answered "the plugin's thread is gone" rather than being left waiting.
+    calls: Mutex<Option<Sender<Job>>>,
     /// The plugin's queue, kept out here as well as inside the instance so that
-    /// [`Runner::stop`] can reach a `task_wait` the thread is blocked in: the
+    /// [`Runner::stop`] can reach a `task_wait` a thread is blocked in: the
     /// stop has to arrive without a call going through the channel above, which
-    /// is exactly the case where the thread is busy.
+    /// is exactly the case where a thread is busy.
     queue: Arc<Queue>,
+    /// The front thread, joined by [`Runner::stop`] once its channel is closed.
+    front: Mutex<Option<JoinHandle<()>>>,
+    /// The background thread, if the module exports `run` (spec #96 §4).
+    background: Mutex<Option<JoinHandle<()>>>,
 }
 
 /// One call, on its way to the plugin's thread.
@@ -261,37 +277,65 @@ impl WasmBody {
                 "the plugin's module could not be compiled: {error}"
             ))
         })?;
+        // Whether the plugin wants a background half is read off the export
+        // table before anything runs (spec #96 §4): a `run` export that is a
+        // function is the whole of the declaration, and a module without one
+        // gets no second thread and no second instance. A same-named memory or
+        // global is not a request to run anything.
+        let has_run = module
+            .exports()
+            .any(|export| export.name() == "run" && export.ty().func().is_some());
         let queue = Queue::new(plugin, repository);
         let (jobs, work) = mpsc::channel();
         let (ready, started) = mpsc::channel();
-        let plugin = plugin.to_string();
+        let plugin_name = plugin.to_string();
         let starting = Arc::clone(&queue);
-        std::thread::Builder::new()
+        let front = std::thread::Builder::new()
             .name("enjoy-plugin-body".to_string())
-            .spawn(move || {
-                run(
-                    engine.clone(),
-                    &plugin,
-                    module,
-                    data_dir,
-                    starting,
-                    work,
-                    ready,
-                )
+            .spawn({
+                let engine = engine.clone();
+                let plugin = plugin_name.clone();
+                let module = module.clone();
+                let data_dir = data_dir.clone();
+                move || run(engine, &plugin, module, data_dir, starting, work, ready)
             })
             .map_err(|error| {
                 RunnerError::Failed(format!("the plugin's thread could not be started: {error}"))
             })?;
         match started.recv_timeout(STARTUP_DEADLINE) {
-            Ok(Ok(())) => Ok(Arc::new(Self {
-                calls: Mutex::new(jobs),
-                queue,
-            })),
-            Ok(Err(reason)) => Err(RunnerError::Failed(reason)),
-            Err(_) => Err(RunnerError::Failed(
-                "the plugin's instance was not ready inside its deadline".to_string(),
-            )),
+            Ok(Ok(())) => {}
+            Ok(Err(reason)) => return Err(RunnerError::Failed(reason)),
+            Err(_) => {
+                return Err(RunnerError::Failed(
+                    "the plugin's instance was not ready inside its deadline".to_string(),
+                ))
+            }
         }
+        let background = if has_run {
+            let handle = std::thread::Builder::new()
+                .name("enjoy-plugin-run".to_string())
+                .spawn({
+                    let engine = engine.clone();
+                    let plugin = plugin_name.clone();
+                    let module = module.clone();
+                    let queue = Arc::clone(&queue);
+                    move || background::run(engine, &plugin, module, data_dir, queue)
+                })
+                .map_err(|error| {
+                    RunnerError::Failed(format!(
+                        "the plugin's background thread could not be started: {error}"
+                    ))
+                })?;
+            Some(handle)
+        } else {
+            None
+        };
+        Ok(Arc::new(Self {
+            calls: Mutex::new(Some(jobs)),
+            queue,
+            front: Mutex::new(Some(front)),
+            background: Mutex::new(background),
+        }))
     }
 }
 
@@ -301,6 +345,9 @@ impl Runner for WasmBody {
             .calls
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let calls = calls
+            .as_ref()
+            .ok_or_else(|| RunnerError::Failed("the plugin's thread is gone".to_string()))?;
         let (answer, answers) = mpsc::channel();
         calls
             .send(Job {
@@ -322,17 +369,35 @@ impl Runner for WasmBody {
         }
     }
 
-    /// Wakes a `task_wait` the plugin's thread is blocked in and tells the loop
-    /// it is over, so a plugin that is switched off finishes rather than
-    /// waiting out a timeout nobody is counting on any more.
+    /// Wakes a `task_wait` a thread is blocked in and tells its loop it is
+    /// over, so a plugin that is switched off finishes rather than waiting out
+    /// a timeout nobody is counting on any more.
     ///
-    /// This does not go through the call channel, and deliberately: the one
+    /// The wake does not go through the call channel, and deliberately: the one
     /// moment the host needs to reach the plugin is the moment the plugin is
     /// busy inside a call, which is when that channel is held. What it sets is
     /// read by the waiting call itself, and read again the next time a call
     /// asks — so a stop that lands between two waits is not lost either.
+    ///
+    /// Then both threads are stopped (spec #96 §4): the background loop sees
+    /// the stop at its next `task_wait` and ends, and the front thread is ended
+    /// by closing its channel — the same thing dropping the body would do — and
+    /// both are joined so that a switch-off leaves nothing of the plugin
+    /// running.
     fn stop(&self) {
+        // Woken first, so a thread parked in `task_wait` is on its way out
+        // before either thread is asked to wind down.
         self.queue.stop();
+        if let Ok(mut calls) = self.calls.lock() {
+            calls.take();
+        }
+        for handle in [&self.front, &self.background] {
+            if let Ok(mut handle) = handle.lock() {
+                if let Some(handle) = handle.take() {
+                    let _ = handle.join();
+                }
+            }
+        }
     }
 }
 
