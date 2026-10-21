@@ -38,6 +38,15 @@ struct Header {
     value: String,
 }
 
+/// How long a background instance's `fetch` may take.
+///
+/// Longer than a call's deadline on purpose: a site that takes seven seconds to
+/// answer is an ordinary site, and the background's loop is not holding anyone's
+/// screen while it waits (spec #96 §4). The bound is here rather than in the
+/// client so that only the background gets it — a front's `fetch` is ended by
+/// its own call's deadline, which is five seconds.
+const BACKGROUND_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+
 /// Fetches one URL, on the plugin's behalf, with the caller's headers.
 pub(super) async fn fetch(
     caller: &mut Caller<'_, Guest>,
@@ -62,11 +71,26 @@ pub(super) async fn fetch(
     let Some(client) = client() else {
         return Ok(0);
     };
-    let response = match client.get(&url).headers(headers).send().await {
-        Ok(response) => response,
-        Err(error) => {
-            tracing::debug!(plugin = %caller.data().plugin(), %url, %error, "A plugin's fetch did not arrive");
-            return Ok(0);
+    let request = client.get(&url).headers(headers);
+    let response = if caller.data().is_background() {
+        match tokio::time::timeout(BACKGROUND_FETCH_TIMEOUT, request.send()).await {
+            Ok(Ok(response)) => response,
+            Ok(Err(error)) => {
+                tracing::debug!(plugin = %caller.data().plugin(), %url, %error, "A plugin's fetch did not arrive");
+                return Ok(0);
+            }
+            Err(_) => {
+                tracing::debug!(plugin = %caller.data().plugin(), %url, "A plugin's fetch timed out");
+                return Ok(0);
+            }
+        }
+    } else {
+        match request.send().await {
+            Ok(response) => response,
+            Err(error) => {
+                tracing::debug!(plugin = %caller.data().plugin(), %url, %error, "A plugin's fetch did not arrive");
+                return Ok(0);
+            }
         }
     };
     let status = response.status().as_u16() as i64;
@@ -135,8 +159,9 @@ fn headers(
 /// that one carries a read timeout for a download that has stopped producing,
 /// and a timeout here would be a second deadline nobody declared, arriving
 /// before the one the runner sets and reported to the plugin as a request that
-/// did not arrive. This one has no timeout of its own, so the only thing that
-/// ends a slow fetch is the call's deadline.
+/// did not arrive. This one has no timeout of its own, so the only things that
+/// end a slow fetch are the call's deadline and, in the background, the
+/// twenty-second bound beside this module's `fetch`.
 ///
 /// `None` when a client cannot be built at all, which is a fact about this
 /// machine rather than about the plugin; it is logged once, at the point it is

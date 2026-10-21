@@ -8,6 +8,7 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
+use std::time::Duration;
 
 use crate::plugins::runner::{Runner, RunnerError};
 use crate::repository::fixture::Fixture;
@@ -150,6 +151,27 @@ pub(super) fn echoing() -> String {
     address
 }
 
+/// A server on the loopback that answers every request, but only after
+/// `millis`, and holds the connection until it does.
+///
+/// The delay is what the background's fetch has to outlast: one call may take
+/// five seconds, and a site often takes longer than that, so what the test needs
+/// is a server that answers on its own time rather than as fast as it can.
+pub(super) fn slow(millis: u64, response: &'static str) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("a port on the loopback");
+    let address = format!("http://{}", listener.local_addr().expect("a bound address"));
+    thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { break };
+            let mut request = [0u8; 1024];
+            let _ = stream.read(&mut request);
+            thread::sleep(Duration::from_millis(millis));
+            let _ = stream.write_all(response.as_bytes());
+        }
+    });
+    address
+}
+
 /// A server on the loopback that accepts and then says nothing at all.
 ///
 /// The connections are held rather than dropped: closing one would answer the
@@ -170,14 +192,14 @@ pub(super) fn silent() -> String {
     address
 }
 
-/// The lines the log has been given, for the one test that reads them.
+/// The lines the log has been given, for the tests that read them.
 ///
 /// The kernel's log is `tracing` (`crate::logging`), which has no port and no
 /// double: what a plugin's line has to reach is the subscriber the application
 /// installs, so the way to see one is to install a subscriber. It is installed
 /// once for the whole binary — a global default can only be set once — and
 /// everything else that logs during the run lands in the same buffer, which is
-/// harmless because only this test reads it.
+/// harmless because the tests only ever look for a marker of their own.
 pub(super) fn logged() -> &'static Arc<Mutex<String>> {
     #[derive(Clone)]
     struct Captured(Arc<Mutex<String>>);

@@ -119,6 +119,8 @@ pub(super) struct Guest {
     /// calls is therefore nobody's answer — and it starts empty, which is what
     /// a start function reading it before the first call gets.
     context: String,
+    /// Whether this is the background instance (exporting run).
+    background: bool,
 }
 
 impl Guest {
@@ -129,7 +131,19 @@ impl Guest {
             plugin: plugin.to_string(),
             queue,
             context: String::new(),
+            background: false,
         }
+    }
+
+    pub(super) fn new_background(plugin: &str, data_dir: PathBuf, queue: Arc<Queue>) -> Self {
+        Self {
+            background: true,
+            ..Self::new(plugin, data_dir, queue)
+        }
+    }
+
+    pub(super) fn is_background(&self) -> bool {
+        self.background
     }
 
     /// Tells the instance what the call it is about to be given is about.
@@ -161,7 +175,17 @@ impl Guest {
 /// helper: wasmtime's own bounds for an async host function are the part that
 /// has to be got right, and a wrapper that hid them would hide the one thing a
 /// reader of a new capability copies. The closure's shape is the same every
-/// time — its parameters destructured, its body the function beside it.
+/// time — its parameters destructured, its body the function beside it, and the
+/// store re-armed once that answer exists.
+///
+/// The re-arm is on the way *out* rather than on the way in because the stretch
+/// of plugin code a call's limits are for comes after the call, not before it:
+/// a host call may take far longer than a call's budget (a fetch of a slow site
+/// takes as long as the site takes) and the epoch does not interrupt a host
+/// future, only wasm. Arming on entry would leave the deadline in the past by
+/// the time the plugin's code resumed, and the very next epoch check would stop
+/// a background job for having waited. Arming here covers every way out of a
+/// function — the early returns included — with one line per import.
 pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
     let mut linker = Linker::new(engine);
     linker
@@ -178,7 +202,7 @@ pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
                 i32,
             )| {
                 Box::new(async move {
-                    super::fetch::fetch(
+                    let answer = super::fetch::fetch(
                         &mut caller,
                         url_at,
                         url_len,
@@ -187,7 +211,9 @@ pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
                         out,
                         cap,
                     )
-                    .await
+                    .await;
+                    let _ = super::arm(&mut caller);
+                    answer
                 })
             },
         )
@@ -198,7 +224,10 @@ pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
             "storage_read",
             |mut caller: Caller<'_, Guest>, (name, name_len, out, cap): (i32, i32, i32, i32)| {
                 Box::new(async move {
-                    super::storage::storage_read(&mut caller, name, name_len, out, cap)
+                    let answer =
+                        super::storage::storage_read(&mut caller, name, name_len, out, cap);
+                    let _ = super::arm(&mut caller);
+                    answer
                 })
             },
         )
@@ -209,7 +238,10 @@ pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
             "storage_write",
             |mut caller: Caller<'_, Guest>, (name, name_len, at, len): (i32, i32, i32, i32)| {
                 Box::new(async move {
-                    super::storage::storage_write(&mut caller, name, name_len, at, len)
+                    let answer =
+                        super::storage::storage_write(&mut caller, name, name_len, at, len);
+                    let _ = super::arm(&mut caller);
+                    answer
                 })
             },
         )
@@ -219,7 +251,11 @@ pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
             MODULE,
             "log",
             |mut caller: Caller<'_, Guest>, (level, msg, msg_len): (i32, i32, i32)| {
-                Box::new(async move { log(&mut caller, level, msg, msg_len) })
+                Box::new(async move {
+                    let answer = log(&mut caller, level, msg, msg_len);
+                    let _ = super::arm(&mut caller);
+                    answer
+                })
             },
         )
         .map_err(|error| format!("the `log` import could not be defined: {error}"))?;
@@ -228,7 +264,11 @@ pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
             MODULE,
             "video_info",
             |mut caller: Caller<'_, Guest>, (out, cap): (i32, i32)| {
-                Box::new(async move { video_info(&mut caller, out, cap) })
+                Box::new(async move {
+                    let answer = video_info(&mut caller, out, cap);
+                    let _ = super::arm(&mut caller);
+                    answer
+                })
             },
         )
         .map_err(|error| format!("the `video_info` import could not be defined: {error}"))?;
@@ -246,7 +286,7 @@ pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
                 i32,
             )| {
                 Box::new(async move {
-                    super::tasks::task_push(
+                    let answer = super::tasks::task_push(
                         &mut caller,
                         kind_at,
                         kind_len,
@@ -254,7 +294,9 @@ pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
                         video_id,
                         payload_at,
                         payload_len,
-                    )
+                    );
+                    let _ = super::arm(&mut caller);
+                    answer
                 })
             },
         )
@@ -264,9 +306,11 @@ pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
             MODULE,
             "task_wait",
             |mut caller: Caller<'_, Guest>, (timeout_ms, out, cap): (i64, i32, i32)| {
-                Box::new(
-                    async move { super::tasks::task_wait(&mut caller, timeout_ms, out, cap).await },
-                )
+                Box::new(async move {
+                    let answer = super::tasks::task_wait(&mut caller, timeout_ms, out, cap).await;
+                    let _ = super::arm(&mut caller);
+                    answer
+                })
             },
         )
         .map_err(|error| format!("the `task_wait` import could not be defined: {error}"))?;
@@ -277,14 +321,16 @@ pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
             |mut caller: Caller<'_, Guest>,
              (id, current, total, label_at, label_len): (i64, i64, i64, i32, i32)| {
                 Box::new(async move {
-                    super::tasks::task_progress(
+                    let answer = super::tasks::task_progress(
                         &mut caller,
                         id,
                         current,
                         total,
                         label_at,
                         label_len,
-                    )
+                    );
+                    let _ = super::arm(&mut caller);
+                    answer
                 })
             },
         )
@@ -294,7 +340,11 @@ pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
             MODULE,
             "task_checkpoint",
             |mut caller: Caller<'_, Guest>, (id,): (i64,)| {
-                Box::new(async move { super::tasks::task_checkpoint(&mut caller, id) })
+                Box::new(async move {
+                    let answer = super::tasks::task_checkpoint(&mut caller, id);
+                    let _ = super::arm(&mut caller);
+                    answer
+                })
             },
         )
         .map_err(|error| format!("the `task_checkpoint` import could not be defined: {error}"))?;
@@ -303,9 +353,11 @@ pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
             MODULE,
             "task_done",
             |mut caller: Caller<'_, Guest>, (id, fields_at, fields_len): (i64, i32, i32)| {
-                Box::new(
-                    async move { super::tasks::task_done(&mut caller, id, fields_at, fields_len) },
-                )
+                Box::new(async move {
+                    let answer = super::tasks::task_done(&mut caller, id, fields_at, fields_len);
+                    let _ = super::arm(&mut caller);
+                    answer
+                })
             },
         )
         .map_err(|error| format!("the `task_done` import could not be defined: {error}"))?;
@@ -316,7 +368,15 @@ pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
             |mut caller: Caller<'_, Guest>,
              (id, message_at, message_len, retry_at_ms): (i64, i32, i32, i64)| {
                 Box::new(async move {
-                    super::tasks::task_fail(&mut caller, id, message_at, message_len, retry_at_ms)
+                    let answer = super::tasks::task_fail(
+                        &mut caller,
+                        id,
+                        message_at,
+                        message_len,
+                        retry_at_ms,
+                    );
+                    let _ = super::arm(&mut caller);
+                    answer
                 })
             },
         )
@@ -345,8 +405,13 @@ fn log(
     Ok(())
 }
 
-/// Hands back the params of the call in flight.
+/// Hands back the params of the call in flight — an empty object, and nothing
+/// written, for the background instance, which is not in one (#99).
 fn video_info(caller: &mut Caller<'_, Guest>, out: i32, cap: i32) -> Result<i32, wasmtime::Error> {
+    if caller.data().is_background() {
+        put(caller, out, cap, b"")?;
+        return Ok(0);
+    }
     let context = caller.data().context.clone();
     put(caller, out, cap, context.as_bytes())?;
     Ok(context.len() as i32)
