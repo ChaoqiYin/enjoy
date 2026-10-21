@@ -18,6 +18,7 @@ pub(crate) mod plugin_settings;
 pub(crate) mod scan;
 pub(crate) mod share;
 pub(crate) mod space;
+pub(crate) mod tasks;
 pub(crate) mod window;
 
 #[cfg(test)]
@@ -28,3 +29,5 @@ mod plugin_settings_tests;
 mod share_tests;
 #[cfg(test)]
 mod space_tests;
+#[cfg(test)]
+mod tasks_tests;

@@ -24,7 +24,7 @@
 // what the walkthrough asks, or it is reading the stand-in.
 
 import { describe, expect, it } from 'vitest';
-import { libraryApi, pluginApi, shareApi } from '../src/shared/api';
+import { libraryApi, pluginApi, shareApi, taskApi } from '../src/shared/api';
 import { acceptance } from './web-fixture';
 import { videos } from './records';
 import type { VideoQuery } from '../src/shared/api';
@@ -363,5 +363,29 @@ describe('the fixture as a stand-in backend', () => {
     await libraryApi.controlScan('cancel');
     await refused;
     expect((await libraryApi.scanStatus()).phase).toBe('cancelled');
+  });
+
+  it('lets a task action move the row a walkthrough is watching', async () => {
+    const before = await taskApi.list();
+    expect(before.find((row) => row.id === 1)?.state).toBe('running');
+
+    await taskApi.action(1, 'pause');
+    const paused = await taskApi.list();
+    expect(paused.find((row) => row.id === 1)?.state).toBe('paused');
+
+    // A retry clears the error it is answering — the state the page shows
+    // after pressing it has to say so, or the press reads as nothing.
+    await taskApi.action(2, 'retry');
+    const retried = await taskApi.list();
+    expect(retried.find((row) => row.id === 2)).toMatchObject({
+      state: 'pending',
+      last_error: null,
+    });
+
+    // An action with no rule behind it is refused with its code, so the
+    // notices corner is reachable from a walkthrough too.
+    await expect(taskApi.action(1, 'bogus' as never)).rejects.toMatchObject({
+      code: 'task.invalid_action',
+    });
   });
 });

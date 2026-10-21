@@ -42,6 +42,11 @@ mod spaces;
 mod task_maintenance;
 #[cfg(test)]
 mod task_maintenance_tests;
+// The task page's one read: every task in every space, joined to the names it
+// draws, with finished work aged out after its week.
+mod task_listing;
+#[cfg(test)]
+mod task_listing_tests;
 // One task's life after it is claimed: the progress its owner reports, and
 // the two ways an attempt ends.
 mod task_states;

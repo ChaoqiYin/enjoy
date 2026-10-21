@@ -55,6 +55,12 @@ pub trait Events: Send + Sync {
     /// the only way to tell was to open the window and look. Through this, a
     /// test reads the same numbers the interface does.
     fn update_progress(&self, progress: UpdateProgress);
+    /// One task's row was rewritten, and the task page should read it again.
+    ///
+    /// Carries the id rather than the row because the page's answer is a join
+    /// across every space: a payload would be a second shape of the same read,
+    /// free to drift from the one the page asks for (spec #102).
+    fn task_changed(&self, task_id: i64);
     /// A plugin failed at a mount point, and the kernel went on without it.
     ///
     /// The failure travels as an `AppError` like every other one, so the words
@@ -105,6 +111,10 @@ impl Events for AppEvents {
         let _ = self.0.emit("update-progress", progress);
     }
 
+    fn task_changed(&self, task_id: i64) {
+        let _ = self.0.emit("task-changed", task_id);
+    }
+
     fn plugin_failed(&self, error: &AppError) {
         let _ = self.0.emit("plugin-failed", error);
     }
@@ -141,6 +151,12 @@ pub struct Recorded {
     /// cloneable. What a test asserts on is the part that is a rule — which
     /// plugin, at which mount point — and the params are exactly that part.
     pub plugin_failures: std::sync::Mutex<Vec<(String, BTreeMap<String, String>)>>,
+    /// Every task row the interface was told to read again, in order.
+    ///
+    /// Ids rather than rows for the reason the trait says: what the page
+    /// draws is one join, and a second shape of it here would be a copy to
+    /// keep in step.
+    pub task_changes: std::sync::Mutex<Vec<i64>>,
     /// Runs as each status goes out, before it is written down.
     ///
     /// Some rules can only be exercised from inside the pass that has them:
@@ -209,6 +225,11 @@ impl Recorded {
             })
             .collect()
     }
+
+    /// Every task row the interface was told to read again, in order.
+    pub fn task_changes(&self) -> Vec<i64> {
+        self.task_changes.lock().unwrap().clone()
+    }
 }
 
 /// One plugin failure as a test reads it back: the code the message is
@@ -257,5 +278,9 @@ impl Events for Recorded {
             .lock()
             .unwrap()
             .push((error.code.clone(), error.params.clone()));
+    }
+
+    fn task_changed(&self, task_id: i64) {
+        self.task_changes.lock().unwrap().push(task_id);
     }
 }

@@ -140,6 +140,8 @@ const pairs = [
     struct: 'PluginSettingsGroup',
     ts: 'PluginSettingsGroup',
   },
+  // The task page's row: one task as the list draws it, across every space.
+  { rust: 'src-tauri/src/model.rs', struct: 'TaskRow', ts: 'TaskRow' },
 ];
 
 const failures = [];

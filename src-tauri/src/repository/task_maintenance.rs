@@ -24,7 +24,11 @@ use super::{now, Repository};
 /// How long a finished task is kept for the task page to show, in
 /// milliseconds: seven days, the retention the spec fixes (spec #96 §1,
 /// User Story 8).
-const FINISHED_RETENTION: i64 = 7 * 24 * 60 * 60 * 1000;
+///
+/// `pub(super)` because the page's read hides finished work past the same
+/// window without deleting it ([`super::task_listing`]) — one retention, two
+/// questions, so the number is written down once.
+pub(super) const FINISHED_RETENTION: i64 = 7 * 24 * 60 * 60 * 1000;
 
 impl Repository {
     /// Puts every task an exit left running back to waiting.
