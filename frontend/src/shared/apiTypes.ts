@@ -370,3 +370,26 @@ export interface PluginSettingsGroup {
   plugin: string;
   fields: PluginSettingField[];
 }
+
+/** One task across every space, as the task page draws it. */
+export interface TaskRow {
+  id: number;
+  plugin: string | null;
+  space_id: number;
+  space_name: string;
+  video_id: number | null;
+  video_name: string | null;
+  kind: string;
+  state: string;
+  pause_requested: boolean;
+  cancel_requested: boolean;
+  progress_current: number | null;
+  progress_total: number | null;
+  progress_label: string | null;
+  attempts: number;
+  last_error: string | null;
+  updated_at: number;
+}
+
+/** One action the task page can ask of a running task. */
+export type TaskAction = 'pause' | 'resume' | 'cancel' | 'retry';

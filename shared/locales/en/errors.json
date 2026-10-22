@@ -79,5 +79,6 @@
   "plugin.settings.directory_missing": "That folder is not on this computer",
   "plugin.settings.unavailable": "{{plugin}} is not running, so its settings were not saved",
   "task.not_found": "That task no longer exists",
-  "task.invalid_state": "That task's current state does not allow this"
+  "task.invalid_state": "That task's current state does not allow this",
+  "task.invalid_action": "No such task action"
 }

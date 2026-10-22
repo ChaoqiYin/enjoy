@@ -95,6 +95,8 @@ fn main() {
             commands::plugin::run_safe_mode,
             commands::plugin_settings::list_plugin_settings,
             commands::plugin_settings::save_plugin_settings,
+            commands::tasks::list_tasks,
+            commands::tasks::task_action,
             commands::window::show_window,
             commands::window::close_window,
             commands::window::minimize_window,

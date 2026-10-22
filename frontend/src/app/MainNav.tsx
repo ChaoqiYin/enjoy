@@ -4,6 +4,7 @@ import {
   Clapperboard,
   Heart,
   History,
+  ListTodo,
   Puzzle,
   Settings,
   Share2,
@@ -39,6 +40,7 @@ const entries = [
   // each of them is doing. It is permanent — it is the one place a plugin can
   // be found, switched off or explained — so it does not come and go with what
   // happens to be installed, unlike the pages below it.
+  { to: '/tasks', label: 'tasks', icon: ListTodo },
   { to: '/plugins', label: 'plugins', icon: Puzzle },
 ] as const;
 

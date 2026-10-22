@@ -76,6 +76,7 @@ function header(path = '/', loadEntry = loader) {
               },
             ],
             setEnabled: async () => [],
+            setOrder: async () => [],
             preview: async () => {
               throw new Error('unused');
             },
@@ -106,6 +107,7 @@ const entries = [
   english.history,
   english.sharing,
   english.settings,
+  english.tasks,
   english.plugins,
 ];
 
@@ -193,7 +195,7 @@ it('turns the words of every entry a character at a time', () => {
   }
 });
 
-it('carries the pages plugins added, after the interface own six', async () => {
+it('carries the pages plugins added, after the interface own seven', async () => {
   // The row is the render side of `app.page`: a page a plugin registered is
   // reached from here and from nowhere else, and it is named in the plugin's
   // own words rather than in a translation the kernel does not have.
@@ -203,7 +205,7 @@ it('carries the pages plugins added, after the interface own six', async () => {
   const row = screen
     .getAllByRole('tab')
     .map((entry) => entry.getAttribute('aria-label'));
-  expect(row.slice(0, 6)).toEqual(entries);
+  expect(row.slice(0, 7)).toEqual(entries);
   expect(row.at(-1)).toBe('Covers');
 });
 

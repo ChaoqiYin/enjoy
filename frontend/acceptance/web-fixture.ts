@@ -13,6 +13,7 @@ import * as assets from './assets';
 import * as fields from './fields';
 import { markOn, recordsOf, sharedIds } from './marks';
 import * as plugins from './plugins';
+import * as taskQueue from './tasks';
 import type { SettingValue } from '../src/plugins/mountPoints';
 import type {
   AppError,
@@ -77,7 +78,6 @@ let servedList: { spaceId: number; ids: number[] } | null = null;
  * so it is the one nearest to hand.
  */
 const missingFromDisk = new Set([1]);
-
 /**
  * The status, composed the way the backend composes it: the port and the
  * password on one side, and on the other the two facts about the service that
@@ -416,6 +416,11 @@ mockIPC(
           String(payload.pluginId),
           payload.values as SettingValue[],
         );
+      case 'list_tasks':
+        return indexed ? taskQueue.list() : [];
+      case 'task_action':
+        taskQueue.act(Number(payload.taskId), String(payload.action));
+        return;
       case 'check_for_update':
         return reportedCheck();
       case 'install_update':

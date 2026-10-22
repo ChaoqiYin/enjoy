@@ -430,3 +430,37 @@ pub enum TaskSignal {
     Pause,
     Cancel,
 }
+
+/// One row of the task page: the queue as the interface draws it (spec #102).
+///
+/// Everything the page shows and nothing it does not. `payload` is absent on
+/// purpose — it is the owner's own vocabulary, meant to be handed back to its
+/// owner and never shown, and a row that carries it would put it on the wire.
+/// The two names are joined rather than looked up per row because a page is
+/// read once and drawn whole: `space_name` is always there (a task always
+/// belongs to a space, and a page spanning spaces must say which), while
+/// `video_name` is only there when the task is about one record.
+///
+/// `state` is the stored word rather than [`TaskState`] because this is a
+/// serialized shape, not a domain one: the vocabulary is still closed — the
+/// read that builds a row refuses a word this build does not know — but a
+/// shape on its way to the interface speaks the interface's strings.
+#[derive(Debug, Clone, Serialize)]
+pub struct TaskRow {
+    pub id: i64,
+    pub plugin: Option<String>,
+    pub space_id: i64,
+    pub space_name: String,
+    pub video_id: Option<i64>,
+    pub video_name: Option<String>,
+    pub kind: String,
+    pub state: String,
+    pub pause_requested: bool,
+    pub cancel_requested: bool,
+    pub progress_current: Option<i64>,
+    pub progress_total: Option<i64>,
+    pub progress_label: Option<String>,
+    pub attempts: i64,
+    pub last_error: Option<String>,
+    pub updated_at: i64,
+}

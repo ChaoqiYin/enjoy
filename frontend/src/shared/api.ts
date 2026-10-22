@@ -15,6 +15,8 @@ import type {
   SettingsState,
   ShareStatus,
   Space,
+  TaskAction,
+  TaskRow,
   UpdateCheck,
   UpdateProgress,
   Video,
@@ -28,32 +30,12 @@ import type {
 // which is all of them — keeps working while the declarations sit in a file
 // `check-seam.mjs` can read a list of.
 //
-// They are named one by one rather than swept up with `export *`: this is the
-// seam the interface reads the backend through, and a shape that reached it by
-// being in the neighbourhood would be a shape nobody decided to hand out.
-export type {
-  Address,
-  AvailableUpdate,
-  AppError,
-  Device,
-  IndexChanges,
-  LanguageSettings,
-  PluginBootstrap,
-  PluginFailure,
-  PluginInstallPreview,
-  PluginSettingField,
-  PluginSettingsGroup,
-  ScanStatus,
-  SettingsState,
-  ShareStatus,
-  Space,
-  UpdateCheck,
-  UpdateProgress,
-  Video,
-  VideoField,
-  VideoPage,
-  VideoQuery,
-} from './apiTypes';
+// Handed on by `export type *` rather than named one by one, which is what this
+// block did until the list grew past this module's line limit. The named list
+// was there so a shape could not slip out of the seam unasked; that is now what
+// `check-seam.mjs` fails on, since every interface declared in `apiTypes.ts`
+// has to be named among its pairs.
+export type * from './apiTypes';
 
 /**
  * Everything the interface asks of the backend, and everything the backend
@@ -313,6 +295,9 @@ export const backendEvents = {
   /** The library is not what it was; whatever is showing it should read it again. */
   onLibraryChanged: (handler: () => void): Promise<UnlistenFn> =>
     listen('library-changed', handler),
+  /** A task changed state; its row in the task list is not what it was. */
+  onTaskChanged: (handler: (taskId: number) => void): Promise<UnlistenFn> =>
+    listen<number>('task-changed', ({ payload }) => handler(payload)),
   /** Something the user asked for did not happen, with the words for why. */
   onMediaError: (handler: (error: AppError) => void): Promise<UnlistenFn> =>
     listen<AppError>('media-error', ({ payload }) => handler(payload)),
@@ -492,6 +477,16 @@ export function readTheme(): Promise<SettingsState['theme']> {
   if (!hosted()) return Promise.resolve('dark');
   return settingsApi.read().then((settings) => settings.theme);
 }
+
+/**
+ * The task page's read and its one action on a row: every task across every
+ * space as one answer, so the page never composes a query of its own.
+ */
+export const taskApi = {
+  list: () => invoke<TaskRow[]>('list_tasks'),
+  action: (taskId: number, action: TaskAction) =>
+    invoke<void>('task_action', { taskId, action }),
+};
 
 // Moved to its own module, and handed on from here so that every existing
 // import path keeps working: the address the backend is reached at is at the
