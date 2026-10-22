@@ -45,6 +45,7 @@ mod tests {
 
     use crate::error::AppError;
     use crate::media::Metadata;
+    use crate::model::TaskAction;
     use crate::repository::fixture::{Fixture, Library};
     use crate::repository::Repository;
     use crate::scan::control::ScanControl;
@@ -105,7 +106,7 @@ mod tests {
         let control = Arc::new(ScanControl::default());
         let guard = control.begin();
         let result = refresh::refresh_video(space, &path, &repository, &control, |_| {
-            control.action("cancel").unwrap();
+            control.action(TaskAction::Cancel);
             Ok(Metadata {
                 duration_ms: None,
                 width: 1920,
@@ -127,7 +128,7 @@ mod tests {
         let control = Arc::new(ScanControl::default());
         let guard = control.begin();
         let result = refresh::refresh_video(space, &path, &repository, &control, |_| {
-            control.action("cancel").unwrap();
+            control.action(TaskAction::Cancel);
             Err(AppError::new("media.scan.cancelled", "cancelled probe"))
         });
         assert_eq!(result.unwrap_err().code, "media.scan.cancelled");

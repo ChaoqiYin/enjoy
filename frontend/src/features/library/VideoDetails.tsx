@@ -11,7 +11,12 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { ScanStatus, Video, VideoField } from '../../shared/api';
-import { displayPath, duration, fileSize } from '../../shared/format';
+import {
+  displayPath,
+  duration,
+  fileSize,
+  formatDateTime,
+} from '../../shared/format';
 import { Button } from '../../shared/ui/button';
 import { usePluginPanels } from '../../plugins/PluginHostProvider';
 import type { SpaceRef } from '../../plugins/mountPoints';
@@ -108,10 +113,7 @@ export function VideoDetails({
     {
       icon: <CalendarDays size={15} aria-hidden="true" />,
       label: t('modifiedAt'),
-      value: new Intl.DateTimeFormat(i18n.language, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }).format(video.modified_at),
+      value: formatDateTime(video.modified_at, i18n.language),
     },
     // The plugin fields, in the order the backend handed them over — which is
     // the order of their keys, so a panel read twice reads the same way. The

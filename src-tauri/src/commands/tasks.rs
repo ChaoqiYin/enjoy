@@ -1,7 +1,7 @@
 use crate::app::AppState;
 use crate::error::AppError;
 use crate::events::{AppEvents, Events};
-use crate::model::TaskRow;
+use crate::model::{TaskAction, TaskRow};
 use crate::repository::lock_shared;
 use tauri::{AppHandle, State};
 
@@ -39,23 +39,15 @@ pub(crate) fn act_on_task(
     task_id: i64,
     action: &str,
 ) -> Result<(), AppError> {
-    let written = {
-        let mut repository = lock_shared(&state.repository)?;
-        match action {
-            "pause" => repository.request_task_pause(task_id),
-            "resume" => repository.resume_task(task_id),
-            "cancel" => repository.request_task_cancel(task_id),
-            "retry" => repository.retry_task(task_id),
-            _ => return Err(AppError::new("task.invalid_action", "No such task action")),
-        }
-    };
-    written?;
+    let action = TaskAction::parse(action)
+        .ok_or_else(|| AppError::new("task.invalid_action", "No such task action"))?;
+    lock_shared(&state.repository)?.apply_task_action(task_id, action)?;
     // A request written on the row has to reach the pass that is running that
     // very task: the row is where the request is recorded, and the pass is what
     // it stops. The kernel's own media tasks are run by a pass that waits at
     // its own checkpoint, so without this a 暂停 from this page would be a
     // mark on the row that nothing acted on (spec #101).
-    state.scan.carry(task_id, action)?;
+    state.scan.carry(task_id, action);
     events.task_changed(task_id);
     Ok(())
 }

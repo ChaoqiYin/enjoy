@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use super::control::UpdateControl;
+use super::control::{Stop, UpdateControl};
 use super::fixture::{body, key, public_key_field, serve, serve_slowly, signature_field, stand_in};
 use super::transfer::{run, ProgressThrottle};
 use crate::events::Recorded;
@@ -118,9 +118,7 @@ fn a_pause_while_bytes_are_arriving_ends_as_paused_and_keeps_them() {
     let ended = std::thread::scope(|scope| {
         scope.spawn(|| {
             std::thread::sleep(Duration::from_millis(300));
-            control
-                .action("pause")
-                .expect("a pause is an action it knows");
+            control.action(Stop::Pause);
         });
         download(&control, &public_key_field(&signing), &events).unwrap()
     });

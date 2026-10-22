@@ -223,7 +223,7 @@ fn a_cancel_leaves_nothing_to_continue_from() {
 fn a_cancel_with_nothing_running_is_what_dismisses_a_pause() {
     let control = UpdateControl::default();
     control.take_slot(true).unwrap().keep(vec![1, 2, 3]);
-    control.action("cancel").unwrap();
+    control.action(Stop::Cancel);
     assert!(control.take_slot(true).unwrap().resume().is_empty());
 }
 
@@ -233,7 +233,7 @@ fn a_pause_with_nothing_running_leaves_the_kept_bytes_alone() {
     // user asked for; throwing the bytes away would turn a pause into a cancel.
     let control = UpdateControl::default();
     control.take_slot(true).unwrap().keep(vec![1, 2, 3]);
-    control.action("pause").unwrap();
+    control.action(Stop::Pause);
     assert_eq!(control.take_slot(true).unwrap().resume(), &[1, 2, 3]);
 }
 
@@ -242,15 +242,9 @@ fn an_unknown_action_is_refused() {
     // Including "resume": continuing is a download started again, not an action
     // on one. A name that is neither is a failure rather than a button that
     // quietly does nothing.
-    let control = UpdateControl::default();
-    assert_eq!(
-        control.action("resume").unwrap_err().code,
-        "update.invalid_action"
-    );
-    assert_eq!(
-        control.action("").unwrap_err().code,
-        "update.invalid_action"
-    );
+    assert!(Stop::parse("resume").is_none());
+    assert!(Stop::parse("").is_none());
+    assert!(Stop::parse("cancel").is_some());
 }
 
 #[test]
@@ -258,13 +252,13 @@ fn an_ask_only_reaches_a_download_that_is_running() {
     // A pause pressed a moment after the transfer ended would otherwise be
     // waiting for the next one, stopping it the moment it opened a connection.
     let control = UpdateControl::default();
-    control.action("pause").unwrap();
+    control.action(Stop::Pause);
     assert_eq!(control.flag().requested(), Stop::Run);
 
     let slot = control.take_slot(true).unwrap();
-    control.action("pause").unwrap();
+    control.action(Stop::Pause);
     assert_eq!(control.flag().requested(), Stop::Pause);
-    control.action("cancel").unwrap();
+    control.action(Stop::Cancel);
     assert_eq!(control.flag().requested(), Stop::Cancel);
 
     // And the download that follows the request forgets it — taking the slot is

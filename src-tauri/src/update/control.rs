@@ -26,6 +26,18 @@ const PAUSE: u8 = 1;
 const CANCEL: u8 = 2;
 
 impl Stop {
+    /// The request a wire word names, or nothing if this build does not know
+    /// it. `Run` is what the flag says when nobody has asked, so the interface
+    /// cannot send it: a word that asked for nothing would be a button that
+    /// silently did nothing.
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "pause" => Some(Self::Pause),
+            "cancel" => Some(Self::Cancel),
+            _ => None,
+        }
+    }
+
     fn bits(self) -> u8 {
         match self {
             Self::Run => RUN,
@@ -267,17 +279,11 @@ impl UpdateControl {
     /// A cancel that arrives with nothing running is a paused download being
     /// dismissed, so it is answered here rather than refused: the bytes it was
     /// keeping are what has to go.
-    pub fn action(&self, action: &str) -> Result<(), AppError> {
-        let stop = match action {
-            "pause" => Stop::Pause,
-            "cancel" => Stop::Cancel,
-            _ => {
-                return Err(AppError::new(
-                    "update.invalid_action",
-                    "Unknown update action",
-                ))
-            }
-        };
+    ///
+    /// The wire word was parsed at the command ([`Stop::parse`]); a request
+    /// that reached here is already one of the two things a download can be
+    /// asked to do.
+    pub fn action(&self, stop: Stop) {
         let mut state = self.lock();
         if state.downloading {
             // Asked for under the lock, so a download cannot start between the
@@ -289,7 +295,6 @@ impl UpdateControl {
         }
         // A pause with nothing to pause asks for the state the download is
         // already in, so there is nothing to do and nothing to complain about.
-        Ok(())
     }
 
     pub fn pending(&self) -> Result<Arc<dyn Release>, AppError> {

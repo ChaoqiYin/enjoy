@@ -5,6 +5,7 @@ use tauri::State;
 use crate::app::AppState;
 use crate::error::AppError;
 use crate::events::{AppEvents, Events};
+use crate::model::TaskAction;
 use crate::repository::{lock_shared, Repository};
 use crate::scan::control::{ScanControl, ScanStatus};
 
@@ -72,23 +73,28 @@ pub(crate) fn forward_action(
     repository: &Arc<Mutex<Repository>>,
     action: &str,
 ) -> Result<(), AppError> {
-    if !["pause", "resume", "cancel"].contains(&action) {
-        return Err(AppError::new(
-            "media.scan.invalid_action",
-            "Unknown scan action",
-        ));
-    }
+    let action = TaskAction::parse(action)
+        .filter(|action| *action != TaskAction::Retry)
+        .ok_or_else(|| AppError::new("media.scan.invalid_action", "Unknown scan action"))?;
     if let Some(task) = scan.task_id() {
         let mut repository = lock_shared(repository)?;
         let row = repository.task(task)?;
-        match action {
-            "pause" if !row.pause_requested => repository.request_task_pause(task)?,
-            "resume" if row.pause_requested => repository.resume_task(task)?,
-            "cancel" if !row.cancel_requested => repository.request_task_cancel(task)?,
-            _ => {}
+        // The same request can arrive twice — once from the status bar and
+        // once from the task page — and the second arrival is the same request,
+        // not a refusal.
+        let already = match action {
+            TaskAction::Pause => row.pause_requested,
+            TaskAction::Resume => !row.pause_requested,
+            TaskAction::Cancel => row.cancel_requested,
+            // A retry was refused above and never reaches this row.
+            TaskAction::Retry => true,
+        };
+        if !already {
+            repository.apply_task_action(task, action)?;
         }
     }
-    scan.action(action)
+    scan.action(action);
+    Ok(())
 }
 
 /// Queues a scan of the current space's saved directories.

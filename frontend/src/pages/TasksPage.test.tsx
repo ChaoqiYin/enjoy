@@ -15,7 +15,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { TaskRow } from '../shared/api';
+import { task } from '../test/fixtures';
 import english from '../../../shared/locales/en/common.json';
 import { TasksPage } from './TasksPage';
 
@@ -81,28 +81,6 @@ beforeEach(async () => {
 afterEach(cleanup);
 
 let handlers: ((taskId: number) => void)[] = [];
-
-function task(overrides: Partial<TaskRow> = {}): TaskRow {
-  return {
-    id: 1,
-    plugin: null,
-    space_id: 1,
-    space_name: 'Movies',
-    video_id: 10,
-    video_name: 'a.mkv',
-    kind: 'move',
-    state: 'running',
-    pause_requested: false,
-    cancel_requested: false,
-    progress_current: null,
-    progress_total: null,
-    progress_label: null,
-    attempts: 0,
-    last_error: null,
-    updated_at: 1_760_000_000_000,
-    ...overrides,
-  };
-}
 
 function page() {
   const client = new QueryClient({

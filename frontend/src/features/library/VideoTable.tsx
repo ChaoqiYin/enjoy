@@ -1,7 +1,12 @@
 import { useTranslation } from 'react-i18next';
 import type { Video } from '../../shared/api';
 import { Tooltip } from '../../shared/Tooltip';
-import { displayPath, duration, fileSize } from '../../shared/format';
+import {
+  dateTimeFormat,
+  displayPath,
+  duration,
+  fileSize,
+} from '../../shared/format';
 import {
   Table,
   TableBody,
@@ -49,10 +54,7 @@ export function VideoTable({
   onMenu?: (target: MenuTarget) => void;
 }) {
   const { t, i18n } = useTranslation();
-  const date = new Intl.DateTimeFormat(i18n.language, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
+  const date = dateTimeFormat(i18n.language);
   return (
     <Table>
       <TableHeader>
