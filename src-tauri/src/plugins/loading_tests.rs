@@ -106,7 +106,7 @@ fn an_enabled_plugin_with_a_body_is_asked() {
     let store = installed(&directory, "one", &with_body("one"), &body());
     let host = host();
 
-    loading::load(&store, &host, &repository());
+    loading::load(&store, &host, &repository(), None);
 
     assert_eq!(host.enabled(), vec!["one".to_string()]);
 }
@@ -118,7 +118,7 @@ fn a_plugin_the_user_switched_off_is_not_asked() {
     store.set_enabled("one", false).unwrap();
     let host = host();
 
-    loading::load(&store, &host, &repository());
+    loading::load(&store, &host, &repository(), None);
 
     assert!(host.enabled().is_empty());
 }
@@ -133,7 +133,7 @@ fn a_plugin_with_only_an_interface_is_not_asked() {
     store.set_enabled("one", true).unwrap();
     let host = host();
 
-    loading::load(&store, &host, &repository());
+    loading::load(&store, &host, &repository(), None);
 
     assert!(host.enabled().is_empty());
 }
@@ -146,7 +146,7 @@ fn a_plugin_whose_manifest_does_not_validate_is_not_asked() {
     let store = installed(&directory, "one", &broken, &body());
     let host = host();
 
-    loading::load(&store, &host, &repository());
+    loading::load(&store, &host, &repository(), None);
 
     assert!(host.enabled().is_empty());
 }
@@ -167,7 +167,7 @@ fn a_body_that_will_not_load_leaves_the_other_plugins_alone() {
     store.set_enabled("good", true).unwrap();
     let host = host();
 
-    loading::load(&store, &host, &repository());
+    loading::load(&store, &host, &repository(), None);
 
     assert_eq!(host.enabled(), vec!["good".to_string()]);
 }
@@ -180,7 +180,7 @@ fn a_body_file_that_is_not_there_leaves_the_application_starting() {
     store.set_enabled("one", true).unwrap();
     let host = host();
 
-    loading::load(&store, &host, &repository());
+    loading::load(&store, &host, &repository(), None);
 
     assert!(host.enabled().is_empty());
 }
@@ -194,7 +194,7 @@ fn a_plugins_directory_that_cannot_be_read_leaves_the_application_starting() {
     fs::write(&blocked, b"").unwrap();
     let host = host();
 
-    loading::load(&Store::new(blocked), &host, &repository());
+    loading::load(&Store::new(blocked), &host, &repository(), None);
 
     assert!(host.enabled().is_empty());
 }
@@ -208,7 +208,7 @@ fn a_plugins_storage_directory_is_made_before_its_body_runs() {
     let store = installed(&directory, "one", &with_body("one"), &body());
     let host = host();
 
-    loading::load(&store, &host, &repository());
+    loading::load(&store, &host, &repository(), None);
 
     assert!(directory.path().join("one").join(loading::DATA).is_dir());
 }
@@ -222,7 +222,7 @@ fn a_plugin_is_asked_at_the_mount_point_the_catalog_names() {
     let store = installed(&directory, "one", &with_body("one"), &body());
     let host = host();
 
-    loading::load(&store, &host, &repository());
+    loading::load(&store, &host, &repository(), None);
 
     let fields = host.video_fields(&super::fixture::space(), &super::fixture::video());
     assert!(fields.is_empty());
@@ -256,7 +256,7 @@ fn the_order_the_user_arranged_decides_which_plugin_fills_a_field() {
 
     // Starting the window.
     let running = host();
-    loading::load(&store, &running, &repository());
+    loading::load(&store, &running, &repository(), None);
 
     let fields = running.video_fields(&super::fixture::space(), &super::fixture::video());
     assert_eq!(
@@ -275,7 +275,7 @@ fn the_order_the_user_arranged_decides_which_plugin_fills_a_field() {
     // And again, in a window that has never seen the first one: the order is on
     // disk, so a restart is not a place it can be lost.
     let restarted = host();
-    loading::load(&store, &restarted, &repository());
+    loading::load(&store, &restarted, &repository(), None);
     let fields = restarted.video_fields(&super::fixture::space(), &super::fixture::video());
     assert_eq!(
         fields.first().map(|field| field.source_plugin.as_str()),

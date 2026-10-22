@@ -169,7 +169,7 @@ fn the_kernel_grants_these_capabilities_and_nothing_else() {
     let engine = super::engine().unwrap();
     let linker = super::imports::linker(engine).unwrap();
     let directory = Fixture::new();
-    let queue = super::tasks::Queue::new(PLUGIN, library());
+    let queue = super::tasks::Queue::new(PLUGIN, library(), None);
     let mut store = Store::new(
         engine,
         super::imports::Guest::new(PLUGIN, directory.0.clone(), queue),

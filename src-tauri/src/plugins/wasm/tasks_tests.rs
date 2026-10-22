@@ -358,3 +358,131 @@ fn the_library_is_reachable_while_a_body_runs_against_it() {
     drop(library.lock().unwrap());
     assert_eq!(body.handle("video.fields", "{}").unwrap(), "idle");
 }
+
+/// A module that finishes one already-claimed task with the fields the test
+/// substitutes in, and answers "ok" or "no" with the import's verdict.
+const FINISHING_WITH: &str = r#"
+    (module
+      (import "enjoy" "task_done" (func $done (param i64 i32 i32) (result i32)))
+      (memory (export "memory") 1)
+      (data (i32.const 300) "__JSON__")
+      (data (i32.const 400) "ok")
+      (data (i32.const 500) "no")
+      (func (export "alloc") (param i32) (result i32) (i32.const 1024))
+      (func (export "handle") (param i32 i32 i32 i32) (result i64)
+        (if (result i64) (i32.eq (call $done (i64.const __ID__) (i32.const 300) (i32.const __LEN__)) (i32.const 0))
+          (then (i64.or (i64.shl (i64.const 400) (i64.const 32)) (i64.const 2)))
+          (else (i64.or (i64.shl (i64.const 500) (i64.const 32)) (i64.const 2))))))
+"#;
+
+/// One field a finished task handed over: key, value, and source.
+type LandedField = (String, String, String);
+
+/// One finished task as the landing saw it: id, video, and fields.
+type LandedTask = (i64, Option<i64>, Vec<LandedField>);
+
+/// What a finished task handed over, as the landing reads it.
+#[derive(Default)]
+struct RecordingLanding {
+    changed: Mutex<Vec<i64>>,
+    landed: Mutex<Vec<LandedTask>>,
+}
+
+impl crate::plugins::landing::Landing for RecordingLanding {
+    fn changed(&self, task_id: i64) {
+        self.changed.lock().unwrap().push(task_id);
+    }
+
+    fn land(&self, task: crate::model::Task, fields: Vec<crate::model::VideoField>) {
+        self.landed.lock().unwrap().push((
+            task.id,
+            task.video_id,
+            fields
+                .into_iter()
+                .map(|field| (field.key, field.value, field.source_plugin))
+                .collect(),
+        ));
+    }
+}
+
+fn finishing(json: &str, id: i64) -> String {
+    let escaped = json.replace('\\', "\\\\").replace('"', "\\\"");
+    FINISHING_WITH
+        .replace("__LEN__", &json.len().to_string())
+        .replace("__ID__", &id.to_string())
+        .replace("__JSON__", &escaped)
+}
+
+#[test]
+fn a_finished_task_hands_its_fields_to_the_landing() {
+    let library = library();
+    let id = {
+        let mut repository = library.lock().unwrap();
+        // A record for the task to be about: a task's `video_id` is a foreign
+        // key, and the queue is not where records come from.
+        crate::repository::fixture::video_fields(&mut repository, &[(7, "title", "old", "other")]);
+        let id = repository
+            .push_task(Some(PLUGIN), 1, Some(7), "scrape", "{}")
+            .unwrap();
+        repository.claim_task(Some(PLUGIN)).unwrap();
+        id
+    };
+    let landing = Arc::new(RecordingLanding::default());
+    let body = crate::plugins::wasm::fixture::body_on_with_landing(
+        &finishing(
+            r#"{"fields":[{"key":"title","value":"Found"},{"key":"notAField","value":"x"}]}"#,
+            id,
+        ),
+        &library,
+        landing.clone(),
+    )
+    .unwrap();
+
+    assert_eq!(body.handle("video.fields", "{}").unwrap(), "ok");
+    assert_eq!(
+        library.lock().unwrap().task(id).unwrap().state,
+        crate::model::TaskState::Done
+    );
+    let landed = landing.landed.lock().unwrap();
+    assert_eq!(landed.len(), 1);
+    assert_eq!(landed[0].0, id);
+    assert_eq!(landed[0].1, Some(7));
+    // The key outside the closed set never reaches the landing, and every
+    // field that does carries the plugin that answered as its source.
+    assert_eq!(
+        landed[0].2,
+        vec![("title".to_string(), "Found".to_string(), PLUGIN.to_string())]
+    );
+    assert_eq!(*landing.changed.lock().unwrap(), vec![id]);
+}
+
+#[test]
+fn a_malformed_answer_is_refused_and_the_task_keeps_running() {
+    let library = library();
+    let id = {
+        let mut repository = library.lock().unwrap();
+        // A record for the task to be about: a task's `video_id` is a foreign
+        // key, and the queue is not where records come from.
+        crate::repository::fixture::video_fields(&mut repository, &[(7, "title", "old", "other")]);
+        let id = repository
+            .push_task(Some(PLUGIN), 1, Some(7), "scrape", "{}")
+            .unwrap();
+        repository.claim_task(Some(PLUGIN)).unwrap();
+        id
+    };
+    let landing = Arc::new(RecordingLanding::default());
+    let body = crate::plugins::wasm::fixture::body_on_with_landing(
+        &finishing("not json", id),
+        &library,
+        landing.clone(),
+    )
+    .unwrap();
+
+    assert_eq!(body.handle("video.fields", "{}").unwrap(), "no");
+    assert_eq!(
+        library.lock().unwrap().task(id).unwrap().state,
+        crate::model::TaskState::Running
+    );
+    assert!(landing.landed.lock().unwrap().is_empty());
+    assert!(landing.changed.lock().unwrap().is_empty());
+}

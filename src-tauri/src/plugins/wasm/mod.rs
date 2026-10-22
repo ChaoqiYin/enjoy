@@ -85,6 +85,7 @@ mod imports;
 mod memory;
 mod resident;
 mod storage;
+mod task_shapes;
 mod tasks;
 
 #[cfg(test)]
@@ -108,6 +109,7 @@ use wasmtime::{Config, Engine, Instance, Memory, Module, Store, Trap, TypedFunc}
 
 use crate::repository::Repository;
 
+use super::landing::Landing;
 use super::runner::{Runner, RunnerError};
 
 use imports::Guest;
@@ -265,11 +267,16 @@ impl WasmBody {
     /// `storage` capability can reach, which is the kernel's to choose — a
     /// plugin does not get to say where it lives. `repository` is the library
     /// the plugin's tasks are rows in, shared with every other user of it.
+    /// `landing` is where a finished task's fields go (spec #96 §6); a body
+    /// without one still runs its tasks, it just cannot write their answers
+    /// into a library — which is what the tests that are about the queue
+    /// alone want.
     pub(crate) fn load(
         plugin: &str,
         module: &[u8],
         data_dir: PathBuf,
         repository: Arc<Mutex<Repository>>,
+        landing: Option<Arc<dyn Landing>>,
     ) -> Result<Arc<Self>, RunnerError> {
         let engine = engine()?;
         let module = Module::new(engine, module).map_err(|error| {
@@ -285,7 +292,7 @@ impl WasmBody {
         let has_run = module
             .exports()
             .any(|export| export.name() == "run" && export.ty().func().is_some());
-        let queue = Queue::new(plugin, repository);
+        let queue = Queue::new(plugin, repository, landing);
         let (jobs, work) = mpsc::channel();
         let (ready, started) = mpsc::channel();
         let plugin_name = plugin.to_string();

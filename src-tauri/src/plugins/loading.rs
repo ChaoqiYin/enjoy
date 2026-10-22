@@ -41,6 +41,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::repository::Repository;
 
+use super::landing::Landing;
 use super::manifest;
 use super::runner::Runner;
 use super::wasm::WasmBody;
@@ -65,7 +66,12 @@ pub(crate) const DATA: &str = "data";
 /// order matters — a mount point several plugins contribute to (ADR 0045 §3) —
 /// and leaving it to whatever order the loop happened to walk would make it an
 /// accident of the file system.
-pub(crate) fn load(store: &Store, host: &PluginHost, repository: &Arc<Mutex<Repository>>) {
+pub(crate) fn load(
+    store: &Store,
+    host: &PluginHost,
+    repository: &Arc<Mutex<Repository>>,
+    landing: Option<Arc<dyn Landing>>,
+) {
     let rows = match store.list() {
         Ok(rows) => rows,
         Err(error) => {
@@ -84,7 +90,7 @@ pub(crate) fn load(store: &Store, host: &PluginHost, repository: &Arc<Mutex<Repo
         if !row.enabled || row.failure.is_some() || !row.has_body {
             continue;
         }
-        match body(store, &row.id, repository) {
+        match body(store, &row.id, repository, landing.clone()) {
             Ok(body) => host.enable(&row.id, body),
             Err(reason) => tracing::warn!(
                 plugin = %row.id,
@@ -112,6 +118,7 @@ fn body(
     store: &Store,
     id: &str,
     repository: &Arc<Mutex<Repository>>,
+    landing: Option<Arc<dyn Landing>>,
 ) -> Result<Arc<dyn Runner>, String> {
     let directory = store
         .installed_plugin(id)
@@ -127,7 +134,7 @@ fn body(
     // cache something would fail once and succeed from the second call on, which
     // is a bug a user would report as "sometimes".
     fs::create_dir_all(&data).map_err(|error| format!("{error:?}"))?;
-    let body = WasmBody::load(id, &module, data, Arc::clone(repository))
+    let body = WasmBody::load(id, &module, data, Arc::clone(repository), landing)
         .map_err(|error| format!("{error:?}"))?;
     Ok(body)
 }

@@ -1,8 +1,8 @@
 use crate::error::AppError;
-use crate::events::AppEvents;
+use crate::events::{AppEvents, Events};
 use crate::i18n::{language, native};
 use crate::media::MediaProcessor;
-use crate::plugins::{loading, settings, PluginHost, Store};
+use crate::plugins::{loading, settings, FieldLanding, Landing, PluginHost, Store};
 use crate::repository::{lock_shared, Repository};
 use crate::scan::control::ScanControl;
 use crate::share::ShareControl;
@@ -133,12 +133,23 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
     let events = Arc::new(AppEvents(app.clone()));
     let plugins = Arc::new(PluginHost::new(events.clone()));
     let plugin_store = Arc::new(Store::new(plugin_store(&path)));
+    let covers = covers_dir(&path);
+    // What a finished plugin task's fields are written into, on a thread of its
+    // own (spec #96 §6). Built before the bodies because their queues point at
+    // it; the host is held weakly because the host owns those bodies.
+    let landing_events: Arc<dyn Events> = events.clone();
+    let landing: Arc<dyn Landing> = Arc::new(FieldLanding::spawn(
+        Arc::clone(&repository),
+        covers.clone(),
+        landing_events,
+        Arc::downgrade(&plugins),
+    ));
     // What the user installed and switched on is put into the rotation before
     // the window is shown. It cannot fail: `loading::load` answers with nothing
     // and writes a line in the log for every plugin it could not build, so a
     // plugins directory the kernel cannot make sense of costs the user their
     // plugins and not their application (ADR 0044 §7).
-    loading::load(&plugin_store, &plugins, &repository);
+    loading::load(&plugin_store, &plugins, &repository, Some(landing));
     // Then what the user filled in is handed to the plugins that have something
     // saved, and for the reason loading is: a plugin that works from a video's
     // menu would otherwise never see the user's settings, because the only other
@@ -181,7 +192,7 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
         share: Arc::new(ShareControl::default()),
         plugins,
         plugin_store,
-        covers: covers_dir(&path),
+        covers,
     });
     Ok(())
 }

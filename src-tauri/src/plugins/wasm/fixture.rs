@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 
+use crate::plugins::landing::Landing;
 use crate::plugins::runner::{Runner, RunnerError};
 use crate::repository::fixture::Fixture;
 use crate::repository::Repository;
@@ -40,12 +41,23 @@ pub(super) fn load(
     source: &str,
     repository: &Arc<Mutex<Repository>>,
 ) -> Result<Arc<dyn Runner>, RunnerError> {
+    load_with_landing(directory, source, repository, None)
+}
+
+/// The same, with somewhere for a finished task's fields to go.
+pub(super) fn load_with_landing(
+    directory: &Fixture,
+    source: &str,
+    repository: &Arc<Mutex<Repository>>,
+    landing: Option<Arc<dyn Landing>>,
+) -> Result<Arc<dyn Runner>, RunnerError> {
     let module = wat::parse_str(source).unwrap();
     Ok(WasmBody::load(
         PLUGIN,
         &module,
         directory.0.clone(),
         Arc::clone(repository),
+        landing,
     )?)
 }
 
@@ -81,6 +93,18 @@ pub(super) fn body_on(
 ) -> Result<Arc<dyn Runner>, RunnerError> {
     let directory = Fixture::new();
     let body = load(&directory, source, repository);
+    keep(directory);
+    body
+}
+
+/// The same, on a body whose finished tasks land somewhere a test can read.
+pub(super) fn body_on_with_landing(
+    source: &str,
+    repository: &Arc<Mutex<Repository>>,
+    landing: Arc<dyn Landing>,
+) -> Result<Arc<dyn Runner>, RunnerError> {
+    let directory = Fixture::new();
+    let body = load_with_landing(&directory, source, repository, Some(landing));
     keep(directory);
     body
 }

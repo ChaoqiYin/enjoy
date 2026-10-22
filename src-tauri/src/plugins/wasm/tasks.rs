@@ -37,10 +37,11 @@
 //!
 //! # What is not here
 //!
-//! `task_done` marks the task finished. Writing the fields a plugin handed over
-//! into the library — the kernel's own follow-through in spec #96 §6 — is a
-//! separate step that this issue does not yet wire, so the fields are accepted
-//! and not yet landed; see the note on [`task_done`]. Everything else about the
+//! The fields a plugin hands to `task_done` are not written here. This file
+//! marks the task finished and hands the answer to the landing
+//! ([`super::super::landing`]), which does the library write on a thread of its
+//! own (spec #96 §6): a cover is a download, and the plugin's import is bounded
+//! by a deadline that has no business waiting for one. Everything else about the
 //! task's life is the repository's ([`crate::repository::task_states`]), which
 //! this file drives rather than reimplements.
 
@@ -51,11 +52,13 @@ use tokio::sync::Notify;
 use wasmtime::Caller;
 
 use crate::error::AppError;
-use crate::model::Task;
+use crate::model::{Task, VideoField};
+use crate::plugins::landing::Landing;
 use crate::repository::{lock_shared, Repository};
 
 use super::imports::Guest;
 use super::memory::{put, text};
+use super::task_shapes::{finished_fields, TaskView};
 
 /// The request does not apply: not the plugin's task, no such task, or not in a
 /// state the action applies to. For `task_wait`, "the host is stopping you".
@@ -77,6 +80,9 @@ pub(super) struct Queue {
     /// plugin's, and it is what makes an argument-supplied owner unnecessary.
     plugin: String,
     repository: Arc<Mutex<Repository>>,
+    /// Where a finished task's fields go, when this body has a library to put
+    /// them in. Absent in the tests that are about the queue alone.
+    landing: Option<Arc<dyn Landing>>,
     /// Set when the host is stopping the plugin. Once set it stays set: a body
     /// that is out of the rotation has no more work to do, and a loop that
     /// missed the wakeup must still find the answer when it looks again.
@@ -91,10 +97,15 @@ pub(super) struct Queue {
 }
 
 impl Queue {
-    pub(super) fn new(plugin: &str, repository: Arc<Mutex<Repository>>) -> Arc<Self> {
+    pub(super) fn new(
+        plugin: &str,
+        repository: Arc<Mutex<Repository>>,
+        landing: Option<Arc<dyn Landing>>,
+    ) -> Arc<Self> {
         Arc::new(Self {
             plugin: plugin.to_string(),
             repository,
+            landing,
             stopped: AtomicBool::new(false),
             wake: Notify::new(),
         })
@@ -102,6 +113,23 @@ impl Queue {
 
     pub(super) fn plugin(&self) -> &str {
         &self.plugin
+    }
+
+    /// Tells the interface a row changed, and hands a finished task's answer on.
+    ///
+    /// Both are the landing's to do because both outlive the plugin's import:
+    /// the row is written by the repository, and the answer is written by the
+    /// kernel after the plugin's deadline has stopped applying.
+    fn finished(&self, task_id: i64) {
+        if let Some(landing) = &self.landing {
+            landing.changed(task_id);
+        }
+    }
+
+    fn land(&self, task: Task, fields: Vec<VideoField>) {
+        if let Some(landing) = &self.landing {
+            landing.land(task, fields);
+        }
     }
 
     /// Tells the plugin to stop, and wakes any `task_wait` that is sleeping.
@@ -289,20 +317,41 @@ pub(super) fn task_checkpoint(
 
 /// `task_done(id, fields, fields_len) -> 0`.
 ///
-/// Marks the plugin's running task finished. The fields a plugin hands over are
-/// the answer it produced, and they are not written into the library here: that
-/// is the kernel's asynchronous follow-through (spec #96 §6), which this issue
-/// does not yet wire, so they are accepted and not yet landed.
+/// Marks the plugin's running task finished, then hands the fields it produced
+/// to the landing (spec #96 §6). The import does not wait for the write: a
+/// cover is a download from somebody else's server, and the plugin's call is
+/// bounded by a deadline that has no business covering one.
+///
+/// The fields are read before the row is marked done, so a malformed answer is
+/// refused while the task is still running and the plugin can report something
+/// it can actually fix. Keys outside the closed set (spec #96 §9) are dropped
+/// here as well as in the repository, because the plugin is owed a line in the
+/// log that names the key it sent, and the rows the landing reads should be
+/// ones the library can store.
 pub(super) fn task_done(
     caller: &mut Caller<'_, Guest>,
     id: i64,
-    _fields_at: i32,
-    _fields_len: i32,
+    fields_at: i32,
+    fields_len: i32,
 ) -> Result<i32, wasmtime::Error> {
     let queue = caller.data().queue().clone();
     if let Err(code) = owned(&queue, id) {
         return Ok(code);
     }
+    let answer = match text(caller, fields_at, fields_len) {
+        Ok(answer) => answer,
+        Err(error) => {
+            tracing::warn!(plugin = %queue.plugin(), task = id, %error, "A plugin's finished fields were not text");
+            return Ok(REFUSED);
+        }
+    };
+    let fields = match finished_fields(queue.plugin(), &answer, id) {
+        Ok(fields) => fields,
+        Err(error) => {
+            tracing::warn!(plugin = %queue.plugin(), task = id, %error, "A plugin's finished fields could not be read");
+            return Ok(REFUSED);
+        }
+    };
     let mut repository = match queue.lock() {
         Ok(repository) => repository,
         Err(error) => {
@@ -310,10 +359,18 @@ pub(super) fn task_done(
             return Ok(UNAVAILABLE);
         }
     };
+    let task = match repository.task(id) {
+        Ok(task) => task,
+        Err(error) => return Ok(refused(&queue, error)),
+    };
     match repository.complete_task(id) {
-        Ok(()) => Ok(0),
-        Err(error) => Ok(refused(&queue, error)),
+        Ok(()) => {}
+        Err(error) => return Ok(refused(&queue, error)),
     }
+    drop(repository);
+    queue.finished(id);
+    queue.land(task, fields);
+    Ok(0)
 }
 
 /// `task_fail(id, message, message_len, retry_at_ms) -> 0`.
@@ -422,43 +479,4 @@ fn owned(queue: &Queue, id: i64) -> Result<(), i32> {
 fn refused(queue: &Queue, error: AppError) -> i32 {
     tracing::debug!(plugin = %queue.plugin(), code = %error.code, "A plugin's task report was refused");
     REFUSED
-}
-
-/// One task, as a plugin reads it.
-///
-/// Not [`Task`] itself: the row carries the kernel's bookkeeping — `plugin`,
-/// the request marks, the times — which is none of a plugin's business and none
-/// of what it needs to do the work. What is left is the work's own description
-/// and where it has got to.
-#[derive(serde::Serialize)]
-struct TaskView<'a> {
-    id: i64,
-    kind: &'a str,
-    space_id: i64,
-    video_id: Option<i64>,
-    payload: &'a str,
-    state: &'a str,
-    attempts: i64,
-    progress_current: Option<i64>,
-    progress_total: Option<i64>,
-    progress_label: Option<&'a str>,
-    last_error: Option<&'a str>,
-}
-
-impl<'a> TaskView<'a> {
-    fn of(task: &'a Task) -> Self {
-        Self {
-            id: task.id,
-            kind: &task.kind,
-            space_id: task.space_id,
-            video_id: task.video_id,
-            payload: &task.payload,
-            state: task.state.as_str(),
-            attempts: task.attempts,
-            progress_current: task.progress_current,
-            progress_total: task.progress_total,
-            progress_label: task.progress_label.as_deref(),
-            last_error: task.last_error.as_deref(),
-        }
-    }
 }

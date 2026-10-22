@@ -56,6 +56,8 @@ mod failure_tests;
 #[cfg(test)]
 pub(crate) mod fixture;
 #[cfg(test)]
+mod landing_tests;
+#[cfg(test)]
 mod loading_tests;
 #[cfg(test)]
 mod manifest_tests;
@@ -85,10 +87,12 @@ pub(crate) mod mount_points;
 // name the kernel knows. All three are the kernel's own work around the host
 // rather than anything a plugin is asked.
 pub(crate) mod cover;
+pub(crate) mod landing;
 pub(crate) mod loading;
 pub(crate) mod settings;
 
 pub(crate) use dispatch::{saved_for, PluginSettings};
+pub(crate) use landing::{FieldLanding, Landing};
 pub(crate) use metrics::{CallOutcome, CallRecord};
 pub(crate) use runner::{Runner, RunnerError};
 pub(crate) use settings::{PluginSettingField, PluginSettingsGroup};
