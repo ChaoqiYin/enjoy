@@ -1,4 +1,4 @@
-//! What a body can do besides answering: the four granted capabilities.
+//! What a body can do besides answering: the granted capabilities.
 
 use std::net::TcpListener;
 use std::time::{Duration, Instant};
@@ -165,7 +165,7 @@ const ASKING_FOR_WASI: &str = r#"
 "#;
 
 #[test]
-fn the_kernel_grants_the_four_capabilities_and_nothing_else() {
+fn the_kernel_grants_these_capabilities_and_nothing_else() {
     let engine = super::engine().unwrap();
     let linker = super::imports::linker(engine).unwrap();
     let directory = Fixture::new();
@@ -179,17 +179,18 @@ fn the_kernel_grants_the_four_capabilities_and_nothing_else() {
         .map(|(module, name, _)| format!("{module}.{name}"))
         .collect();
     granted.sort();
-    // The whole list, spelled out. A twelfth capability is a change to this test
-    // as well as to `imports` — which is the point: what a body can do is a
+    // The whole list, spelled out. A thirteenth capability is a change to this
+    // test as well as to `imports` — which is the point: what a body can do is a
     // decision someone makes here, not something a plugin finds (ADR 0044 §1).
     // Storage is two of the twelve because reading and writing are separately
     // grantable things, the queue is six because its verbs are, and the four
-    // capability names are those two plus log, fetch and video_info.
+    // remaining names are fetch, log, now_ms and video_info.
     assert_eq!(
         granted,
         [
             "enjoy.fetch",
             "enjoy.log",
+            "enjoy.now_ms",
             "enjoy.storage_read",
             "enjoy.storage_write",
             "enjoy.task_checkpoint",

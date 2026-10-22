@@ -15,6 +15,8 @@
 //!   ([`super::tasks`]);
 //! - **a line is logged** — where the user can hand it over when something goes
 //!   wrong;
+//! - **the clock is read** — the wall clock in milliseconds, so a plugin can say
+//!   when something happened rather than only when it was told to;
 //! - **the call's context is read** — the params the kernel forwarded, which is
 //!   where the video is for a video-scoped mount point.
 //!
@@ -36,7 +38,7 @@
 //! allocates in the guest's memory, so there is only ever one allocator with an
 //! opinion about what is free (see [`super::memory`]).
 //!
-//! The four capabilities that are one call each, plus the queue's six:
+//! The five capabilities that are one call each, plus the queue's six:
 //!
 //! | import | answers |
 //! | --- | --- |
@@ -56,7 +58,8 @@
 //! The capability names behind these are few and the calls are more of them
 //! because capability and call are not the same thing: storage is two calls
 //! because reading and writing are separately grantable, and the queue is six
-//! because the verbs of a queue are six. Which numbers the queue's calls answer
+//! because the verbs of a queue are six. The clock is one call because reading
+//! the time is one thing to ask for. Which numbers the queue's calls answer
 //! with, and which of them mean "not yours", is [`super::tasks`]' business.
 //!
 //! # What a plugin is told about the call
