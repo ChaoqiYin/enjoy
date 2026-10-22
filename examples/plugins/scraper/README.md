@@ -1,6 +1,6 @@
 # javbus 刮削插件
 
-一个同时拥有**界面半**和**运行体**的插件：从视频右键菜单触发入队，由后台实例 `run` 抓取 JavBus 并将字段写回任务结果。
+一个**纯运行体**插件（没有界面半）：从视频右键菜单触发入队，由后台实例 `run` 抓取 JavBus，用 `task_done` 把字段交给内核写库。
 
 ## 怎么编
 
@@ -28,7 +28,7 @@ cargo build --target wasm32-unknown-unknown --release
 - 站点地址（默认 `https://www.javbus.com`）
 - Cookie（可选，多行）
 
-设置会保存在插件私有目录（`storage`）中，后台实例会读取后再抓取。
+设置由内核保存在 `plugin_settings` 表里，每次 `plugin.settings` 调用时随 `values` 交给插件；插件同时把一份配置写进自己的 `data/settings.json`，后台实例 `run` 启动时读它（后台不在挂载点调用里，拿不到 `values`）。
 
 ## 行为要点
 

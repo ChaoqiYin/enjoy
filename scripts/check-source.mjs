@@ -119,6 +119,16 @@ function inspectJavaScript(path, source) {
 for (const path of files('.')) {
   if (!textExtensions.has(extname(path))) continue;
   const source = readFileSync(path, 'utf8');
+  // A conflict left in a merge is invisible to every other check here — it
+  // compiles as often as not, and the prose around it still reads fine. The
+  // pair of angle brackets is always wrong; the `=======` that a Markdown
+  // setext heading legitimately uses only counts between the other two.
+  const conflict =
+    /^(?:<<<<<<< |>>>>>>> )/m.test(source) ||
+    /^<<<<<<< .*$[\s\S]*?^=======$[\s\S]*?^>>>>>>> .*$/m.test(source);
+  if (conflict) {
+    failures.push(`${path}: merge conflict markers are left in the file`);
+  }
   const lines = source.split('\n').length - (source.endsWith('\n') ? 1 : 0);
   if (lines > 500) failures.push(`${path}: ${lines} lines exceeds 500`);
   if (/\.(?:tsx?|m?js)$/.test(path)) inspectJavaScript(path, source);
