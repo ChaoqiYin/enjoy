@@ -24,7 +24,7 @@
 // what the walkthrough asks, or it is reading the stand-in.
 
 import { describe, expect, it } from 'vitest';
-import { libraryApi, pluginApi, shareApi } from '../src/shared/api';
+import { libraryApi, pluginApi, shareApi, taskApi } from '../src/shared/api';
 import { acceptance } from './web-fixture';
 import { videos } from './records';
 import type { VideoQuery } from '../src/shared/api';
@@ -243,14 +243,16 @@ describe('the fixture as a stand-in backend', () => {
     expect(await libraryApi.directories(1)).toHaveLength(2);
   });
 
-  it('holds a rescan open until the pass it started ends', async () => {
-    // A real scan answers only when it finishes, which is why the button that
-    // started it is the one thing the interface disables while it runs.
-    const started = libraryApi.rescan(1);
+  it('queues a rescan and answers with the task it became', async () => {
+    // The three media commands do not run the work: they queue it and answer
+    // with the task's id (spec #101). The pass itself is running in the
+    // background — which is where the interface's status bar comes from — and
+    // it stays open until the walkthrough ends it.
+    const task = await libraryApi.rescan(1);
+    expect(typeof task).toBe('number');
     expect((await libraryApi.scanStatus()).phase).toBe('processing');
 
     acceptance.setScan('complete');
-    await expect(started).resolves.toHaveLength(36);
     expect((await libraryApi.scanStatus()).phase).toBe('complete');
   });
 
@@ -354,14 +356,35 @@ describe('the fixture as a stand-in backend', () => {
     await pluginApi.setEnabled('cover-fetcher', true);
   });
 
-  it('refuses a rescan that was cancelled, the way the backend does', async () => {
-    const started = libraryApi.rescan(1);
-    // Attached before the cancel, so the refusal has a reader when it arrives.
-    const refused = expect(started).rejects.toMatchObject({
-      code: 'media.scan.cancelled',
-    });
+  it('says so when the pass it queued is cancelled', async () => {
+    await libraryApi.rescan(1);
     await libraryApi.controlScan('cancel');
-    await refused;
+    // The command answered with a task id and is long gone; what is left of the
+    // cancellation is the phase the pass published as it ended.
     expect((await libraryApi.scanStatus()).phase).toBe('cancelled');
+  });
+
+  it('lets a task action move the row a walkthrough is watching', async () => {
+    const before = await taskApi.list();
+    expect(before.find((row) => row.id === 1)?.state).toBe('running');
+
+    await taskApi.action(1, 'pause');
+    const paused = await taskApi.list();
+    expect(paused.find((row) => row.id === 1)?.state).toBe('paused');
+
+    // A retry clears the error it is answering — the state the page shows
+    // after pressing it has to say so, or the press reads as nothing.
+    await taskApi.action(2, 'retry');
+    const retried = await taskApi.list();
+    expect(retried.find((row) => row.id === 2)).toMatchObject({
+      state: 'pending',
+      last_error: null,
+    });
+
+    // An action with no rule behind it is refused with its code, so the
+    // notices corner is reachable from a walkthrough too.
+    await expect(taskApi.action(1, 'bogus' as never)).rejects.toMatchObject({
+      code: 'task.invalid_action',
+    });
   });
 });

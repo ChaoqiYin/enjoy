@@ -5,7 +5,6 @@ use super::fixture::{body, key, public_key_field, serve, serve_slowly, signature
 use super::transfer::{run, ProgressThrottle};
 use crate::events::Recorded;
 use crate::ports::the_machine_ports;
-use crate::scan::control::ScanControl;
 
 /// What the command hands the transfer for a user agent. Nothing reads it.
 const AGENT: &str = "Enjoy test";
@@ -91,7 +90,7 @@ fn a_signed_release_downloads_reports_where_it_got_to_and_is_ready() {
     // Ready means both halves held: the release and the bytes, handed over
     // together or not at all.
     assert_eq!(control.ready_version().as_deref(), Some("0.2.0"));
-    let (handed_over, bytes) = control.install(&ScanControl::default(), true).unwrap();
+    let (handed_over, bytes) = control.install(|| Ok(false), true).unwrap();
     assert_eq!(handed_over.version(), "0.2.0");
     assert_eq!(bytes, payload, "the bytes held are the payload itself");
 }

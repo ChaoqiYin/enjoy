@@ -1,67 +1,64 @@
-use std::sync::Arc;
-
 use super::control::{Stop, UpdateControl};
 use super::fixture::stand_in;
-use crate::scan::control::ScanControl;
+use crate::error::AppError;
 
 /// Any address at all: nothing in this file fetches anything.
 const ADDRESS: &str = "http://127.0.0.1:1/installer";
+
+/// The queue with nothing in it: what most of these tests need the gate to be
+/// asked, since what they are about is a different question.
+fn no_tasks() -> Result<bool, AppError> {
+    Ok(false)
+}
+
+/// The queue with a media task still open: an installation would exit over it.
+fn a_media_task() -> Result<bool, AppError> {
+    Ok(true)
+}
 
 #[test]
 fn install_reports_the_platform_before_anything_else() {
     // Unsupported wins even when a scan is running and nothing was downloaded:
     // the platform is what decides whether this feature exists at all.
-    let scan = Arc::new(ScanControl::default());
-    let running = scan.begin().unwrap();
     assert_eq!(
         UpdateControl::default()
-            .install(&scan, false)
+            .install(a_media_task, false)
             .err()
             .unwrap()
             .code,
         "update.unsupported"
     );
-    // A refusal spends nothing — least of all the one irreversible step. The
-    // slot is still takable once the scan it was refused for has ended.
-    drop(running);
-    assert!(scan.begin().is_ok());
 }
 
 #[test]
 fn install_refuses_while_a_scan_is_running() {
-    // Installing exits the process, which would lose the running pass. The
-    // running scan is also reported above the missing download, which is the
-    // order the interface has always shown: this control has nothing downloaded
-    // either, and `update.blocked.scanning` is the answer.
-    let scan = Arc::new(ScanControl::default());
-    let running = scan.begin().unwrap();
+    // Installing exits the process, which would lose the media work. The open
+    // task is also reported above the missing download, which is the order the
+    // interface has always shown: this control has nothing downloaded either,
+    // and `update.blocked.scanning` is the answer.
     assert_eq!(
         UpdateControl::default()
-            .install(&scan, true)
+            .install(a_media_task, true)
             .err()
             .unwrap()
             .code,
         "update.blocked.scanning"
     );
-    // The refusal did not close the slot. Closing is for good, so a refusal that
-    // spent it would leave the application unable to scan at all.
-    drop(running);
-    assert!(scan.begin().is_ok());
+    // The refusal spent nothing: the queue is untouched, and a download that had
+    // finished would still be installable.
+    assert_eq!(UpdateControl::default().ready_version(), None);
 }
 
 #[test]
 fn install_refuses_before_a_download() {
-    let scan = Arc::new(ScanControl::default());
     assert_eq!(
         UpdateControl::default()
-            .install(&scan, true)
+            .install(no_tasks, true)
             .err()
             .unwrap()
             .code,
         "update.not_downloaded"
     );
-    // Same as the refusal above: nothing was spent.
-    assert!(scan.begin().is_ok());
 }
 
 #[test]
@@ -72,12 +69,11 @@ fn a_ready_install_hands_over_the_release_and_closes_the_slot_behind_it() {
     // plugin can build one — so the last step of this rule was the one step no
     // test held. With a release a test can build it is the ordinary case.
     let control = UpdateControl::default();
-    let scan = Arc::new(ScanControl::default());
     let release = stand_in("0.2.0", ADDRESS, "signature");
     control.remember(release.clone());
     control.take_slot(true).unwrap().install(vec![1, 2, 3]);
 
-    let (handed_over, bytes) = control.install(&scan, true).unwrap();
+    let (handed_over, bytes) = control.install(no_tasks, true).unwrap();
     assert_eq!(handed_over.version(), "0.2.0");
     assert_eq!(bytes, vec![1, 2, 3]);
     assert_eq!(
@@ -85,14 +81,12 @@ fn a_ready_install_hands_over_the_release_and_closes_the_slot_behind_it() {
         None,
         "the handover is the caller's to make"
     );
-    // Both halves are spent, and the scan slot is closed rather than merely
-    // free: installing exits the process, so there is no later to scan in.
+    // Both halves are spent: there is nothing left to hand over a second time.
     assert_eq!(control.ready_version(), None);
     assert_eq!(
-        control.install(&scan, true).err().unwrap().code,
+        control.install(no_tasks, true).err().unwrap().code,
         "update.not_downloaded"
     );
-    assert!(scan.begin().is_err());
 }
 
 #[test]
@@ -172,11 +166,7 @@ fn control_reports_nothing_downloaded_before_a_download() {
         "update.not_downloaded"
     );
     assert_eq!(
-        control
-            .install(&ScanControl::default(), true)
-            .err()
-            .unwrap()
-            .code,
+        control.install(no_tasks, true).err().unwrap().code,
         "update.not_downloaded"
     );
     assert_eq!(control.ready_version(), None);
@@ -291,11 +281,10 @@ fn control_has_nothing_ready_while_a_download_is_only_running() {
     // Taking the slot must not make the installer available: the bytes are
     // unverified until the transfer ends and the signature is checked.
     let control = UpdateControl::default();
-    let scan = ScanControl::default();
     let slot = control.take_slot(true).unwrap();
     assert_eq!(control.ready_version(), None);
     assert_eq!(
-        control.install(&scan, true).err().unwrap().code,
+        control.install(no_tasks, true).err().unwrap().code,
         "update.not_downloaded"
     );
     slot.discard();
@@ -306,11 +295,10 @@ fn control_reports_no_ready_version_without_an_offered_release() {
     // Downloaded bytes are only installable together with the release they
     // belong to, so a finished download alone does not make one ready.
     let control = UpdateControl::default();
-    let scan = ScanControl::default();
     control.take_slot(true).unwrap().install(vec![1, 2, 3]);
     assert_eq!(control.ready_version(), None);
     assert_eq!(
-        control.install(&scan, true).err().unwrap().code,
+        control.install(no_tasks, true).err().unwrap().code,
         "update.not_downloaded"
     );
 }

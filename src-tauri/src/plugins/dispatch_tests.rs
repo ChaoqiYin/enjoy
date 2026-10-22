@@ -133,7 +133,10 @@ fn settings_are_grouped_by_the_plugin_that_gave_them() {
 fn each_plugin_is_asked_with_its_own_values_and_no_others() {
     let (host, _) = fixture::host();
     let first = FakeBody::answering(fixture::settings(&[("url", SettingFieldKind::Text)]));
-    let second = FakeBody::answering(fixture::settings(&[("folder", SettingFieldKind::Directory)]));
+    let second = FakeBody::answering(fixture::settings(&[(
+        "folder",
+        SettingFieldKind::Directory,
+    )]));
     let third = FakeBody::answering(fixture::settings(&[("note", SettingFieldKind::Text)]));
     host.enable("first", first.clone());
     host.enable("second", second.clone());
@@ -142,7 +145,10 @@ fn each_plugin_is_asked_with_its_own_values_and_no_others() {
     host.plugin_settings(
         &fixture::space(),
         &[
-            ("first".to_string(), vec![setting("url", "https://a.example")]),
+            (
+                "first".to_string(),
+                vec![setting("url", "https://a.example")],
+            ),
             ("second".to_string(), vec![setting("folder", "/library")]),
         ],
     );

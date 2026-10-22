@@ -79,7 +79,7 @@ fn fields_are_read_back_in_key_order() {
         .save_fields(
             id,
             &[
-                field("year", "1999", "metadata-fetcher"),
+                field("releaseDate", "1999", "metadata-fetcher"),
                 field("cover", "/covers/1.jpg", "cover-fetcher"),
                 field("rating", "8.1", "metadata-fetcher"),
             ],
@@ -97,7 +97,7 @@ fn fields_are_read_back_in_key_order() {
         .into_iter()
         .map(|field| field.key)
         .collect();
-    assert_eq!(keys, ["cover", "rating", "year"]);
+    assert_eq!(keys, ["cover", "rating", "releaseDate"]);
 }
 
 #[test]
@@ -109,7 +109,7 @@ fn a_write_that_answered_nothing_leaves_the_stored_fields_alone() {
             id,
             &[
                 field("cover", "/covers/1.jpg", "cover-fetcher"),
-                field("year", "1999", "metadata-fetcher"),
+                field("releaseDate", "1999", "metadata-fetcher"),
             ],
         )
         .unwrap();
@@ -123,8 +123,33 @@ fn a_write_that_answered_nothing_leaves_the_stored_fields_alone() {
         triples(&library.repository.fields(id).unwrap()),
         [
             ("cover", "/covers/1.jpg", "cover-fetcher"),
-            ("year", "1999", "metadata-fetcher")
+            ("releaseDate", "1999", "metadata-fetcher")
         ]
+    );
+}
+
+#[test]
+fn a_key_outside_the_closed_set_of_field_keys_never_reaches_the_table() {
+    let (_fixture, mut library, id) = library_with_one_record();
+    library
+        .repository
+        .save_fields(
+            id,
+            &[
+                field("year", "1999", "metadata-fetcher"),
+                field("title", "A title", "metadata-fetcher"),
+            ],
+        )
+        .unwrap();
+
+    // The set of field keys the plugins may answer with is closed (spec #96
+    // §9, `shared/plugins/mount-points.json`), and the write is where the
+    // kernel refuses everything else: a row under a key the set does not
+    // carry would never be translated and never drawn, so it is dropped
+    // before it lands rather than filtered on the way out.
+    assert_eq!(
+        triples(&library.repository.fields(id).unwrap()),
+        [("title", "A title", "metadata-fetcher")]
     );
 }
 

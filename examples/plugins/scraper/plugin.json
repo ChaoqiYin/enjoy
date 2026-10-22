@@ -1,0 +1,8 @@
+{
+  "id": "scraper",
+  "name": "JavBus Scraper",
+  "author": "Enjoy",
+  "apiVersion": 1,
+  "capabilities": ["fetch", "storage", "log", "video"],
+  "body": "scraper.wasm"
+}

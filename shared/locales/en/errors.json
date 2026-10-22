@@ -77,5 +77,10 @@
   "plugin.safe_mode.failed": "Safe mode could not be entered: {{path}}",
   "plugin.settings.required": "This setting has to be filled in",
   "plugin.settings.directory_missing": "That folder is not on this computer",
-  "plugin.settings.unavailable": "{{plugin}} is not running, so its settings were not saved"
+  "plugin.settings.unavailable": "{{plugin}} is not running, so its settings were not saved",
+  "task.not_found": "That task no longer exists",
+  "task.invalid_state": "That task's current state does not allow this",
+  "task.invalid_action": "No such task action",
+  "task.unknown_kind": "The kernel has no task called {{kind}}",
+  "task.bad_payload": "That task says nothing about what to work on"
 }

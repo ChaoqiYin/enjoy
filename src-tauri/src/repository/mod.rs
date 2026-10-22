@@ -22,6 +22,10 @@ mod listing_tests;
 mod metadata_tests;
 #[cfg(test)]
 mod migration_tests;
+// The three upgrades that each add one table and touch no row, told apart
+// from the older ones because they are a family of their own.
+#[cfg(test)]
+mod migration_table_tests;
 // What the plugins wrote into the library, which is one table and two queries:
 // counting a plugin's rows for the uninstall question, and forgetting them if
 // the user says so.
@@ -33,6 +37,21 @@ mod plugin_settings;
 mod scans;
 pub(crate) mod schema;
 mod spaces;
+// What the queue does when the application starts again: interrupted work
+// goes back to waiting, finished work ages out.
+mod task_maintenance;
+#[cfg(test)]
+mod task_maintenance_tests;
+// The task page's one read: every task in every space, joined to the names it
+// draws, with finished work aged out after its week.
+mod task_listing;
+#[cfg(test)]
+mod task_listing_tests;
+// One task's life after it is claimed: the progress its owner reports, and
+// the two ways an attempt ends.
+mod task_states;
+#[cfg(test)]
+mod task_states_tests;
 mod videos;
 // Two modules about spaces, told apart by what they hold: the isolation one is
 // the rule that spaces share no records (ADR 0011), the management one is
@@ -41,6 +60,11 @@ mod videos;
 mod space_isolation_tests;
 #[cfg(test)]
 mod space_management_tests;
+// The queue's own two moves: putting work in, and an owner taking the next
+// piece out.
+mod tasks;
+#[cfg(test)]
+mod tasks_tests;
 #[cfg(test)]
 pub(crate) mod tests;
 

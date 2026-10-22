@@ -126,7 +126,7 @@ pub(crate) fn run<'a>(
     operation: &str,
     repository: &Arc<Mutex<Repository>>,
     control: &ScanControl,
-    events: &impl Events,
+    events: &(impl Events + ?Sized),
     operations: &impl MediaOperations,
 ) -> Result<(), AppError> {
     status.phase = "processing".into();
@@ -187,6 +187,6 @@ pub(crate) fn run<'a>(
 /// One call, not two: `publish` hands back the status a reader would now see,
 /// with the paused phase already over it, so there is nothing to read back and
 /// no way to send out a different status than the slot holds.
-fn announce(status: &ScanStatus, control: &ScanControl, events: &impl Events) {
+fn announce(status: &ScanStatus, control: &ScanControl, events: &(impl Events + ?Sized)) {
     events.scan_progress(control.publish(status.clone()));
 }

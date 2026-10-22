@@ -46,7 +46,7 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
     let repository = Arc::new(Mutex::new(repository));
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
-    let guard = control.begin().unwrap();
+    let guard = control.begin();
     let watching = Arc::clone(&control);
     let events = Recorded::default().watching(move |status| {
         // Cancelled from inside the pass, which is the only place a cancellation
@@ -74,7 +74,7 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
         WHEN NEW.media_complete=1 BEGIN SELECT RAISE(ABORT, 'Completion write failed'); END;",
         )
         .unwrap();
-    let guard = control.begin().unwrap();
+    let guard = control.begin();
     let events = Recorded::default();
     let result = job::run(&media, space, &repository, &control, &events);
     assert!(result.is_err());
@@ -87,7 +87,7 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
         .unwrap();
     drop(connection);
     for expected_visits in [true, false] {
-        let guard = control.begin().unwrap();
+        let guard = control.begin();
         let events = Recorded::default();
         let rows = job::run(&media, space, &repository, &control, &events).unwrap();
         drop(guard);
@@ -169,7 +169,7 @@ fn a_configured_directory_that_vanished_clears_its_records_without_being_counted
     let repository = Arc::new(Mutex::new(repo));
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
-    let guard = control.begin().unwrap();
+    let guard = control.begin();
     let events = Recorded::default();
     let rows = job::run(&media, space, &repository, &control, &events)
         .expect("A directory that vanished must not fail the scan");
@@ -212,7 +212,7 @@ fn a_configured_path_that_is_not_a_directory_keeps_its_records_and_is_not_counte
     let repository = Arc::new(Mutex::new(repo));
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
-    let guard = control.begin().unwrap();
+    let guard = control.begin();
     let events = Recorded::default();
     let rows = job::run(&media, space, &repository, &control, &events)
         .expect("A path that is not a directory must not fail the scan");
@@ -252,7 +252,7 @@ fn a_configured_directory_that_cannot_be_read_is_counted_and_keeps_its_records()
     let repository = Arc::new(Mutex::new(repo));
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
-    let guard = control.begin().unwrap();
+    let guard = control.begin();
     let events = Recorded::default();
     let rows = job::run(&media, space, &repository, &control, &events)
         .expect("A directory that cannot be read must not fail the scan");
@@ -303,7 +303,7 @@ fn a_locked_subtree_keeps_its_records_while_the_rest_of_the_directory_is_scanned
     let repository = Arc::new(Mutex::new(repo));
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
-    let guard = control.begin().unwrap();
+    let guard = control.begin();
     let events = Recorded::default();
     let rows = job::run(&media, space, &repository, &control, &events)
         .expect("A subtree that cannot be read must not fail the scan");
@@ -352,7 +352,7 @@ fn a_file_that_cannot_be_read_is_indexed_and_keeps_its_record() {
     let repository = Arc::new(Mutex::new(repo));
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
-    let guard = control.begin().unwrap();
+    let guard = control.begin();
     let events = Recorded::default();
     let rows = job::run(&media, space, &repository, &control, &events)
         .expect("A file that cannot be read must not fail the scan");
@@ -403,7 +403,7 @@ fn cancellation_aborts_the_scan_and_preserves_existing_records() {
     let repository = Arc::new(Mutex::new(repo));
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
-    let guard = control.begin().unwrap();
+    let guard = control.begin();
     let watching = Arc::clone(&control);
     let events = Recorded::default().watching(move |_| watching.action("cancel").unwrap());
     let result = job::run(&media, space, &repository, &control, &events);
@@ -437,7 +437,7 @@ fn a_file_whose_size_changed_is_processed_again() {
     let repository = Arc::new(Mutex::new(repository));
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
-    let guard = control.begin().unwrap();
+    let guard = control.begin();
     let events = Recorded::default();
     let result = job::run(&media, space, &repository, &control, &events);
     assert!(result.is_ok());

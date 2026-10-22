@@ -82,6 +82,10 @@ impl Registry {
     pub(crate) fn disable(&mut self, plugin: &str) {
         if let Some(entry) = self.entries.iter_mut().find(|entry| entry.id == plugin) {
             entry.asking = false;
+            // The plugin may be blocked in a `task_wait` right now, and a body
+            // that is out of the rotation has no more work to wait for. Wake it
+            // and tell it so; see `Runner::stop`.
+            entry.body.stop();
         }
     }
 

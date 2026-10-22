@@ -27,6 +27,11 @@ mod repository;
 mod scan;
 mod settings;
 mod share;
+// The kernel's own queue owner: the thread that runs the media tasks the
+// commands put in (#101).
+mod tasks;
+#[cfg(test)]
+mod tasks_tests;
 mod titlebar;
 mod update;
 
@@ -95,6 +100,8 @@ fn main() {
             commands::plugin::run_safe_mode,
             commands::plugin_settings::list_plugin_settings,
             commands::plugin_settings::save_plugin_settings,
+            commands::tasks::list_tasks,
+            commands::tasks::task_action,
             commands::window::show_window,
             commands::window::close_window,
             commands::window::minimize_window,

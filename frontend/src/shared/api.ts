@@ -15,9 +15,10 @@ import type {
   SettingsState,
   ShareStatus,
   Space,
+  TaskAction,
+  TaskRow,
   UpdateCheck,
   UpdateProgress,
-  Video,
   VideoField,
   VideoPage,
   VideoQuery,
@@ -28,32 +29,12 @@ import type {
 // which is all of them — keeps working while the declarations sit in a file
 // `check-seam.mjs` can read a list of.
 //
-// They are named one by one rather than swept up with `export *`: this is the
-// seam the interface reads the backend through, and a shape that reached it by
-// being in the neighbourhood would be a shape nobody decided to hand out.
-export type {
-  Address,
-  AvailableUpdate,
-  AppError,
-  Device,
-  IndexChanges,
-  LanguageSettings,
-  PluginBootstrap,
-  PluginFailure,
-  PluginInstallPreview,
-  PluginSettingField,
-  PluginSettingsGroup,
-  ScanStatus,
-  SettingsState,
-  ShareStatus,
-  Space,
-  UpdateCheck,
-  UpdateProgress,
-  Video,
-  VideoField,
-  VideoPage,
-  VideoQuery,
-} from './apiTypes';
+// Handed on by `export type *` rather than named one by one, which is what this
+// block did until the list grew past this module's line limit. The named list
+// was there so a shape could not slip out of the seam unasked; that is now what
+// `check-seam.mjs` fails on, since every interface declared in `apiTypes.ts`
+// has to be named among its pairs.
+export type * from './apiTypes';
 
 /**
  * Everything the interface asks of the backend, and everything the backend
@@ -94,8 +75,11 @@ export const libraryApi = {
     invoke<Space>('rename_space', { spaceId, name }),
   deleteSpace: (spaceId: number) => invoke<Space>('delete_space', { spaceId }),
   switchSpace: (spaceId: number) => invoke<Space>('switch_space', { spaceId }),
+  // The three media commands answer with the task's id rather than with the
+  // work's result: the work is queued and runs in the background, and the
+  // interface learns it is over from what the pass itself reports (spec #101).
   regenerate: (spaceId: number, path: string | null) =>
-    invoke<void>('regenerate_thumbnails', { spaceId, path }),
+    invoke<number>('regenerate_thumbnails', { spaceId, path }),
   // One page of the library, as described by the query. The command name is the
   // same one it always was while what it takes is not, because the listing is one
   // thing the interface asks for however many questions its answer is made of —
@@ -122,12 +106,15 @@ export const libraryApi = {
     invoke<void>('add_directory', { spaceId, path }),
   // The scanned range is the space's saved directories; the backend reads them,
   // so there is no directory list to pass and no way to narrow the scan.
+  //
+  // Queued like the other two, and answered with the task's id: the scan has
+  // not run when this answers.
   rescan: (spaceId: number) =>
-    invoke<Video[]>('rescan_directories', { spaceId }),
+    invoke<number>('rescan_directories', { spaceId }),
   play: (spaceId: number, path: string) =>
     invoke<void>('open_video', { spaceId, path }),
   refreshInfo: (spaceId: number, path: string) =>
-    invoke<void>('refresh_video_info', { spaceId, path }),
+    invoke<number>('refresh_video_info', { spaceId, path }),
   // The fields this video's plugins have written, and one plugin's own action on
   // it. Asking is what makes them current: the command puts the question to the
   // plugins and stores what they answer. An action is that question again, once
@@ -313,6 +300,9 @@ export const backendEvents = {
   /** The library is not what it was; whatever is showing it should read it again. */
   onLibraryChanged: (handler: () => void): Promise<UnlistenFn> =>
     listen('library-changed', handler),
+  /** A task changed state; its row in the task list is not what it was. */
+  onTaskChanged: (handler: (taskId: number) => void): Promise<UnlistenFn> =>
+    listen<number>('task-changed', ({ payload }) => handler(payload)),
   /** Something the user asked for did not happen, with the words for why. */
   onMediaError: (handler: (error: AppError) => void): Promise<UnlistenFn> =>
     listen<AppError>('media-error', ({ payload }) => handler(payload)),
@@ -492,6 +482,16 @@ export function readTheme(): Promise<SettingsState['theme']> {
   if (!hosted()) return Promise.resolve('dark');
   return settingsApi.read().then((settings) => settings.theme);
 }
+
+/**
+ * The task page's read and its one action on a row: every task across every
+ * space as one answer, so the page never composes a query of its own.
+ */
+export const taskApi = {
+  list: () => invoke<TaskRow[]>('list_tasks'),
+  action: (taskId: number, action: TaskAction) =>
+    invoke<void>('task_action', { taskId, action }),
+};
 
 // Moved to its own module, and handed on from here so that every existing
 // import path keeps working: the address the backend is reached at is at the

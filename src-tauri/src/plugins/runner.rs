@@ -89,4 +89,16 @@ pub(crate) trait Runner: Send + Sync {
     /// that its deadline ran out; the host treats that exactly like any other
     /// failure — the call said nothing and the kernel goes on.
     fn handle(&self, method: &str, payload: &str) -> Result<String, RunnerError>;
+
+    /// Tells the body that its plugin is out of the rotation, so anything it has
+    /// parked — a background loop waiting for work — can finish.
+    ///
+    /// A default that does nothing, because most bodies have nothing to wake: a
+    /// body that only ever answers calls is already idle between them. It is the
+    /// one that blocks *inside* a call that needs it, and it is the only moment
+    /// the host can reach that call at all — the call channel is held while it
+    /// runs. What a stop means for the running call is the implementation's: the
+    /// plugin's `task_wait` answers "stop" (see `wasm::tasks`), so a loop built
+    /// on it finishes at its next turn rather than waiting out a timeout.
+    fn stop(&self) {}
 }

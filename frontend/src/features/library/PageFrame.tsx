@@ -2,9 +2,8 @@ import { useTranslation } from 'react-i18next';
 import type { ReactNode } from 'react';
 import { ErrorNotice } from '../../shared/ErrorNotice';
 import { Toast } from '../../shared/Toast';
-import { ScanProgress } from './ScanProgress';
+import { ScanStatusBar } from './ScanStatusBar';
 import { completionAutoCloseMs } from './scanFeedback';
-import { ThumbnailProgress } from './ThumbnailProgress';
 import { Hint } from '../../shared/Hint';
 import { useNotices } from './useNotices';
 import { useScan } from './useScan';
@@ -60,36 +59,16 @@ export function PageFrame({ children }: { children: ReactNode }) {
         <Hint text={t('copied')} onClose={notices.dismissCopyHint} />
       )}
       {isRunning && status && (
-        // A native `<dialog>` rather than the interface's own overlay: a scan
-        // cannot be dismissed, so this needs `open` and nothing else — no
-        // focus trap to argue with, no `onOpenChange` to refuse, and the panel's
-        // own controls are what ever closes it.
-        <dialog
-          open
-          aria-labelledby="scan-progress-title"
-          className="fixed inset-0 z-50 m-0 flex size-full max-w-none items-center justify-center bg-background/80 backdrop-blur-sm"
-        >
-          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 text-card-foreground shadow-lg">
-            <h2 id="scan-progress-title" className="sr-only">
-              {t('scanning')}
-            </h2>
-            {status.operation === 'thumbnails' ? (
-              <ThumbnailProgress
-                status={status}
-                onAction={(action) => {
-                  void controlScan(action);
-                }}
-              />
-            ) : (
-              <ScanProgress
-                status={status}
-                onAction={(action) => {
-                  void controlScan(action);
-                }}
-              />
-            )}
-          </div>
-        </dialog>
+        // A bar along the page rather than a window over it. A media pass is a
+        // queued task now, and a queued task does not own the screen: the user
+        // may switch space, open a record or start a scrape while it runs, and
+        // the task page is where it is watched in full (spec #101).
+        <ScanStatusBar
+          status={status}
+          onAction={(action) => {
+            void controlScan(action);
+          }}
+        />
       )}
       {children}
     </main>

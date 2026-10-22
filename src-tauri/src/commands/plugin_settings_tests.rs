@@ -13,8 +13,7 @@
 use crate::app::{test_state, AppState};
 use crate::plugins::fixture::{self, FakeBody};
 use crate::plugins::mount_points::{
-    self, PluginSettingsParams, PluginSettingsResult, SettingField, SettingFieldKind,
-    SettingValue,
+    self, PluginSettingsParams, PluginSettingsResult, SettingField, SettingFieldKind, SettingValue,
 };
 use crate::plugins::PluginSettingsGroup;
 use crate::repository::fixture::Fixture;
@@ -82,7 +81,11 @@ fn kept(state: &AppState, plugin: &str) -> Vec<(String, String)> {
 
 /// The one group in an answer, so that a test reads as the page does.
 fn only(groups: &[PluginSettingsGroup]) -> &PluginSettingsGroup {
-    assert_eq!(groups.len(), 1, "one plugin was asked, so one group comes back");
+    assert_eq!(
+        groups.len(),
+        1,
+        "one plugin was asked, so one group comes back"
+    );
     &groups[0]
 }
 

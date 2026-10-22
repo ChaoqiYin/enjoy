@@ -21,7 +21,7 @@ pub fn run(
     space_id: i64,
     repository: &Arc<Mutex<Repository>>,
     control: &ScanControl,
-    events: &impl Events,
+    events: &(impl Events + ?Sized),
 ) -> Result<Vec<VideoFile>, AppError> {
     let mut progress = ScanStatus {
         phase: "discovering".into(),

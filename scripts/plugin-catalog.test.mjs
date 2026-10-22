@@ -58,6 +58,44 @@ describe('the mount point catalog', () => {
       .map((artifact) => artifact.path);
     expect(drifted).toEqual([]);
   });
+
+  it('rejects a fourteenth field key, because the set is closed', () => {
+    const catalog = readCatalog(repoRoot);
+    catalog.fieldKeys.push('tag');
+    expect(catalogFailures(catalog).join('\n')).toContain('closed set of thirteen');
+  });
+
+  it('rejects a field key that is not camelCase, and one declared twice', () => {
+    const catalog = readCatalog(repoRoot);
+    catalog.fieldKeys[0] = 'Release-date';
+    catalog.fieldKeys.push(catalog.fieldKeys[1]);
+    const reported = catalogFailures(catalog).join('\n');
+    expect(reported).toContain('Release-date');
+    expect(reported).toContain('declared twice');
+  });
+
+  it('writes the field keys into all three of the files generated from it', async () => {
+    const catalog = readCatalog(repoRoot);
+    const rendered = await render(repoRoot, catalog);
+    const bySide = (side) => rendered.find((artifact) => artifact.side === side).content;
+
+    // The Rust half is what the kernel checks against before it writes a row,
+    // the interface half is what a label is drawn from, and the author page is
+    // the only place a plugin author reads the set — one copy in the catalog,
+    // three files that must all carry it.
+    const rust = bySide('Rust');
+    expect(rust).toContain('pub(crate) const FIELD_KEYS');
+    const typescript = bySide('interface');
+    expect(typescript).toContain('export type FieldKey =');
+    expect(typescript).toContain('export const FIELD_KEYS');
+    const authors = bySide('authors');
+    expect(authors).toContain('字段键');
+    for (const key of catalog.fieldKeys) {
+      expect(rust).toContain(`"${key}"`);
+      expect(typescript).toContain(`'${key}'`);
+      expect(authors).toContain(`\`${key}\``);
+    }
+  });
 });
 
 describe('the mount point gate', () => {
@@ -94,6 +132,16 @@ describe('the mount point gate', () => {
     const { status, output } = runTheGate(root);
     expect(status).toBe(1);
     expect(output).toContain('closed set of six');
+  }, 30000);
+
+  it('fails when the closed set of thirteen field keys grows', () => {
+    const root = copyOfTheCatalog();
+    const catalog = JSON.parse(readFileSync(join(root, catalogPath), 'utf8'));
+    catalog.fieldKeys.push('tag');
+    writeFileSync(join(root, catalogPath), JSON.stringify(catalog));
+    const { status, output } = runTheGate(root);
+    expect(status).toBe(1);
+    expect(output).toContain('closed set of thirteen');
   }, 30000);
 
   it('fails when the catalog points at a member type nothing declares', () => {

@@ -1,8 +1,9 @@
 use crate::error::AppError;
-use crate::events::AppEvents;
+use crate::events::{AppEvents, Events};
 use crate::i18n::{language, native};
-use crate::plugins::{loading, settings, PluginHost, Store};
-use crate::repository::Repository;
+use crate::media::MediaProcessor;
+use crate::plugins::{loading, settings, FieldLanding, Landing, PluginHost, Store};
+use crate::repository::{lock_shared, Repository};
 use crate::scan::control::ScanControl;
 use crate::share::ShareControl;
 use crate::update::UpdateControl;
@@ -56,9 +57,10 @@ pub(crate) struct AppState {
 pub(crate) fn test_state(fixture: &crate::repository::fixture::Fixture) -> AppState {
     use crate::repository::fixture::Library;
     let Library { repository, .. } = fixture.library();
+    let repository = Arc::new(Mutex::new(repository));
     AppState {
         scan: Arc::new(ScanControl::default()),
-        repository: Arc::new(Mutex::new(repository)),
+        repository: Arc::clone(&repository),
         update: Arc::new(UpdateControl::default()),
         share: Arc::new(ShareControl::default()),
         // No plugin is enabled, and none can be until there is a loader to
@@ -121,15 +123,33 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
     // also why this reads the language before it opens the database.
     let language = language::current(app)?;
     let path = database_path(app)?;
-    let repository = Repository::open(&path, native::translate(&language, "defaultSpace"))?;
-    let plugins = Arc::new(PluginHost::new(Arc::new(AppEvents(app.clone()))));
+    // Wrapped before anything reads it, because the plugins are built with it:
+    // a body's `task_*` imports reach the library through this same handle, so
+    // a plugin's queue is rows in the one database every other thread uses.
+    let repository = Arc::new(Mutex::new(Repository::open(
+        &path,
+        native::translate(&language, "defaultSpace"),
+    )?));
+    let events = Arc::new(AppEvents(app.clone()));
+    let plugins = Arc::new(PluginHost::new(events.clone()));
     let plugin_store = Arc::new(Store::new(plugin_store(&path)));
+    let covers = covers_dir(&path);
+    // What a finished plugin task's fields are written into, on a thread of its
+    // own (spec #96 §6). Built before the bodies because their queues point at
+    // it; the host is held weakly because the host owns those bodies.
+    let landing_events: Arc<dyn Events> = events.clone();
+    let landing: Arc<dyn Landing> = Arc::new(FieldLanding::spawn(
+        Arc::clone(&repository),
+        covers.clone(),
+        landing_events,
+        Arc::downgrade(&plugins),
+    ));
     // What the user installed and switched on is put into the rotation before
     // the window is shown. It cannot fail: `loading::load` answers with nothing
     // and writes a line in the log for every plugin it could not build, so a
     // plugins directory the kernel cannot make sense of costs the user their
     // plugins and not their application (ADR 0044 §7).
-    loading::load(&plugin_store, &plugins);
+    loading::load(&plugin_store, &plugins, &repository, Some(landing));
     // Then what the user filled in is handed to the plugins that have something
     // saved, and for the reason loading is: a plugin that works from a video's
     // menu would otherwise never see the user's settings, because the only other
@@ -138,20 +158,41 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
     // docs/插件系统.md §14.8). A library that cannot be read costs the user their
     // plugins' settings and not their application, the same bargain loading
     // makes with a plugins directory it cannot read.
-    if let Err(error) = settings::hand_over(&plugins, &repository) {
-        tracing::warn!(
-            code = error.code,
-            "the saved plugin settings could not be read; the plugins start without them"
-        );
+    {
+        let library = lock_shared(&repository)?;
+        if let Err(error) = settings::hand_over(&plugins, &library) {
+            tracing::warn!(
+                code = error.code,
+                "the saved plugin settings could not be read; the plugins start without them"
+            );
+        }
     }
+    // A task an exit left running goes back to waiting before the owner starts
+    // looking, so the interrupted work is the first thing it picks up again
+    // (spec #96 §1).
+    lock_shared(&repository)?.recover_tasks()?;
+    let scan = Arc::new(ScanControl::default());
+    let scan_events: Arc<dyn crate::plugins::ScanEvents> = plugins.clone();
+    let owner_handle = app.clone();
+    let owner = Arc::new(crate::tasks::Runner::new(
+        Arc::clone(&repository),
+        Arc::clone(&scan),
+        events,
+        scan_events,
+        Box::new(move || {
+            let cache = thumbnail_cache(&database_path(&owner_handle)?);
+            MediaProcessor::for_app(&owner_handle, cache)
+        }),
+    ));
+    std::thread::spawn(move || owner.run_forever());
     app.manage(AppState {
-        repository: Arc::new(Mutex::new(repository)),
-        scan: Arc::new(ScanControl::default()),
+        repository,
+        scan,
         update: Arc::new(UpdateControl::default()),
         share: Arc::new(ShareControl::default()),
         plugins,
         plugin_store,
-        covers: covers_dir(&path),
+        covers,
     });
     Ok(())
 }

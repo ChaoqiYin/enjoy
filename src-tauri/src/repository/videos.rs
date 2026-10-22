@@ -236,6 +236,23 @@ impl Repository {
             .map_err(Into::into)
     }
 
+    /// The path this space knows a record by.
+    ///
+    /// The other direction of [`Repository::video_id`], for the callers that
+    /// hold the record's id and need the file it describes: a finished plugin
+    /// task carries the id, and the field chain it sets off is asked about a
+    /// path.
+    pub(crate) fn path_of(&self, space_id: i64, id: i64) -> Result<String, AppError> {
+        self.connection
+            .query_row(
+                "SELECT path FROM videos WHERE space_id=?1 AND id=?2",
+                params![space_id, id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or_else(not_indexed)
+    }
+
     /// Refuses a path this space holds no record for.
     ///
     /// Asked before the player is opened on a file, so that a path the library

@@ -68,7 +68,7 @@ fn verify_scan_failure_counts_and_cache(directory: &Path) {
     let media = media::MediaProcessor::on_path(cache);
     let mut previous_thumbnail = None;
     for attempt in 0..2 {
-        let guard = control.begin().unwrap();
+        let guard = control.begin();
         let events = Recorded::default();
         let videos = scan_job::run(&media, space, &repository, &control, &events).unwrap();
         drop(guard);
@@ -130,7 +130,7 @@ fn verify_cancelled_metadata_resumes(parent: &Path, source: &Path) {
         .unwrap()
         .add_directory(space, &directory.to_string_lossy())
         .unwrap();
-    let guard = control.begin().unwrap();
+    let guard = control.begin();
     let watching = Arc::clone(&control);
     let events = Recorded::default().watching(move |status| {
         if status.metadata_ready == 1 {
@@ -149,7 +149,7 @@ fn verify_cancelled_metadata_resumes(parent: &Path, source: &Path) {
     let repository = Repository::open(&db, FIRST_SPACE).unwrap();
     let space = repository.current_space().unwrap().id;
     let repository = Arc::new(Mutex::new(repository));
-    let guard = control.begin().unwrap();
+    let guard = control.begin();
     let events = Recorded::default();
     let rows = scan_job::run(&media, space, &repository, &control, &events).unwrap();
     assert!(events.media_error_codes().is_empty());

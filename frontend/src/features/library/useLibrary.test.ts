@@ -53,7 +53,7 @@ beforeEach(() => {
     sorts: {},
     page: { listing: '', index: 0 },
   });
-  vi.spyOn(libraryApi, 'rescan').mockResolvedValue([]);
+  vi.spyOn(libraryApi, 'rescan').mockResolvedValue(7);
   vi.spyOn(libraryApi, 'scanStatus').mockResolvedValue(idleScan());
 });
 afterEach(() => {
@@ -160,7 +160,7 @@ it('falls back to the last page when the list shrinks under the user', async () 
 });
 it('retries the failed action and clears its error after success', async () => {
   const rescan = vi.mocked(libraryApi.rescan);
-  rescan.mockRejectedValueOnce(failure).mockResolvedValueOnce([]);
+  rescan.mockRejectedValueOnce(failure).mockResolvedValueOnce(7);
   const { result } = mount();
   await act(() => result.current.directories.rescan());
   expect(result.current.notices.error?.errorId).toBe('err_retry');
@@ -247,7 +247,7 @@ it('clears the filters of the library it left, and keeps the sort', async () => 
 });
 
 it('addresses a scan to the space being shown, not the one it was started from', async () => {
-  const rescan = vi.spyOn(libraryApi, 'rescan').mockResolvedValue([]);
+  const rescan = vi.spyOn(libraryApi, 'rescan').mockResolvedValue(7);
   const switchTo = vi.spyOn(libraryApi, 'switchSpace').mockResolvedValue(other);
   const { result } = mount();
   await act(() => result.current.spaceCommands.switchSpace(other.id));

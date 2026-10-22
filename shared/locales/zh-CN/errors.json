@@ -77,5 +77,10 @@
   "plugin.safe_mode.failed": "进入安全模式失败：{{path}}",
   "plugin.settings.required": "这一项必须填写",
   "plugin.settings.directory_missing": "这个文件夹不在这台电脑上",
-  "plugin.settings.unavailable": "插件 {{plugin}} 没有运行，设置没有保存"
+  "plugin.settings.unavailable": "插件 {{plugin}} 没有运行，设置没有保存",
+  "task.not_found": "该任务已不存在",
+  "task.invalid_state": "该任务当前状态不允许此操作",
+  "task.invalid_action": "没有这个任务操作",
+  "task.unknown_kind": "内核没有叫 {{kind}} 的任务",
+  "task.bad_payload": "这条任务没有说要做什么"
 }

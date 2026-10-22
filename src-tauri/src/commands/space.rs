@@ -2,7 +2,6 @@ use crate::app::AppState;
 use crate::error::AppError;
 use crate::model::Space;
 use crate::repository::{lock_shared, Repository};
-use crate::scan::control::space_change_gate;
 use tauri::State;
 
 // The four commands that change which space is being shown, or the set of them,
@@ -13,26 +12,21 @@ use tauri::State;
 // what lets the interface adopt it without asking, and so without a moment where
 // it is showing a space that no longer exists.
 //
-// All four are refused while a media task holds the scan slot, for the reason
-// written on `space_change_gate`, and all four ask that through `changing_spaces`
-// rather than each asking for itself. The interface disables them too, but that
-// is only ever an explanation: the rule is the one in that function, and it is
-// the one that holds.
+// None of the four is refused while a media task runs. It used to be, through a
+// single gate that read the scan slot; the slot's mutual exclusion moved into
+// the queue (#101), and the reason the gate existed went with it: a task carries
+// the space it was started on and writes where it meant to, so moving the
+// window away changes nothing about where a running pass lands (ADR 0012).
 
 /// Runs an operation that changes which space is being shown, or the set of them.
 ///
-/// One gate, asked in one place, is a gate that cannot be left out of one of the
-/// four by accident — which is the shape this rule wants, since the four are the
-/// same rule asked four times.
-///
 /// Takes the state rather than a `State<AppState>` so that the rule is reachable
-/// from a test: the four commands below are the only production callers, and a
-/// fifth that forgot to ask is the failure this is shaped to prevent.
+/// from a test, and holds the four commands to the one shared way of reaching
+/// the index.
 pub(crate) fn changing_spaces<T>(
     state: &AppState,
     action: impl FnOnce(&mut Repository) -> Result<T, AppError>,
 ) -> Result<T, AppError> {
-    space_change_gate(state.scan.is_running())?;
     let mut repository = lock_shared(&state.repository)?;
     action(&mut repository)
 }

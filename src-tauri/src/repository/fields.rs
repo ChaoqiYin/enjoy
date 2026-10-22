@@ -21,6 +21,7 @@ use rusqlite::{params, OptionalExtension};
 
 use crate::error::AppError;
 use crate::model::VideoField;
+use crate::plugins::mount_points::is_field_key;
 
 use super::{not_indexed, now, Repository};
 
@@ -53,9 +54,24 @@ impl Repository {
     /// replaces the value and the source together. Two rows for one key would
     /// leave the interface with two values and nothing in the table saying which
     /// one won.
+    ///
+    /// The set of keys is closed (spec #96 §9), so this is also where the
+    /// kernel refuses everything outside it: a key the catalog does not carry
+    /// would land under a name nothing translates and nothing draws, so it is
+    /// dropped before the write, with one line of log saying whose answer it
+    /// was. Refusing here rather than at the caller keeps the promise at the
+    /// one place a plugin's answer reaches the table.
     pub fn save_fields(&mut self, video_id: i64, fields: &[VideoField]) -> Result<(), AppError> {
         let tx = self.connection.transaction()?;
         for field in fields {
+            if !is_field_key(&field.key) {
+                tracing::warn!(
+                    key = %field.key,
+                    video_id,
+                    "A field key outside the closed set was dropped before the write"
+                );
+                continue;
+            }
             tx.execute(
                 "INSERT INTO video_fields (video_id,key,value,source_plugin,updated_at)
                  VALUES (?1,?2,?3,?4,?5)
