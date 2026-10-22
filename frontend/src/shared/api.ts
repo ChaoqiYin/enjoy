@@ -19,7 +19,6 @@ import type {
   TaskRow,
   UpdateCheck,
   UpdateProgress,
-  Video,
   VideoField,
   VideoPage,
   VideoQuery,
@@ -76,8 +75,11 @@ export const libraryApi = {
     invoke<Space>('rename_space', { spaceId, name }),
   deleteSpace: (spaceId: number) => invoke<Space>('delete_space', { spaceId }),
   switchSpace: (spaceId: number) => invoke<Space>('switch_space', { spaceId }),
+  // The three media commands answer with the task's id rather than with the
+  // work's result: the work is queued and runs in the background, and the
+  // interface learns it is over from what the pass itself reports (spec #101).
   regenerate: (spaceId: number, path: string | null) =>
-    invoke<void>('regenerate_thumbnails', { spaceId, path }),
+    invoke<number>('regenerate_thumbnails', { spaceId, path }),
   // One page of the library, as described by the query. The command name is the
   // same one it always was while what it takes is not, because the listing is one
   // thing the interface asks for however many questions its answer is made of —
@@ -104,12 +106,15 @@ export const libraryApi = {
     invoke<void>('add_directory', { spaceId, path }),
   // The scanned range is the space's saved directories; the backend reads them,
   // so there is no directory list to pass and no way to narrow the scan.
+  //
+  // Queued like the other two, and answered with the task's id: the scan has
+  // not run when this answers.
   rescan: (spaceId: number) =>
-    invoke<Video[]>('rescan_directories', { spaceId }),
+    invoke<number>('rescan_directories', { spaceId }),
   play: (spaceId: number, path: string) =>
     invoke<void>('open_video', { spaceId, path }),
   refreshInfo: (spaceId: number, path: string) =>
-    invoke<void>('refresh_video_info', { spaceId, path }),
+    invoke<number>('refresh_video_info', { spaceId, path }),
   // The fields this video's plugins have written, and one plugin's own action on
   // it. Asking is what makes them current: the command puts the question to the
   // plugins and stores what they answer. An action is that question again, once

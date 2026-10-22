@@ -26,6 +26,8 @@ mod fields_tests;
 #[cfg(test)]
 mod plugin_settings_tests;
 #[cfg(test)]
+mod scan_tests;
+#[cfg(test)]
 mod share_tests;
 #[cfg(test)]
 mod space_tests;

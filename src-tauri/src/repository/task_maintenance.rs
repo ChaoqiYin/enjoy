@@ -8,11 +8,13 @@
 //! answers for a single running task, it answers for what an exit and a week
 //! do to the table as a whole (spec #96 §1).
 
-// Nothing in the kernel calls either rule yet: the start-up path that recovers
-// and the periodic sweep that purges are later issues of the same spec (#98 and
-// its neighbours), so the module is written down and exercised by its own tests
-// first. It carries `#[allow(dead_code)]` until then, the way
-// `Events::plugin_failed` does (spec #82).
+// The start-up path calls the recovery rule: the kernel's owner claims tasks
+// when the application starts, and a task an exit left `running` is work that
+// was never finished, so it goes back to waiting before the owner looks
+// (spec #101). The sweep that purges is still not called by anything — it is
+// a later issue of the same spec (#98 and its neighbours) — so the module keeps
+// its `#[allow(dead_code)]` until then, the way `Events::plugin_failed` does
+// (spec #82).
 #![allow(dead_code)]
 
 use rusqlite::params;

@@ -1,5 +1,5 @@
 import { emit } from '@tauri-apps/api/event';
-import type { AppError, ScanStatus, Video } from '../src/shared/api';
+import type { ScanStatus } from '../src/shared/api';
 
 /**
  * The media pass as this stand-in backend holds it: what the last one reported,
@@ -11,12 +11,11 @@ import type { AppError, ScanStatus, Video } from '../src/shared/api';
  * while it runs and is sent it while it does, and two commands answer it with
  * the phase they moved it to.
  *
- * The pass a *command* starts is held open until that pass ends, because that is
- * what the backend does — `rescan_directories` is a media job and answers with
- * the records once the sweep is over — and holding it is the only way the
- * interface's busy state is reachable at all: a version of this that answered
- * immediately left the buttons that are disabled while a pass runs undrawn, and
- * the 扫描 button raising "the fixture has no answer for this command".
+ * The three media commands do not run a pass — they queue one and answer with
+ * the task's id, the way the kernel's queue does (spec #101). The work itself
+ * happens in the background, so the pass this module holds stays open until
+ * the walkthrough ends it: that is where the interface's status bar comes from,
+ * and the id the command answered with is what the walkthrough is told about.
  *
  * The phases are the backend's words; which of them mean "running" is read off
  * `isScanRunning` rather than listed a second time here.
@@ -37,12 +36,15 @@ let status: ScanStatus = {
   changes: { added: 0, updated: 0, removed: 0 },
 };
 
-/** The pass a command is waiting on, and the records its answer will carry. */
-let inFlight: {
-  videos: Video[];
-  settle: (videos: Video[]) => void;
-  refuse: (error: AppError) => void;
-} | null = null;
+/**
+ * The ids this queue hands out.
+ *
+ * They are ids of tasks the kernel would have put in its own queue, and the
+ * walkthrough sees them the way it sees any other task id: a number that says
+ * a task exists. The rows themselves are in `tasks.ts`, which is where the
+ * task page reads them from.
+ */
+let nextTaskId = 100;
 
 /** The status, as `scan_status` answers it. */
 export function reported(): ScanStatus {
@@ -55,41 +57,60 @@ function publish(next: ScanStatus): Promise<unknown> {
 }
 
 /**
- * Ends the pass being waited on, if one is: the command that started it answers
- * here and nowhere else.
+ * Ends the pass that is running, if one is.
  *
- * A cancelled pass refuses rather than answers, which is what the backend's own
- * cancellation does (`media.scan.cancelled`) and what the interface reads to
- * tell a sweep the user stopped from one that failed.
+ * A pass that is cancelled says so in the phase it publishes, which is where
+ * the interface reads it from: the command that queued the work has long since
+ * answered with a task id, and there is nothing left for it to refuse.
  */
 function end(phase: 'complete' | 'cancelled') {
   void publish({ ...status, phase, currentPath: '' });
-  const held = inFlight;
-  inFlight = null;
-  if (!held) return;
-  if (phase === 'cancelled')
-    held.refuse({
-      code: 'media.scan.cancelled',
-      params: {},
-      errorId: 'acceptance',
-    });
-  else held.settle(held.videos);
 }
 
-/** Starts a pass and answers with its records once it ends. */
-export function rescan(videos: Video[], currentPath: string): Promise<Video[]> {
+/**
+ * Queues a pass and answers with the task's id, the way the kernel's queue
+ * does: the work has not run when this answers (spec #101).
+ *
+ * The pass is running by the time the answer is read — the queue claims a task
+ * at once — so the status bar is up and the page is usable underneath it.
+ */
+export function rescan(currentPath: string): number {
   void publish({ ...status, phase: 'processing', currentPath });
-  return new Promise<Video[]>((settle, refuse) => {
-    inFlight = { videos, settle, refuse };
+  return nextTaskId++;
+}
+
+/**
+ * Queues a thumbnail rebuild and answers with the task's id.
+ *
+ * One file or all of them, and the difference is only what the pass walks: the
+ * status says the same thing either way, which is what the kernel's own pass
+ * reports as well.
+ */
+export function regenerate(currentPath: string): number {
+  void publish({
+    ...status,
+    operation: 'thumbnails',
+    phase: 'processing',
+    currentPath,
   });
+  return nextTaskId++;
+}
+
+/**
+ * Queues a re-read of one file's metadata and answers with the task's id.
+ *
+ * Nothing is published: a single file has no progress to report, and the
+ * backend's own refresh says as much by sending no status at all.
+ */
+export function refresh(): number {
+  return nextTaskId++;
 }
 
 /**
  * 暂停, 继续 and 取消, as `scan_action` takes them.
  *
- * The first two move the phase and leave the command waiting — a paused pass is
- * still a pass, and the slot it holds is what the interface reads as busy. 取消
- * is the one that ends it.
+ * The first two move the phase and leave the pass running — a paused pass is
+ * still a pass. 取消 is the one that ends it.
  */
 export function control(action: string, currentPath: string) {
   if (action === 'cancel') return end('cancelled');
@@ -104,8 +125,8 @@ export function control(action: string, currentPath: string) {
  * The same by hand, for a walkthrough: the four shapes a pass is shown in.
  *
  * A phase that is no longer running has ended, so naming one here ends the pass
- * a command is waiting on — the alternative is a walkthrough that pauses a scan
- * and then cannot get the interface out of being busy.
+ * — the alternative is a walkthrough that pauses a scan and then cannot get the
+ * interface out of showing it.
  */
 export async function setPhase(phase: string, currentPath: string) {
   if (!RUNNING.includes(phase)) {

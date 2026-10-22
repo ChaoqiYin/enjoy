@@ -141,6 +141,28 @@ impl Repository {
         Ok(id)
     }
 
+    /// Whether the kernel has a media task that is running or waiting to run.
+    ///
+    /// The question the install gate asks, and the reason it is asked of the
+    /// whole table rather than of a kind: installing exits the process, so any
+    /// media task still to come — a sweep, a batch of thumbnails, one file's
+    /// refresh — would lose its work, not just the one the user happens to be
+    /// watching (spec #101). `plugin IS NULL` is what makes it the kernel's
+    /// tasks: a plugin's own queue is not this application's media work.
+    ///
+    /// `paused` counts as unfinished on purpose — the user has stopped it for
+    /// now and intends to resume it, and installing over that loses the same
+    /// work as installing over a running pass.
+    pub(crate) fn has_open_kernel_tasks(&self) -> Result<bool, AppError> {
+        let open: i64 = self.connection.query_row(
+            "SELECT COUNT(*) FROM tasks WHERE plugin IS NULL \
+             AND state NOT IN ('done','failed','cancelled')",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(open > 0)
+    }
+
     /// Takes the owner's earliest runnable task, and answers with it marked
     /// running — or with nothing when the owner has no work ready.
     ///

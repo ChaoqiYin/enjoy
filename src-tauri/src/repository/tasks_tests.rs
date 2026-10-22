@@ -366,3 +366,70 @@ fn deleting_a_space_takes_its_tasks_with_it() {
 
     assert_eq!(repository.task(id).unwrap_err().code, "task.not_found");
 }
+
+#[test]
+fn the_install_gate_sees_a_media_task_that_is_waiting_or_running() {
+    // Installing exits the process, so any media task still to come would lose
+    // its work — not only the one the user happens to be watching (spec #101).
+    let fixture = Fixture::new();
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
+
+    assert!(!repository.has_open_kernel_tasks().unwrap());
+    repository
+        .push_task(None, space, None, "scan", "{}")
+        .unwrap();
+
+    assert!(repository.has_open_kernel_tasks().unwrap());
+}
+
+#[test]
+fn the_install_gate_ignores_a_plugin_s_own_queue() {
+    // A plugin's tasks are not this application's media work: they are run by
+    // the plugin's host, which the installer does not take away.
+    let fixture = Fixture::new();
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
+    repository
+        .push_task(Some("com.example.one"), space, None, "scrape", "{}")
+        .unwrap();
+
+    assert!(!repository.has_open_kernel_tasks().unwrap());
+}
+
+#[test]
+fn the_install_gate_ignores_a_media_task_that_is_already_over() {
+    let fixture = Fixture::new();
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
+    let id = repository
+        .push_task(None, space, None, "scan", "{}")
+        .unwrap();
+    repository.claim_task(None).unwrap();
+    repository.complete_task(id).unwrap();
+
+    assert!(!repository.has_open_kernel_tasks().unwrap());
+}
+
+#[test]
+fn the_install_gate_counts_a_paused_media_task_as_still_to_come() {
+    // The user stopped it for now and means to resume it: installing over that
+    // loses the same work as installing over a running pass.
+    let fixture = Fixture::new();
+    let Library {
+        mut repository,
+        space,
+    } = fixture.library();
+    let id = repository
+        .push_task(None, space, None, "scan", "{}")
+        .unwrap();
+    repository.request_task_pause(id).unwrap();
+
+    assert!(repository.has_open_kernel_tasks().unwrap());
+}

@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::sync::Notify;
 
 use crate::error::AppError;
-use crate::scan::control::ScanControl;
 
 use super::release::Release;
 
@@ -308,26 +307,27 @@ impl UpdateControl {
     /// when it may.
     ///
     /// The three questions are asked in the order the interface reports them —
-    /// platform, then the running scan, then whether anything was downloaded —
-    /// and all of them are asked here rather than by a caller that gathers the
-    /// facts first. Gathering them outside put the rule in one place and its
-    /// inputs in another, and left the gap between the two: the scan was read,
-    /// the read released, and the installer taken afterwards, so a scan starting
-    /// in between was installed over. That is exactly what this gate is for —
-    /// installing hands the update to the platform installer and exits, so a
-    /// pass in flight loses that work.
+    /// platform, then the open media tasks, then whether anything was
+    /// downloaded — and all of them are asked here rather than by a caller that
+    /// gathers the facts first. Gathering them outside put the rule in one
+    /// place and its inputs in another, and left the gap between the two: the
+    /// queue was read, the read released, and the installer taken afterwards,
+    /// so a task queued in between was installed over. That is exactly what this
+    /// gate is for — installing hands the update to the platform installer and
+    /// exits, so a media task in flight loses that work.
     ///
-    /// The slot is therefore read twice. The first read only fixes which refusal
-    /// is reported, because the download is asked in between and a refusal must
-    /// not spend the closing; the second one closes the slot, and from there no
-    /// scan can begin. Closing is asked last, once every other question has
-    /// passed, so a refusal leaves the application able to scan.
+    /// The gate is asked of the queue rather than of the scan slot
+    /// ([`crate::tasks`], #101): what the kernel's media commands put in now
+    /// live as rows, and a question that read only the pass in flight would
+    /// miss a task waiting behind it. `open_tasks` is the one fact this needs,
+    /// and it is passed in rather than looked up here so that the rule and its
+    /// input are one step: a caller that read the queue itself, then called
+    /// this, would reopen the very gap the gate exists to close.
     ///
-    /// Locks: the update lock is held, and the scan lock is taken inside it. No
-    /// path may take them the other way round.
+    /// Locks: the update lock is held for the whole question.
     pub fn install(
         &self,
-        scan: &ScanControl,
+        open_tasks: impl FnOnce() -> Result<bool, AppError>,
         supported: bool,
     ) -> Result<(Arc<dyn Release>, Vec<u8>), AppError> {
         let mut state = self.lock();
@@ -337,10 +337,10 @@ impl UpdateControl {
                 "Updates are published for Windows only",
             ));
         }
-        if scan.is_running() {
+        if open_tasks()? {
             return Err(AppError::new(
                 "update.blocked.scanning",
-                "A scan is running",
+                "A media task is running or waiting",
             ));
         }
         if installable(&state).is_none() {
@@ -349,14 +349,8 @@ impl UpdateControl {
                 "No downloaded update",
             ));
         }
-        if !scan.close() {
-            return Err(AppError::new(
-                "update.blocked.scanning",
-                "A scan started while this was being asked",
-            ));
-        }
-        // Present under this lock, and the slot closing cannot change that: the
-        // two questions above are the only way this can fail.
+        // Present under this lock, and the two questions above are the only way
+        // this can fail.
         let release = state.pending.take().expect("installable, under this lock");
         let bytes = state
             .installer

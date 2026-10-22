@@ -79,7 +79,7 @@ mod tests {
     fn successful_refresh_updates_metadata_for_the_file() {
         let (_fixture, path, repository, space) = setup();
         let control = Arc::new(ScanControl::default());
-        let guard = control.begin().unwrap();
+        let guard = control.begin();
         let wrote = refresh::refresh_video(space, &path, &repository, &control, |_| {
             Ok(Metadata {
                 duration_ms: Some(500),
@@ -103,7 +103,7 @@ mod tests {
     fn cancellation_after_probe_returns_error_and_does_not_write() {
         let (_fixture, path, repository, space) = setup();
         let control = Arc::new(ScanControl::default());
-        let guard = control.begin().unwrap();
+        let guard = control.begin();
         let result = refresh::refresh_video(space, &path, &repository, &control, |_| {
             control.action("cancel").unwrap();
             Ok(Metadata {
@@ -125,7 +125,7 @@ mod tests {
     fn probe_cancellation_propagates_as_an_error() {
         let (_fixture, path, repository, space) = setup();
         let control = Arc::new(ScanControl::default());
-        let guard = control.begin().unwrap();
+        let guard = control.begin();
         let result = refresh::refresh_video(space, &path, &repository, &control, |_| {
             control.action("cancel").unwrap();
             Err(AppError::new("media.scan.cancelled", "cancelled probe"))
@@ -168,7 +168,7 @@ mod tests {
             (other_id, other_size)
         };
         let control = Arc::new(ScanControl::default());
-        let guard = control.begin().unwrap();
+        let guard = control.begin();
         let wrote = refresh::refresh_video(space, &path, &repository, &control, |_| {
             Ok(Metadata {
                 duration_ms: Some(500),
@@ -202,7 +202,7 @@ mod tests {
     fn failed_probe_preserves_existing_record_without_partial_write() {
         let (_fixture, path, repository, space) = setup();
         let control = Arc::new(ScanControl::default());
-        let guard = control.begin().unwrap();
+        let guard = control.begin();
         refresh::refresh_video(space, &path, &repository, &control, |_| {
             Ok(Metadata {
                 duration_ms: Some(500),
@@ -214,7 +214,7 @@ mod tests {
         .unwrap();
         drop(guard);
         let before = repository.lock().unwrap().records(space).unwrap().remove(0);
-        let guard = control.begin().unwrap();
+        let guard = control.begin();
         let result = refresh::refresh_video(space, &path, &repository, &control, |_| {
             Err(AppError::new(
                 "media.metadata.failed",
@@ -239,7 +239,7 @@ mod tests {
         let path = paths[0].clone();
         let root = fixture.0.to_string_lossy().into_owned();
         let control = Arc::new(ScanControl::default());
-        let guard = control.begin().unwrap();
+        let guard = control.begin();
         // The rescan below moves the file while the refresh is in flight, and
         // the write is refused afterwards: the stamps the refresh read are the
         // very fields the scan now compares to decide whether a file changed
@@ -282,7 +282,7 @@ mod tests {
             .unwrap();
         assert!(!repository.lock().unwrap().records(space).unwrap()[0].media_complete);
         let control = Arc::new(ScanControl::default());
-        let guard = control.begin().unwrap();
+        let guard = control.begin();
         let wrote = refresh::refresh_video(space, &path, &repository, &control, |_| {
             Ok(Metadata {
                 duration_ms: None,

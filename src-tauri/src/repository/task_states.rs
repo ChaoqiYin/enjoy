@@ -160,14 +160,30 @@ impl Repository {
 
     /// The task page's 继续: a paused task goes back to waiting, ready to be
     /// claimed again now.
+    ///
+    /// Two shapes of "paused" answer to the same word, and the running one is
+    /// the newer. A task the user stopped *before* it was claimed sits in
+    /// `paused` and is simply put back in the queue. A task that was running is
+    /// frozen where it was — the pass is waiting at its own checkpoint with the
+    /// request mark set and the state still `running` — and 继续 here clears
+    /// the mark rather than the state, so the work carries on from where it
+    /// stopped instead of being started over (spec #96 §2, #101).
     pub(crate) fn resume_task(&mut self, id: i64) -> Result<(), AppError> {
         let at = now();
-        let changed = self.connection.execute(
+        let requeued = self.connection.execute(
             "UPDATE tasks SET state='pending', available_at=?2, updated_at=?2 \
              WHERE id=?1 AND state='paused'",
             params![id, at],
         )?;
-        if changed > 0 {
+        if requeued > 0 {
+            return Ok(());
+        }
+        let unfrozen = self.connection.execute(
+            "UPDATE tasks SET pause_requested=0, updated_at=?2 \
+             WHERE id=?1 AND state='running' AND pause_requested=1",
+            params![id, at],
+        )?;
+        if unfrozen > 0 {
             return Ok(());
         }
         self.task(id)?;

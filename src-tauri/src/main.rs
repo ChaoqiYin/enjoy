@@ -27,6 +27,11 @@ mod repository;
 mod scan;
 mod settings;
 mod share;
+// The kernel's own queue owner: the thread that runs the media tasks the
+// commands put in (#101).
+mod tasks;
+#[cfg(test)]
+mod tasks_tests;
 mod titlebar;
 mod update;
 

@@ -32,7 +32,7 @@ fn a_pass_over_an_empty_space_reports_the_phases_and_the_library_change() {
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let events = Recorded::default();
-    let guard = control.begin().unwrap();
+    let guard = control.begin();
 
     session::regenerate_thumbnails(guard, space, None, &repository, &control, &media, &events)
         .unwrap();
@@ -51,7 +51,7 @@ fn a_sweep_counts_an_unreadable_file_instead_of_stopping_at_it() {
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let events = Recorded::default();
-    let guard = control.begin().unwrap();
+    let guard = control.begin();
 
     session::regenerate_thumbnails(guard, space, None, &repository, &control, &media, &events)
         .unwrap();
@@ -77,7 +77,7 @@ fn the_slot_is_released_before_the_interface_hears_the_outcome() {
     let control = Arc::new(ScanControl::default());
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let events = Recorded::default();
-    let guard = control.begin().unwrap();
+    let guard = control.begin();
 
     // One file asked for by name: its failure is the answer to the request,
     // rather than a number in a sweep.

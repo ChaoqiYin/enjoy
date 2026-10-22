@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::app::AppState;
 use crate::error::AppError;
 use crate::events::AppEvents;
+use crate::repository::lock_shared;
 
 use super::control::is_supported;
 use super::release::{Release, UpdateCheck};
@@ -116,13 +117,15 @@ fn updater_pubkey(app: &AppHandle) -> Result<String, AppError> {
 /// the process, so the call does not return and the installer is what brings
 /// Enjoy back. Kept synchronous because both of those expect the main thread —
 /// and because the gate and the handover have to be one step: see
-/// [`UpdateControl::install`], which is also where the scan slot is closed so
-/// that nothing can start one in the moment before the exit.
+/// [`UpdateControl::install`].
 ///
 /// [`UpdateControl::install`]: super::control::UpdateControl::install
 #[tauri::command]
 pub fn restart_app(state: State<'_, AppState>) -> Result<(), AppError> {
-    let (release, bytes) = state.update.install(&state.scan, is_supported())?;
+    let (release, bytes) = state.update.install(
+        || lock_shared(&state.repository)?.has_open_kernel_tasks(),
+        is_supported(),
+    )?;
     release
         .install(&bytes)
         .map_err(|error| AppError::new("update.install_failed", error))

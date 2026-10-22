@@ -50,6 +50,12 @@ pub(crate) fn act_on_task(
         }
     };
     written?;
+    // A request written on the row has to reach the pass that is running that
+    // very task: the row is where the request is recorded, and the pass is what
+    // it stops. The kernel's own media tasks are run by a pass that waits at
+    // its own checkpoint, so without this a 暂停 from this page would be a
+    // mark on the row that nothing acted on (spec #101).
+    state.scan.carry(task_id, action)?;
     events.task_changed(task_id);
     Ok(())
 }

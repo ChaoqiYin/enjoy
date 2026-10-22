@@ -2,7 +2,14 @@ import { mockIPC, mockConvertFileSrc } from '@tauri-apps/api/mocks';
 import { emit } from '@tauri-apps/api/event';
 import { videoPage } from './videoList';
 import { videos } from './records';
-import { control, reported, rescan, setPhase } from './scan';
+import {
+  control,
+  regenerate,
+  refresh,
+  reported,
+  rescan,
+  setPhase,
+} from './scan';
 import {
   control as controlUpdate,
   install,
@@ -301,11 +308,17 @@ mockIPC(
         // name; anything past that would be a third copy of the backend.
         return control(String(payload.action), videos[35].path);
       case 'rescan_directories':
-        // Answered, so that 扫描 moves the interface rather than raising the
-        // banner this fixture reserves for the commands it has no answer for.
-        // The pass is held open until it ends, like the command it stands in
-        // for — see `scan.ts`, which is where being busy comes from.
-        return rescan(recordsOf(Number(payload.spaceId)), videos[35].path);
+        // Queued and answered with the task's id, the way the kernel's queue
+        // answers: the pass is running in the background and the command is
+        // long gone by the time it answers. See `scan.ts`.
+        return rescan(videos[35].path);
+      case 'regenerate_thumbnails':
+        // The same shape: one file or all of them, and either way a task id.
+        return regenerate(videos[35].path);
+      case 'refresh_video_info':
+        // A single file has no progress to report, so there is nothing to
+        // publish — only the task that is doing it.
+        return refresh();
       case 'open_video':
         throw {
           code: 'media.player.start_failed',

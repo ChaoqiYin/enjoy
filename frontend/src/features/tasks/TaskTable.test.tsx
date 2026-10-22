@@ -133,12 +133,15 @@ it('offers only the actions the task can take', () => {
   expect(screen.getAllByRole('button', { name: english.cancel })).toHaveLength(
     4,
   );
-  // A pause already asked for cannot be asked again — only cancelling remains.
+  // A pause already asked for cannot be asked again — but it can be taken
+  // back, and the way to take it back is the same word that gets a paused
+  // task going again.
   const row3 = screen.getByText(english.taskPausing).closest('tr')!;
   expect(row3.querySelector(`[aria-label="${english.pause}"]`)).toBeNull();
+  expect(row3.querySelector(`[aria-label="${english.resume}"]`)).toBeTruthy();
   // Paused: the one way out other than cancelling.
   expect(screen.getAllByRole('button', { name: english.resume })).toHaveLength(
-    1,
+    2,
   );
   // Failed: try again, and nothing else.
   const row5 = screen.getByText(english.taskStateFailed).closest('tr')!;

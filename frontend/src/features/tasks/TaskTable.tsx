@@ -60,12 +60,19 @@ function progressOf(task: TaskRow) {
  * Every action a task in this state can be given. Finished tasks — done and
  * cancelled — are not steered any more, and a pause already asked for is not
  * asked for twice.
+ *
+ * A pause that is only asked for can be taken back: the row says 暂停中 while
+ * the worker has not acknowledged it yet, and 继续 is how the user says they
+ * did not mean it. The pass is still running at that point, so the request is
+ * a request about the run and not about a task that has already stopped.
  */
 function actionsOf(task: TaskRow) {
   const canPause =
     task.state === 'pending' ||
     (task.state === 'running' && !task.pause_requested);
-  const canResume = task.state === 'paused';
+  const canResume =
+    task.state === 'paused' ||
+    (task.state === 'running' && task.pause_requested);
   const canCancel =
     task.state === 'pending' ||
     task.state === 'running' ||
