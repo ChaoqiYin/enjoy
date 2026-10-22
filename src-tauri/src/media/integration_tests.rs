@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::events::Recorded;
 use crate::media;
+use crate::model::TaskAction;
 use crate::repository::fixture::FIRST_SPACE;
 use crate::repository::Repository;
 use crate::scan::control::ScanControl;
@@ -134,7 +135,7 @@ fn verify_cancelled_metadata_resumes(parent: &Path, source: &Path) {
     let watching = Arc::clone(&control);
     let events = Recorded::default().watching(move |status| {
         if status.metadata_ready == 1 {
-            watching.action("cancel").unwrap();
+            watching.action(TaskAction::Cancel);
         }
     });
     let result = scan_job::run(&media, space, &repository, &control, &events);

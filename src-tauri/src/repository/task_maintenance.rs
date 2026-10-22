@@ -11,11 +11,9 @@
 // The start-up path calls the recovery rule: the kernel's owner claims tasks
 // when the application starts, and a task an exit left `running` is work that
 // was never finished, so it goes back to waiting before the owner looks
-// (spec #101). The sweep that purges is still not called by anything — it is
-// a later issue of the same spec (#98 and its neighbours) — so the module keeps
-// its `#[allow(dead_code)]` until then, the way `Events::plugin_failed` does
-// (spec #82).
-#![allow(dead_code)]
+// (spec #101). The sweep that purges is not called by the start-up path yet —
+// the task page's own read hides expired rows in the meantime — so only that
+// one function asks to be excused for having no caller.
 
 use rusqlite::params;
 
@@ -52,12 +50,16 @@ impl Repository {
 
     /// Removes the tasks that finished more than a week ago.
     ///
-    /// Called at the same start as [`Self::recover_tasks`], and for the same
-    /// reason of ordering: the task page keeps terminal tasks for a while so a
-    /// user can see what happened, and this is what stops that window from
-    /// filling the table forever. Unfinished tasks are never aged out — the
-    /// retention is a display promise for finished work, not a deadline for
-    /// work still to do.
+    /// The task page keeps terminal tasks for a while so a user can see what
+    /// happened, and this is what stops that window from filling the table
+    /// forever. Unfinished tasks are never aged out — the retention is a
+    /// display promise for finished work, not a deadline for work still to do.
+    ///
+    /// Kept for the start-up sweep it is written for, which nothing runs yet:
+    /// the task page's own read hides expired rows, so the rule holds while
+    /// this waits for its caller. Its tests are what keep the SQL honest in the
+    /// meantime.
+    #[allow(dead_code)]
     pub(crate) fn purge_finished_tasks(&mut self) -> Result<usize, AppError> {
         let cutoff = now() - FINISHED_RETENTION;
         let removed = self.connection.execute(

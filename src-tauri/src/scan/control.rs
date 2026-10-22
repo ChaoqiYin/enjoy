@@ -2,6 +2,7 @@ use serde::Serialize;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 
 use crate::error::{AppError, SCAN_CANCELLED};
+use crate::model::TaskAction;
 use crate::repository::IndexChanges;
 
 #[derive(Clone, Default, Serialize)]
@@ -136,28 +137,23 @@ impl ScanControl {
         Ok(())
     }
 
-    pub fn action(&self, action: &str) -> Result<(), AppError> {
-        if !["pause", "resume", "cancel"].contains(&action) {
-            return Err(AppError::new(
-                "media.scan.invalid_action",
-                "Unknown scan action",
-            ));
-        }
+    pub fn action(&self, action: TaskAction) {
         let mut state = self.lock();
         if !state.running {
-            return Ok(());
+            return;
         }
         match action {
-            "pause" => state.paused = true,
-            "resume" => state.paused = false,
-            "cancel" => {
+            TaskAction::Pause => state.paused = true,
+            TaskAction::Resume => state.paused = false,
+            TaskAction::Cancel => {
                 state.cancelled = true;
                 state.paused = false;
             }
-            _ => unreachable!(),
+            // A retry puts a finished task back in line; no pass is holding it,
+            // so there is nothing here to carry it to.
+            TaskAction::Retry => return,
         }
         self.changed.notify_all();
-        Ok(())
     }
 
     /// Carries a request that was written on a task row into the pass that is
@@ -175,16 +171,13 @@ impl ScanControl {
     /// and a request for a task that is still waiting is carried by the queue
     /// itself — which is what claims it later.
     ///
-    /// An action the pass does not know is not a refusal either: a 重试 puts a
-    /// task back in line and no pass is holding it.
-    pub fn carry(&self, task: i64, action: &str) -> Result<(), AppError> {
+    /// A 重试 is not carried: it puts a task back in line and no pass is
+    /// holding it.
+    pub fn carry(&self, task: i64, action: TaskAction) {
         if self.task_id() != Some(task) {
-            return Ok(());
+            return;
         }
-        match action {
-            "pause" | "resume" | "cancel" => self.action(action),
-            _ => Ok(()),
-        }
+        self.action(action);
     }
 
     /// Writes the status and hands back what a reader would see from now on.
@@ -225,7 +218,7 @@ impl Drop for ScanGuard {
 
 #[cfg(test)]
 mod tests {
-    use super::{ScanControl, ScanStatus};
+    use super::{ScanControl, ScanStatus, TaskAction};
     use std::sync::Arc;
 
     #[test]
@@ -259,7 +252,7 @@ mod tests {
     fn publishing_while_paused_reports_paused_rather_than_what_was_written() {
         let control = Arc::new(ScanControl::default());
         let guard = control.begin();
-        control.action("pause").unwrap();
+        control.action(TaskAction::Pause);
         // A paused pass keeps working, so it keeps writing what the work is
         // doing. The phase is not the writer's to choose while the pause is on:
         // without this the interface would be told "processing" and the user
@@ -281,11 +274,11 @@ mod tests {
     fn a_cancelled_pass_stops_at_its_next_checkpoint_and_says_cancelled() {
         let control = Arc::new(ScanControl::default());
         let guard = control.begin();
-        control.action("pause").unwrap();
+        control.action(TaskAction::Pause);
         assert_eq!(control.status().phase, "paused");
         // A cancel outranks a pause: the pass is woken out of the wait it is
         // sitting in, and its next checkpoint refuses rather than continuing.
-        control.action("cancel").unwrap();
+        control.action(TaskAction::Cancel);
         assert_eq!(
             control.checkpoint().unwrap_err().code,
             "media.scan.cancelled"
@@ -298,7 +291,7 @@ mod tests {
     fn the_next_pass_starts_from_what_its_predecessor_left() {
         let control = Arc::new(ScanControl::default());
         let first = control.begin();
-        control.action("cancel").unwrap();
+        control.action(TaskAction::Cancel);
         drop(first);
         let next = control.begin();
         control.checkpoint().unwrap();

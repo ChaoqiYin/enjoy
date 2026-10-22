@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { TaskRow } from '../../shared/api';
+import { task } from '../../test/fixtures';
 import { useTasks } from './useTasks';
 
 const { list, action, onTaskChanged, setError } = vi.hoisted(() => ({
@@ -30,28 +30,6 @@ vi.mock('../library/useNotices', () => ({
 
 /** The handlers the hook subscribed with, newest registration last. */
 let handlers: ((taskId: number) => void)[] = [];
-
-function task(overrides: Partial<TaskRow> = {}): TaskRow {
-  return {
-    id: 1,
-    plugin: null,
-    space_id: 1,
-    space_name: 'Movies',
-    video_id: 10,
-    video_name: 'a.mkv',
-    kind: 'move',
-    state: 'running',
-    pause_requested: false,
-    cancel_requested: false,
-    progress_current: null,
-    progress_total: null,
-    progress_label: null,
-    attempts: 0,
-    last_error: null,
-    updated_at: 1_760_000_000_000,
-    ...overrides,
-  };
-}
 
 function renderTasks() {
   const client = new QueryClient({

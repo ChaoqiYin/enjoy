@@ -6,6 +6,7 @@ use std::os::unix::fs::PermissionsExt;
 
 use crate::events::Recorded;
 use crate::media::{MediaProcessor, Metadata};
+use crate::model::TaskAction;
 use crate::repository::fixture::{Fixture, Library, FIRST_SPACE};
 use crate::repository::Repository;
 use crate::scan::control::ScanControl;
@@ -52,7 +53,7 @@ fn cancelled_processing_resumes_after_reopen_and_completed_files_are_skipped() {
         // Cancelled from inside the pass, which is the only place a cancellation
         // can come from: no status read afterwards could ask for one.
         if status.metadata_ready == 1 {
-            watching.action("cancel").unwrap();
+            watching.action(TaskAction::Cancel);
         }
     });
     let result = job::run(&media, space, &repository, &control, &events);
@@ -405,7 +406,7 @@ fn cancellation_aborts_the_scan_and_preserves_existing_records() {
     let media = MediaProcessor::on_path(fixture.0.join("cache"));
     let guard = control.begin();
     let watching = Arc::clone(&control);
-    let events = Recorded::default().watching(move |_| watching.action("cancel").unwrap());
+    let events = Recorded::default().watching(move |_| watching.action(TaskAction::Cancel));
     let result = job::run(&media, space, &repository, &control, &events);
     assert_eq!(result.unwrap_err().code, "media.scan.cancelled");
     drop(guard);

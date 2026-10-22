@@ -1,4 +1,10 @@
-import type { Address, Device, ScanStatus, Video } from '../shared/api';
+import type {
+  Address,
+  Device,
+  ScanStatus,
+  TaskRow,
+  Video,
+} from '../shared/api';
 
 /**
  * A scan that is not running, as the backend reports one.
@@ -54,6 +60,35 @@ export function video(overrides: Partial<Video> = {}): Video {
     last_played_at: null,
     created_at: 0,
     updated_at: 0,
+    ...overrides,
+  };
+}
+
+/**
+ * One task, as the task page reads it: a kernel task about a video, running.
+ *
+ * Spelled out once for the same reason as [`video`]: the shape belongs to the
+ * backend, and a field added there should be one edit here rather than an edit
+ * in every test that happened to write the row out itself.
+ */
+export function task(overrides: Partial<TaskRow> = {}): TaskRow {
+  return {
+    id: 1,
+    plugin: null,
+    space_id: 1,
+    space_name: 'Movies',
+    video_id: 10,
+    video_name: 'a.mkv',
+    kind: 'move',
+    state: 'running',
+    pause_requested: false,
+    cancel_requested: false,
+    progress_current: null,
+    progress_total: null,
+    progress_label: null,
+    attempts: 0,
+    last_error: null,
+    updated_at: 1_760_000_000_000,
     ...overrides,
   };
 }

@@ -15,17 +15,10 @@
 //! page to show. Without one it is terminal. Retrying a terminal failure from
 //! the task page is the mirror image and lives here too.
 
-// Nothing in the kernel calls any of these yet: the checkpoint the host loop
-// takes and the task page's commands are later issues of the same spec (#98 and
-// its neighbours), so the module is written down and exercised by its own tests
-// first. It carries `#[allow(dead_code)]` until then, the way
-// `Events::plugin_failed` does (spec #82).
-#![allow(dead_code)]
-
 use rusqlite::params;
 
 use crate::error::AppError;
-use crate::model::{TaskSignal, TaskState};
+use crate::model::{TaskAction, TaskSignal, TaskState};
 
 use super::tasks::{invalid_state, task_row, COLUMNS};
 use super::{now, Repository};
@@ -137,6 +130,11 @@ impl Repository {
     /// Carries out a pause a checkpoint reported: the running task steps out
     /// of the queue and its request mark is cleared — the request has been
     /// acted on, and what remains is the state the user asked for.
+    // No caller yet: a paused pass waits at its checkpoint with the mark on the
+    // row rather than returning, so nothing acknowledges the pause by moving
+    // the row. The transition is kept for an owner that does (spec #96 §2
+    // states it), and its tests keep the SQL honest until then.
+    #[allow(dead_code)]
     pub(crate) fn apply_task_pause(&mut self, id: i64) -> Result<(), AppError> {
         let changed = self.connection.execute(
             "UPDATE tasks SET state='paused', pause_requested=0, updated_at=?2 \
@@ -206,6 +204,26 @@ impl Repository {
         }
         self.task(id)?;
         Err(invalid_state())
+    }
+
+    /// Applies one of the task page's four actions, as the transition that
+    /// action asks for.
+    ///
+    /// The actions are the interface's vocabulary, parsed once at the command;
+    /// which transition each one means lives here so the two ends of the queue
+    /// — the task page and the status bar — cannot mean different things by
+    /// the same word.
+    pub(crate) fn apply_task_action(
+        &mut self,
+        id: i64,
+        action: TaskAction,
+    ) -> Result<(), AppError> {
+        match action {
+            TaskAction::Pause => self.request_task_pause(id),
+            TaskAction::Resume => self.resume_task(id),
+            TaskAction::Cancel => self.request_task_cancel(id),
+            TaskAction::Retry => self.retry_task(id),
+        }
     }
 
     /// The task page's 暂停, asked for while the task is queued or waiting:

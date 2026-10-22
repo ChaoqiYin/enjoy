@@ -18,6 +18,36 @@ export function displayPath(path: string): string {
   return /^UNC\\/i.test(remainder) ? `\\\\${remainder.slice(4)}` : remainder;
 }
 
+/**
+ * The one date-and-time shape the library and the task page show.
+ *
+ * A table that draws many rows builds this once and formats each row with it;
+ * a single value calls [`formatDateTime`], which builds one for itself.
+ */
+export function dateTimeFormat(language: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat(language, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
+/**
+ * One instant in that shape, or its raw number when the runtime cannot read
+ * it.
+ *
+ * The timestamp arrives from the backend, and `Intl.DateTimeFormat` answers an
+ * unreadable date by throwing — while rendering, which React answers by
+ * unmounting the tree. Falling back to the number keeps a bad value to the one
+ * cell it belongs to.
+ */
+export function formatDateTime(timestamp: number, language: string): string {
+  try {
+    return dateTimeFormat(language).format(new Date(timestamp));
+  } catch {
+    return String(timestamp);
+  }
+}
+
 export function duration(milliseconds: number | null): string {
   if (milliseconds === null) return '—';
   const seconds = Math.max(0, Math.floor(milliseconds / 1000));

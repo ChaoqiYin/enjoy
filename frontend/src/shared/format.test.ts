@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { displayPath } from './format';
+import { displayPath, formatDateTime } from './format';
 
 describe('path display', () => {
   it('drops the verbatim prefix a resolved Windows path carries', () => {
@@ -22,5 +22,19 @@ describe('path display', () => {
     ]) {
       expect(displayPath(path)).toBe(path);
     }
+  });
+});
+
+describe('date and time display', () => {
+  it('shows a medium date and a short time in the language', () => {
+    const formatted = formatDateTime(
+      new Date(2025, 0, 2, 15, 4).getTime(),
+      'en',
+    );
+    expect(formatted).toContain('2025');
+    expect(formatted).toContain('Jan');
+  });
+  it('falls back to the raw number when the instant cannot be read', () => {
+    expect(formatDateTime(Number.NaN, 'en')).toBe('NaN');
   });
 });

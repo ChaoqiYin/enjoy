@@ -10,7 +10,7 @@ use std::sync::Arc;
 use crate::app::{test_state, AppState};
 use crate::events::Recorded;
 use crate::media::MediaProcessor;
-use crate::model::TaskState;
+use crate::model::{TaskAction, TaskState};
 use crate::plugins::NoPlugins;
 use crate::repository::fixture::Fixture;
 use crate::repository::lock_shared;
@@ -144,7 +144,7 @@ fn a_cancel_that_arrives_while_the_task_runs_is_what_the_row_says_at_the_end() {
             .unwrap()
             .request_task_cancel(id)
             .unwrap();
-        control.carry(id, "cancel").unwrap();
+        control.carry(id, TaskAction::Cancel);
     }));
     let owner = owner(&state, Arc::clone(&events));
 

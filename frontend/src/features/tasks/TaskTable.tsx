@@ -11,23 +11,13 @@ import {
   TableRow,
 } from '../../shared/ui/table';
 import { Tooltip } from '../../shared/Tooltip';
+import { formatDateTime } from '../../shared/format';
 import { EmptyState } from '../library/EmptyState';
 
 type TaskTableProps = {
   tasks: TaskRow[];
   onAction: (taskId: number, action: TaskAction) => void;
 };
-
-function formatTime(ts: number, locale: string) {
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }).format(new Date(ts));
-  } catch {
-    return String(ts);
-  }
-}
 
 /**
  * The state as the user reads it: a task that was told to pause or to stop is
@@ -168,7 +158,7 @@ export function TaskTable({ tasks, onAction }: TaskTableProps) {
                 </Tooltip>
               </TableCell>
               <TableCell className="whitespace-nowrap">
-                {formatTime(task.updated_at, i18n.language)}
+                {formatDateTime(task.updated_at, i18n.language)}
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1.5">

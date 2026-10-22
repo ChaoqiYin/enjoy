@@ -10,13 +10,6 @@
 //! which an index cannot express and a predicate in one transaction can
 //! (spec #96 §1).
 
-// Nothing in the kernel calls either move yet: the commands that enqueue and
-// the host loop that claims are later issues of the same spec (#98 and its
-// neighbours), so the module is written down and exercised by its own tests
-// first. The whole module carries `#[allow(dead_code)]` until then, the way
-// `Events::plugin_failed` does (spec #82).
-#![allow(dead_code)]
-
 use rusqlite::{params, OptionalExtension, Row};
 
 use crate::error::AppError;

@@ -8,7 +8,7 @@ use crate::error::AppError;
 use crate::events::AppEvents;
 use crate::repository::lock_shared;
 
-use super::control::is_supported;
+use super::control::{is_supported, Stop};
 use super::release::{Release, UpdateCheck};
 use super::transfer::{self, UpdateProgress};
 
@@ -89,7 +89,10 @@ pub async fn install_update(
 /// reporting already are.
 #[tauri::command]
 pub fn control_update(action: String, state: State<'_, AppState>) -> Result<(), AppError> {
-    state.update.action(&action)
+    let stop = Stop::parse(&action)
+        .ok_or_else(|| AppError::new("update.invalid_action", "Unknown update action"))?;
+    state.update.action(stop);
+    Ok(())
 }
 
 /// The key a release's signature has to answer to.

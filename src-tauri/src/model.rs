@@ -322,14 +322,9 @@ impl FileStamp {
 /// cooperative, and a task that never checkpoints never stops (spec #96 §2,
 /// the accepted blind spot).
 ///
-/// This shape and the two vocabularies below it are written down and read by the
-/// repository's own tests before anything in the kernel constructs one: the
-/// commands and the host loop that hand a task out are later issues of the same
-/// spec (#98 and its neighbours), and the queue's rules are part of the model
-/// from the first day rather than something bolted on with the wiring. Each
-/// therefore carries `#[allow(dead_code)]` until then, the way `Events::plugin_failed`
-/// does (spec #82).
-#[allow(dead_code)]
+/// This shape and the vocabularies below it are the queue's own: every field is
+/// read by the repository, the commands or the host loop, so nothing here is
+/// kept for a caller that does not exist.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Task {
     pub id: i64,
@@ -359,7 +354,6 @@ pub struct Task {
 /// state this build has never heard of is not a state to fall back from but
 /// data that cannot be answered for, and [`TaskState::from_stored`] says so by
 /// returning nothing rather than picking a neighbour.
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskState {
     /// Runnable once `available_at` arrives; the only state an owner claims
@@ -406,15 +400,6 @@ impl TaskState {
             _ => None,
         }
     }
-
-    /// Whether the task is finished, in whichever way it finished. The dedup
-    /// question and the task page's both-read-it sense of "not running any
-    /// more" are this predicate and nothing else: a finished task frees its
-    /// key, and a task that is not finished holds it.
-    #[allow(dead_code)]
-    pub fn is_terminal(self) -> bool {
-        matches!(self, Self::Done | Self::Failed | Self::Cancelled)
-    }
 }
 
 /// What a checkpoint finds out about the task it was called for: keep going,
@@ -423,12 +408,39 @@ impl TaskState {
 /// The answer is read off the row and is deliberately sticky — a request stays
 /// requested until the task page changes it, so a checkpoint asked the same
 /// question twice gets the same answer (spec #96 §5).
-#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskSignal {
     Run,
     Pause,
     Cancel,
+}
+
+/// What the task page can ask of a task, by the name the interface sends
+/// (spec #102).
+///
+/// The words cross the wire as strings and are parsed once, at the command that
+/// meets the interface; below that line an action is this closed type, so a
+/// match on it is exhaustive and a name nobody knows is refused at the edge
+/// rather than travelling deeper as a string every layer has to re-check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskAction {
+    Pause,
+    Resume,
+    Cancel,
+    Retry,
+}
+
+impl TaskAction {
+    /// The action a wire word names, or nothing if this build does not know it.
+    pub(crate) fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "pause" => Some(Self::Pause),
+            "resume" => Some(Self::Resume),
+            "cancel" => Some(Self::Cancel),
+            "retry" => Some(Self::Retry),
+            _ => None,
+        }
+    }
 }
 
 /// One row of the task page: the queue as the interface draws it (spec #102).
