@@ -51,6 +51,7 @@
 //! | `task_checkpoint(id) -> i32` | `0` run, `1` pause, `2` cancel, negative if the task is not the plugin's. |
 //! | `task_done(id, fields, fields_len) -> i32` | `0`, or negative if the task is not the plugin's. |
 //! | `task_fail(id, message, message_len, retry_at_ms) -> i32` | `0`, or negative if the task is not the plugin's. |
+//! | `now_ms() -> i64` | milliseconds since UNIX epoch (wall clock). |
 //!
 //! The capability names behind these are few and the calls are more of them
 //! because capability and call are not the same thing: storage is two calls
@@ -82,6 +83,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use wasmtime::{Caller, Engine, Linker, StoreLimits, StoreLimitsBuilder};
 
@@ -381,7 +383,24 @@ pub(super) fn linker(engine: &Engine) -> Result<Linker<Guest>, String> {
             },
         )
         .map_err(|error| format!("the `task_fail` import could not be defined: {error}"))?;
+    linker
+        .func_wrap_async(MODULE, "now_ms", |mut caller: Caller<'_, Guest>, ()| {
+            Box::new(async move {
+                let answer = now_ms();
+                let _ = super::arm(&mut caller);
+                answer
+            })
+        })
+        .map_err(|error| format!("the `now_ms` import could not be defined: {error}"))?;
     Ok(linker)
+}
+
+fn now_ms() -> Result<i64, wasmtime::Error> {
+    let ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| wasmtime::Error::msg("time went backwards"))?
+        .as_millis();
+    Ok(ms as i64)
 }
 
 /// Writes one line to the log the kernel writes to.
