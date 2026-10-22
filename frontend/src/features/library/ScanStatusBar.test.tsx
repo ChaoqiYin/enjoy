@@ -10,7 +10,7 @@ import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import english from '../../../../shared/locales/en/common.json';
 import { idleScan } from '../../test/fixtures';
-import { ScanProgress } from './ScanProgress';
+import { ScanStatusBar } from './ScanStatusBar';
 
 const i18n = createInstance();
 
@@ -31,24 +31,23 @@ function scanning(overrides = {}) {
   });
   render(
     <I18nextProvider i18n={i18n}>
-      <ScanProgress status={status} onAction={onAction} />
+      <ScanStatusBar status={status} onAction={onAction} />
     </I18nextProvider>,
   );
   return onAction;
 }
 
-it('says how far the scan has come, and where it is now', () => {
+it('says how far the pass has come, and where it is now', () => {
   scanning();
   expect(screen.getByText(/200 found, 50 processed/)).toBeTruthy();
   // The bar is the interface's own (shadcn), drawn from the counts rather than
   // from a native `<progress>`: what the screen shows and what assistive
-  // technology is told come from the same number. daisyUI's `progress` class
-  // was on a native element and, with the plugin gone, drew nothing at all.
+  // technology is told come from the same number.
   const bar = screen.getByRole('progressbar');
   expect(bar.getAttribute('aria-valuenow')).toBe('50');
   expect(bar.getAttribute('aria-valuemax')).toBe('200');
   expect(screen.getByText('25%')).toBeTruthy();
-  // The path in front of the user is the path the panel spells out, not the
+  // The path in front of the user is the path the bar spells out, not the
   // verbatim one the index stores.
   expect(screen.getByText('E:\\movies\\example.mp4')).toBeTruthy();
 });
@@ -77,13 +76,13 @@ it('gives the whole path of the file it is on, once the pointer rests on it', ()
 it('says it is working before there is a count to draw a length from', () => {
   scanning({ discovered: 0, processed: 0, currentPath: '' });
   // No bar: a length drawn from zero would be a length it does not have. The
-  // placeholder is the interface's own spinner — the daisyUI `loading` span drew
-  // nothing once the plugin was gone, so the panel looked like it had hung.
+  // placeholder is the interface's own spinner, so the bar says work is
+  // happening without inventing a length.
   expect(screen.queryByRole('progressbar')).toBeNull();
   expect(document.querySelector('[data-slot="spinner"]')).toBeTruthy();
 });
 
-it('pauses a scan that is running, and resumes one that is paused', () => {
+it('pauses a pass that is running, and resumes one that is paused', () => {
   const paused = scanning();
   fireEvent.click(screen.getByRole('button', { name: english.pause }));
   expect(paused).toHaveBeenCalledWith('pause');
@@ -96,13 +95,24 @@ it('pauses a scan that is running, and resumes one that is paused', () => {
   expect(resumed).toHaveBeenCalledWith('resume');
 });
 
-it('cancels the scan from the same place', () => {
+it('cancels the pass from the same place', () => {
   const onAction = scanning();
   const button = screen.getByRole('button', { name: english.cancelScan });
-  // Neutral rather than the error red daisyUI wore: stopping a scan is a close,
-  // not a removal, and the two panels that share this dialog say it the same way
-  // (`ThumbnailProgress`, `UpdateSetting`).
+  // Neutral rather than the error red: stopping a pass is a close, not a
+  // removal, and every other control in this app that stops a running
+  // operation says it the same way.
   expect(button.getAttribute('data-variant')).toBe('secondary');
   fireEvent.click(button);
   expect(onAction).toHaveBeenCalledWith('cancel');
+});
+
+it('names a thumbnail rebuild in its own words', () => {
+  scanning({ operation: 'thumbnails' });
+  expect(screen.getByText(/Thumbnail rebuild/)).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: english.pauseRegeneration }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: english.cancelRegeneration }),
+  ).toBeTruthy();
 });

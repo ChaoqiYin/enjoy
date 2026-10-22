@@ -28,10 +28,13 @@ struct State {
     running: bool,
     paused: bool,
     cancelled: bool,
-    /// Closed for the rest of the run by [`ScanControl::close`], which only the
-    /// install path calls. It is not the same fact as `running`: this one is
-    /// never given back.
-    closed: bool,
+    /// The task row this pass is the execution of, when it is one.
+    ///
+    /// Asked by `scan_action`, which is where a 暂停/继续/取消 that arrived at
+    /// the *task row* is carried into the pass that is running: the flags below
+    /// are what the work reads at its checkpoints, so a request has to be
+    /// written into them or it is not a request at all (spec #101).
+    task: Option<i64>,
     status: ScanStatus,
 }
 
@@ -73,34 +76,42 @@ impl ScanControl {
         self.lock().cancelled
     }
 
+    /// Whether a pass is running, which only the tests ask now.
+    ///
+    /// The application stopped asking: whether work is in flight is a question
+    /// about the queue now, and the queue answers it in rows the task page
+    /// reads (spec #101).
+    #[cfg(test)]
     pub fn is_running(&self) -> bool {
         self.lock().running
     }
 
-    pub fn begin(self: &Arc<Self>) -> Result<ScanGuard, AppError> {
-        let mut state = self.lock();
-        if state.closed {
-            // Only the install path closes the slot, and installing exits the
-            // process. A scan asked for in the moment before that is not
-            // queued: there is no later to run it in. Same code as a scan that
-            // is already running — the interface has one thing to say about a
-            // slot it cannot have.
-            return Err(AppError::new(
-                "media.scan.busy",
-                "The scan slot is closed for the rest of this run",
-            ));
-        }
-        if state.running {
-            return Err(AppError::new(
-                "media.scan.busy",
-                "A scan is already running",
-            ));
-        }
+    /// The task row this pass is executing, if this pass is a task's.
+    pub fn task_id(&self) -> Option<i64> {
+        self.lock().task
+    }
+
+    /// Takes the slot for a pass that no task row is waiting on — the shape a
+    /// test drives the control in, since a task is claimed by
+    /// [`crate::tasks`] in the application itself.
+    #[cfg(test)]
+    pub fn begin(self: &Arc<Self>) -> ScanGuard {
+        self.start(None)
+    }
+
+    /// Takes the slot for the execution of one claimed task.
+    pub fn begin_task(self: &Arc<Self>, task: i64) -> ScanGuard {
+        self.start(Some(task))
+    }
+
+    fn start(self: &Arc<Self>, task: Option<i64>) -> ScanGuard {
         // Replaced wholesale, which is also what clears `cancelled` from the
-        // pass before. `closed` cannot be lost here: the check above returns
-        // before this is reached.
-        *state = State {
+        // pass before. There is no refusal here: two media passes cannot be
+        // running at once because the queue claims one task at a time
+        // (`crate::tasks`), not because the slot refuses a second take.
+        *self.lock() = State {
             running: true,
+            task,
             status: ScanStatus {
                 phase: "discovering".into(),
                 operation: "scan".into(),
@@ -108,26 +119,7 @@ impl ScanControl {
             },
             ..Default::default()
         };
-        Ok(ScanGuard(Arc::clone(self)))
-    }
-
-    /// Closes the slot for the rest of the run, or says that a task holds it.
-    ///
-    /// Installing an update exits the process, so what that path needs is not
-    /// the slot held for a while but the slot closed for good. A guard that
-    /// could be released would offer a way back that does not exist, and would
-    /// leave the caller trusted not to take it.
-    ///
-    /// `false` rather than an error, because the refusal has one reason and the
-    /// words for it belong to the caller: the install path reports it as
-    /// `update.blocked.scanning`, not as a scan failure.
-    pub fn close(&self) -> bool {
-        let mut state = self.lock();
-        if state.running {
-            return false;
-        }
-        state.closed = true;
-        true
+        ScanGuard(Arc::clone(self))
     }
 
     pub fn checkpoint(&self) -> Result<(), AppError> {
@@ -168,6 +160,33 @@ impl ScanControl {
         Ok(())
     }
 
+    /// Carries a request that was written on a task row into the pass that is
+    /// running that task.
+    ///
+    /// The row is where a request is recorded, and the pass is what it stops:
+    /// the two are one request seen from two places, so the request has to
+    /// reach both. This is the way in from the task page, whose action writes
+    /// the row; the status bar's own action writes the row as well and comes
+    /// here too, so the two ways of asking the same thing end in the same
+    /// place (spec #101).
+    ///
+    /// A request about another task is about that task and not about this
+    /// pass: the kernel's queue is one lane, so only one pass runs at a time,
+    /// and a request for a task that is still waiting is carried by the queue
+    /// itself — which is what claims it later.
+    ///
+    /// An action the pass does not know is not a refusal either: a 重试 puts a
+    /// task back in line and no pass is holding it.
+    pub fn carry(&self, task: i64, action: &str) -> Result<(), AppError> {
+        if self.task_id() != Some(task) {
+            return Ok(());
+        }
+        match action {
+            "pause" | "resume" | "cancel" => self.action(action),
+            _ => Ok(()),
+        }
+    }
+
     /// Writes the status and hands back what a reader would see from now on.
     ///
     /// The overlay is applied here rather than only at the reader, so a caller
@@ -189,32 +208,12 @@ impl ScanControl {
     }
 }
 
-/// What a change to the spaces answers while a media task holds the slot.
-///
-/// The slot is held by a scan, by a scan that is paused, and by the information
-/// refresh of a single file, which asks for it the same way. Asking the slot
-/// rather than reading a phase is what makes those three the same question --
-/// one gate describing one thing, which is what ADR 0012 asks for.
-///
-/// The refusal is not about a race: a task carries the space it was started on
-/// and writes where it meant to. It is that progress is reported for the
-/// application and names no space, so a user who moved away in the middle of a
-/// pass would be watching one that is not touching the library in front of them.
-pub fn space_change_gate(scanning: bool) -> Result<(), AppError> {
-    if scanning {
-        return Err(AppError::new(
-            "space.blocked.scanning",
-            "A media task is holding the scan slot",
-        ));
-    }
-    Ok(())
-}
-
 impl Drop for ScanGuard {
     fn drop(&mut self) {
         let mut state = self.0.lock();
         state.running = false;
         state.paused = false;
+        state.task = None;
         if state.cancelled {
             state.status.phase = "cancelled".into();
         } else if state.status.phase != "complete" {
@@ -226,60 +225,40 @@ impl Drop for ScanGuard {
 
 #[cfg(test)]
 mod tests {
-    use super::{space_change_gate, ScanControl, ScanStatus};
+    use super::{ScanControl, ScanStatus};
     use std::sync::Arc;
 
     #[test]
-    fn the_spaces_cannot_change_while_the_slot_is_held() {
+    fn begin_takes_the_slot_and_says_so_to_a_reader() {
         let control = Arc::new(ScanControl::default());
-        // Nothing is running, so nothing is in the way.
-        assert!(space_change_gate(control.is_running()).is_ok());
-        // `begin` is how a pass takes the slot, and the information refresh of
-        // a single file takes it the same way, so this covers both of them.
-        let guard = control.begin().unwrap();
-        assert_eq!(
-            space_change_gate(control.is_running()).unwrap_err().code,
-            "space.blocked.scanning"
-        );
-        // A paused pass is still a pass: the slot is held and its progress is
-        // still what the interface would be showing.
-        control.action("pause").unwrap();
-        assert_eq!(control.status().phase, "paused");
-        assert!(space_change_gate(control.is_running()).is_err());
-        // Cancelling asks the pass to stop rather than stopping it, so the slot
-        // is still held here; it comes back when the pass itself ends.
-        control.action("cancel").unwrap();
-        assert!(space_change_gate(control.is_running()).is_err());
+        let guard = control.begin();
+        assert!(control.is_running());
+        // A pass with no task behind it, which is how a test drives one.
+        assert_eq!(control.task_id(), None);
+        assert_eq!(control.status().phase, "discovering");
         drop(guard);
-        assert!(space_change_gate(control.is_running()).is_ok());
+        assert!(!control.is_running());
+        assert_eq!(control.status().phase, "failed");
     }
 
     #[test]
-    fn a_closed_slot_refuses_every_later_scan() {
+    fn a_pass_that_is_a_task_remembers_which_one_while_it_runs() {
         let control = Arc::new(ScanControl::default());
-        assert!(control.close());
-        // Not queued for later: the only caller of `close` is on its way out of
-        // the process, so there is no later to run a scan in.
-        assert_eq!(control.begin().err().unwrap().code, "media.scan.busy");
-        assert!(control.close());
-    }
-
-    #[test]
-    fn closing_a_slot_a_task_holds_is_refused_and_not_spent() {
-        let control = Arc::new(ScanControl::default());
-        let guard = control.begin().unwrap();
-        // Refused, not spent: closing is for good, so a task in the way must
-        // leave it open rather than close it behind itself.
-        assert!(!control.close());
+        let guard = control.begin_task(7);
+        // The one thing `scan_action` needs in order to carry a request into
+        // the running pass and back onto its row.
+        assert_eq!(control.task_id(), Some(7));
         drop(guard);
-        assert!(control.close());
-        assert!(control.begin().is_err());
+        // A finished pass holds no task: the next one to take the slot is a
+        // different task's execution, and a request after the end is about
+        // nothing.
+        assert_eq!(control.task_id(), None);
     }
 
     #[test]
     fn publishing_while_paused_reports_paused_rather_than_what_was_written() {
         let control = Arc::new(ScanControl::default());
-        let guard = control.begin().unwrap();
+        let guard = control.begin();
         control.action("pause").unwrap();
         // A paused pass keeps working, so it keeps writing what the work is
         // doing. The phase is not the writer's to choose while the pause is on:
@@ -299,12 +278,13 @@ mod tests {
     }
 
     #[test]
-    fn concurrent_scans_are_rejected_and_cancellation_releases_slot() {
+    fn a_cancelled_pass_stops_at_its_next_checkpoint_and_says_cancelled() {
         let control = Arc::new(ScanControl::default());
-        let guard = control.begin().unwrap();
-        assert!(control.begin().is_err());
+        let guard = control.begin();
         control.action("pause").unwrap();
         assert_eq!(control.status().phase, "paused");
+        // A cancel outranks a pause: the pass is woken out of the wait it is
+        // sitting in, and its next checkpoint refuses rather than continuing.
         control.action("cancel").unwrap();
         assert_eq!(
             control.checkpoint().unwrap_err().code,
@@ -312,7 +292,15 @@ mod tests {
         );
         drop(guard);
         assert_eq!(control.status().phase, "cancelled");
-        let next = control.begin().unwrap();
+    }
+
+    #[test]
+    fn the_next_pass_starts_from_what_its_predecessor_left() {
+        let control = Arc::new(ScanControl::default());
+        let first = control.begin();
+        control.action("cancel").unwrap();
+        drop(first);
+        let next = control.begin();
         control.checkpoint().unwrap();
         control.publish(ScanStatus {
             phase: "complete".into(),

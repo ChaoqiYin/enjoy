@@ -102,6 +102,34 @@ use crate::events::Events;
 use metrics::Metrics;
 use registry::Registry;
 
+/// The one thing the kernel's task owner asks of the plugin system: that a
+/// scan finished.
+///
+/// The host is the only thing in the kernel that knows plugins exist, and the
+/// owner ([`crate::tasks`]) should not have to know even that much. This is the
+/// seam between them — a trait a test implements with nothing behind it, and
+/// the host is the one value in the application that implements it for real.
+/// The shape is what the old command did before the scan became a task: the
+/// command announced from where it had waited, and the owner waits now.
+pub(crate) trait ScanEvents: Send + Sync {
+    fn scan_completed(&self, space: &mount_points::SpaceRef, videos: &[mount_points::VideoRef]);
+}
+
+impl ScanEvents for PluginHost {
+    fn scan_completed(&self, space: &mount_points::SpaceRef, videos: &[mount_points::VideoRef]) {
+        PluginHost::scan_completed(self, space, videos);
+    }
+}
+
+/// A plugin system that does nothing, which is what the kernel's task owner is
+/// built with where there is nothing to tell: a test, and the one wiring line
+/// that has no host to hand.
+pub(crate) struct NoPlugins;
+
+impl ScanEvents for NoPlugins {
+    fn scan_completed(&self, _space: &mount_points::SpaceRef, _videos: &[mount_points::VideoRef]) {}
+}
+
 /// The plugins the kernel asks, what each call cost, and who is told when one
 /// fails.
 ///

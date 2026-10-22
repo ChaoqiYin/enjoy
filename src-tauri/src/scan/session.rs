@@ -65,7 +65,7 @@ pub(crate) fn rescan(
     repository: &Arc<Mutex<Repository>>,
     control: &Arc<ScanControl>,
     media: &MediaProcessor,
-    events: &impl Events,
+    events: &(impl Events + ?Sized),
 ) -> Result<Vec<VideoFile>, AppError> {
     finished(
         guard,
@@ -92,7 +92,7 @@ pub(crate) fn regenerate_thumbnails(
     repository: &Arc<Mutex<Repository>>,
     control: &Arc<ScanControl>,
     media: &MediaProcessor,
-    events: &impl Events,
+    events: &(impl Events + ?Sized),
 ) -> Result<(), AppError> {
     finished(
         guard,
@@ -119,7 +119,7 @@ fn regenerating(
     repository: &Arc<Mutex<Repository>>,
     control: &Arc<ScanControl>,
     media: &MediaProcessor,
-    events: &impl Events,
+    events: &(impl Events + ?Sized),
 ) -> Result<(), AppError> {
     let videos: Vec<VideoFile> = lock_shared(repository)?
         .records(space_id)?
@@ -201,7 +201,7 @@ pub(crate) fn refresh_info(
     repository: &Arc<Mutex<Repository>>,
     control: &Arc<ScanControl>,
     media: &MediaProcessor,
-    events: &impl Events,
+    events: &(impl Events + ?Sized),
 ) -> Result<(), AppError> {
     finished(
         guard,
@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn a_job_reports_after_the_slot_is_free() {
         let control = Arc::new(ScanControl::default());
-        let guard = control.begin().unwrap();
+        let guard = control.begin();
         let holding_while_working = Cell::new(false);
         let holding_while_reporting = Cell::new(true);
 

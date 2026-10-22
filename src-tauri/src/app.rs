@@ -1,6 +1,7 @@
 use crate::error::AppError;
 use crate::events::AppEvents;
 use crate::i18n::{language, native};
+use crate::media::MediaProcessor;
 use crate::plugins::{loading, settings, PluginHost, Store};
 use crate::repository::{lock_shared, Repository};
 use crate::scan::control::ScanControl;
@@ -56,9 +57,10 @@ pub(crate) struct AppState {
 pub(crate) fn test_state(fixture: &crate::repository::fixture::Fixture) -> AppState {
     use crate::repository::fixture::Library;
     let Library { repository, .. } = fixture.library();
+    let repository = Arc::new(Mutex::new(repository));
     AppState {
         scan: Arc::new(ScanControl::default()),
-        repository: Arc::new(Mutex::new(repository)),
+        repository: Arc::clone(&repository),
         update: Arc::new(UpdateControl::default()),
         share: Arc::new(ShareControl::default()),
         // No plugin is enabled, and none can be until there is a loader to
@@ -128,7 +130,8 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
         &path,
         native::translate(&language, "defaultSpace"),
     )?));
-    let plugins = Arc::new(PluginHost::new(Arc::new(AppEvents(app.clone()))));
+    let events = Arc::new(AppEvents(app.clone()));
+    let plugins = Arc::new(PluginHost::new(events.clone()));
     let plugin_store = Arc::new(Store::new(plugin_store(&path)));
     // What the user installed and switched on is put into the rotation before
     // the window is shown. It cannot fail: `loading::load` answers with nothing
@@ -153,9 +156,27 @@ pub(crate) fn initialize_backend(app: &tauri::AppHandle) -> Result<(), AppError>
             );
         }
     }
+    // A task an exit left running goes back to waiting before the owner starts
+    // looking, so the interrupted work is the first thing it picks up again
+    // (spec #96 §1).
+    lock_shared(&repository)?.recover_tasks()?;
+    let scan = Arc::new(ScanControl::default());
+    let scan_events: Arc<dyn crate::plugins::ScanEvents> = plugins.clone();
+    let owner_handle = app.clone();
+    let owner = Arc::new(crate::tasks::Runner::new(
+        Arc::clone(&repository),
+        Arc::clone(&scan),
+        events,
+        scan_events,
+        Box::new(move || {
+            let cache = thumbnail_cache(&database_path(&owner_handle)?);
+            MediaProcessor::for_app(&owner_handle, cache)
+        }),
+    ));
+    std::thread::spawn(move || owner.run_forever());
     app.manage(AppState {
         repository,
-        scan: Arc::new(ScanControl::default()),
+        scan,
         update: Arc::new(UpdateControl::default()),
         share: Arc::new(ShareControl::default()),
         plugins,

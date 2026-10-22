@@ -87,33 +87,41 @@ it('announces a copied path once it was copied, and not before', () => {
   expect(screen.getByText(english.copied)).toBeTruthy();
 });
 
-// The scan panel is a native `<dialog>`, and a native dialog is painted with the
-// UA stylesheet's `color: canvastext` — a keyword resolved from `color-scheme`,
-// which this app did not set at the time (it themes with `data-theme` and CSS
-// variables, so `color-scheme` computed to `normal`, which the engine reads as
-// light). In the dark theme `canvastext` was black, and because a UA declaration
-// beats inheritance, `body`'s `color` never reached the panel: the text came out
-// black on the dark card until the panel's surface named its own foreground.
-//
-// That keyword now resolves per theme — the app declares `color-scheme` in both
-// theme blocks (ADR 0040). The panel keeps naming its own foreground anyway: it
-// is what every other surface in the app does, and the black-text fix must not
-// rest on a second declaration staying correct.
+// The scan panel is a bar along the page, and a bar that is a card surface
+// names its own foreground: the app's surfaces are `--card` with
+// `--card-foreground` (ADR 0040), and a surface that leaves the foreground to
+// be inherited is one whose text depends on whatever it happens to sit in.
 //
 // What this test holds is that pairing — the surface that paints `bg-card` also
 // names `text-card-foreground`, as every other card in this app does. What it
-// cannot hold is the rendering: jsdom applies no UA stylesheet and resolves no
-// `canvastext`, so it can neither reproduce the black text nor prove the fix
-// renders readable. The colour itself was checked in a real browser.
-it('gives the scan panel a foreground of its own rather than inheriting one', () => {
+// cannot hold is the rendering: jsdom applies no UA stylesheet, so it can
+// neither reproduce a black text nor prove the fix renders readable. The
+// colour itself was checked in a real browser.
+it('gives the scan bar a foreground of its own rather than inheriting one', () => {
   scan.isRunning = true;
   // `discovered: 0` is the spinner branch — the second place the black text
-  // showed, a `text-current` spinner taking the panel's colour. It is covered by
+  // showed, a `text-current` spinner taking the bar's colour. It is covered by
   // the same token, because `currentColor` reads what the card now declares.
   scan.status = idleScan({ phase: 'scanning', discovered: 0, processed: 0 });
   render(page());
-  const dialog = document.querySelector('dialog');
-  const card = dialog?.firstElementChild;
-  expect(card?.className).toContain('bg-card');
-  expect(card?.className).toContain('text-card-foreground');
+  const bar = document.querySelector('main > section');
+  expect(bar?.className).toContain('bg-card');
+  expect(bar?.className).toContain('text-card-foreground');
+});
+
+// The bar is not a window over the page: a media pass is a queued task, and
+// the user may carry on using the library while it runs — switching space,
+// opening a record, starting a scrape (spec #101, acceptance 1).
+it('leaves the page usable while a pass runs', () => {
+  scan.isRunning = true;
+  scan.status = idleScan({ phase: 'scanning', discovered: 4, processed: 1 });
+  render(
+    <I18nextProvider i18n={i18n}>
+      <PageFrame>
+        <button>open a record</button>
+      </PageFrame>
+    </I18nextProvider>,
+  );
+  expect(screen.getByRole('button', { name: 'open a record' })).toBeTruthy();
+  expect(document.querySelector('dialog')).toBeNull();
 });
