@@ -1,7 +1,8 @@
 /** Persistence for spaces, directories and application settings. */
 
+import { isAbsolute, resolve } from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
-import { inTransaction } from './db.ts'
+import { inTransaction, retryBusy } from './db.ts'
 import { ApiError } from './errors.ts'
 
 export interface Space {
@@ -204,7 +205,7 @@ export class LibraryStore {
   }
 
   private transaction<T>(run: () => T): T {
-    return inTransaction(this.db, run)
+    return retryBusy(() => inTransaction(this.db, run))
   }
 }
 
@@ -231,11 +232,22 @@ function readDirectory(row: DirectoryRow): Directory {
   return { id: row.id, spaceId: row.space_id, path: row.path }
 }
 
+/**
+ * A configured directory is stored as an absolute, normalized path.
+ *
+ * The client checks the shape first so a mistyped path fails next to the
+ * input, but the server is the authority: a relative path would make every
+ * later comparison depend on the process's working directory.
+ */
 function checkedPath(raw: string): string {
-  if (!raw.trim()) {
+  const path = raw.trim()
+  if (!path) {
     throw new ApiError(400, 'directory.path.empty', 'Directory path is empty')
   }
-  return raw
+  if (!isAbsolute(path)) {
+    throw new ApiError(400, 'directory.path.absolute', 'Directory path must be absolute')
+  }
+  return resolve(path)
 }
 
 export { ApiError }

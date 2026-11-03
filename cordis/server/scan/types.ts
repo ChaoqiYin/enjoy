@@ -10,9 +10,6 @@ export type ScanPhase =
   | 'cancelled'
   | 'failed'
 
-/** The phases in which a scan is running rather than waiting or finished. */
-export const ACTIVE_PHASES = ['discovering', 'indexing', 'metadata', 'thumbnails'] as const
-
 export interface ScanChanges {
   added: number
   updated: number

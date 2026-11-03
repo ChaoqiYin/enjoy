@@ -16,7 +16,7 @@
 
 import type { DatabaseSync } from 'node:sqlite'
 import { sep } from 'node:path'
-import { inTransaction } from '../library/db.ts'
+import { inTransaction, retryBusy } from '../library/db.ts'
 import type { ScanControl } from './control.ts'
 import type { DiscoveredFile, RootScan, ScanChanges } from './types.ts'
 
@@ -36,7 +36,7 @@ export function indexScan(
   control: ScanControl,
   report: IndexReport,
 ): IndexResult {
-  return inTransaction(db, () => {
+  return retryBusy(() => inTransaction(db, () => {
     const changes: ScanChanges = { added: 0, updated: 0, removed: 0 }
     let indexed = 0
 
@@ -69,6 +69,13 @@ export function indexScan(
          codec = CASE WHEN ?9 THEN NULL ELSE videos.codec END,
          thumbnail_path = CASE WHEN ?9 THEN NULL ELSE videos.thumbnail_path END,
          updated_at = CASE WHEN ?9 THEN excluded.updated_at ELSE videos.updated_at END`,
+    )
+    const findVideoId = db.prepare(
+      'SELECT id FROM videos WHERE space_id = ? AND path = ?',
+    )
+    const linkDirectory = db.prepare(
+      `INSERT OR IGNORE INTO directory_videos (space_id, directory_path, video_id)
+       VALUES (?, ?, ?)`,
     )
     const now = Date.now()
 
@@ -107,6 +114,10 @@ export function indexScan(
           now,
           changed ? 1 : 0,
         )
+        const video = findVideoId.get(spaceId, file.path) as { id: number }
+        // The association names the configured root that produced the file, so
+        // removing that root can cascade its membership rows away with it.
+        linkDirectory.run(spaceId, scan.path, video.id)
         indexed += 1
         report.onIndexed(file, indexed)
       }
@@ -133,5 +144,5 @@ export function indexScan(
 
     control.checkpoint()
     return { changes, indexed }
-  })
+  }))
 }

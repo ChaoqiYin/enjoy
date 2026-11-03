@@ -435,3 +435,59 @@ test('pause and resume reject an unknown scan and an invalid transition', async 
     await library.close()
   }
 })
+
+interface MembershipRow {
+  space_id: number
+  directory_path: string
+  video_id: number
+}
+
+/** Read the configured-directory membership rows through a second connection. */
+function membershipRows(dataDir: string): MembershipRow[] {
+  const db = new DatabaseSync(join(dataDir, 'library.db'))
+  try {
+    const rows = db
+      .prepare(
+        'SELECT space_id, directory_path, video_id FROM directory_videos ORDER BY video_id',
+      )
+      .all() as unknown as MembershipRow[]
+    return rows.map((row) => ({
+      space_id: row.space_id,
+      directory_path: row.directory_path,
+      video_id: row.video_id,
+    }))
+  } finally {
+    db.close()
+  }
+}
+
+test('the index records which configured root owns each file and clears it with the record', async () => {
+  const library = await openScanningLibrary()
+  try {
+    const root = join(library.dataDir, 'media')
+    makeVideo(join(root, 'nested', 'clip.mp4'))
+    await library.harness.request('POST', '/api/directories', { path: root })
+
+    await library.harness.request('POST', '/api/scan', { spaceId: 1 })
+    const first = await waitForTerminal(library)
+    assert.equal(first.phase, 'done')
+
+    const videos = videoRows(library.dataDir)
+    assert.equal(videos.length, 1)
+    const listed = await library.harness.request('GET', '/api/videos?spaceId=1')
+    const videoId = (listed.body as { videos: { id: number }[] }).videos[0]!.id
+    assert.deepEqual(membershipRows(library.dataDir), [
+      { space_id: 1, directory_path: root, video_id: videoId },
+    ])
+
+    rmSync(root, { recursive: true, force: true })
+    await library.harness.request('POST', '/api/scan', { spaceId: 1 })
+    const second = await waitForTerminal(library)
+    assert.equal(second.phase, 'done')
+
+    assert.equal(videoRows(library.dataDir).length, 0)
+    assert.deepEqual(membershipRows(library.dataDir), [])
+  } finally {
+    await library.close()
+  }
+})

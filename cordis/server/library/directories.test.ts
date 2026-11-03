@@ -99,3 +99,25 @@ test('POST /api/directories adds a directory to the current space', async () => 
     await library.close()
   }
 })
+
+test('directory paths must be absolute and are normalized before saving', async () => {
+  const library = await openLibrary()
+  try {
+    const relative = await library.harness.request('POST', '/api/directories', {
+      path: 'media/relative',
+    })
+    assert.equal(relative.status, 400)
+    assert.equal((relative.body as { code: string }).code, 'directory.path.absolute')
+
+    const normalized = await library.harness.request('POST', '/api/directories', {
+      path: '/media/./movies/../shows/',
+    })
+    assert.equal(normalized.status, 201)
+    assert.equal(
+      (normalized.body as { directory: { path: string } }).directory.path,
+      '/media/shows',
+    )
+  } finally {
+    await library.close()
+  }
+})

@@ -1,7 +1,7 @@
 /** Persistence for one space's video records: a page of them, one of them, and the two marks. */
 
 import type { DatabaseSync } from 'node:sqlite'
-import { inTransaction } from './db.ts'
+import { inTransaction, retryBusy } from './db.ts'
 import { ApiError } from './errors.ts'
 
 /** A record as the list and detail read it. */
@@ -141,7 +141,7 @@ export class VideoStore {
 
   /** Put one record's favorite mark where the caller says, and answer with it. */
   setFavorite(id: number, favorite: boolean): Video {
-    return inTransaction(this.db, () => {
+    return retryBusy(() => inTransaction(this.db, () => {
       const result = this.db
         .prepare('UPDATE videos SET favorite = ?, updated_at = ? WHERE id = ?')
         .run(favorite ? 1 : 0, Date.now(), id)
@@ -149,7 +149,7 @@ export class VideoStore {
         throw new ApiError(404, 'video.not_found', 'Video does not exist')
       }
       return this.get(id)
-    })
+    }))
   }
 
   /**
@@ -160,7 +160,7 @@ export class VideoStore {
    * before the other write would lose one of them.
    */
   recordPlayed(id: number): Video {
-    return inTransaction(this.db, () => {
+    return retryBusy(() => inTransaction(this.db, () => {
       const now = Date.now()
       const result = this.db
         .prepare(
@@ -173,7 +173,7 @@ export class VideoStore {
         throw new ApiError(404, 'video.not_found', 'Video does not exist')
       }
       return this.get(id)
-    })
+    }))
   }
 }
 

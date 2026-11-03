@@ -121,6 +121,47 @@ export function inTransaction<T>(db: DatabaseSync, body: () => T): T {
   }
 }
 
+/**
+ * Run `body`, replaying it a few times when SQLite says the file is busy.
+ *
+ * `busy_timeout` already waits for a competing writer, so reaching here means
+ * that wait expired. The scan worker and the request handlers share one file;
+ * a batch that lost that race can be replayed as a whole because each write is
+ * a transaction. The sleep is synchronous on purpose: the callers are
+ * synchronous `DatabaseSync` operations, and the pause is measured in
+ * milliseconds.
+ */
+export function retryBusy<T>(fn: () => T, attempts = 3, delayMs = 25): T {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return fn()
+    } catch (error) {
+      if (attempt >= attempts || !isBusy(error)) throw error
+      sleep(delayMs * attempt)
+    }
+  }
+}
+
+function isBusy(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const candidate = error as {
+    code?: unknown
+    errcode?: unknown
+    errstr?: unknown
+    message?: unknown
+  }
+  if (typeof candidate.errcode === 'number') {
+    const primary = candidate.errcode & 0xff
+    if (primary === 5 || primary === 6) return true
+  }
+  const text = `${candidate.code ?? ''} ${candidate.errstr ?? ''} ${candidate.message ?? ''}`
+  return /SQLITE_BUSY|SQLITE_LOCKED|database (?:table )?is locked/i.test(text)
+}
+
+function sleep(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
+
 /** Bring the database to `SCHEMA_VERSION`; reopening an up-to-date file is a no-op. */
 export function migrate(db: DatabaseSync): void {
   const row = db.prepare('PRAGMA user_version').get() as { user_version: number }
