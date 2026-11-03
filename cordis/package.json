@@ -1,0 +1,32 @@
+{
+  "name": "enjoy-cordis",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "cordis-app dev",
+    "build": "cordis-app build",
+    "start": "cordis-app start",
+    "dev:shell": "cordis-app dev --shell",
+    "smoke:sqlite": "node scripts/sqlite-smoke.mjs",
+    "smoke:start": "node scripts/startup-smoke.mjs"
+  },
+  "dependencies": {
+    "cordis-app": "file:../../cordis-app/packages/cordis-app",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@cordis-app/cli": "file:../../cordis-app/packages/cli",
+      "@cordis-app/kernel": "file:../../cordis-app/packages/kernel",
+      "@cordis-app/preset": "file:../../cordis-app/packages/preset",
+      "@cordis-app/protocol": "file:../../cordis-app/packages/protocol",
+      "@cordis-app/runtime": "file:../../cordis-app/packages/runtime",
+      "@cordis-app/ui": "file:../../cordis-app/packages/ui"
+    }
+  }
+}
