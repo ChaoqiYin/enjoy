@@ -11,14 +11,14 @@ export interface RouteDependencies {
   isScanActive: () => boolean
 }
 
-type Handler = (
+export type Handler = (
   req: IncomingMessage,
   res: ServerResponse,
   params: Record<string, string>,
 ) => Promise<void>
 
 /** Route handlers translate domain failures into the shared JSON error shape. */
-function wrap(handler: Handler) {
+export function wrap(handler: Handler) {
   return async (
     req: IncomingMessage,
     res: ServerResponse,
@@ -150,7 +150,7 @@ function requiredSettings(body: unknown): Record<string, unknown> {
 }
 
 /** Read an optional positive integer id; `undefined` means "use the default". */
-function optionalId(raw: unknown): number | undefined {
+export function optionalId(raw: unknown): number | undefined {
   if (raw === undefined || raw === null || raw === '') return undefined
   return requiredId(String(raw))
 }
@@ -163,7 +163,7 @@ function requiredPath(raw: unknown): string {
 }
 
 /** Read a positive integer id from a route parameter. */
-function requiredId(raw: string | undefined): number {
+export function requiredId(raw: string | undefined): number {
   const id = Number(raw)
   if (!Number.isInteger(id) || id <= 0) {
     throw new ApiError(400, 'bad_request', 'id must be a positive integer')
