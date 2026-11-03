@@ -11,6 +11,7 @@
     "build": "cordis-app build",
     "start": "cordis-app start",
     "dev:shell": "cordis-app dev --shell",
+    "test": "node --test \"server/library/*.test.ts\"",
     "smoke:sqlite": "node scripts/sqlite-smoke.mjs",
     "smoke:start": "node scripts/startup-smoke.mjs"
   },

@@ -1,4 +1,5 @@
 import type { KernelContext } from 'cordis-app/server'
+import { installLibrary } from './library/index.ts'
 
 /**
  * Project backend entry.
@@ -8,8 +9,5 @@ import type { KernelContext } from 'cordis-app/server'
  * plugin.json and it cannot be installed or removed.
  */
 export default function apply(ctx: KernelContext): void {
-  ctx.router.get('/api/hello', (_req, res) => {
-    res.writeHead(200, { 'content-type': 'application/json' })
-    res.end(JSON.stringify({ hello: 'world' }))
-  })
+  installLibrary(ctx)
 }
