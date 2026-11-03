@@ -1,6 +1,7 @@
 import { Film, Heart, Play } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { Video } from '../../shared/api'
+import { thumbnailUrl, type Video } from '../../shared/api'
 import { cn } from '../../shared/cn'
 import { duration, fileSize } from '../../shared/format'
 import { Button } from '../../shared/ui/button'
@@ -31,6 +32,7 @@ function FavoriteButton({ video, onToggleFavorite }: VideoActionProps) {
 
 export function VideoCard({ video, onPlay, onToggleFavorite }: VideoActionProps) {
   const { t, i18n } = useTranslation()
+  const [thumbnailFailed, setThumbnailFailed] = useState(false)
   return (
     <article
       data-testid="video-card"
@@ -45,7 +47,18 @@ export function VideoCard({ video, onPlay, onToggleFavorite }: VideoActionProps)
         onClick={() => onPlay(video)}
         className="relative flex aspect-video items-center justify-center bg-muted text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
-        <Film className="size-8 opacity-60" />
+        {thumbnailFailed ? (
+          <Film className="size-8 opacity-60" />
+        ) : (
+          <img
+            data-testid="video-thumbnail"
+            src={thumbnailUrl(video.id)}
+            alt=""
+            loading="lazy"
+            onError={() => setThumbnailFailed(true)}
+            className="size-full object-cover"
+          />
+        )}
         <span className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-opacity group-hover:bg-black/20 group-hover:opacity-100">
           <span className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <Play className="size-4 fill-current" />

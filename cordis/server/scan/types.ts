@@ -44,6 +44,9 @@ export interface ScanStatus extends Partial<Omit<ScanProgress, 'scanId'>> {
 /** Control word values on the shared `Int32Array`. */
 export const CONTROL = { run: 0, pause: 1, cancel: 2 } as const
 
+/** What the slot is being used for: a full scan, or a thumbnail rebuild. */
+export type ScanMode = 'scan' | 'thumbnails'
+
 export interface ScanStartMessage {
   type: 'start'
   scanId: string
@@ -51,6 +54,7 @@ export interface ScanStartMessage {
   dbPath: string
   roots: string[]
   control: SharedArrayBuffer
+  mode: ScanMode
 }
 
 /**

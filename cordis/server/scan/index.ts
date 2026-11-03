@@ -19,6 +19,7 @@ import type { LibraryStore } from '../library/store.ts'
 import {
   CONTROL,
   initialProgress,
+  type ScanMode,
   type ScanPhase,
   type ScanProgress,
   type ScanStartMessage,
@@ -62,7 +63,22 @@ export function installScan(ctx: KernelContext, options: ScanOptions): ScanContr
       const body = await readJson(req)
       const input = body as { spaceId?: unknown } | undefined
       const spaceId = options.store.resolveSpaceId(optionalId(input?.spaceId))
-      sendJson(res, 202, { scanId: controller.start(spaceId) })
+      sendJson(res, 202, { scanId: controller.start(spaceId, 'scan') })
+    }),
+  )
+
+  /**
+   * Rebuild every thumbnail in a space. It takes the same slot as a scan, so
+   * the two can never run together and the space commands stay blocked while
+   * either is running.
+   */
+  ctx.router.post(
+    '/api/thumbnails/rebuild',
+    guarded(async (req, res) => {
+      const body = await readJson(req)
+      const input = body as { spaceId?: unknown } | undefined
+      const spaceId = options.store.resolveSpaceId(optionalId(input?.spaceId))
+      sendJson(res, 202, { scanId: controller.start(spaceId, 'thumbnails') })
     }),
   )
 
@@ -90,7 +106,7 @@ export function installScan(ctx: KernelContext, options: ScanOptions): ScanContr
 }
 
 interface Controller extends ScanController {
-  start(spaceId: number): string
+  start(spaceId: number, mode: ScanMode): string
   status(spaceId: number): ScanStatus
   pause(scanId: string): ScanProgress
   resume(scanId: string): ScanProgress
@@ -129,7 +145,7 @@ function createController(
   }
 
   return {
-    start(spaceId) {
+    start(spaceId, mode) {
       if (current) {
         throw new ApiError(409, 'scan.already_active', 'A scan is already using the library')
       }
@@ -138,12 +154,14 @@ function createController(
       const scanId = randomUUID()
       const buffer = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT)
       const worker = new Worker(workerUrl())
+      const state = initialProgress(scanId, spaceId)
+      if (mode === 'thumbnails') state.phase = 'metadata'
       const session: Session = {
-        state: initialProgress(scanId, spaceId),
+        state,
         control: new Int32Array(buffer),
         buffer,
         worker,
-        resumePhase: 'discovering',
+        resumePhase: mode === 'thumbnails' ? 'metadata' : 'discovering',
         cancelling: false,
       }
       current = session
@@ -177,6 +195,7 @@ function createController(
         dbPath: join(dataDir, 'library.db'),
         roots,
         control: buffer,
+        mode,
       }
       worker.postMessage(start)
       publishState(session.state)

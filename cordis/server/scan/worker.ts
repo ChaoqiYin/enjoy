@@ -1,9 +1,11 @@
-/** The scan thread: discovery, the differential write, then the (placeholder) media phases. */
+/** The scan thread: discovery, the differential write, then the media phases. */
 
+import { dirname, join } from 'node:path'
 import { parentPort, type MessagePort } from 'node:worker_threads'
 import { openDatabase } from '../library/db.ts'
 import { ScanCancelled, ScanControl } from './control.ts'
 import { indexScan } from './indexer.ts'
+import { processMedia } from './process.ts'
 import { initialProgress, type ScanStartMessage, type ScanWorkerMessage } from './types.ts'
 import { discover } from './walker.ts'
 
@@ -37,33 +39,56 @@ async function run(message: ScanStartMessage, port: MessagePort): Promise<void> 
 
   const db = openDatabase(message.dbPath)
   try {
+    if (message.mode === 'thumbnails') state.phase = 'metadata'
     emit(true)
-    const discovery = discover(message.roots, control, {
-      onEntry(path) {
-        state.currentPath = path
-        emit()
-      },
-    })
-    state.discovered = discovery.discovered
-    state.failures = discovery.failures
-    state.unreachableDirectories = discovery.unreachableDirectories
+    let baseFailures = 0
+    if (message.mode !== 'thumbnails') {
+      const discovery = discover(message.roots, control, {
+        onEntry(path) {
+          state.currentPath = path
+          emit()
+        },
+      })
+      state.discovered = discovery.discovered
+      state.failures = discovery.failures
+      state.unreachableDirectories = discovery.unreachableDirectories
 
-    setPhase('indexing')
-    const result = indexScan(db, message.spaceId, discovery.roots, control, {
-      onIndexed(file, indexed) {
-        state.processed = indexed
-        state.indexed = indexed
-        state.currentPath = file.path
-        emit()
-      },
-    })
-    state.changes = result.changes
+      setPhase('indexing')
+      const result = indexScan(db, message.spaceId, discovery.roots, control, {
+        onIndexed(file, indexed) {
+          state.processed = indexed
+          state.indexed = indexed
+          state.currentPath = file.path
+          emit()
+        },
+      })
+      state.changes = result.changes
+      baseFailures = state.failures
+    }
 
-    // Media work belongs to the thumbnails task (#114). The phases and their
-    // counters exist now so the dialog and the progress message do not change
-    // shape when it lands.
-    setPhase('metadata')
-    setPhase('thumbnails')
+    const thumbnailsDir = join(dirname(message.dbPath), 'thumbnails')
+    const media = await processMedia(
+      db,
+      message.spaceId,
+      thumbnailsDir,
+      control,
+      message.mode,
+      {
+        onPhase(phase) {
+          setPhase(phase)
+        },
+        onProgress(progress) {
+          state.currentPath = progress.currentPath
+          state.metadataReady = progress.metadataReady
+          state.thumbnailsReady = progress.thumbnailsReady
+          state.failures = baseFailures + progress.failures
+          emit()
+        },
+      },
+    )
+    state.metadataReady = media.metadataReady
+    state.thumbnailsReady = media.thumbnailsReady
+    state.failures = baseFailures + media.failures
 
     state.phase = 'done'
     post(port, { type: 'done', state })

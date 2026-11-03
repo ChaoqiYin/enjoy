@@ -6,6 +6,7 @@ import type { KernelContext } from 'cordis-app/server'
 import { openDatabase } from './db.ts'
 import { registerRoutes } from './routes.ts'
 import { LibraryStore } from './store.ts'
+import { registerThumbnailRoutes } from './thumbnail-routes.ts'
 import { registerVideoRoutes } from './video-routes.ts'
 import { VideoStore } from './videos.ts'
 
@@ -28,7 +29,9 @@ export function installLibrary(ctx: KernelContext, options: LibraryOptions = {})
   registerRoutes(ctx, store, {
     isScanActive: options.isScanActive ?? (() => false),
   })
-  registerVideoRoutes(ctx, new VideoStore(db), store)
+  const videos = new VideoStore(db)
+  registerVideoRoutes(ctx, videos, store)
+  registerThumbnailRoutes(ctx, videos)
   ctx.effect(() => () => db.close())
   return { store, db }
 }

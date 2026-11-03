@@ -54,6 +54,11 @@ export interface VideoListQuery {
   limit: number
 }
 
+/** The address of one video's cached JPEG; the scan writes it, this route serves it. */
+export function thumbnailUrl(videoId: number): string {
+  return `/api/thumbnails/${videoId}`
+}
+
 export type NativeResult<T> =
   | { ok: true; value: T }
   | { ok: false; code: string; message: string }
