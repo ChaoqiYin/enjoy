@@ -1,5 +1,7 @@
 import type { KernelContext } from 'cordis-app/server'
 
+import { registerNativeRoutes } from './native/index.ts'
+
 /**
  * Project backend entry.
  *
@@ -8,6 +10,8 @@ import type { KernelContext } from 'cordis-app/server'
  * plugin.json and it cannot be installed or removed.
  */
 export default function apply(ctx: KernelContext): void {
+  registerNativeRoutes(ctx)
+
   ctx.router.get('/api/hello', (_req, res) => {
     res.writeHead(200, { 'content-type': 'application/json' })
     res.end(JSON.stringify({ hello: 'world' }))
