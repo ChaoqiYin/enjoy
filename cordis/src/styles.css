@@ -1,0 +1,14 @@
+/* Runtime stylesheet for the project body: the generated utility sheet plus the
+   few rules that belong to the document rather than to a component. */
+@import './styles.generated.css';
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+}

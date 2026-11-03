@@ -7,18 +7,25 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "cordis-app dev",
-    "build": "cordis-app build",
+    "css": "tailwindcss -i ./src/styles.tailwind.css -o ./src/styles.generated.css --minify",
+    "dev": "pnpm css && cordis-app dev",
+    "build": "pnpm css && cordis-app build",
     "start": "cordis-app start",
-    "dev:shell": "cordis-app dev --shell",
-    "test": "node --test \"server/**/*.test.ts\"",
+    "dev:shell": "pnpm css && cordis-app dev --shell",
+    "test": "node --test \"server/**/*.test.ts\" && vitest run",
     "smoke:sqlite": "node scripts/sqlite-smoke.mjs",
     "smoke:start": "node scripts/startup-smoke.mjs"
   },
   "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "cordis-app": "file:../../cordis-app/packages/cordis-app",
+    "i18next": "^25.10.10",
+    "lucide-react": "^0.468.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-i18next": "^15.7.4",
+    "tailwind-merge": "^3.7.0"
   },
   "pnpm": {
     "overrides": {
@@ -29,5 +36,18 @@
       "@cordis-app/runtime": "file:../../cordis-app/packages/runtime",
       "@cordis-app/ui": "file:../../cordis-app/packages/ui"
     }
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.12",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "jsdom": "^26.1.0",
+    "tailwindcss": "^4.1.12",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
   }
 }
