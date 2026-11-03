@@ -8,7 +8,7 @@
  * before trusting the next progress frame.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import type { ScanStatus } from '../../shared/api'
@@ -22,14 +22,19 @@ export function ScanDialogHost() {
   const { api, scanEvents } = useServices()
   const notify = useNotify()
   const { t, i18n } = useTranslation()
-  const [spaceId, setSpaceId] = useState<number | null>(null)
   const [status, setStatus] = useState<ScanStatus | null>(null)
   const [cancelling, setCancelling] = useState(false)
+  /**
+   * The space the current slot belongs to, learned from a frame or a status
+   * read. A status read needs it explicitly once the scan began in another
+   * space than the one the marker names.
+   */
+  const lastScanSpace = useRef<number | undefined>(undefined)
 
   /** Re-read the slot; used after a reconnect and after the initial mount. */
   const refresh = useCallback(async () => {
     try {
-      const next = await api.getScanStatus()
+      const next = await api.getScanStatus(lastScanSpace.current)
       setStatus(next.active ? next : null)
       if (!next.active) setCancelling(false)
     } catch {
@@ -40,15 +45,17 @@ export function ScanDialogHost() {
 
   useEffect(() => {
     let alive = true
-    void Promise.all([api.listSpaces(), api.getScanStatus()])
-      .then(([spaces, next]) => {
+    void api
+      .getScanStatus()
+      .then((next) => {
         if (!alive) return
-        const current = spaces.find((space) => space.current) ?? spaces[0]
-        setSpaceId(current?.id ?? null)
-        if (next.active) setStatus(next)
+        if (next.active) {
+          lastScanSpace.current = next.spaceId
+          setStatus(next)
+        }
       })
       .catch(() => {
-        // Without a space there is nothing to filter by; the dialog stays shut.
+        // The dialog stays shut until a frame arrives or a reconnect re-reads.
       })
     return () => {
       alive = false
@@ -58,7 +65,6 @@ export function ScanDialogHost() {
   useEffect(() => {
     return scanEvents.subscribe(
       (event) => {
-        if (spaceId === null || event.spaceId !== spaceId) return
         if (isTerminalPhase(event.phase)) {
           setStatus(null)
           setCancelling(false)
@@ -70,6 +76,11 @@ export function ScanDialogHost() {
           }
           return
         }
+        // There is one scan slot for the whole application, so the frame's own
+        // space is authoritative. A dialog mounted while another space was
+        // current must still show a scan that began later; filtering by the
+        // space cached at mount dropped exactly those frames.
+        lastScanSpace.current = event.spaceId
         setStatus({ active: true, ...event })
       },
       {
@@ -78,7 +89,7 @@ export function ScanDialogHost() {
         },
       },
     )
-  }, [scanEvents, spaceId, notify, refresh, t, i18n.language])
+  }, [scanEvents, notify, refresh, t, i18n.language])
 
   const control = useCallback(
     async (action: 'pause' | 'resume' | 'cancel') => {

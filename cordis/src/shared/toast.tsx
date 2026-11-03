@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { Alert, AlertDescription, AlertTitle } from './ui/alert'
 import { Button } from './ui/button'
 
-export type ToastVariant = 'default' | 'info' | 'success' | 'warning' | 'destructive'
+export type ToastVariant = 'success' | 'error' | 'info' | 'warning'
 
 export interface ToastInput {
   title: string
@@ -46,21 +46,51 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
   const [records, setRecords] = useState<ToastRecord[]>([])
   const nextId = useRef(0)
-  const timers = useRef(new Set<ReturnType<typeof setTimeout>>())
+  /** One close timer per auto-closing record, so a displaced one can be cleared. */
+  const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>())
 
   const dismiss = useCallback((id: number) => {
+    const timer = timers.current.get(id)
+    if (timer !== undefined) {
+      clearTimeout(timer)
+      timers.current.delete(id)
+    }
     setRecords((current) => current.filter((record) => record.id !== id))
   }, [])
 
   const show = useCallback(
     (input: ToastInput) => {
       const id = (nextId.current += 1)
-      setRecords((current) => [...current, { ...input, id }])
+      const record: ToastRecord = {
+        ...input,
+        variant: input.variant ?? 'info',
+        id,
+      }
+      if (record.variant === 'error') {
+        // An error is the thing that needs reading; it stays until dismissed
+        // and is not displaced by whatever notice follows it.
+        setRecords((current) => [...current, record])
+        return
+      }
+      setRecords((current) => {
+        // Informational notices are mutually exclusive: the newest is the
+        // only one worth showing. Errors are kept in place.
+        const kept = current.filter((entry) => entry.variant === 'error')
+        for (const entry of current) {
+          if (entry.variant === 'error') continue
+          const timer = timers.current.get(entry.id)
+          if (timer !== undefined) {
+            clearTimeout(timer)
+            timers.current.delete(entry.id)
+          }
+        }
+        return [...kept, record]
+      })
       const timer = setTimeout(() => {
-        timers.current.delete(timer)
+        timers.current.delete(id)
         dismiss(id)
       }, AUTO_CLOSE_MS)
-      timers.current.add(timer)
+      timers.current.set(id, timer)
     },
     [dismiss],
   )
@@ -68,7 +98,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const pending = timers.current
     return () => {
-      for (const timer of pending) clearTimeout(timer)
+      for (const timer of pending.values()) clearTimeout(timer)
       pending.clear()
     }
   }, [])
@@ -80,14 +110,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div
         data-notification-host="end"
-        className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-2 px-4"
+        className="pointer-events-none fixed top-4 right-4 z-50 flex w-[min(28rem,calc(100vw-2rem))] flex-col gap-2"
       >
         {records.map((record) => (
           <Alert
             key={record.id}
-            role="status"
-            variant={record.variant ?? 'default'}
-            className="pointer-events-auto flex w-full max-w-md items-start gap-2 shadow-lg"
+            role={record.variant === 'error' ? 'alert' : 'status'}
+            variant={record.variant === 'error' ? 'destructive' : record.variant}
+            className="pointer-events-auto flex w-full items-start gap-2 shadow-lg"
           >
             <div className="min-w-0 flex-1 space-y-1">
               <AlertTitle>{record.title}</AlertTitle>

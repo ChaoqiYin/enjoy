@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next'
 import type { ScanStatus } from '../../shared/api'
 import { displayPath } from '../../shared/format'
 import { Button } from '../../shared/ui/button'
+import { Tooltip } from '../../shared/ui/tooltip'
 import { phaseLabelKey } from './phases'
 
 export function ScanDialog({
@@ -51,13 +52,11 @@ export function ScanDialog({
         >
           {t(phaseLabelKey(status.phase))}
         </p>
-        <p
-          data-testid="scan-current-path"
-          title={current}
-          className="mt-2 truncate text-sm"
-        >
-          {current}
-        </p>
+        <Tooltip label={current} className="mt-2 block w-full">
+          <p data-testid="scan-current-path" className="truncate text-sm">
+            {current}
+          </p>
+        </Tooltip>
 
         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
           <Stat
@@ -92,11 +91,12 @@ export function ScanDialog({
           />
         </dl>
 
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-5 flex justify-end gap-3">
           {paused ? (
             <Button
               data-testid="scan-resume"
               variant="success"
+              size="lg"
               onClick={onResume}
               disabled={cancelling}
             >
@@ -106,6 +106,7 @@ export function ScanDialog({
             <Button
               data-testid="scan-pause"
               variant="warning"
+              size="lg"
               onClick={onPause}
               disabled={cancelling}
             >
@@ -115,6 +116,7 @@ export function ScanDialog({
           <Button
             data-testid="scan-cancel"
             variant="secondary"
+            size="lg"
             onClick={onCancel}
             disabled={cancelling}
           >

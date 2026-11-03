@@ -125,19 +125,19 @@ describe('扫描 dialog 宿主', () => {
     expect(await screen.findByText('扫描完成')).toBeInTheDocument()
   })
 
-  it('只处理当前空间的消息', async () => {
+  it('挂载时的空间与事件里的空间不同，扫描仍会显示', async () => {
     const { api, scan } = renderHost()
     await waitFor(() => expect(api.scan.statusCalls).toBe(1))
-    // The status arrives as a promise; let its render (and the subscription
-    // that knows the current space) commit before frames start arriving.
+    // The status arrives as a promise; let its render (and the subscription)
+    // commit before frames start arriving.
     await act(async () => {})
     expect(screen.queryByTestId('scan-dialog')).toBeNull()
 
     scan.emit({ scanId: 'other', spaceId: 2, phase: 'indexing' })
-    expect(screen.queryByTestId('scan-dialog')).toBeNull()
 
-    scan.emit({ scanId: 'scan-1', spaceId: 1, phase: 'discovering' })
-    expect(await screen.findByTestId('scan-dialog')).toBeInTheDocument()
+    expect(await screen.findByTestId('scan-dialog')).toHaveTextContent(
+      '正在索引视频',
+    )
   })
 
   it('断线重连后先取一次状态再继续显示进度', async () => {
