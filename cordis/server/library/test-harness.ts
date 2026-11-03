@@ -201,9 +201,10 @@ export interface SeedVideo {
 /**
  * Write records straight into the fixture's database and return their ids.
  *
- * The scan task (#112) is the production path that fills `videos`; until it
- * lands, a test that needs a library has no HTTP command to ask for one. This
- * is setup, not the seam: the behaviour under test is still reached over HTTP.
+ * The scan task (#112) is the production path that fills `videos`; a listing
+ * test that needs a pre-filled library writes it here rather than running a
+ * scan. This is setup, not the seam: the behaviour under test is still reached
+ * over HTTP.
  */
 export function seedVideos(dataDir: string, rows: SeedVideo[]): number[] {
   const db = new DatabaseSync(join(dataDir, 'library.db'))

@@ -3,8 +3,7 @@
 import type { IncomingMessage } from 'node:http'
 import type { KernelContext } from 'cordis-app/server'
 import { ApiError } from './errors.ts'
-import { readJson, sendJson } from './http.ts'
-import { optionalId, requiredId, wrap } from './routes.ts'
+import { guarded, optionalId, readJson, requiredId, sendJson } from './http.ts'
 import type { LibraryStore } from './store.ts'
 import {
   DEFAULT_LIMIT,
@@ -25,7 +24,7 @@ export function registerVideoRoutes(
 ): void {
   ctx.router.get(
     '/api/videos',
-    wrap(async (req, res) => {
+    guarded(async (req, res) => {
       const page = videos.list(parseQuery(req, spaces))
       sendJson(res, 200, page)
     }),
@@ -33,14 +32,14 @@ export function registerVideoRoutes(
 
   ctx.router.get(
     '/api/videos/:id',
-    wrap(async (_req, res, params) => {
+    guarded(async (_req, res, params) => {
       sendJson(res, 200, { video: videos.get(requiredId(params.id)) })
     }),
   )
 
   ctx.router.put(
     '/api/videos/:id/favorite',
-    wrap(async (req, res, params) => {
+    guarded(async (req, res, params) => {
       const body = await readJson(req)
       const favorite = (body as { favorite?: unknown } | undefined)?.favorite
       if (typeof favorite !== 'boolean') {
@@ -52,7 +51,7 @@ export function registerVideoRoutes(
 
   ctx.router.put(
     '/api/videos/:id/played',
-    wrap(async (_req, res, params) => {
+    guarded(async (_req, res, params) => {
       sendJson(res, 200, { video: videos.recordPlayed(requiredId(params.id)) })
     }),
   )

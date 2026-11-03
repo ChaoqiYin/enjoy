@@ -1,39 +1,13 @@
 /** `/api` routes for the library. Registered on `ctx.router` by `installLibrary`. */
 
-import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { KernelContext } from 'cordis-app/server'
 import { ApiError } from './errors.ts'
-import { readJson, sendError, sendJson } from './http.ts'
+import { guarded, optionalId, readJson, requiredId, sendJson, type RouteHandler } from './http.ts'
 import { LibraryStore } from './store.ts'
 
 export interface RouteDependencies {
-  /** Stub until the scan task (#112) owns the real slot. */
+  /** Whether a scan currently owns the slot. Injected by the scan task. */
   isScanActive: () => boolean
-}
-
-export type Handler = (
-  req: IncomingMessage,
-  res: ServerResponse,
-  params: Record<string, string>,
-) => Promise<void>
-
-/** Route handlers translate domain failures into the shared JSON error shape. */
-export function wrap(handler: Handler) {
-  return async (
-    req: IncomingMessage,
-    res: ServerResponse,
-    params: Record<string, string>,
-  ): Promise<void> => {
-    try {
-      await handler(req, res, params)
-    } catch (error) {
-      if (error instanceof ApiError) {
-        sendError(res, error.status, error.code, error.message)
-        return
-      }
-      sendError(res, 500, 'internal_error', '请求处理失败')
-    }
-  }
 }
 
 export function registerRoutes(
@@ -46,8 +20,8 @@ export function registerRoutes(
    * refused while the scan slot is occupied. Reads stay available: the page
    * still needs to render the space it is on.
    */
-  const spaceCommand = (handler: Handler): Handler =>
-    wrap(async (req, res, params) => {
+  const spaceCommand = (handler: RouteHandler): RouteHandler =>
+    guarded(async (req, res, params) => {
       if (deps.isScanActive()) {
         throw new ApiError(409, 'space.blocked.scanning', 'A scan is using the library')
       }
@@ -56,7 +30,7 @@ export function registerRoutes(
 
   ctx.router.get(
     '/api/spaces',
-    wrap(async (_req, res) => {
+    guarded(async (_req, res) => {
       sendJson(res, 200, { spaces: store.listSpaces() })
     }),
   )
@@ -97,7 +71,7 @@ export function registerRoutes(
 
   ctx.router.get(
     '/api/directories',
-    wrap(async (req, res) => {
+    guarded(async (req, res) => {
       const url = new URL(req.url ?? '/', 'http://127.0.0.1')
       const spaceId = store.resolveSpaceId(optionalId(url.searchParams.get('spaceId')))
       sendJson(res, 200, { directories: store.listDirectories(spaceId) })
@@ -106,7 +80,7 @@ export function registerRoutes(
 
   ctx.router.post(
     '/api/directories',
-    wrap(async (req, res) => {
+    guarded(async (req, res) => {
       const body = await readJson(req)
       const input = body as { path?: unknown; spaceId?: unknown } | undefined
       const spaceId = store.resolveSpaceId(optionalId(input?.spaceId))
@@ -117,7 +91,7 @@ export function registerRoutes(
 
   ctx.router.delete(
     '/api/directories/:id',
-    wrap(async (_req, res, params) => {
+    guarded(async (_req, res, params) => {
       const directory = store.removeDirectory(requiredId(params.id))
       sendJson(res, 200, { directory })
     }),
@@ -125,14 +99,14 @@ export function registerRoutes(
 
   ctx.router.get(
     '/api/settings',
-    wrap(async (_req, res) => {
+    guarded(async (_req, res) => {
       sendJson(res, 200, { settings: store.getSettings() })
     }),
   )
 
   ctx.router.put(
     '/api/settings',
-    wrap(async (req, res) => {
+    guarded(async (req, res) => {
       const body = await readJson(req)
       const settings = store.putSettings(requiredSettings(body))
       sendJson(res, 200, { settings })
@@ -149,26 +123,12 @@ function requiredSettings(body: unknown): Record<string, unknown> {
   return settings as Record<string, unknown>
 }
 
-/** Read an optional positive integer id; `undefined` means "use the default". */
-export function optionalId(raw: unknown): number | undefined {
-  if (raw === undefined || raw === null || raw === '') return undefined
-  return requiredId(String(raw))
-}
-
+/** Read a directory path from a request body. */
 function requiredPath(raw: unknown): string {
   if (typeof raw !== 'string') {
     throw new ApiError(400, 'bad_request', 'body.path must be a string')
   }
   return raw
-}
-
-/** Read a positive integer id from a route parameter. */
-export function requiredId(raw: string | undefined): number {
-  const id = Number(raw)
-  if (!Number.isInteger(id) || id <= 0) {
-    throw new ApiError(400, 'bad_request', 'id must be a positive integer')
-  }
-  return id
 }
 
 /** Read `{ name }` from a request body, rejecting anything else as bad input. */
