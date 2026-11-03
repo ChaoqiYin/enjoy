@@ -1,7 +1,9 @@
 import type {
   ApiClient,
   Directory,
+  MediaToolDetection,
   NativeResult,
+  PluginSummary,
   ScanControlAction,
   ScanPhase,
   ScanStatus,
@@ -64,6 +66,8 @@ export interface FakeApi extends ApiClient {
   readonly favorites: Map<number, boolean>
   readonly played: number[]
   readonly nativeCalls: FakeNativeCall[]
+  /** Ids whose detail was read through `getVideo`, in call order. */
+  readonly detailReads: number[]
   readonly scan: FakeScanState
   /** Replace the records the listing reads, as a scan finishing would. */
   setVideos(videos: Video[]): void
@@ -79,6 +83,10 @@ interface FakeApiOptions {
   nativeFailures?: Record<string, { code: string; message: string }>
   /** The initial answer of `getScanStatus`; `{ active: false }` by default. */
   scanStatus?: ScanStatus
+  /** What the plugin route reports; empty by default. */
+  plugins?: PluginSummary[]
+  /** What the media-tool route reports; both missing by default. */
+  mediaTools?: MediaToolDetection
 }
 
 /** A small stand-in for the real adapter: filtering, sorting and paging happen
@@ -91,6 +99,7 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
   const favorites = new Map(records.map((video) => [video.id, video.favorite]))
   const played: number[] = []
   const nativeCalls: FakeNativeCall[] = []
+  const detailReads: number[] = []
   const scan: FakeScanState = {
     status: options.scanStatus ?? { active: false },
     statusCalls: 0,
@@ -104,6 +113,7 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
     favorites,
     played,
     nativeCalls,
+    detailReads,
     scan,
     setVideos(videos) {
       records = videos
@@ -183,6 +193,20 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
         videos: filtered.slice(query.offset, query.offset + query.limit),
         total: filtered.length,
       }
+    },
+    async getVideo(id) {
+      detailReads.push(id)
+      const video = records.find((entry) => entry.id === id)
+      if (video === undefined) {
+        throw { code: 'video.not_found', message: 'Video does not exist' }
+      }
+      return { ...video, favorite: favorites.get(id) ?? video.favorite }
+    },
+    async listPlugins() {
+      return options.plugins ?? []
+    },
+    async getMediaTools() {
+      return options.mediaTools ?? { ffmpeg: null, ffprobe: null }
     },
     async setFavorite(id, favorite) {
       favorites.set(id, favorite)

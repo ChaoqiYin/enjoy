@@ -19,9 +19,8 @@ export const PAGE_SIZE = 24
 
 export const DEFAULT_VIEW_MODE: ViewMode = 'grid'
 
-export function defaultSort(_listing: Listing): VideoSort {
-  return 'newest'
-}
+/** Both listings open in this order; the control starts here too. */
+export const DEFAULT_SORT: VideoSort = 'newest'
 
 /**
  * The filter a page actually asks for: favorites cannot be narrowed, so the

@@ -7,7 +7,13 @@
  * behaviour on top of it.
  */
 
-import type { Directory, HttpTransport, Space } from '../shared/api'
+import type {
+  Directory,
+  HttpTransport,
+  MediaToolDetection,
+  PluginSummary,
+  Space,
+} from '../shared/api'
 
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE'
 
@@ -28,6 +34,10 @@ export interface FakeServerOptions {
   scanActive?: boolean
   /** Answers `POST /api/native`; the default accepts every command. */
   native?: (command: string, input: unknown) => NativeEnvelope
+  plugins?: PluginSummary[]
+  mediaTools?: MediaToolDetection
+  /** Makes `PUT /api/settings` fail until the test clears `state.settingsWriteFails`. */
+  settingsWriteFails?: boolean
 }
 
 export interface FakeServerState {
@@ -35,6 +45,7 @@ export interface FakeServerState {
   directories: Directory[]
   settings: Record<string, unknown>
   scanActive: boolean
+  settingsWriteFails: boolean
 }
 
 export interface FakeServer {
@@ -56,6 +67,7 @@ export function makeFakeServer(options: FakeServerOptions = {}): FakeServer {
     ],
     settings: options.settings ?? {},
     scanActive: options.scanActive ?? false,
+    settingsWriteFails: options.settingsWriteFails ?? false,
   }
   const calls: RecordedCall[] = []
   let nextSpaceId = Math.max(0, ...state.spaces.map((space) => space.id)) + 1
@@ -112,9 +124,17 @@ export function makeFakeServer(options: FakeServerOptions = {}): FakeServer {
       return { directory }
     },
 
+    'GET /api/plugins': () => ({ plugins: options.plugins ?? [] }),
+
+    'GET /api/media/tools': () =>
+      options.mediaTools ?? { ffmpeg: null, ffprobe: null },
+
     'GET /api/settings': () => ({ settings: { ...state.settings } }),
 
     'PUT /api/settings': (body) => {
+      if (state.settingsWriteFails) {
+        httpError(500, 'internal_error', 'The settings could not be saved')
+      }
       const patch = (body as { settings?: unknown })?.settings
       if (typeof patch !== 'object' || patch === null) {
         httpError(400, 'bad_request', 'body.settings must be an object')

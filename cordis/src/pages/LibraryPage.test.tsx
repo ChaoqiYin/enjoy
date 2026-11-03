@@ -19,6 +19,11 @@ function renderLibrary(api: FakeApi = makeFakeApi()) {
   return { api, scan }
 }
 
+function chooseSort(label: string): void {
+  fireEvent.click(screen.getByRole('combobox', { name: '排序' }))
+  fireEvent.click(screen.getByRole('option', { name: label }))
+}
+
 async function firstCardText(): Promise<string> {
   const cards = await screen.findAllByTestId('video-card')
   return cards[0]!.textContent ?? ''
@@ -45,9 +50,7 @@ describe('视频管理页', () => {
     const { api } = renderLibrary()
     await screen.findByTestId('video-board')
 
-    fireEvent.change(screen.getByLabelText('排序'), {
-      target: { value: 'name' },
-    })
+    chooseSort('名称')
     fireEvent.click(screen.getByTestId('filter-favorites'))
     await waitFor(() => {
       expect(api.calls.at(-1)).toMatchObject({
@@ -70,7 +73,9 @@ describe('视频管理页', () => {
     )
     expect(screen.getByTestId('video-table')).toBeInTheDocument()
 
-    expect(screen.getByLabelText('排序')).toHaveValue('name')
+    expect(screen.getByRole('combobox', { name: '排序' })).toHaveTextContent(
+      '名称',
+    )
     expect(screen.getByTestId('filter-favorites')).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -82,9 +87,7 @@ describe('视频管理页', () => {
     const { api } = renderLibrary()
     await screen.findAllByTestId('video-card')
 
-    fireEvent.change(screen.getByLabelText('排序'), {
-      target: { value: 'name' },
-    })
+    chooseSort('名称')
 
     await waitFor(() => expect(api.calls.at(-1)?.sort).toBe('name'))
     await waitFor(async () =>
@@ -96,9 +99,7 @@ describe('视频管理页', () => {
     const { api } = renderLibrary()
     await screen.findAllByTestId('video-card')
 
-    fireEvent.change(screen.getByLabelText('排序'), {
-      target: { value: 'played' },
-    })
+    chooseSort('最近播放')
 
     await waitFor(() => expect(api.calls.at(-1)?.sort).toBe('played'))
     await waitFor(async () =>
@@ -131,6 +132,18 @@ describe('视频管理页', () => {
     await waitFor(() => expect(api.calls.at(-1)?.offset).toBe(24))
     expect(await screen.findAllByTestId('video-card')).toHaveLength(6)
     expect(screen.getByTestId('page-indicator')).toHaveTextContent('2 / 2')
+  })
+
+  it('点击卡片正文打开详情并读取单条记录', async () => {
+    const { api } = renderLibrary()
+    const cards = await screen.findAllByTestId('video-card')
+    const first = cards[0]!
+    const id = Number(first.dataset.videoId)
+
+    fireEvent.click(within(first).getByText('Video 30.mp4'))
+
+    expect(await screen.findByTestId('video-detail-dialog')).toBeInTheDocument()
+    expect(api.detailReads).toContain(id)
   })
 
   it('收藏按钮调用后端并立即反映收藏状态', async () => {

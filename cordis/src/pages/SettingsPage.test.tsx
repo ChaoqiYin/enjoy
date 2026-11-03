@@ -32,9 +32,10 @@ describe('设置页 · 外观', () => {
     const { server } = renderSettings()
 
     const select = await screen.findByLabelText('语言')
-    expect(select).toHaveValue('zh-CN')
+    expect(select).toHaveTextContent('简体中文')
 
-    fireEvent.change(select, { target: { value: 'en' } })
+    fireEvent.click(select)
+    fireEvent.click(screen.getByRole('option', { name: 'English' }))
 
     await waitFor(() =>
       expect(
@@ -129,6 +130,49 @@ const TWO_SPACES = [
   { id: 1, name: '视频库', current: true },
   { id: 2, name: '动画', current: false },
 ]
+
+describe('设置页 · 写入失败', () => {
+  it('主题保存失败显示在主题设置旁，重试成功后消失', async () => {
+    const { server } = renderSettings(
+      makeFakeServer({ settingsWriteFails: true }),
+    )
+    await screen.findByLabelText('语言')
+
+    fireEvent.click(screen.getByTestId('theme-dark'))
+
+    const theme = screen.getByTestId('appearance-theme')
+    expect(await within(theme).findByRole('alert')).toHaveTextContent(
+      '设置未能保存',
+    )
+
+    server.state.settingsWriteFails = false
+    fireEvent.click(within(theme).getByRole('button', { name: '重试' }))
+
+    await waitFor(() => expect(server.state.settings.theme).toBe('dark'))
+    await waitFor(() => expect(within(theme).queryByRole('alert')).toBeNull())
+  })
+
+  it('语言保存失败显示在语言设置旁，重试重放这次切换', async () => {
+    const { server } = renderSettings(
+      makeFakeServer({ settingsWriteFails: true }),
+    )
+    const select = await screen.findByLabelText('语言')
+
+    fireEvent.click(select)
+    fireEvent.click(screen.getByRole('option', { name: 'English' }))
+
+    const language = screen.getByTestId('appearance-language')
+    expect(await within(language).findByRole('alert')).toHaveTextContent(
+      'Could not save this setting',
+    )
+
+    server.state.settingsWriteFails = false
+    fireEvent.click(within(language).getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(server.state.settings.language).toBe('en'))
+    await waitFor(() => expect(within(language).queryByRole('alert')).toBeNull())
+  })
+})
 
 describe('设置页 · 空间', () => {
   it('扫描进行中禁用新建、重命名、切换与删除，并说明原因', async () => {
@@ -246,6 +290,26 @@ describe('设置页 · 目录', () => {
 
     expect(await screen.findByText('请输入绝对路径')).toBeInTheDocument()
     expect(server.state.directories).toHaveLength(1)
+  })
+
+  it('显示媒体工具检测结果：找到的路径与缺失提示', async () => {
+    const server = makeFakeServer({
+      mediaTools: { ffmpeg: '/opt/homebrew/bin/ffmpeg', ffprobe: null },
+    })
+    renderSettings(server)
+    await screen.findByTestId('folder-1')
+
+    expect(await screen.findByTestId('media-tool-ffmpeg')).toHaveTextContent(
+      '已找到：/opt/homebrew/bin/ffmpeg',
+    )
+    expect(screen.getByTestId('media-tool-ffprobe')).toHaveTextContent(
+      '未找到（扫描仍会进行，但媒体信息为空）',
+    )
+    expect(
+      server.calls.some(
+        (call) => call.method === 'GET' && call.url === '/api/media/tools',
+      ),
+    ).toBe(true)
   })
 
   it('可以删除当前空间的目录', async () => {

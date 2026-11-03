@@ -1,6 +1,7 @@
 import { LayoutGrid, List, Table2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '../../shared/ui/button'
+import { Select } from '../../shared/ui/select'
 import { cn } from '../../shared/cn'
 import type { VideoFilter, VideoSort } from '../../shared/api'
 import {
@@ -85,21 +86,18 @@ export function LibraryToolbar({
         )}
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span>{t('sort')}</span>
-        <select
-          aria-label={t('sort')}
+        <Select
+          ariaLabel={t('sort')}
           value={sort}
-          onChange={(event) => onSortChange(event.target.value as VideoSort)}
-          className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {SORT_ORDERS.map((value) => (
-            <option key={value} value={value}>
-              {t(SORT_LABELS[value])}
-            </option>
-          ))}
-        </select>
-      </label>
+          options={SORT_ORDERS.map((value) => ({
+            value,
+            label: t(SORT_LABELS[value]),
+          }))}
+          onChange={onSortChange}
+        />
+      </div>
 
       <div
         role="group"
@@ -115,7 +113,6 @@ export function LibraryToolbar({
               variant="ghost"
               size="icon-sm"
               aria-label={t(VIEW_LABELS[value])}
-              title={t(VIEW_LABELS[value])}
               aria-pressed={value === viewMode}
               onClick={() => onViewModeChange(value)}
               className={cn(

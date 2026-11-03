@@ -31,6 +31,10 @@ export function SettingsPage(): ReactElement {
     normalizeLanguage(i18n.language),
   )
   const [theme, setThemeState] = useState<ThemePreference>(storedTheme)
+  const [saveErrors, setSaveErrors] = useState({
+    language: false,
+    theme: false,
+  })
 
   useEffect(() => {
     applyTheme(theme)
@@ -65,17 +69,21 @@ export function SettingsPage(): ReactElement {
   const changeLanguage = (value: Language): void => {
     setLanguageState(value)
     void setLanguage(value)
-    void api.putSettings({ language: value }).catch(() => {
-      // The switch already happened; the section owns the failure notice.
-    })
+    // The switch applies immediately; only the write can fail, and the
+    // section shows that failure next to the control that caused it.
+    void api
+      .putSettings({ language: value })
+      .then(() => setSaveErrors((errors) => ({ ...errors, language: false })))
+      .catch(() => setSaveErrors((errors) => ({ ...errors, language: true })))
   }
 
   const changeTheme = (value: ThemePreference): void => {
     setThemeState(value)
     applyTheme(value)
-    void api.putSettings({ theme: value }).catch(() => {
-      // Same as language: the document already changed.
-    })
+    void api
+      .putSettings({ theme: value })
+      .then(() => setSaveErrors((errors) => ({ ...errors, theme: false })))
+      .catch(() => setSaveErrors((errors) => ({ ...errors, theme: true })))
   }
 
   return (
@@ -98,8 +106,12 @@ export function SettingsPage(): ReactElement {
       <AppearanceSection
         language={language}
         theme={theme}
+        languageError={saveErrors.language}
+        themeError={saveErrors.theme}
         onLanguageChange={changeLanguage}
         onThemeChange={changeTheme}
+        onRetryLanguage={() => changeLanguage(language)}
+        onRetryTheme={() => changeTheme(theme)}
       />
 
       <SpacesSection

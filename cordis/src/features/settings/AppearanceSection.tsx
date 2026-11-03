@@ -2,6 +2,7 @@ import type { ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ExternalLink } from 'lucide-react'
 import { Button } from '../../shared/ui/button'
+import { Select } from '../../shared/ui/select'
 import { useServices } from '../../shared/services'
 import type { ThemePreference } from '../../shared/theme'
 
@@ -20,13 +21,21 @@ const THEME_LABELS: Record<ThemePreference, string> = {
 export function AppearanceSection({
   language,
   theme,
+  languageError,
+  themeError,
   onLanguageChange,
   onThemeChange,
+  onRetryLanguage,
+  onRetryTheme,
 }: {
   language: Language
   theme: ThemePreference
+  languageError: boolean
+  themeError: boolean
   onLanguageChange: (language: Language) => void
   onThemeChange: (theme: ThemePreference) => void
+  onRetryLanguage: () => void
+  onRetryTheme: () => void
 }): ReactElement {
   const { t } = useTranslation()
   const { api } = useServices()
@@ -35,26 +44,31 @@ export function AppearanceSection({
     <section className="rounded-lg border border-border bg-card p-4">
       <h2 className="text-sm font-medium">{t('appearance')}</h2>
 
-      <div className="mt-3 space-y-1">
+      <div
+        data-testid="appearance-language"
+        className="mt-3 space-y-1"
+      >
         <label htmlFor="settings-language" className="text-sm font-medium">
           {t('language')}
         </label>
         <p className="text-sm text-muted-foreground">{t('languageHelp')}</p>
-        <select
+        <Select
           id="settings-language"
-          aria-label={t('language')}
+          ariaLabel={t('language')}
           value={language}
-          onChange={(event) =>
-            onLanguageChange(event.target.value === 'en' ? 'en' : 'zh-CN')
-          }
-          className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-64"
-        >
-          <option value="zh-CN">简体中文</option>
-          <option value="en">English</option>
-        </select>
+          options={[
+            { value: 'zh-CN', label: '简体中文' },
+            { value: 'en', label: 'English' },
+          ]}
+          onChange={onLanguageChange}
+          className="mt-1 w-full sm:w-64"
+        />
+        {languageError && (
+          <SaveFailure onRetry={onRetryLanguage} />
+        )}
       </div>
 
-      <div className="mt-5 space-y-1">
+      <div data-testid="appearance-theme" className="mt-5 space-y-1">
         <p className="text-sm font-medium">{t('theme')}</p>
         <p className="text-sm text-muted-foreground">{t('themeHelp')}</p>
         <div role="group" aria-label={t('theme')} className="mt-1 flex flex-wrap gap-2">
@@ -71,6 +85,7 @@ export function AppearanceSection({
             </Button>
           ))}
         </div>
+        {themeError && <SaveFailure onRetry={onRetryTheme} />}
       </div>
 
       <div className="mt-5 space-y-1">
@@ -92,5 +107,20 @@ export function AppearanceSection({
         </Button>
       </div>
     </section>
+  )
+}
+
+function SaveFailure({ onRetry }: { onRetry: () => void }): ReactElement {
+  const { t } = useTranslation()
+  return (
+    <div
+      role="alert"
+      className="mt-2 flex items-center gap-2 text-sm text-destructive"
+    >
+      <span>{t('settingsSaveFailed')}</span>
+      <Button variant="outline" size="sm" onClick={onRetry}>
+        {t('retry')}
+      </Button>
+    </div>
   )
 }

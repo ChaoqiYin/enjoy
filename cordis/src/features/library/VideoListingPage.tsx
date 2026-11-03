@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Film, Heart, Play } from 'lucide-react'
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
@@ -7,6 +8,7 @@ import { LibraryToolbar } from './LibraryToolbar'
 import { ListingNotices } from './ListingNotices'
 import { Pagination } from './Pagination'
 import { VideoBoard } from './VideoBoard'
+import { VideoDetailDialog } from './VideoDetailDialog'
 import { useVideoListing } from './useVideoListing'
 import type { Listing } from './listing'
 
@@ -36,6 +38,7 @@ function emptyCopy(
 export function VideoListingPage({ listing }: { listing: Listing }) {
   const { t, i18n } = useTranslation()
   const model = useVideoListing(listing)
+  const [detailId, setDetailId] = useState<number | null>(null)
   const empty = emptyCopy(listing, model.filter, t)
   const countText = new Intl.NumberFormat(i18n.language).format(model.total)
   const Icon = empty.icon === 'heart' ? Heart : empty.icon === 'play' ? Play : Film
@@ -91,6 +94,18 @@ export function VideoListingPage({ listing }: { listing: Listing }) {
           onToggleFavorite={model.toggleFavorite}
           canReveal={model.canReveal}
           onReveal={model.reveal}
+          onOpenDetail={(video) => setDetailId(video.id)}
+        />
+      )}
+
+      {detailId !== null && (
+        <VideoDetailDialog
+          videoId={detailId}
+          canReveal={model.canReveal}
+          onPlay={model.play}
+          onToggleFavorite={model.toggleFavorite}
+          onReveal={model.reveal}
+          onClose={() => setDetailId(null)}
         />
       )}
 

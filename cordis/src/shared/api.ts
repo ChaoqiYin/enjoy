@@ -46,6 +46,19 @@ export interface VideoPage {
   total: number
 }
 
+/** One entry of the read-only plugin catalogue the server reports. */
+export interface PluginSummary {
+  id: string
+  name: string
+  version?: string
+}
+
+/** `GET /api/media/tools`: where the scan's two external programs were found. */
+export interface MediaToolDetection {
+  ffmpeg: string | null
+  ffprobe: string | null
+}
+
 export interface VideoListQuery {
   spaceId: number
   only: VideoFilter
@@ -121,6 +134,12 @@ export interface ApiClient {
   startScan(spaceId: number): Promise<{ scanId: string }>
   rebuildThumbnails(spaceId: number): Promise<{ scanId: string }>
   listVideos(query: VideoListQuery): Promise<VideoPage>
+  /** One record, for the detail dialog that a card opens. */
+  getVideo(id: number): Promise<Video>
+  /** The catalogue the plugins route reports; empty in this version. */
+  listPlugins(): Promise<PluginSummary[]>
+  /** Whether the media phases will have ffmpeg and ffprobe to run. */
+  getMediaTools(): Promise<MediaToolDetection>
   setFavorite(id: number, favorite: boolean): Promise<Video>
   /** Open the file with the system player and record the play. */
   play(video: Video): Promise<Video>
@@ -257,6 +276,20 @@ export function createApiClient(http: HttpTransport): ApiClient {
 
     async listVideos(query) {
       return http.get<VideoPage>(`/api/videos${queryString({ ...query })}`)
+    },
+
+    async getVideo(id) {
+      const answer = await http.get<{ video: Video }>(`/api/videos/${id}`)
+      return answer.video
+    },
+
+    async listPlugins() {
+      const answer = await http.get<{ plugins: PluginSummary[] }>('/api/plugins')
+      return answer.plugins
+    },
+
+    async getMediaTools() {
+      return http.get<MediaToolDetection>('/api/media/tools')
     },
 
     async setFavorite(id, favorite) {

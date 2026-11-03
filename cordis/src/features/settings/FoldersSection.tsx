@@ -1,7 +1,7 @@
-import { useState, type ReactElement } from 'react'
+import { useEffect, useState, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { FolderPlus, Play, RefreshCw, Trash2 } from 'lucide-react'
-import type { Directory } from '../../shared/api'
+import type { Directory, MediaToolDetection } from '../../shared/api'
 import { Button } from '../../shared/ui/button'
 import { useServices } from '../../shared/services'
 import { inputClass } from './field'
@@ -41,6 +41,23 @@ export function FoldersSection({
   const [manualPath, setManualPath] = useState('')
   const [manualInvalid, setManualInvalid] = useState(false)
   const [pickerError, setPickerError] = useState<string | null>(null)
+  const [tools, setTools] = useState<MediaToolDetection | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    void api
+      .getMediaTools()
+      .then((found) => {
+        if (alive) setTools(found)
+      })
+      .catch(() => {
+        // The folder controls do not depend on the answer; a failed probe
+        // simply leaves the line out.
+      })
+    return () => {
+      alive = false
+    }
+  }, [api])
 
   const choose = async (): Promise<void> => {
     setPickerError(null)
@@ -78,6 +95,19 @@ export function FoldersSection({
     <section className="rounded-lg border border-border bg-card p-4">
       <h2 className="text-sm font-medium">{t('folders')}</h2>
       <p className="text-sm text-muted-foreground">{t('foldersHelp')}</p>
+
+      {tools !== null && (
+        <div data-testid="media-tools" className="mt-2 space-y-1 text-sm">
+          {(['ffmpeg', 'ffprobe'] as const).map((name) => (
+            <p key={name} data-testid={`media-tool-${name}`}>
+              <span className="text-muted-foreground">{name}</span>{' '}
+              {tools[name] === null
+                ? t('mediaToolsMissing')
+                : t('mediaToolsFound', { path: tools[name] })}
+            </p>
+          ))}
+        </div>
+      )}
 
       {directories.length === 0 ? (
         <p className="mt-3 text-sm text-muted-foreground">{t('noFolders')}</p>

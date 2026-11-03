@@ -5,6 +5,7 @@ import { thumbnailUrl, type Video } from '../../shared/api'
 import { cn } from '../../shared/cn'
 import { duration, fileSize } from '../../shared/format'
 import { Button } from '../../shared/ui/button'
+import { Tooltip } from '../../shared/ui/tooltip'
 import { VideoActions } from './VideoActions'
 
 interface VideoActionProps {
@@ -13,6 +14,7 @@ interface VideoActionProps {
   onToggleFavorite: (video: Video) => void
   canReveal: boolean
   onReveal: (video: Video) => void
+  onOpenDetail?: (video: Video) => void
 }
 
 function FavoriteButton({ video, onToggleFavorite }: VideoActionProps) {
@@ -24,7 +26,6 @@ function FavoriteButton({ video, onToggleFavorite }: VideoActionProps) {
       size="icon-sm"
       aria-pressed={video.favorite}
       aria-label={video.favorite ? t('unfavorite') : t('favorite')}
-      title={video.favorite ? t('unfavorite') : t('favorite')}
       onClick={() => onToggleFavorite(video)}
       className={cn(video.favorite && 'text-primary')}
     >
@@ -39,15 +40,32 @@ export function VideoCard({
   onToggleFavorite,
   canReveal,
   onReveal,
+  onOpenDetail,
 }: VideoActionProps) {
   const { t, i18n } = useTranslation()
   const [thumbnailFailed, setThumbnailFailed] = useState(false)
+  const openDetail = (): void => onOpenDetail?.(video)
   return (
     <article
       data-testid="video-card"
       data-video-id={video.id}
       data-favorite={String(video.favorite)}
-      className="group flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground"
+      tabIndex={onOpenDetail === undefined ? undefined : 0}
+      onClick={(event) => {
+        // Play, favorite and the menu are buttons; their clicks are theirs.
+        if ((event.target as Element).closest('button') !== null) return
+        openDetail()
+      }}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        openDetail()
+      }}
+      className={cn(
+        'group flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card text-card-foreground',
+        onOpenDetail !== undefined && 'cursor-pointer',
+      )}
     >
       <button
         type="button"
@@ -82,9 +100,9 @@ export function VideoCard({
 
       <div className="flex min-w-0 items-start gap-2 p-2.5">
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-medium" title={video.fileName}>
-            {video.fileName}
-          </h3>
+          <Tooltip label={video.fileName} className="block">
+            <h3 className="truncate text-sm font-medium">{video.fileName}</h3>
+          </Tooltip>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {fileSize(video.fileSize, i18n.language)}
           </p>
@@ -131,7 +149,9 @@ export function VideoRow({
       >
         <Play className="size-4" />
       </button>
-      <span className="min-w-0 flex-1 truncate text-sm">{video.fileName}</span>
+      <Tooltip label={video.fileName} className="block min-w-0 flex-1">
+        <span className="block truncate text-sm">{video.fileName}</span>
+      </Tooltip>
       <span className="hidden text-xs text-muted-foreground sm:block">
         {fileSize(video.fileSize, i18n.language)}
       </span>
@@ -158,6 +178,7 @@ export function VideoTable({ videos, onPlay, onToggleFavorite, canReveal, onReve
   onToggleFavorite: (video: Video) => void
   canReveal: boolean
   onReveal: (video: Video) => void
+  onOpenDetail?: (video: Video) => void
 }) {
   const { t, i18n } = useTranslation()
   return (
@@ -178,8 +199,10 @@ export function VideoTable({ videos, onPlay, onToggleFavorite, canReveal, onReve
               data-testid="video-table-row"
               className="border-t border-border"
             >
-              <td className="max-w-0 truncate px-3 py-2" title={video.fileName}>
-                {video.fileName}
+              <td className="max-w-0 px-3 py-2">
+                <Tooltip label={video.fileName} className="block">
+                  <span className="block truncate">{video.fileName}</span>
+                </Tooltip>
               </td>
               <td className="px-3 py-2 text-muted-foreground">
                 {fileSize(video.fileSize, i18n.language)}
@@ -228,6 +251,7 @@ export function VideoBoard({
   onToggleFavorite,
   canReveal = false,
   onReveal = () => {},
+  onOpenDetail,
 }: {
   viewMode: 'grid' | 'list' | 'table'
   videos: Video[]
@@ -235,11 +259,19 @@ export function VideoBoard({
   onToggleFavorite: (video: Video) => void
   canReveal?: boolean
   onReveal?: (video: Video) => void
+  onOpenDetail?: (video: Video) => void
 }) {
   return (
     <div data-testid="video-board" data-view-mode={viewMode}>
       {viewMode === 'grid' && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+        <div
+          data-testid="video-grid"
+          className="grid gap-3"
+          style={{
+            gridTemplateColumns:
+              'repeat(auto-fill, minmax(min(240px, 100%), 1fr))',
+          }}
+        >
           {videos.map((video) => (
             <VideoCard
               key={video.id}
@@ -248,6 +280,7 @@ export function VideoBoard({
               onToggleFavorite={onToggleFavorite}
               canReveal={canReveal}
               onReveal={onReveal}
+              onOpenDetail={onOpenDetail}
             />
           ))}
         </div>

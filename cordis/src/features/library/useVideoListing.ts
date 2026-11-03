@@ -10,9 +10,9 @@ import {
 import { useServices } from '../../shared/services'
 import { useDesktopAvailable, useNativeCommand } from '../../shared/native'
 import {
+  DEFAULT_SORT,
   DEFAULT_VIEW_MODE,
   PAGE_SIZE,
-  defaultSort,
   effectiveFilter,
   type Listing,
   type ViewMode,
@@ -65,7 +65,7 @@ export function useVideoListing(listing: Listing): VideoListingState {
   const [spaceId, setSpaceId] = useState<number | null>(null)
   const [spaceLoaded, setSpaceLoaded] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(DEFAULT_VIEW_MODE)
-  const [sort, setSortState] = useState<VideoSort>(() => defaultSort(listing))
+  const [sort, setSortState] = useState<VideoSort>(DEFAULT_SORT)
   const [filter, setFilterState] = useState<VideoFilter>('all')
   const [page, setPage] = useState(0)
   const [pageData, setPageData] = useState<VideoPage | null>(null)
@@ -163,10 +163,6 @@ export function useVideoListing(listing: Listing): VideoListingState {
     )
   }, [])
 
-  const setViewModeValue = useCallback((value: ViewMode) => {
-    setViewMode(value)
-  }, [])
-
   const setSort = useCallback((value: VideoSort) => {
     setPlayFailure(null)
     setSortState(value)
@@ -257,7 +253,7 @@ export function useVideoListing(listing: Listing): VideoListingState {
     filter: activeFilter,
     page,
     canReveal: desktop === true,
-    setViewMode: setViewModeValue,
+    setViewMode,
     setSort,
     setFilter,
     turnTo,
