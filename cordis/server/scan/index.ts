@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Worker } from 'node:worker_threads'
-import type { KernelContext } from 'cordis-app/server'
+import type { BroadcastMessage, KernelContext } from 'cordis-app/server'
 import { ApiError } from '../library/errors.ts'
 import { guarded, optionalId, readJson, sendJson } from '../library/http.ts'
 import type { LibraryStore } from '../library/store.ts'
@@ -31,7 +31,7 @@ export interface ScanOptions {
   /** Directory holding `library.db`; the worker opens its own connection. */
   dataDir: string
   /** Progress publisher. Defaults to the `scan` channel on `ctx.ws`. */
-  broadcast?: (channel: string, message: { type: string; data?: unknown }) => void
+  broadcast?: (channel: string, message: BroadcastMessage) => void
 }
 
 export interface ScanController {
@@ -52,7 +52,8 @@ interface Session {
 
 export function installScan(ctx: KernelContext, options: ScanOptions): ScanController {
   const publish =
-    options.broadcast ?? ((channel: string, message: { type: string; data?: unknown }) => ctx.ws.broadcast(channel, message))
+    options.broadcast ??
+    ((channel: string, message: BroadcastMessage) => ctx.ws.broadcast(channel, message))
   const controller = createController(options.store, options.dataDir, publish)
 
   ctx.router.post(
@@ -99,7 +100,7 @@ interface Controller extends ScanController {
 function createController(
   store: LibraryStore,
   dataDir: string,
-  publish: (channel: string, message: { type: string; data?: unknown }) => void,
+  publish: (channel: string, message: BroadcastMessage) => void,
 ): Controller {
   let current: Session | null = null
   let last: ScanProgress | null = null
@@ -208,6 +209,11 @@ function createController(
 
     resume(scanId) {
       const session = requireSession(scanId)
+      // A cancel that is still landing has already won the control word; running
+      // again would overwrite it and leave the worker walking a doomed scan.
+      if (session.cancelling) {
+        throw new ApiError(409, 'scan.cancelling', 'The scan is being cancelled')
+      }
       if (session.state.phase !== 'paused') {
         throw new ApiError(409, 'scan.not_paused', 'The scan is not paused')
       }

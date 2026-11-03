@@ -53,8 +53,14 @@ export interface ScanStartMessage {
   control: SharedArrayBuffer
 }
 
+/**
+ * What the worker reports back.
+ *
+ * There is no `paused` message: the worker parks inside a checkpoint rather
+ * than returning to its loop, so the main thread owns the paused phase.
+ */
 export interface ScanWorkerMessage {
-  type: 'progress' | 'paused' | 'done' | 'cancelled' | 'failed'
+  type: 'progress' | 'done' | 'cancelled' | 'failed'
   state: ScanProgress
   error?: string
 }

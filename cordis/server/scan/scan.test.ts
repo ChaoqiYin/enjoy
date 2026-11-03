@@ -337,9 +337,17 @@ test('a running scan can be paused, blocks space commands, then resume to done',
     assert.equal((status.body as StatusBody).active, true)
     assert.equal((status.body as StatusBody).phase, 'paused')
 
-    const blocked = await library.harness.request('POST', '/api/spaces', { name: 'Blocked' })
-    assert.equal(blocked.status, 409)
-    assert.equal((blocked.body as { code: string }).code, 'space.blocked.scanning')
+    const blockedCommands: [string, string, unknown?][] = [
+      ['POST', '/api/spaces', { name: 'Blocked' }],
+      ['PUT', '/api/spaces/1', { name: 'Renamed' }],
+      ['POST', '/api/spaces/1/switch'],
+      ['DELETE', '/api/spaces/1'],
+    ]
+    for (const [method, path, body] of blockedCommands) {
+      const blocked = await library.harness.request(method, path, body)
+      assert.equal(blocked.status, 409, `${method} ${path}`)
+      assert.equal((blocked.body as { code: string }).code, 'space.blocked.scanning')
+    }
 
     // A second scan cannot take the slot while the first is paused.
     const second = await library.harness.request('POST', '/api/scan', { spaceId: 1 })
