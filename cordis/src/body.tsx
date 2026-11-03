@@ -9,11 +9,16 @@ import { cn } from './shared/cn'
 import { createRuntimeServices, ServicesProvider } from './shared/services'
 import { ToastProvider } from './shared/toast'
 import { useWindowTitle } from './shared/native'
+import { applyTheme, storedTheme } from './shared/theme'
 import { ScanDialogHost } from './features/scan/ScanDialogHost'
 import { FavoritesPage } from './pages/FavoritesPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { PluginsPage } from './pages/PluginsPage'
 import { SettingsPage } from './pages/SettingsPage'
+
+// Paint the stored preference before React's first frame, so every route
+// starts in the theme the user last chose rather than the default palette.
+applyTheme(storedTheme())
 
 const ROUTES = [
   { path: '/', label: 'library', icon: Clapperboard },

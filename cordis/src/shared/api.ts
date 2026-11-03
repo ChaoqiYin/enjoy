@@ -110,22 +110,27 @@ export interface ApiError {
 
 export interface ApiClient {
   listSpaces(): Promise<Space[]>
+  createSpace(name: string): Promise<Space>
+  renameSpace(id: number, name: string): Promise<Space>
+  deleteSpace(id: number): Promise<Space>
+  switchSpace(id: number): Promise<Space>
   listDirectories(spaceId?: number): Promise<Directory[]>
+  addDirectory(spaceId: number, path: string): Promise<Directory>
+  removeDirectory(id: number): Promise<Directory>
+  getScanStatus(spaceId?: number): Promise<ScanStatus>
+  startScan(spaceId: number): Promise<{ scanId: string }>
+  rebuildThumbnails(spaceId: number): Promise<{ scanId: string }>
   listVideos(query: VideoListQuery): Promise<VideoPage>
   setFavorite(id: number, favorite: boolean): Promise<Video>
   /** Open the file with the system player and record the play. */
   play(video: Video): Promise<Video>
-  /** Start a scan of the space and return its id. */
-  startScan(spaceId: number): Promise<string>
-  /** Rebuild every thumbnail in the space; it takes the same slot as a scan. */
-  rebuildThumbnails(spaceId: number): Promise<string>
-  /** The current slot state; `active: false` when nothing is running. */
-  scanStatus(spaceId?: number): Promise<ScanStatus>
   /** Pause, resume or cancel one scan; answers with the phase it settled on. */
   controlScan(scanId: string, action: ScanControlAction): Promise<ScanPhase>
   getSettings(): Promise<Record<string, unknown>>
   putSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>>
   native<T = unknown>(command: string, input: unknown): Promise<NativeResult<T>>
+  /** Hand a URL to the user's browser rather than navigating this window. */
+  openExternal(url: string): void
 }
 
 /** The subset of the framework's HTTP client this adapter needs. */
@@ -188,11 +193,66 @@ export function createApiClient(http: HttpTransport): ApiClient {
       return answer.spaces
     },
 
+    async createSpace(name) {
+      const answer = await http.post<{ space: Space }>('/api/spaces', { name })
+      return answer.space
+    },
+
+    async renameSpace(id, name) {
+      const answer = await http.put<{ space: Space }>(`/api/spaces/${id}`, {
+        name,
+      })
+      return answer.space
+    },
+
+    async deleteSpace(id) {
+      const answer = await http.delete<{ space: Space }>(`/api/spaces/${id}`)
+      return answer.space
+    },
+
+    async switchSpace(id) {
+      const answer = await http.post<{ space: Space }>(
+        `/api/spaces/${id}/switch`,
+      )
+      return answer.space
+    },
+
     async listDirectories(spaceId) {
       const answer = await http.get<{ directories: Directory[] }>(
         `/api/directories${queryString({ spaceId })}`,
       )
       return answer.directories
+    },
+
+    async addDirectory(spaceId, path) {
+      const answer = await http.post<{ directory: Directory }>(
+        '/api/directories',
+        { spaceId, path },
+      )
+      return answer.directory
+    },
+
+    async removeDirectory(id) {
+      const answer = await http.delete<{ directory: Directory }>(
+        `/api/directories/${id}`,
+      )
+      return answer.directory
+    },
+
+    async getScanStatus(spaceId) {
+      return http.get<ScanStatus>(
+        `/api/scan/status${queryString({ spaceId })}`,
+      )
+    },
+
+    async startScan(spaceId) {
+      return http.post<{ scanId: string }>('/api/scan', { spaceId })
+    },
+
+    async rebuildThumbnails(spaceId) {
+      return http.post<{ scanId: string }>('/api/thumbnails/rebuild', {
+        spaceId,
+      })
     },
 
     async listVideos(query) {
@@ -214,25 +274,6 @@ export function createApiClient(http: HttpTransport): ApiClient {
         `/api/videos/${video.id}/played`,
       )
       return answer.video
-    },
-
-    async startScan(spaceId) {
-      const answer = await http.post<{ scanId: string }>('/api/scan', { spaceId })
-      return answer.scanId
-    },
-
-    async rebuildThumbnails(spaceId) {
-      const answer = await http.post<{ scanId: string }>(
-        '/api/thumbnails/rebuild',
-        { spaceId },
-      )
-      return answer.scanId
-    },
-
-    async scanStatus(spaceId) {
-      return http.get<ScanStatus>(
-        `/api/scan/status${queryString({ spaceId })}`,
-      )
     },
 
     async controlScan(scanId, action) {
@@ -259,6 +300,10 @@ export function createApiClient(http: HttpTransport): ApiClient {
 
     async native<T>(command: string, input: unknown) {
       return invokeNative<T>(command, input)
+    },
+
+    openExternal(url) {
+      window.open(url, '_blank', 'noopener,noreferrer')
     },
   }
 }

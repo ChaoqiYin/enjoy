@@ -29,7 +29,7 @@ export function ScanDialogHost() {
   /** Re-read the slot; used after a reconnect and after the initial mount. */
   const refresh = useCallback(async () => {
     try {
-      const next = await api.scanStatus()
+      const next = await api.getScanStatus()
       setStatus(next.active ? next : null)
       if (!next.active) setCancelling(false)
     } catch {
@@ -40,7 +40,7 @@ export function ScanDialogHost() {
 
   useEffect(() => {
     let alive = true
-    void Promise.all([api.listSpaces(), api.scanStatus()])
+    void Promise.all([api.listSpaces(), api.getScanStatus()])
       .then(([spaces, next]) => {
         if (!alive) return
         const current = spaces.find((space) => space.current) ?? spaces[0]

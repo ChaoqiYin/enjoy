@@ -51,7 +51,7 @@ export interface FakeNativeCall {
 }
 
 export interface FakeScanState {
-  /** What `scanStatus` answers; tests may change it before a reconnect. */
+  /** What `getScanStatus` answers; tests may change it before a reconnect. */
   status: ScanStatus
   statusCalls: number
   started: number[]
@@ -77,7 +77,7 @@ interface FakeApiOptions {
   directories?: Directory[]
   /** Commands that answer with a native failure instead of success. */
   nativeFailures?: Record<string, { code: string; message: string }>
-  /** The initial answer of `scanStatus`; `{ active: false }` by default. */
+  /** The initial answer of `getScanStatus`; `{ active: false }` by default. */
   scanStatus?: ScanStatus
 }
 
@@ -111,8 +111,57 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
     async listSpaces() {
       return spaces
     },
+    async createSpace(name) {
+      const space: Space = {
+        id: Math.max(0, ...spaces.map((entry) => entry.id)) + 1,
+        name,
+        current: true,
+      }
+      for (const entry of spaces) entry.current = false
+      spaces.push(space)
+      return space
+    },
+    async renameSpace(id, name) {
+      const space = spaces.find((entry) => entry.id === id)!
+      space.name = name
+      return { ...space }
+    },
+    async deleteSpace(id) {
+      const index = spaces.findIndex((entry) => entry.id === id)
+      spaces.splice(index, 1)
+      return spaces.find((entry) => entry.current) ?? spaces[0]!
+    },
+    async switchSpace(id) {
+      for (const entry of spaces) entry.current = entry.id === id
+      return spaces.find((entry) => entry.id === id)!
+    },
     async listDirectories() {
       return directories
+    },
+    async addDirectory(spaceId, path) {
+      const directory: Directory = {
+        id: Math.max(0, ...directories.map((entry) => entry.id)) + 1,
+        spaceId,
+        path,
+      }
+      directories.push(directory)
+      return directory
+    },
+    async removeDirectory(id) {
+      const index = directories.findIndex((entry) => entry.id === id)
+      return directories.splice(index, 1)[0]!
+    },
+    async getScanStatus() {
+      scan.statusCalls += 1
+      return scan.status
+    },
+    async startScan(spaceId) {
+      scan.started.push(spaceId)
+      return { scanId: 'scan-1' }
+    },
+    async rebuildThumbnails(spaceId) {
+      scan.rebuilt.push(spaceId)
+      return { scanId: 'thumbs-1' }
     },
     async listVideos(query: VideoListQuery): Promise<VideoPage> {
       calls.push(query)
@@ -145,18 +194,6 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
       played.push(video.id)
       return video
     },
-    async startScan(spaceId) {
-      scan.started.push(spaceId)
-      return 'scan-1'
-    },
-    async rebuildThumbnails(spaceId) {
-      scan.rebuilt.push(spaceId)
-      return 'scan-1'
-    },
-    async scanStatus() {
-      scan.statusCalls += 1
-      return scan.status
-    },
     async controlScan(scanId, action) {
       scan.controls.push({ scanId, action })
       return action === 'pause' ? 'paused' : action === 'resume' ? 'discovering' : 'cancelled'
@@ -175,6 +212,7 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
       }
       return { ok: true, value: {} as T }
     },
+    openExternal() {},
   }
 }
 
