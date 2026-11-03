@@ -6,7 +6,12 @@ import { Button } from '../../shared/ui/button'
 import { useServices } from '../../shared/services'
 import { inputClass } from './field'
 
-/** POSIX absolute, Windows drive absolute, or a UNC share. */
+/**
+ * POSIX absolute, Windows drive absolute, or a UNC share.
+ *
+ * This only rejects obviously malformed input before a round-trip; the server
+ * is the authority and also normalizes the stored path.
+ */
 function isAbsolutePath(value: string): boolean {
   return /^(?:[A-Za-z]:[\\/]|\\\\|\/)/.test(value)
 }
