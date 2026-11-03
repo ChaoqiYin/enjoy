@@ -8,8 +8,8 @@
 
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, renameSync, rmSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { accessSync, constants, mkdirSync, renameSync, rmSync } from 'node:fs'
+import { delimiter, dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
@@ -20,6 +20,18 @@ export const THUMBNAIL_REVISION = 1
 const PROBE_TIMEOUT_MS = 30_000
 const THUMBNAIL_TIMEOUT_MS = 60_000
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024
+
+/**
+ * Places to look when a tool is not on `PATH`.
+ *
+ * The app runs inside the cordis-app worker, whose environment is deliberately
+ * reduced to an empty `PATH`. Without this list a Homebrew or system install
+ * would never be found and every video would fail both media phases.
+ */
+const COMMON_TOOL_DIRS =
+  process.platform === 'win32'
+    ? []
+    : ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin']
 
 export interface MediaTools {
   ffmpeg: string
@@ -36,16 +48,42 @@ export interface MediaMetadata {
 /**
  * Locate the two programs.
  *
- * An explicit environment variable wins. Development builds fall back to `PATH`,
- * which is how the integration tests find the host's tools. A packaged build
- * should prefer its bundled resource directory before `PATH`; that directory
- * does not exist yet, so it is left for the packaging task.
+ * An explicit environment variable wins. Otherwise the tool is looked up on
+ * `PATH` and then in the usual system directories, returning an absolute path
+ * so a child process with an empty `PATH` can still start it. Development
+ * builds rely on this because the worker environment has no `PATH` at all.
+ * A packaged build should prefer its bundled resource directory before these;
+ * that directory does not exist yet, so it is left for the packaging task.
  */
 export function resolveMediaTools(environment: NodeJS.ProcessEnv = process.env): MediaTools {
   // TODO(#114): packaged builds resolve ffmpeg/ffprobe from the bundled resources first.
   return {
-    ffmpeg: environment.ENJOY_FFMPEG || 'ffmpeg',
-    ffprobe: environment.ENJOY_FFPROBE || 'ffprobe',
+    ffmpeg: resolveTool(environment.ENJOY_FFMPEG, 'ffmpeg', environment),
+    ffprobe: resolveTool(environment.ENJOY_FFPROBE, 'ffprobe', environment),
+  }
+}
+
+function resolveTool(
+  configured: string | undefined,
+  name: string,
+  environment: NodeJS.ProcessEnv,
+): string {
+  if (configured) return configured
+  const dirs = [...(environment.PATH ?? '').split(delimiter), ...COMMON_TOOL_DIRS]
+  for (const dir of dirs) {
+    if (!dir) continue
+    const candidate = join(dir, name)
+    if (isExecutable(candidate)) return candidate
+  }
+  return name
+}
+
+function isExecutable(path: string): boolean {
+  try {
+    accessSync(path, constants.X_OK)
+    return true
+  } catch {
+    return false
   }
 }
 

@@ -2,17 +2,28 @@
  * Media integration: a real scan thread, real ffprobe/ffmpeg and real HTTP.
  *
  * The tools are found the same way the worker finds them: the environment
- * variables first, then `PATH`. A machine without them skips these cases rather
- * than failing, because the media phases are the only part of the scan that
- * needs an external program.
+ * variables first, then `PATH`, then the usual system directories. A machine
+ * without them skips these cases rather than failing, because the media phases
+ * are the only part of the scan that needs an external program.
  */
 
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, isAbsolute, join } from 'node:path'
 import test from 'node:test'
 import { seedVideos } from '../library/test-harness.ts'
+import { resolveMediaTools, toolsAvailable } from './media.ts'
 import { openScanningLibrary, waitForTerminal } from './test-harness.ts'
 
 interface VideoBody {
@@ -37,6 +48,38 @@ const ffmpeg = findTool('ffmpeg', 'ENJOY_FFMPEG')
 const ffprobe = findTool('ffprobe', 'ENJOY_FFPROBE')
 const missing = !ffmpeg || !ffprobe
 const skip = missing ? 'ffmpeg/ffprobe are not available' : false
+
+test('worker 的空 PATH 下仍能解析到系统安装的媒体工具', { skip }, async () => {
+  const tools = resolveMediaTools({ PATH: '' })
+  assert.ok(isAbsolute(tools.ffmpeg), tools.ffmpeg)
+  assert.ok(isAbsolute(tools.ffprobe), tools.ffprobe)
+  assert.equal(await toolsAvailable(tools, 5_000), true)
+})
+
+test(
+  '媒体工具优先取 PATH 中的可执行文件，环境变量可覆盖',
+  { skip: process.platform === 'win32' ? 'Windows 的可执行文件解析不在此用例范围' : false },
+  () => {
+    const dir = mkdtempSync(join(tmpdir(), 'enjoy-media-tools-'))
+    try {
+      for (const name of ['ffmpeg', 'ffprobe']) {
+        const file = join(dir, name)
+        writeFileSync(file, '#!/bin/sh\nexit 0\n')
+        chmodSync(file, 0o755)
+      }
+      assert.deepEqual(resolveMediaTools({ PATH: dir }), {
+        ffmpeg: join(dir, 'ffmpeg'),
+        ffprobe: join(dir, 'ffprobe'),
+      })
+      assert.deepEqual(resolveMediaTools({ PATH: dir, ENJOY_FFMPEG: '/opt/tools/ffmpeg' }), {
+        ffmpeg: '/opt/tools/ffmpeg',
+        ffprobe: join(dir, 'ffprobe'),
+      })
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  },
+)
 
 /** Render one half-second, 320x240 clip that both tools can read back. */
 function makeClip(path: string): void {
