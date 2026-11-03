@@ -72,8 +72,54 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
     async listSpaces() {
       return spaces
     },
+    async createSpace(name) {
+      const space: Space = {
+        id: Math.max(0, ...spaces.map((entry) => entry.id)) + 1,
+        name,
+        current: true,
+      }
+      for (const entry of spaces) entry.current = false
+      spaces.push(space)
+      return space
+    },
+    async renameSpace(id, name) {
+      const space = spaces.find((entry) => entry.id === id)!
+      space.name = name
+      return { ...space }
+    },
+    async deleteSpace(id) {
+      const index = spaces.findIndex((entry) => entry.id === id)
+      spaces.splice(index, 1)
+      return spaces.find((entry) => entry.current) ?? spaces[0]!
+    },
+    async switchSpace(id) {
+      for (const entry of spaces) entry.current = entry.id === id
+      return spaces.find((entry) => entry.id === id)!
+    },
     async listDirectories() {
       return directories
+    },
+    async addDirectory(spaceId, path) {
+      const directory: Directory = {
+        id: Math.max(0, ...directories.map((entry) => entry.id)) + 1,
+        spaceId,
+        path,
+      }
+      directories.push(directory)
+      return directory
+    },
+    async removeDirectory(id) {
+      const index = directories.findIndex((entry) => entry.id === id)
+      return directories.splice(index, 1)[0]!
+    },
+    async getScanStatus() {
+      return { active: false }
+    },
+    async startScan() {
+      return { scanId: 'scan-fake' }
+    },
+    async rebuildThumbnails() {
+      return { scanId: 'thumbs-fake' }
     },
     async listVideos(query: VideoListQuery): Promise<VideoPage> {
       calls.push(query)
@@ -115,6 +161,7 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
     async native<T>() {
       return { ok: true, value: {} as T }
     },
+    openExternal() {},
   }
 }
 

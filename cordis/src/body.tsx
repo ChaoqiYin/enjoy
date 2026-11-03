@@ -7,10 +7,15 @@ import { Clapperboard, Heart, Puzzle, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from './shared/cn'
 import { createRuntimeServices, ServicesProvider } from './shared/services'
+import { applyTheme, storedTheme } from './shared/theme'
 import { FavoritesPage } from './pages/FavoritesPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { PluginsPage } from './pages/PluginsPage'
 import { SettingsPage } from './pages/SettingsPage'
+
+// Paint the stored preference before React's first frame, so every route
+// starts in the theme the user last chose rather than the default palette.
+applyTheme(storedTheme())
 
 const ROUTES = [
   { path: '/', label: 'library', icon: Clapperboard },
