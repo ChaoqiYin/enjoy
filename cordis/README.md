@@ -52,6 +52,7 @@ pnpm build
 pnpm install          # 安装依赖
 pnpm dev              # 浏览器模式开发（原生能力为 unsupported）
 pnpm dev:shell        # 带桌面外壳开发（需要 Go 1.25）
+pnpm test             # 运行后端测试（node:test）
 pnpm build            # 构建到 dist/
 pnpm start            # 运行 dist/ 产物
 ```
