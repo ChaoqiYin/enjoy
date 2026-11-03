@@ -38,6 +38,12 @@ export interface MediaTools {
   ffprobe: string
 }
 
+/** What detection found; `null` means the tool is not available. */
+export interface MediaToolDetection {
+  ffmpeg: string | null
+  ffprobe: string | null
+}
+
 export interface MediaMetadata {
   durationMs: number | null
   width: number | null
@@ -57,25 +63,44 @@ export interface MediaMetadata {
  */
 export function resolveMediaTools(environment: NodeJS.ProcessEnv = process.env): MediaTools {
   // TODO(#114): packaged builds resolve ffmpeg/ffprobe from the bundled resources first.
+  const found = detectMediaTools(environment)
   return {
-    ffmpeg: resolveTool(environment.ENJOY_FFMPEG, 'ffmpeg', environment),
-    ffprobe: resolveTool(environment.ENJOY_FFPROBE, 'ffprobe', environment),
+    ffmpeg: found.ffmpeg ?? 'ffmpeg',
+    ffprobe: found.ffprobe ?? 'ffprobe',
   }
 }
 
-function resolveTool(
+/**
+ * Report where the two tools are, without inventing a fallback name.
+ *
+ * This is the settings page's answer: a path means it is there, `null` means
+ * the media phases will skip (the scan still indexes file names and sizes).
+ * `searchDirs` exists so a test can remove the host's installs from the search.
+ */
+export function detectMediaTools(
+  environment: NodeJS.ProcessEnv = process.env,
+  searchDirs: readonly string[] = COMMON_TOOL_DIRS,
+): MediaToolDetection {
+  return {
+    ffmpeg: findTool(environment.ENJOY_FFMPEG, 'ffmpeg', environment, searchDirs),
+    ffprobe: findTool(environment.ENJOY_FFPROBE, 'ffprobe', environment, searchDirs),
+  }
+}
+
+function findTool(
   configured: string | undefined,
   name: string,
   environment: NodeJS.ProcessEnv,
-): string {
+  searchDirs: readonly string[],
+): string | null {
   if (configured) return configured
-  const dirs = [...(environment.PATH ?? '').split(delimiter), ...COMMON_TOOL_DIRS]
+  const dirs = [...(environment.PATH ?? '').split(delimiter), ...searchDirs]
   for (const dir of dirs) {
     if (!dir) continue
     const candidate = join(dir, name)
     if (isExecutable(candidate)) return candidate
   }
-  return name
+  return null
 }
 
 function isExecutable(path: string): boolean {

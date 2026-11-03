@@ -4,6 +4,7 @@ import type { ScanController } from './scan/index.ts'
 import { installScan } from './scan/index.ts'
 
 import { registerNativeRoutes } from './native/index.ts'
+import { installPlugins } from './plugins/index.ts'
 
 /**
  * Project backend entry.
@@ -24,9 +25,5 @@ export default function apply(ctx: KernelContext): void {
   })
   holder.scan = installScan(ctx, { store: library.store, dataDir })
   registerNativeRoutes(ctx)
-
-  ctx.router.get('/api/hello', (_req, res) => {
-    res.writeHead(200, { 'content-type': 'application/json' })
-    res.end(JSON.stringify({ hello: 'world' }))
-  })
+  installPlugins(ctx)
 }

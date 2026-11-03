@@ -16,6 +16,7 @@ import type { BroadcastMessage, KernelContext } from 'cordis-app/server'
 import { ApiError } from '../library/errors.ts'
 import { guarded, optionalId, readJson, sendJson } from '../library/http.ts'
 import type { LibraryStore } from '../library/store.ts'
+import { registerMediaRoutes } from './media-routes.ts'
 import {
   CONTROL,
   initialProgress,
@@ -56,6 +57,7 @@ export function installScan(ctx: KernelContext, options: ScanOptions): ScanContr
     options.broadcast ??
     ((channel: string, message: BroadcastMessage) => ctx.ws.broadcast(channel, message))
   const controller = createController(options.store, options.dataDir, publish)
+  registerMediaRoutes(ctx)
 
   ctx.router.post(
     '/api/scan',

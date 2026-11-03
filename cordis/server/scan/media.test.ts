@@ -23,7 +23,7 @@ import { tmpdir } from 'node:os'
 import { basename, isAbsolute, join } from 'node:path'
 import test from 'node:test'
 import { seedVideos } from '../library/test-harness.ts'
-import { resolveMediaTools, toolsAvailable } from './media.ts'
+import { detectMediaTools, resolveMediaTools, toolsAvailable } from './media.ts'
 import { openScanningLibrary, waitForTerminal } from './test-harness.ts'
 
 interface VideoBody {
@@ -249,5 +249,25 @@ test('全部重建重新生成缩略图并占用扫描槽', { skip }, async () =
     }
   } finally {
     await library.close()
+  }
+})
+
+test('媒体工具检测返回可执行路径，缺失时为空', { skip: process.platform === 'win32' ? 'Windows 的可执行文件解析不在此用例范围' : false }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'enjoy-media-detect-'))
+  try {
+    const file = join(dir, 'ffmpeg')
+    writeFileSync(file, '#!/bin/sh\nexit 0\n')
+    chmodSync(file, 0o755)
+
+    assert.deepEqual(detectMediaTools({ PATH: dir }, []), {
+      ffmpeg: join(dir, 'ffmpeg'),
+      ffprobe: null,
+    })
+    assert.deepEqual(
+      detectMediaTools({ PATH: '', ENJOY_FFMPEG: '/opt/tools/ffmpeg' }, []),
+      { ffmpeg: '/opt/tools/ffmpeg', ffprobe: null },
+    )
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
   }
 })
