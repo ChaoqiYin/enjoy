@@ -14,6 +14,8 @@ import type {
   NativeResult,
 } from 'cordis-app/server'
 
+import { ApiError } from '../library/errors.ts'
+import { readJson, sendError, sendJson } from '../library/http.ts'
 import { isAllowedNativeCommand } from './allowlist.ts'
 
 /** 依赖注入的原生客户端；项目里就是 `ctx.native`。 */
@@ -34,42 +36,6 @@ export interface NativeProxyOptions {
   invoke: NativeInvoker['invoke']
 }
 
-/** 与框架 `sendError` 一致的错误形状，前端按 `code` 分支。 */
-interface ErrorPayload {
-  code: string
-  message: string
-}
-
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  const payload = JSON.stringify(body)
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'content-length': Buffer.byteLength(payload),
-    'cache-control': 'no-store',
-  })
-  res.end(payload)
-}
-
-function sendError(
-  res: ServerResponse,
-  status: number,
-  code: string,
-  message: string,
-): void {
-  const payload: ErrorPayload = { code, message }
-  sendJson(res, status, payload)
-}
-
-async function readJsonBody(req: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = []
-  for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
-  }
-  const text = Buffer.concat(chunks).toString('utf8')
-  if (text.trim() === '') return undefined
-  return JSON.parse(text)
-}
-
 /**
  * 创建 `POST /api/native` 的处理器。
  *
@@ -79,9 +45,15 @@ export function createNativeProxy({ invoke }: NativeProxyOptions) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     let body: unknown
     try {
-      body = await readJsonBody(req)
-    } catch {
-      sendError(res, 400, 'bad_request', '请求体必须是 JSON')
+      // The shared reader enforces the 1 MiB cap and reports both malformed
+      // JSON and oversized bodies as the API's normal error shape.
+      body = await readJson(req)
+    } catch (error) {
+      if (error instanceof ApiError) {
+        sendError(res, error.status, error.code, error.message)
+      } else {
+        sendError(res, 400, 'bad_request', '请求体必须是 JSON')
+      }
       return
     }
 

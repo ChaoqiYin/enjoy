@@ -88,10 +88,17 @@ async function postNative(
   server: TestServer,
   body: unknown,
 ): Promise<{ status: number; body: any }> {
+  return postNativeText(server, JSON.stringify(body))
+}
+
+async function postNativeText(
+  server: TestServer,
+  text: string,
+): Promise<{ status: number; body: any }> {
   const response = await fetch(`${server.url}/api/native`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    body: text,
   })
   return { status: response.status, body: await response.json() }
 }
@@ -168,6 +175,47 @@ test('unsupported 等业务失败按原 envelope 返回，不转成 HTTP 错误'
 
     assert.equal(response.status, 200)
     assert.deepEqual(response.body, failure)
+  } finally {
+    await server.close()
+  }
+})
+
+test('请求体超过 1 MiB 时按共享 HTTP 错误返回 413', async () => {
+  const server = await startTestServer({
+    async invoke() {
+      return { ok: true, value: {} }
+    },
+  })
+
+  try {
+    const oversized = JSON.stringify({
+      command: 'window.state',
+      input: { padding: 'x'.repeat(1024 * 1024) },
+    })
+    const response = await postNativeText(server, oversized)
+
+    assert.equal(response.status, 413)
+    assert.equal(response.body.code, 'payload_too_large')
+  } finally {
+    await server.close()
+  }
+})
+
+test('无法解析的 JSON 按共享 HTTP 错误返回 bad_request', async () => {
+  const server = await startTestServer({
+    async invoke() {
+      return { ok: true, value: {} }
+    },
+  })
+
+  try {
+    const response = await postNativeText(server, '{')
+
+    assert.equal(response.status, 400)
+    assert.deepEqual(response.body, {
+      code: 'bad_request',
+      message: '请求体不是合法的 JSON',
+    })
   } finally {
     await server.close()
   }
