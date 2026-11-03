@@ -1,6 +1,10 @@
 import type {
   ApiClient,
   Directory,
+  NativeResult,
+  ScanControlAction,
+  ScanPhase,
+  ScanStatus,
   Space,
   Video,
   VideoListQuery,
@@ -41,10 +45,28 @@ export function makeVideos(count: number): Video[] {
   return Array.from({ length: count }, (_, index) => makeVideo(index))
 }
 
+export interface FakeNativeCall {
+  command: string
+  input: unknown
+}
+
+export interface FakeScanState {
+  /** What `scanStatus` answers; tests may change it before a reconnect. */
+  status: ScanStatus
+  statusCalls: number
+  started: number[]
+  rebuilt: number[]
+  controls: { scanId: string; action: ScanControlAction }[]
+}
+
 export interface FakeApi extends ApiClient {
   readonly calls: VideoListQuery[]
   readonly favorites: Map<number, boolean>
   readonly played: number[]
+  readonly nativeCalls: FakeNativeCall[]
+  readonly scan: FakeScanState
+  /** Replace the records the listing reads, as a scan finishing would. */
+  setVideos(videos: Video[]): void
 }
 
 interface FakeApiOptions {
@@ -53,22 +75,39 @@ interface FakeApiOptions {
   videos?: Video[]
   spaces?: Space[]
   directories?: Directory[]
+  /** Commands that answer with a native failure instead of success. */
+  nativeFailures?: Record<string, { code: string; message: string }>
+  /** The initial answer of `scanStatus`; `{ active: false }` by default. */
+  scanStatus?: ScanStatus
 }
 
 /** A small stand-in for the real adapter: filtering, sorting and paging happen
  *  here so a page test observes the same contract a real server gives it. */
 export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
-  const records = options.videos ?? makeVideos(30)
+  let records = options.videos ?? makeVideos(30)
   const spaces = options.spaces ?? [{ id: 1, name: 'Library', current: true }]
   const directories = options.directories ?? []
   const calls: VideoListQuery[] = []
   const favorites = new Map(records.map((video) => [video.id, video.favorite]))
   const played: number[] = []
+  const nativeCalls: FakeNativeCall[] = []
+  const scan: FakeScanState = {
+    status: options.scanStatus ?? { active: false },
+    statusCalls: 0,
+    started: [],
+    rebuilt: [],
+    controls: [],
+  }
 
   return {
     calls,
     favorites,
     played,
+    nativeCalls,
+    scan,
+    setVideos(videos) {
+      records = videos
+    },
     async listSpaces() {
       return spaces
     },
@@ -106,13 +145,34 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
       played.push(video.id)
       return video
     },
+    async startScan(spaceId) {
+      scan.started.push(spaceId)
+      return 'scan-1'
+    },
+    async rebuildThumbnails(spaceId) {
+      scan.rebuilt.push(spaceId)
+      return 'scan-1'
+    },
+    async scanStatus() {
+      scan.statusCalls += 1
+      return scan.status
+    },
+    async controlScan(scanId, action) {
+      scan.controls.push({ scanId, action })
+      return action === 'pause' ? 'paused' : action === 'resume' ? 'discovering' : 'cancelled'
+    },
     async getSettings() {
       return {}
     },
     async putSettings(settings) {
       return settings
     },
-    async native<T>() {
+    async native<T>(command: string, input: unknown) {
+      nativeCalls.push({ command, input })
+      const failure = options.nativeFailures?.[command]
+      if (failure) {
+        return { ok: false, code: failure.code, message: failure.message } as NativeResult<T>
+      }
       return { ok: true, value: {} as T }
     },
   }
@@ -121,21 +181,32 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
 export interface FakeScanEvents {
   readonly source: ScanEventSource
   emit(event: ScanEvent): void
+  /** Pretend the socket opened; `reconnected` matches the real source's flag. */
+  connect(reconnected?: boolean): void
 }
 
 /** A scan event source whose emits the test decides, so WS wiring is observed
  *  without a socket. */
 export function makeFakeScanEvents(): FakeScanEvents {
-  const listeners = new Set<(event: ScanEvent) => void>()
+  const listeners = new Map<
+    (event: ScanEvent) => void,
+    { onConnect?: (reconnected: boolean) => void } | undefined
+  >()
+  let connections = 0
   return {
     source: {
-      subscribe(listener) {
-        listeners.add(listener)
+      subscribe(listener, options) {
+        listeners.set(listener, options)
         return () => listeners.delete(listener)
       },
     },
     emit(event) {
-      for (const listener of [...listeners]) listener(event)
+      for (const listener of [...listeners.keys()]) listener(event)
+    },
+    connect(reconnected = connections > 0) {
+      if (!reconnected) connections = 0
+      for (const options of listeners.values()) options?.onConnect?.(reconnected)
+      connections += 1
     },
   }
 }

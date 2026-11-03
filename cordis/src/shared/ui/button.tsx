@@ -20,6 +20,7 @@ const buttonVariants = cva(
         destructive:
           'bg-destructive text-destructive-foreground hover:bg-destructive/90',
         warning: 'bg-warning text-warning-foreground hover:bg-warning/90',
+        success: 'bg-success text-success-foreground hover:bg-success/90',
       },
       size: {
         sm: 'h-8 gap-1.5 px-3 text-xs',

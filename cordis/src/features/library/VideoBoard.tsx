@@ -5,11 +5,14 @@ import { thumbnailUrl, type Video } from '../../shared/api'
 import { cn } from '../../shared/cn'
 import { duration, fileSize } from '../../shared/format'
 import { Button } from '../../shared/ui/button'
+import { VideoActions } from './VideoActions'
 
 interface VideoActionProps {
   video: Video
   onPlay: (video: Video) => void
   onToggleFavorite: (video: Video) => void
+  canReveal: boolean
+  onReveal: (video: Video) => void
 }
 
 function FavoriteButton({ video, onToggleFavorite }: VideoActionProps) {
@@ -30,7 +33,13 @@ function FavoriteButton({ video, onToggleFavorite }: VideoActionProps) {
   )
 }
 
-export function VideoCard({ video, onPlay, onToggleFavorite }: VideoActionProps) {
+export function VideoCard({
+  video,
+  onPlay,
+  onToggleFavorite,
+  canReveal,
+  onReveal,
+}: VideoActionProps) {
   const { t, i18n } = useTranslation()
   const [thumbnailFailed, setThumbnailFailed] = useState(false)
   return (
@@ -84,13 +93,27 @@ export function VideoCard({ video, onPlay, onToggleFavorite }: VideoActionProps)
           video={video}
           onPlay={onPlay}
           onToggleFavorite={onToggleFavorite}
+          canReveal={canReveal}
+          onReveal={onReveal}
         />
+        {canReveal && (
+          <VideoActions
+            path={video.path}
+            onReveal={() => onReveal(video)}
+          />
+        )}
       </div>
     </article>
   )
 }
 
-export function VideoRow({ video, onPlay, onToggleFavorite }: VideoActionProps) {
+export function VideoRow({
+  video,
+  onPlay,
+  onToggleFavorite,
+  canReveal,
+  onReveal,
+}: VideoActionProps) {
   const { t, i18n } = useTranslation()
   return (
     <div
@@ -119,15 +142,22 @@ export function VideoRow({ video, onPlay, onToggleFavorite }: VideoActionProps) 
         video={video}
         onPlay={onPlay}
         onToggleFavorite={onToggleFavorite}
+        canReveal={canReveal}
+        onReveal={onReveal}
       />
+      {canReveal && (
+        <VideoActions path={video.path} onReveal={() => onReveal(video)} />
+      )}
     </div>
   )
 }
 
-export function VideoTable({ videos, onPlay, onToggleFavorite }: {
+export function VideoTable({ videos, onPlay, onToggleFavorite, canReveal, onReveal }: {
   videos: Video[]
   onPlay: (video: Video) => void
   onToggleFavorite: (video: Video) => void
+  canReveal: boolean
+  onReveal: (video: Video) => void
 }) {
   const { t, i18n } = useTranslation()
   return (
@@ -172,7 +202,15 @@ export function VideoTable({ videos, onPlay, onToggleFavorite }: {
                     video={video}
                     onPlay={onPlay}
                     onToggleFavorite={onToggleFavorite}
+                    canReveal={canReveal}
+                    onReveal={onReveal}
                   />
+                  {canReveal && (
+                    <VideoActions
+                      path={video.path}
+                      onReveal={() => onReveal(video)}
+                    />
+                  )}
                 </div>
               </td>
             </tr>
@@ -188,11 +226,15 @@ export function VideoBoard({
   videos,
   onPlay,
   onToggleFavorite,
+  canReveal = false,
+  onReveal = () => {},
 }: {
   viewMode: 'grid' | 'list' | 'table'
   videos: Video[]
   onPlay: (video: Video) => void
   onToggleFavorite: (video: Video) => void
+  canReveal?: boolean
+  onReveal?: (video: Video) => void
 }) {
   return (
     <div data-testid="video-board" data-view-mode={viewMode}>
@@ -204,6 +246,8 @@ export function VideoBoard({
               video={video}
               onPlay={onPlay}
               onToggleFavorite={onToggleFavorite}
+              canReveal={canReveal}
+              onReveal={onReveal}
             />
           ))}
         </div>
@@ -216,6 +260,8 @@ export function VideoBoard({
               video={video}
               onPlay={onPlay}
               onToggleFavorite={onToggleFavorite}
+              canReveal={canReveal}
+              onReveal={onReveal}
             />
           ))}
         </div>
@@ -225,6 +271,8 @@ export function VideoBoard({
           videos={videos}
           onPlay={onPlay}
           onToggleFavorite={onToggleFavorite}
+          canReveal={canReveal}
+          onReveal={onReveal}
         />
       )}
     </div>

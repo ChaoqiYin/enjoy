@@ -7,6 +7,9 @@ import { Clapperboard, Heart, Puzzle, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { cn } from './shared/cn'
 import { createRuntimeServices, ServicesProvider } from './shared/services'
+import { ToastProvider } from './shared/toast'
+import { useWindowTitle } from './shared/native'
+import { ScanDialogHost } from './features/scan/ScanDialogHost'
 import { FavoritesPage } from './pages/FavoritesPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { PluginsPage } from './pages/PluginsPage'
@@ -36,38 +39,48 @@ export default function Body(): ReactElement {
 
   return (
     <ServicesProvider value={services}>
-      <div className="flex h-screen bg-background text-foreground">
-        <aside className="flex w-48 shrink-0 flex-col border-r border-border bg-card p-3">
-          <div className="px-2 pb-4 pt-1 text-lg font-semibold tracking-tight">
-            {t('appName')}
-          </div>
-          <nav aria-label={t('appName')} className="flex flex-col gap-1">
-            {ROUTES.map((route) => {
-              const Icon = route.icon
-              const active = path === route.path
-              return (
-                <button
-                  key={route.path}
-                  type="button"
-                  aria-current={active ? 'page' : undefined}
-                  onClick={() => navigate(route.path)}
-                  className={cn(
-                    'flex items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-hover',
-                    active && 'bg-selection text-selection-foreground',
-                  )}
-                >
-                  <Icon className="size-4" />
-                  {t(route.label)}
-                </button>
-              )
-            })}
-          </nav>
-        </aside>
+      <ToastProvider>
+        <WindowTitle />
+        <div className="flex h-screen bg-background text-foreground">
+          <aside className="flex w-48 shrink-0 flex-col border-r border-border bg-card p-3">
+            <div className="px-2 pb-4 pt-1 text-lg font-semibold tracking-tight">
+              {t('appName')}
+            </div>
+            <nav aria-label={t('appName')} className="flex flex-col gap-1">
+              {ROUTES.map((route) => {
+                const Icon = route.icon
+                const active = path === route.path
+                return (
+                  <button
+                    key={route.path}
+                    type="button"
+                    aria-current={active ? 'page' : undefined}
+                    onClick={() => navigate(route.path)}
+                    className={cn(
+                      'flex items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-hover',
+                      active && 'bg-selection text-selection-foreground',
+                    )}
+                  >
+                    <Icon className="size-4" />
+                    {t(route.label)}
+                  </button>
+                )
+              })}
+            </nav>
+          </aside>
 
-        <main className="min-h-0 flex-1 overflow-y-auto">{renderRoute(path)}</main>
-      </div>
+          <main className="min-h-0 flex-1 overflow-y-auto">{renderRoute(path)}</main>
+        </div>
+        <ScanDialogHost />
+      </ToastProvider>
     </ServicesProvider>
   )
+}
+
+/** The desktop title; a browser answers `unsupported` and this is silent. */
+function WindowTitle(): null {
+  useWindowTitle('Enjoy')
+  return null
 }
 
 function renderRoute(path: string): ReactElement {

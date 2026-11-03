@@ -89,6 +89,8 @@ export function VideoListingPage({ listing }: { listing: Listing }) {
           videos={model.videos}
           onPlay={model.play}
           onToggleFavorite={model.toggleFavorite}
+          canReveal={model.canReveal}
+          onReveal={model.reveal}
         />
       )}
 

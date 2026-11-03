@@ -185,4 +185,73 @@ describe('视频管理页', () => {
 
     await waitFor(() => expect(api.calls.length).toBeGreaterThan(before))
   })
+
+  it('扫描失败也触发当前列表重新读取', async () => {
+    const { api, scan } = renderLibrary()
+    await screen.findAllByTestId('video-card')
+    const before = api.calls.length
+
+    scan.emit({ scanId: 's1', spaceId: 1, phase: 'failed' })
+
+    await waitFor(() => expect(api.calls.length).toBeGreaterThan(before))
+  })
+
+  it('扫描结束使当前页越界时回到第一页', async () => {
+    const { api, scan } = renderLibrary(
+      makeFakeApi({ videos: makeVideos(60) }),
+    )
+    await screen.findAllByTestId('video-card')
+
+    fireEvent.click(screen.getByTestId('next-page'))
+    fireEvent.click(screen.getByTestId('next-page'))
+    await waitFor(() => expect(api.calls.at(-1)?.offset).toBe(48))
+
+    // Thirty records leave two pages, so page three is gone; the reader goes
+    // back to the first page rather than to the last one.
+    api.setVideos(makeVideos(30))
+    scan.emit({ scanId: 's1', spaceId: 1, phase: 'done' })
+
+    await waitFor(() => expect(api.calls.at(-1)?.offset).toBe(0))
+    expect(await screen.findAllByTestId('video-card')).toHaveLength(24)
+  })
+
+  it('浏览器模式下隐藏「在文件夹中显示」', async () => {
+    const api = makeFakeApi({
+      nativeFailures: {
+        'window.state': { code: 'unsupported', message: '当前没有可用的原生外壳' },
+      },
+    })
+    renderLibrary(api)
+    await screen.findAllByTestId('video-card')
+
+    await waitFor(() =>
+      expect(api.nativeCalls.map((call) => call.command)).toContain(
+        'window.state',
+      ),
+    )
+    expect(screen.queryByTestId('video-actions')).toBeNull()
+    expect(screen.queryByText('在文件夹中显示')).toBeNull()
+  })
+
+  it('有外壳时菜单可以定位文件', async () => {
+    const { api } = renderLibrary()
+    const cards = await screen.findAllByTestId('video-card')
+    const first = cards[0]!
+
+    await waitFor(() =>
+      expect(api.nativeCalls.map((call) => call.command)).toContain(
+        'window.state',
+      ),
+    )
+
+    fireEvent.click(within(first).getByTestId('video-actions'))
+    fireEvent.click(within(first).getByText('在文件夹中显示'))
+
+    await waitFor(() =>
+      expect(api.nativeCalls.at(-1)).toEqual({
+        command: 'shell.showItemInFolder',
+        input: { path: expect.stringMatching(/\.mp4$/) },
+      }),
+    )
+  })
 })

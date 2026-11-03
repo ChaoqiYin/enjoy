@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Copy, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { ApiError } from '../../shared/api'
+import { isUnsupported } from '../../shared/native'
 import { Alert, AlertDescription, AlertTitle } from '../../shared/ui/alert'
 import { Button } from '../../shared/ui/button'
 import type { PlayFailure } from './useVideoListing'
@@ -61,7 +62,7 @@ function PlayFailureNotice({
 }) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
-  const unsupported = failure.code === 'unsupported'
+  const unsupported = isUnsupported(failure)
 
   const copy = async () => {
     try {

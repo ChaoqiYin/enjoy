@@ -59,6 +59,46 @@ export function thumbnailUrl(videoId: number): string {
   return `/api/thumbnails/${videoId}`
 }
 
+export type ScanPhase =
+  | 'discovering'
+  | 'indexing'
+  | 'metadata'
+  | 'thumbnails'
+  | 'paused'
+  | 'done'
+  | 'cancelled'
+  | 'failed'
+
+export type ScanControlAction = 'pause' | 'resume' | 'cancel'
+
+export interface ScanChanges {
+  added: number
+  updated: number
+  removed: number
+}
+
+/** One progress snapshot, shared by the WS message and the status endpoint. */
+export interface ScanProgress {
+  scanId: string
+  spaceId: number
+  phase: ScanPhase
+  changes: ScanChanges
+  failures: number
+  unreachableDirectories: number
+  discovered: number
+  processed: number
+  indexed: number
+  metadataReady: number
+  thumbnailsReady: number
+  currentPath: string
+}
+
+/** `GET /api/scan/status`; `active` says whether the scan slot is occupied. */
+export interface ScanStatus extends Partial<Omit<ScanProgress, 'scanId'>> {
+  active: boolean
+  scanId?: string
+}
+
 export type NativeResult<T> =
   | { ok: true; value: T }
   | { ok: false; code: string; message: string }
@@ -75,6 +115,14 @@ export interface ApiClient {
   setFavorite(id: number, favorite: boolean): Promise<Video>
   /** Open the file with the system player and record the play. */
   play(video: Video): Promise<Video>
+  /** Start a scan of the space and return its id. */
+  startScan(spaceId: number): Promise<string>
+  /** Rebuild every thumbnail in the space; it takes the same slot as a scan. */
+  rebuildThumbnails(spaceId: number): Promise<string>
+  /** The current slot state; `active: false` when nothing is running. */
+  scanStatus(spaceId?: number): Promise<ScanStatus>
+  /** Pause, resume or cancel one scan; answers with the phase it settled on. */
+  controlScan(scanId: string, action: ScanControlAction): Promise<ScanPhase>
   getSettings(): Promise<Record<string, unknown>>
   putSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>>
   native<T = unknown>(command: string, input: unknown): Promise<NativeResult<T>>
@@ -166,6 +214,32 @@ export function createApiClient(http: HttpTransport): ApiClient {
         `/api/videos/${video.id}/played`,
       )
       return answer.video
+    },
+
+    async startScan(spaceId) {
+      const answer = await http.post<{ scanId: string }>('/api/scan', { spaceId })
+      return answer.scanId
+    },
+
+    async rebuildThumbnails(spaceId) {
+      const answer = await http.post<{ scanId: string }>(
+        '/api/thumbnails/rebuild',
+        { spaceId },
+      )
+      return answer.scanId
+    },
+
+    async scanStatus(spaceId) {
+      return http.get<ScanStatus>(
+        `/api/scan/status${queryString({ spaceId })}`,
+      )
+    },
+
+    async controlScan(scanId, action) {
+      const answer = await http.post<{ scanId: string; phase: ScanPhase }>(
+        `/api/scan/${encodeURIComponent(scanId)}/${action}`,
+      )
+      return answer.phase
     },
 
     async getSettings() {

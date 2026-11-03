@@ -8,6 +8,7 @@ import {
   type VideoSort,
 } from '../../shared/api'
 import { useServices } from '../../shared/services'
+import { useDesktopAvailable, useNativeCommand } from '../../shared/native'
 import {
   DEFAULT_VIEW_MODE,
   PAGE_SIZE,
@@ -34,12 +35,15 @@ export interface VideoListingState {
   sort: VideoSort
   filter: VideoFilter
   page: number
+  /** Whether the shell behind the page can reveal a file; false in a browser. */
+  canReveal: boolean
   setViewMode: (value: ViewMode) => void
   setSort: (value: VideoSort) => void
   setFilter: (value: VideoFilter) => void
   turnTo: (page: number) => void
   toggleFavorite: (video: Video) => Promise<void>
   play: (video: Video) => Promise<void>
+  reveal: (video: Video) => Promise<void>
   retry: () => void
   dismissError: () => void
   dismissPlayFailure: () => void
@@ -56,6 +60,8 @@ export interface VideoListingState {
  */
 export function useVideoListing(listing: Listing): VideoListingState {
   const { api, scanEvents } = useServices()
+  const desktop = useDesktopAvailable()
+  const runNative = useNativeCommand()
   const [spaceId, setSpaceId] = useState<number | null>(null)
   const [spaceLoaded, setSpaceLoaded] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>(DEFAULT_VIEW_MODE)
@@ -120,20 +126,25 @@ export function useVideoListing(listing: Listing): VideoListingState {
   }, [api, spaceId, activeFilter, sort, page, revision])
 
   // A rescan can shorten the list under the reader; a page past the end has no
-  // records and no footer to leave by, so step back to the last real page.
+  // records and no footer to leave by, so go back to the first page.
   useEffect(() => {
     if (pageData === null) return
     const last = Math.max(0, Math.ceil(pageData.total / PAGE_SIZE) - 1)
-    if (page > last) setPage(last)
+    if (page > last) setPage(0)
   }, [pageData, page])
 
-  // The scan dialog is out of scope, but this page still has to notice that the
-  // collection changed. Terminal phases are the only moment the records settle.
+  // The scan dialog lives at the body root, but every listing still has to
+  // notice that the collection changed. Terminal phases are the only moment
+  // the records settle; a failed pass may have written some of them too.
   useEffect(() => {
     if (spaceId === null) return
     return scanEvents.subscribe((event) => {
       if (event.spaceId !== spaceId) return
-      if (event.phase === 'done' || event.phase === 'cancelled') {
+      if (
+        event.phase === 'done' ||
+        event.phase === 'cancelled' ||
+        event.phase === 'failed'
+      ) {
         setRevision((value) => value + 1)
       }
     })
@@ -209,6 +220,18 @@ export function useVideoListing(listing: Listing): VideoListingState {
     [api, applyVideo],
   )
 
+  const reveal = useCallback(
+    async (video: Video) => {
+      const outcome = await runNative('shell.showItemInFolder', {
+        path: video.path,
+      })
+      if (!outcome.ok && !outcome.unsupported) {
+        setError({ code: outcome.code, message: outcome.message })
+      }
+    },
+    [runNative],
+  )
+
   const retry = useCallback(() => {
     setError(null)
     setListLoading(true)
@@ -233,12 +256,14 @@ export function useVideoListing(listing: Listing): VideoListingState {
     sort,
     filter: activeFilter,
     page,
+    canReveal: desktop === true,
     setViewMode: setViewModeValue,
     setSort,
     setFilter,
     turnTo,
     toggleFavorite,
     play,
+    reveal,
     retry,
     dismissError,
     dismissPlayFailure,

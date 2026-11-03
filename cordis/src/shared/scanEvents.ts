@@ -7,16 +7,14 @@
  * constructor cannot set headers.
  */
 
-export interface ScanChanges {
-  added?: number
-  updated?: number
-  removed?: number
-}
+import type { ScanChanges, ScanPhase } from './api'
+
+export type { ScanChanges }
 
 export interface ScanEvent {
   scanId: string
   spaceId: number
-  phase: string
+  phase: ScanPhase
   changes?: ScanChanges
   failures?: number
   unreachableDirectories?: number
@@ -28,9 +26,21 @@ export interface ScanEvent {
   currentPath?: string
 }
 
+export interface ScanSubscriptionOptions {
+  /**
+   * Called each time the shared socket opens. `reconnected` is false for the
+   * first connection of this subscription: a caller that fetched the status on
+   * mount only has to fetch again after a gap.
+   */
+  onConnect?: (reconnected: boolean) => void
+}
+
 export interface ScanEventSource {
   /** Listen for scan events; the returned function stops listening. */
-  subscribe(listener: (event: ScanEvent) => void): () => void
+  subscribe(
+    listener: (event: ScanEvent) => void,
+    options?: ScanSubscriptionOptions,
+  ): () => void
 }
 
 export interface ScanSourceOptions {
@@ -77,21 +87,33 @@ export function createScanEventSource({
   WebSocketImpl,
   reconnectDelayMs = 2000,
 }: ScanSourceOptions): ScanEventSource {
-  const listeners = new Set<(event: ScanEvent) => void>()
+  const listeners = new Map<
+    (event: ScanEvent) => void,
+    ScanSubscriptionOptions | undefined
+  >()
   let socket: WebSocket | null = null
   let retry: ReturnType<typeof setTimeout> | null = null
   let stopped = false
+  /** How many sockets have opened for the current subscription set. */
+  let connections = 0
 
   const connect = () => {
     const Impl = WebSocketImpl ?? (typeof WebSocket === 'undefined' ? null : WebSocket)
     if (stopped || Impl === null || socket !== null || listeners.size === 0) return
     const current = new Impl(socketUrl(token))
     socket = current
+    current.onopen = () => {
+      const reconnected = connections > 0
+      connections += 1
+      for (const options of listeners.values()) {
+        options?.onConnect?.(reconnected)
+      }
+    }
     current.onmessage = (message) => {
       try {
         const event = toScanEvent(JSON.parse(String(message.data)))
         if (event !== null) {
-          for (const listener of [...listeners]) listener(event)
+          for (const listener of [...listeners.keys()]) listener(event)
         }
       } catch {
         // A malformed frame is not worth dropping a working connection over.
@@ -112,14 +134,15 @@ export function createScanEventSource({
   }
 
   return {
-    subscribe(listener) {
-      listeners.add(listener)
+    subscribe(listener, options) {
+      listeners.set(listener, options)
       stopped = false
       connect()
       return () => {
         listeners.delete(listener)
         if (listeners.size > 0) return
         stopped = true
+        connections = 0
         if (retry !== null) {
           clearTimeout(retry)
           retry = null
