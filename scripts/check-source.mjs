@@ -5,13 +5,19 @@ import ts from 'typescript';
 
 const excludedDirectories = new Set([
   '.git',
+  '.claude',
+  '.cordis',
   'node_modules',
   'target',
   'dist',
   'gen',
   'prototype-drawing',
 ]);
-const generatedFiles = new Set(['package-lock.json', 'Cargo.lock']);
+const generatedFiles = new Set([
+  'package-lock.json',
+  'pnpm-lock.yaml',
+  'Cargo.lock',
+]);
 const textExtensions = new Set([
   '.ts',
   '.tsx',

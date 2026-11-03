@@ -290,6 +290,7 @@ cordis-app 的 `usePath` / `navigate` 只支持无参数路径；分页、筛选
 - `path.chooseDirectory`
 - `shell.openPath`
 - `shell.showItemInFolder`
+- `shell.openExternal`：设置页的「在 GitHub 打开」需要它；只接收 http(s) URL，浏览器模式没有外壳时退化为 `window.open`
 - `notification.show`
 - `window.setTitle` / `window.setSize` / `window.state`
 

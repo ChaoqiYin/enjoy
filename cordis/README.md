@@ -108,6 +108,8 @@ CORDIS_APP_SHELL="$PWD/dist/cordis-app" \
 
 第 3 步是必要的：cordis-app 的 worker 环境刻意清空 `PATH`，只靠 `PATH` 会找不到工具，扫描会把每个文件记成两项失败。`ENJOY_*` 只在直接运行服务端（测试、脚本）时生效；经 `cordis-app start` 启动时 worker 不继承外层环境变量，此时请把工具安装到常见目录。
 
+打包形态还没有探测随包分发的资源目录（`TODO(#114)`），检测顺序仍是上面三步；第一版把工具留给用户自备。
+
 ## 扫描线程入口
 
 `server/scan-worker.ts` 是第二个服务端入口。框架的 `server/` 多入口构建会把它打包到 `dist/server/scan-worker.js`（开发模式是 `.cordis/dev/server/scan-worker.js`），与 `index.js` 同目录，因此主线程用 `new Worker(new URL('./scan-worker.js', import.meta.url))` 加载。
