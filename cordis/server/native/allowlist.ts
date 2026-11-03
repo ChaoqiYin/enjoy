@@ -2,9 +2,9 @@
  * `POST /api/native` 的命令白名单。
  *
  * 项目 server 虽然拥有全部原生命令，但页面只需要这几个：选择目录、用系统
- * 应用打开路径、在文件管理器中定位、发通知，以及窗口标题／尺寸／状态。
- * 其余命令（打开外部链接、关闭窗口等）不经过页面，代理层直接拒绝，避免
- * 一条前端请求就能触达不该由页面决定的原语。
+ * 应用打开路径、用系统浏览器打开链接、在文件管理器中定位、发通知，以及
+ * 窗口标题／尺寸／状态。其余命令（关闭窗口等）不经过页面，代理层直接拒绝，
+ * 避免一条前端请求就能触达不该由页面决定的原语。
  */
 
 import type { NativeCommand } from 'cordis-app/server'
@@ -13,6 +13,7 @@ import type { NativeCommand } from 'cordis-app/server'
 export const NATIVE_PROXY_ALLOWLIST = [
   'path.chooseDirectory',
   'shell.openPath',
+  'shell.openExternal',
   'shell.showItemInFolder',
   'notification.show',
   'window.setTitle',

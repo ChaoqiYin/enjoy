@@ -135,13 +135,13 @@ test('未列入白名单的命令被拒绝，而且不会触达 ctx.native', asy
 
   try {
     const response = await postNative(server, {
-      command: 'shell.openExternal',
-      input: { url: 'https://example.com' },
+      command: 'window.close',
+      input: {},
     })
 
     assert.equal(response.status, 403)
     assert.equal(response.body.code, 'command_not_allowed')
-    assert.match(response.body.message, /shell\.openExternal/)
+    assert.match(response.body.message, /window\.close/)
     assert.deepEqual(calls, [])
   } finally {
     await server.close()

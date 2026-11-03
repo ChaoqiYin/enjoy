@@ -78,18 +78,49 @@ describe('设置页 · 外观', () => {
     expect(document.documentElement.dataset.theme).toBe('dark')
     await waitFor(() => expect(server.state.settings.theme).toBe('system'))
   })
-  it('仓库链接在新窗口外开', async () => {
+  it('仓库链接交给外壳打开', async () => {
     const open = vi.fn()
     vi.stubGlobal('open', open)
-    renderSettings()
+    const { server } = renderSettings()
     await screen.findByLabelText('语言')
 
     fireEvent.click(screen.getByTestId('open-repository'))
 
-    expect(open).toHaveBeenCalledWith(
-      'https://github.com/ChaoqiYin/enjoy',
-      '_blank',
-      'noopener,noreferrer',
+    await waitFor(() =>
+      expect(server.calls).toContainEqual({
+        method: 'POST',
+        url: '/api/native',
+        body: {
+          command: 'shell.openExternal',
+          input: { url: 'https://github.com/ChaoqiYin/enjoy' },
+        },
+      }),
+    )
+    expect(open).not.toHaveBeenCalled()
+  })
+
+  it('没有外壳时仓库链接退化为 window.open', async () => {
+    const open = vi.fn()
+    vi.stubGlobal('open', open)
+    renderSettings(
+      makeFakeServer({
+        native: () => ({
+          ok: false,
+          code: 'unsupported',
+          message: 'No shell is attached',
+        }),
+      }),
+    )
+    await screen.findByLabelText('语言')
+
+    fireEvent.click(screen.getByTestId('open-repository'))
+
+    await waitFor(() =>
+      expect(open).toHaveBeenCalledWith(
+        'https://github.com/ChaoqiYin/enjoy',
+        '_blank',
+        'noopener,noreferrer',
+      ),
     )
   })
 })

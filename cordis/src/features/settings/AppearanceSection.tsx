@@ -81,7 +81,11 @@ export function AppearanceSection({
           variant="outline"
           size="sm"
           className="mt-1"
-          onClick={() => api.openExternal(REPOSITORY_URL)}
+          onClick={() => {
+            // The URL is a constant, so a non-`unsupported` failure has no
+            // recovery worth interrupting the page for.
+            void api.openExternal(REPOSITORY_URL).catch(() => {})
+          }}
         >
           <ExternalLink className="size-3.5" aria-hidden="true" />
           {t('openRepository')}

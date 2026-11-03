@@ -130,7 +130,7 @@ export interface ApiClient {
   putSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>>
   native<T = unknown>(command: string, input: unknown): Promise<NativeResult<T>>
   /** Hand a URL to the user's browser rather than navigating this window. */
-  openExternal(url: string): void
+  openExternal(url: string): Promise<void>
 }
 
 /** The subset of the framework's HTTP client this adapter needs. */
@@ -302,8 +302,14 @@ export function createApiClient(http: HttpTransport): ApiClient {
       return invokeNative<T>(command, input)
     },
 
-    openExternal(url) {
-      window.open(url, '_blank', 'noopener,noreferrer')
+    async openExternal(url) {
+      const opened = await invokeNative('shell.openExternal', { url })
+      if (opened.ok) return
+      if (opened.code === 'unsupported') {
+        window.open(url, '_blank', 'noopener,noreferrer')
+        return
+      }
+      throw { code: opened.code, message: opened.message }
     },
   }
 }
