@@ -35,3 +35,43 @@ export async function readJson(req: IncomingMessage): Promise<unknown> {
     throw new ApiError(400, 'bad_request', '请求体不是合法的 JSON')
   }
 }
+
+export type RouteHandler = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  params: Record<string, string>,
+) => void | Promise<void>
+
+/**
+ * Turn a route handler into one the router can call: domain failures become the
+ * shared JSON error shape, and anything else becomes a generic 500 rather than a
+ * stack trace on the wire.
+ */
+export function guarded(handler: RouteHandler): RouteHandler {
+  return async (req, res, params) => {
+    try {
+      await handler(req, res, params)
+    } catch (error) {
+      if (error instanceof ApiError) {
+        sendError(res, error.status, error.code, error.message)
+        return
+      }
+      sendError(res, 500, 'internal_error', '请求处理失败')
+    }
+  }
+}
+
+/** Read a positive integer id from a route parameter. */
+export function requiredId(raw: string | undefined): number {
+  const id = Number(raw)
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new ApiError(400, 'bad_request', 'id must be a positive integer')
+  }
+  return id
+}
+
+/** Read an optional positive integer id; `undefined` means "use the default". */
+export function optionalId(raw: unknown): number | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined
+  return requiredId(String(raw))
+}

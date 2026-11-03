@@ -44,6 +44,12 @@ cd ../../cordis-app
 pnpm build
 ```
 
+## 扫描线程入口
+
+`server/scan-worker.ts` 是第二个服务端入口。框架的 `server/` 多入口构建会把它打包到 `dist/server/scan-worker.js`（开发模式是 `.cordis/dev/server/scan-worker.js`），与 `index.js` 同目录，因此主线程用 `new Worker(new URL('./scan-worker.js', import.meta.url))` 加载。
+
+`pnpm test` 直接跑 TypeScript 源码，没有构建产物。Node 24 默认启用类型剥离，`Worker` 可以直接加载 `.ts` 入口；`server/scan/index.ts` 按候选路径依次查找，源码形态回落到 `server/scan-worker.ts`。这段回落只在测试/直接跑源码时生效，构建形态始终命中同目录的 `scan-worker.js`。
+
 ## 常用命令
 
 以下命令都在 `cordis/` 目录执行：
