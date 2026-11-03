@@ -1,8 +1,0 @@
-{
-  "id": "cover-fetcher",
-  "name": "Cover Fetcher",
-  "author": "Enjoy",
-  "apiVersion": 1,
-  "capabilities": ["fetch", "log"],
-  "body": "cover_fetcher.wasm"
-}

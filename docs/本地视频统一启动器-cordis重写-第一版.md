@@ -246,7 +246,7 @@ cordis-app 的 `usePath` / `navigate` 只支持无参数路径；分页、筛选
 
 ### 6.2 页面复用
 
-复用现有 React 页面组件与 hooks：
+复用现有 React 页面组件与 hooks。下列旧前端路径已在重写后的清理中移除，实际实现位于 `app/src/`；清单只记录迁移来源：
 
 - `frontend/src/pages/LibraryPage.tsx`
 - `frontend/src/pages/FavoritesPage.tsx`
@@ -264,7 +264,7 @@ cordis-app 的 `usePath` / `navigate` 只支持无参数路径；分页、筛选
 
 ### 6.3 扫描 dialog
 
-恢复旧实现的结构（`PageFrame.tsx` 第 62–93 行的 `<dialog open>`）：
+恢复旧实现的结构（旧版 `PageFrame.tsx` 第 62–93 行的 `<dialog open>`，该文件已随旧前端移除）：
 
 - 不可关闭的模态框。
 - 进度：阶段、当前路径、已发现/已索引/元数据/缩略图计数、失败数、不可达目录数。
