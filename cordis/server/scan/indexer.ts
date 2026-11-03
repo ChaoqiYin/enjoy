@@ -16,6 +16,7 @@
 
 import type { DatabaseSync } from 'node:sqlite'
 import { sep } from 'node:path'
+import { inTransaction } from '../library/db.ts'
 import type { ScanControl } from './control.ts'
 import type { DiscoveredFile, RootScan, ScanChanges } from './types.ts'
 
@@ -35,11 +36,10 @@ export function indexScan(
   control: ScanControl,
   report: IndexReport,
 ): IndexResult {
-  const changes: ScanChanges = { added: 0, updated: 0, removed: 0 }
-  let indexed = 0
+  return inTransaction(db, () => {
+    const changes: ScanChanges = { added: 0, updated: 0, removed: 0 }
+    let indexed = 0
 
-  db.exec('BEGIN')
-  try {
     db.exec(
       `CREATE TEMP TABLE IF NOT EXISTS scan_discovered (path TEXT PRIMARY KEY);
        CREATE TEMP TABLE IF NOT EXISTS scan_protected (path TEXT PRIMARY KEY);
@@ -132,11 +132,6 @@ export function indexScan(
     changes.removed = Number(removal.run(spaceId, sep, sep).changes)
 
     control.checkpoint()
-    db.exec('COMMIT')
-  } catch (error) {
-    db.exec('ROLLBACK')
-    throw error
-  }
-
-  return { changes, indexed }
+    return { changes, indexed }
+  })
 }

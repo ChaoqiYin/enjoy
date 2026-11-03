@@ -12,6 +12,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import type { KernelContext } from 'cordis-app/server'
 import { installLibrary } from './index.ts'
 
@@ -175,6 +176,74 @@ export interface LibraryFixture {
   /** Toggle the injected scan-slot stub. */
   scanning: { active: boolean }
   close(): Promise<void>
+}
+
+/** A video record as a test wants it, with the fields it does not care about defaulted. */
+export interface SeedVideo {
+  spaceId: number
+  path: string
+  fileName: string
+  folderPath?: string
+  fileSize?: number
+  modifiedAt?: number
+  durationMs?: number | null
+  width?: number | null
+  height?: number | null
+  codec?: string | null
+  thumbnailPath?: string | null
+  favorite?: boolean
+  playCount?: number
+  lastPlayedAt?: number | null
+  createdAt?: number
+  updatedAt?: number
+}
+
+/**
+ * Write records straight into the fixture's database and return their ids.
+ *
+ * The scan task (#112) is the production path that fills `videos`; a listing
+ * test that needs a pre-filled library writes it here rather than running a
+ * scan. This is setup, not the seam: the behaviour under test is still reached
+ * over HTTP.
+ */
+export function seedVideos(dataDir: string, rows: SeedVideo[]): number[] {
+  const db = new DatabaseSync(join(dataDir, 'library.db'))
+  try {
+    db.exec('PRAGMA busy_timeout = 5000')
+    const insert = db.prepare(
+      `INSERT INTO videos (
+         space_id, path, file_name, folder_path, file_size, modified_at,
+         duration_ms, width, height, codec, thumbnail_path, favorite,
+         play_count, last_played_at, created_at, updated_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    const ids: number[] = []
+    for (const row of rows) {
+      const createdAt = row.createdAt ?? Date.now()
+      const result = insert.run(
+        row.spaceId,
+        row.path,
+        row.fileName,
+        row.folderPath ?? '',
+        row.fileSize ?? 0,
+        row.modifiedAt ?? 0,
+        row.durationMs ?? null,
+        row.width ?? null,
+        row.height ?? null,
+        row.codec ?? null,
+        row.thumbnailPath ?? null,
+        row.favorite ? 1 : 0,
+        row.playCount ?? 0,
+        row.lastPlayedAt ?? null,
+        createdAt,
+        row.updatedAt ?? createdAt,
+      )
+      ids.push(Number(result.lastInsertRowid))
+    }
+    return ids
+  } finally {
+    db.close()
+  }
 }
 
 /** Start a library on a throwaway data directory and clean both up on close. */

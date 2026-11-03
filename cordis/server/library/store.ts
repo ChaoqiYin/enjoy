@@ -1,6 +1,7 @@
 /** Persistence for spaces, directories and application settings. */
 
 import type { DatabaseSync } from 'node:sqlite'
+import { inTransaction } from './db.ts'
 import { ApiError } from './errors.ts'
 
 export interface Space {
@@ -203,15 +204,7 @@ export class LibraryStore {
   }
 
   private transaction<T>(run: () => T): T {
-    this.db.exec('BEGIN')
-    try {
-      const result = run()
-      this.db.exec('COMMIT')
-      return result
-    } catch (error) {
-      this.db.exec('ROLLBACK')
-      throw error
-    }
+    return inTransaction(this.db, run)
   }
 }
 

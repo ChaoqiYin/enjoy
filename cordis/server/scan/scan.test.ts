@@ -107,6 +107,14 @@ test('a new video file is indexed and the status reaches done', async () => {
     assert.equal(rows[0].file_name, 'new.mp4')
     assert.equal(rows[0].folder_path, root)
 
+    // The scan's rows are what the video listing serves.
+    const listed = await library.harness.request('GET', '/api/videos?spaceId=1')
+    assert.equal((listed.body as { total: number }).total, 1)
+    assert.equal(
+      (listed.body as { videos: { path: string }[] }).videos[0].path,
+      join(root, 'new.mp4'),
+    )
+
     assert.ok(
       library.broadcasts.some((entry) => entry.channel === 'scan'),
       'progress is published on the scan channel',

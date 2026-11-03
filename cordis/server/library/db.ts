@@ -102,6 +102,25 @@ export function openDatabase(path: string): DatabaseSync {
   return db
 }
 
+/**
+ * Run `body` in one short transaction: all of it lands or none of it does.
+ *
+ * The scan worker (#112) writes to the same file, so a write is kept as brief
+ * as it can be: the transaction is opened here, the statements run, and the
+ * connection is free again before the next request arrives.
+ */
+export function inTransaction<T>(db: DatabaseSync, body: () => T): T {
+  db.exec('BEGIN')
+  try {
+    const result = body()
+    db.exec('COMMIT')
+    return result
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
+  }
+}
+
 /** Bring the database to `SCHEMA_VERSION`; reopening an up-to-date file is a no-op. */
 export function migrate(db: DatabaseSync): void {
   const row = db.prepare('PRAGMA user_version').get() as { user_version: number }
