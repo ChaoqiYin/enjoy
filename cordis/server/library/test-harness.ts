@@ -48,8 +48,16 @@ export interface HttpResult {
   body: unknown
 }
 
+/** A response kept as bytes, for endpoints that answer with an image. */
+export interface RawResult {
+  status: number
+  contentType: string | null
+  bytes: Buffer
+}
+
 export interface Harness {
   request(method: string, path: string, body?: unknown): Promise<HttpResult>
+  raw(method: string, path: string): Promise<RawResult>
   close(): Promise<void>
 }
 
@@ -161,6 +169,14 @@ export async function startHarness(apply: (ctx: FakeContext) => void): Promise<H
         }
       }
       return { status: response.status, body: parsed }
+    },
+    async raw(method, path) {
+      const response = await fetch(base + path, { method })
+      return {
+        status: response.status,
+        contentType: response.headers.get('content-type'),
+        bytes: Buffer.from(await response.arrayBuffer()),
+      }
     },
     async close() {
       for (const dispose of disposers.reverse()) dispose()

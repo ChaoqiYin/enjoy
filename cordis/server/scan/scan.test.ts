@@ -1,9 +1,16 @@
 import assert from 'node:assert/strict'
 import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import test from 'node:test'
 import { openScanningLibrary, type ScanningLibrary } from './test-harness.ts'
+
+// These cases are about discovery and the index write. The media phases have
+// their own integration tests; pointing the two tools at a missing path keeps
+// thousands of fixture files from starting two processes each.
+process.env.ENJOY_FFMPEG = join(tmpdir(), 'enjoy-cordis-missing-tools', 'ffmpeg')
+process.env.ENJOY_FFPROBE = join(tmpdir(), 'enjoy-cordis-missing-tools', 'ffprobe')
 
 const TERMINAL = new Set(['done', 'cancelled', 'failed'])
 

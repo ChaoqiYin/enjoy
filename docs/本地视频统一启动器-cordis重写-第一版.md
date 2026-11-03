@@ -185,6 +185,8 @@ WS 频道 `scan`，消息形状：
 - ffprobe：`ffprobe -v error -select_streams v:0 -show_streams -show_format -of json <path>`，30 秒超时。
 - ffmpeg：`ffmpeg -nostdin -v error -y -i <path> -map 0:v:0 -frames:v 1 -vf scale=480:-2 -q:v 3 <temporary>`，60 秒超时。
 - 缓存目录：数据库同级 `thumbnails/`，文件名 `{videoId}-{modifiedAt}-{revision}.jpg`，先写临时文件再改名。
+- 扫描时缓存文件仍在就跳过；重建命令忽略缓存，全部重新生成。
+- 单个文件失败只增加 `failures`，不中断整次扫描。ffprobe/ffmpeg 不存在时扫描照样完成：需要工具的每个文件计入 `failures`，不为每个文件启动进程。
 - FFmpeg/ffprobe 路径：打包形态用绝对路径，从项目资源目录或环境变量读取；开发形态允许 `PATH` 查找。第一版要求用户自备 FFmpeg，设置页显示检测结果。
 
 ### 4.5 构建：扫描线程的第二入口
