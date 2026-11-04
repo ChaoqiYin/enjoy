@@ -15,6 +15,7 @@ interface VideoBody {
   codec: string | null
   thumbnailPath: string | null
   favorite: boolean
+  shared: boolean
   playCount: number
   lastPlayedAt: number | null
   createdAt: number
@@ -67,6 +68,7 @@ test('GET /api/videos lists the current space newest first and reports the total
       codec: null,
       thumbnailPath: null,
       favorite: false,
+      shared: false,
       playCount: 0,
       lastPlayedAt: null,
       createdAt: 20,
@@ -107,6 +109,98 @@ test('GET /api/videos pages with a default of 24 and an empty page past the end'
   }
 })
 
+test('PUT /api/videos/:id/shared turns the mark on and off and only=shared lists the set', async () => {
+  const library = await openLibrary()
+  try {
+    seed(library, [
+      { spaceId: 1, path: '/media/a.mkv', fileName: 'a.mkv' },
+      { spaceId: 1, path: '/media/b.mkv', fileName: 'b.mkv' },
+    ])
+
+    const marked = await library.harness.request('PUT', '/api/videos/1/shared', { shared: true })
+    assert.equal(marked.status, 200)
+    assert.deepEqual(marked.body, { shared: true })
+
+    const shared = await library.harness.request('GET', '/api/videos?only=shared')
+    assert.equal(shared.status, 200)
+    assert.deepEqual(idsOf(shared.body), [1])
+    assert.equal(videosOf(shared.body)[0]!.shared, true)
+
+    const plain = await library.harness.request('GET', '/api/videos?only=all')
+    assert.deepEqual(
+      videosOf(plain.body).map((video) => video.shared),
+      [false, true],
+    )
+
+    const detail = await library.harness.request('GET', '/api/videos/1')
+    assert.equal((detail.body as { video: VideoBody }).video.shared, true)
+
+    const unmarked = await library.harness.request('PUT', '/api/videos/1/shared', {
+      shared: false,
+    })
+    assert.equal(unmarked.status, 200)
+    assert.deepEqual(unmarked.body, { shared: false })
+
+    const empty = await library.harness.request('GET', '/api/videos?only=shared')
+    assert.deepEqual(idsOf(empty.body), [])
+    assert.equal(totalOf(empty.body), 0)
+
+    const badBody = await library.harness.request('PUT', '/api/videos/1/shared', {
+      shared: 'yes',
+    })
+    assert.equal(badBody.status, 400)
+    assert.equal(codeOf(badBody.body), 'bad_request')
+
+    const missing = await library.harness.request('PUT', '/api/videos/99/shared', {
+      shared: true,
+    })
+    assert.equal(missing.status, 404)
+    assert.equal(codeOf(missing.body), 'video.not_found')
+  } finally {
+    await library.close()
+  }
+})
+
+test('the shared mark is isolated by space and cannot be set through another space', async () => {
+  const library = await openLibrary()
+  try {
+    seed(library, [
+      { spaceId: 1, path: '/media/same.mkv', fileName: 'same.mkv' },
+      { spaceId: 1, path: '/media/one.mkv', fileName: 'one.mkv' },
+    ])
+    await library.harness.request('PUT', '/api/videos/1/shared', { shared: true })
+
+    const other = await library.harness.request('POST', '/api/spaces', { name: 'Other' })
+    assert.equal(other.status, 201)
+    seed(library, [{ spaceId: 2, path: '/media/same.mkv', fileName: 'same.mkv' }])
+
+    // The current space changed, so the same file starts unshared there.
+    const current = await library.harness.request('GET', '/api/videos')
+    assert.deepEqual(
+      videosOf(current.body).map((video) => ({ id: video.id, shared: video.shared })),
+      [{ id: 3, shared: false }],
+    )
+
+    // A space-one record is not addressable while space two is current.
+    const outOfSpace = await library.harness.request('PUT', '/api/videos/1/shared', {
+      shared: false,
+    })
+    assert.equal(outOfSpace.status, 404)
+    assert.equal(codeOf(outOfSpace.body), 'video.not_found')
+
+    const own = await library.harness.request('PUT', '/api/videos/3/shared', { shared: true })
+    assert.equal(own.status, 200)
+
+    const first = await library.harness.request('GET', '/api/videos?spaceId=1&only=shared')
+    assert.deepEqual(idsOf(first.body), [1])
+
+    const second = await library.harness.request('GET', '/api/videos?spaceId=2&only=shared')
+    assert.deepEqual(idsOf(second.body), [3])
+  } finally {
+    await library.close()
+  }
+})
+
 test('GET /api/videos filters by favorites, played history, and all', async () => {
   const library = await openLibrary()
   try {
@@ -132,7 +226,7 @@ test('GET /api/videos filters by favorites, played history, and all', async () =
     const all = await library.harness.request('GET', '/api/videos?only=all')
     assert.equal(videosOf(all.body).length, 3)
 
-    const unknown = await library.harness.request('GET', '/api/videos?only=shared')
+    const unknown = await library.harness.request('GET', '/api/videos?only=recent')
     assert.equal(unknown.status, 400)
     assert.equal(codeOf(unknown.body), 'bad_request')
   } finally {
@@ -315,6 +409,7 @@ test('GET /api/videos/:id reads one record and rejects unknown or malformed ids'
       codec: 'h264',
       thumbnailPath: '/thumb/a.jpg',
       favorite: true,
+      shared: false,
       playCount: 3,
       lastPlayedAt: 7,
       createdAt: 5,

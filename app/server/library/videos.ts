@@ -18,6 +18,7 @@ export interface Video {
   codec: string | null
   thumbnailPath: string | null
   favorite: boolean
+  shared: boolean
   playCount: number
   lastPlayedAt: number | null
   createdAt: number
@@ -25,7 +26,7 @@ export interface Video {
 }
 
 /** The condition a listing is about. `all` is the library itself. */
-export type VideoFilter = 'all' | 'favorites' | 'played'
+export type VideoFilter = 'all' | 'favorites' | 'played' | 'shared'
 
 /** The orders a listing can be read in. */
 export type VideoSort = 'newest' | 'played' | 'name' | 'size'
@@ -58,7 +59,7 @@ export interface VideoPage {
  * would leave the other's objects a field short.
  */
 const COLUMNS = `id, path, file_name, folder_path, file_size, modified_at, duration_ms,
-  width, height, codec, thumbnail_path, favorite, play_count, last_played_at,
+  width, height, codec, thumbnail_path, favorite, shared, play_count, last_played_at,
   created_at, updated_at`
 
 /**
@@ -85,6 +86,7 @@ const FILTERS: Record<VideoFilter, string> = {
   all: '1 = 1',
   favorites: 'favorite = 1',
   played: 'play_count > 0',
+  shared: 'shared = 1',
 }
 
 interface VideoRow {
@@ -100,6 +102,7 @@ interface VideoRow {
   codec: string | null
   thumbnail_path: string | null
   favorite: number
+  shared: number
   play_count: number
   last_played_at: number | null
   created_at: number
@@ -169,6 +172,25 @@ export class VideoStore {
   }
 
   /**
+   * Put one record's shared mark where the caller says.
+   *
+   * The space is part of the condition: a shared list belongs to the space it
+   * was made in, so an id from another space is answered as not found rather
+   * than silently edited.
+   */
+  setShared(id: number, spaceId: number, shared: boolean): boolean {
+    return retryBusy(() => inTransaction(this.db, () => {
+      const result = this.db
+        .prepare('UPDATE videos SET shared = ?, updated_at = ? WHERE id = ? AND space_id = ?')
+        .run(shared ? 1 : 0, Date.now(), id, spaceId)
+      if (Number(result.changes) === 0) {
+        throw new ApiError(404, 'video.not_found', 'Video does not exist')
+      }
+      return shared
+    }))
+  }
+
+  /**
    * Count one play and stamp it, and answer with the record as it now is.
    *
    * The count is incremented in the statement rather than read and written back
@@ -215,6 +237,7 @@ function readVideo(row: VideoRow): Video {  return {
     codec: row.codec,
     thumbnailPath: row.thumbnail_path,
     favorite: row.favorite === 1,
+    shared: row.shared === 1,
     playCount: row.play_count,
     lastPlayedAt: row.last_played_at,
     createdAt: row.created_at,
