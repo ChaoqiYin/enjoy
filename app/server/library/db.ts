@@ -10,7 +10,7 @@ import { dirname } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 /** The schema this build writes. Migration versions start at 1. */
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 /** Name of the space a fresh library opens with. */
 export const DEFAULT_SPACE_NAME = '默认空间'
@@ -19,8 +19,12 @@ export const DEFAULT_SPACE_NAME = '默认空间'
  * `tasks` is deliberately absent: the first cordis version has no queue yet.
  * `videos` carries everything a later list needs, so the scan task can fill
  * rows without another migration.
+ *
+ * This is version 1 as it was first written; version 2 below adds the shared
+ * mark. Keeping the historical shape here lets a version 1 file be brought
+ * forward by replaying the steps it is missing.
  */
-const SCHEMA = `
+const SCHEMA_V1 = `
   CREATE TABLE IF NOT EXISTS spaces (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
@@ -90,6 +94,34 @@ const SCHEMA = `
     updated_at INTEGER NOT NULL
   );
 `
+
+/**
+ * One forward step, in order. A file behind the build replays only the steps
+ * it is missing, so an existing library is altered in place rather than being
+ * rebuilt from the current `CREATE TABLE` text.
+ */
+const MIGRATIONS: readonly { version: number; run(db: DatabaseSync): void }[] = [
+  {
+    version: 1,
+    run(db) {
+      db.exec(SCHEMA_V1)
+      db.prepare(
+        `INSERT INTO spaces (name, created_at, current)
+         SELECT ?, ?, 1
+         WHERE NOT EXISTS (SELECT 1 FROM spaces)`,
+      ).run(DEFAULT_SPACE_NAME, Date.now())
+    },
+  },
+  {
+    version: 2,
+    run(db) {
+      db.exec(`
+        ALTER TABLE videos ADD COLUMN shared INTEGER NOT NULL DEFAULT 0;
+        CREATE INDEX IF NOT EXISTS videos_by_shared ON videos(space_id, shared);
+      `)
+    },
+  },
+]
 
 /** Open a database, configure it for concurrent readers and run migrations. */
 export function openDatabase(path: string): DatabaseSync {
@@ -165,17 +197,17 @@ function sleep(ms: number): void {
 /** Bring the database to `SCHEMA_VERSION`; reopening an up-to-date file is a no-op. */
 export function migrate(db: DatabaseSync): void {
   const row = db.prepare('PRAGMA user_version').get() as { user_version: number }
-  if (row.user_version >= SCHEMA_VERSION) return
+  let version = row.user_version
+  if (version >= SCHEMA_VERSION) return
 
   db.exec('BEGIN')
   try {
-    db.exec(SCHEMA)
-    db.prepare(
-      `INSERT INTO spaces (name, created_at, current)
-       SELECT ?, ?, 1
-       WHERE NOT EXISTS (SELECT 1 FROM spaces)`,
-    ).run(DEFAULT_SPACE_NAME, Date.now())
-    db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`)
+    for (const migration of MIGRATIONS) {
+      if (migration.version <= version) continue
+      migration.run(db)
+      version = migration.version
+    }
+    db.exec(`PRAGMA user_version = ${version}`)
     db.exec('COMMIT')
   } catch (error) {
     db.exec('ROLLBACK')
