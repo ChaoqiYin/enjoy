@@ -9,7 +9,7 @@
 
 import { bootstrapToken } from 'cordis-app/client'
 
-export type VideoFilter = 'all' | 'favorites' | 'played'
+export type VideoFilter = 'all' | 'favorites' | 'played' | 'shared'
 export type VideoSort = 'newest' | 'played' | 'name' | 'size'
 
 export interface Space {
@@ -37,6 +37,7 @@ export interface Video {
   codec: string | null
   thumbnailPath: string | null
   favorite: boolean
+  shared: boolean
   playCount: number
   lastPlayedAt: number | null
   createdAt: number
