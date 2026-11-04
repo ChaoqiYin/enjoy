@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { makeVideo } from '../../../fakes'
 import { VideoBoard } from '../../../../src/features/library/VideoBoard'
@@ -9,6 +9,7 @@ function makeActions(): VideoActionHandlers {
     details: vi.fn(),
     play: vi.fn(),
     favorite: vi.fn(),
+    share: vi.fn(),
     reveal: vi.fn(),
   }
 }
@@ -16,10 +17,11 @@ function makeActions(): VideoActionHandlers {
 function renderBoard(
   videos = [makeVideo(0)],
   actions: VideoActionHandlers = makeActions(),
+  viewMode: 'grid' | 'list' | 'table' = 'grid',
 ) {
   render(
     <VideoBoard
-      viewMode="grid"
+      viewMode={viewMode}
       videos={videos}
       busy={false}
       actions={actions}
@@ -59,6 +61,57 @@ describe('视频网格', () => {
     fireEvent.keyDown(screen.getByTestId('video-card'), { key: 'Enter' })
 
     expect(actions.details).toHaveBeenCalledWith(video)
+  })
+
+  it('共享按钮交给调用方，按下态跟随记录的 shared 标志', () => {
+    const video = makeVideo(0, { shared: false })
+    const actions = renderBoard([video])
+
+    const button = screen.getByTestId('share-video')
+    expect(button).toHaveAttribute('aria-pressed', 'false')
+    expect(button).toHaveAccessibleName('共享')
+
+    fireEvent.click(button)
+
+    expect(actions.share).toHaveBeenCalledWith(video)
+    expect(actions.details).not.toHaveBeenCalled()
+  })
+
+  it('已共享的记录按钮处于按下态', () => {
+    renderBoard([makeVideo(0, { shared: true })])
+
+    expect(screen.getByTestId('share-video')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByTestId('share-video')).toHaveAccessibleName('取消共享')
+  })
+
+  it('共享标记只在记录已共享时出现，卡片与紧凑行都戴同一枚', () => {
+    renderBoard([makeVideo(0, { shared: false })])
+    expect(screen.queryByTestId('shared-badge')).toBeNull()
+  })
+
+  it('共享记录在卡片上显示共享标记', () => {
+    renderBoard([makeVideo(0, { shared: true })])
+    expect(screen.getByTestId('shared-badge')).toHaveTextContent('已共享')
+  })
+
+  it('共享记录在紧凑行里也显示共享标记', () => {
+    renderBoard([makeVideo(0, { shared: true })], makeActions(), 'list')
+    expect(
+      within(screen.getByTestId('video-row')).getByTestId('shared-badge'),
+    ).toHaveTextContent('已共享')
+  })
+
+  it('共享记录在表格里显示共享标记与共享按钮', () => {
+    renderBoard([makeVideo(0, { shared: true })], makeActions(), 'table')
+    const table = within(screen.getByTestId('video-table'))
+    expect(table.getByTestId('shared-badge')).toHaveTextContent('已共享')
+    expect(table.getByTestId('share-video')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
   })
 
   it('网格按列宽自适应，不再按断点硬编码列数', () => {

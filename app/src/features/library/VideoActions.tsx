@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { FolderOpen, Heart, Play } from 'lucide-react';
+import { FolderOpen, Heart, Play, Share2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTranslation } from 'react-i18next';
 import type { Video } from '../../shared/api';
@@ -10,15 +10,16 @@ import { Tooltip } from '../../shared/Tooltip';
 /**
  * What the places a video is drawn can ask of it.
  *
- * The old build's set also carried sharing, removal from the index and the two
- * media commands; this build has no route behind any of those, so the set is
- * the three the backend answers: details, play and favourite, plus revealing
- * the file in the platform's folder window.
+ * The old build's set also carried removal from the index and the two media
+ * commands; this build has no route behind any of those, so the set is the
+ * four the backend answers: details, play, favourite and sharing, plus
+ * revealing the file in the platform's folder window.
  */
 export interface VideoActionHandlers {
   details: (video: Video) => void;
   play: (video: Video) => void;
   favorite: (video: Video) => void;
+  share: (video: Video) => void;
   /** Left out where the shell cannot reveal a file: the browser build has no
    *  folder window to show, so the control is not drawn at all rather than
    *  drawn and doing nothing. */
@@ -42,10 +43,10 @@ const CLAIM_TAP = {};
  *
  * Each control carries its own accessible name, which is what lets the
  * icon-only form say as much as the labelled one, and each keeps the colour the
- * interface already gave that action: play is the emphatic one, a favourite is
- * the secondary mark, and showing the file is the informational one. A
- * favourite that is on wears the secondary fill and says so through
- * `aria-pressed`, so the state survives a theme that redraws the glyph.
+ * interface already gave that action: play is the emphatic one, a favourite and
+ * a shared record are the secondary marks, and showing the file is the
+ * informational one. A mark that is on wears the secondary fill and says so
+ * through `aria-pressed`, so the state survives a theme that redraws the glyph.
  *
  * `hidePlay` exists because the two views that draw a picture hand the play
  * affordance to the overlay on it (`HoverPlayOverlay`): one action, one control,
@@ -74,6 +75,7 @@ export function VideoActions({
 }) {
   const { t } = useTranslation();
   const favorite = video.favorite ? t('unfavorite') : t('favorite');
+  const share = video.shared ? t('unshare') : t('share');
   const size: ButtonProps['size'] = iconOnly ? iconSize : 'sm';
   const control = (
     label: string,
@@ -143,6 +145,14 @@ export function VideoActions({
         />,
         video.favorite,
         'favorite-video',
+      )}
+      {control(
+        share,
+        video.shared ? 'secondary' : 'outline',
+        () => actions.share(video),
+        <Share2 size={14} aria-hidden="true" />,
+        video.shared,
+        'share-video',
       )}
       {actions.reveal &&
         control(

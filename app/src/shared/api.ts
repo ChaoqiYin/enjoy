@@ -160,6 +160,9 @@ export interface ApiClient {
   /** Whether the media phases will have ffmpeg and ffprobe to run. */
   getMediaTools(): Promise<MediaToolDetection>
   setFavorite(id: number, favorite: boolean): Promise<Video>
+  /** The shared flag the server stored. The shared route answers that flag
+   *  rather than the whole record, unlike the favorite route beside it. */
+  setShared(id: number, shared: boolean): Promise<boolean>
   /** Open the file with the system player and record the play. */
   play(video: Video): Promise<Video>
   /** Pause, resume or cancel one scan; answers with the phase it settled on. */
@@ -317,6 +320,14 @@ export function createApiClient(http: HttpTransport): ApiClient {
         { favorite },
       )
       return answer.video
+    },
+
+    async setShared(id, shared) {
+      const answer = await http.put<{ shared: boolean }>(
+        `/api/videos/${id}/shared`,
+        { shared },
+      )
+      return answer.shared
     },
 
     async play(video) {
