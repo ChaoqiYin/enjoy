@@ -8,6 +8,21 @@ import { LibraryStore } from './store.ts'
 export interface RouteDependencies {
   /** Whether a scan currently owns the slot. Injected by the scan task. */
   isScanActive: () => boolean
+  /**
+   * Called before the current space marker moves or a space is removed.
+   *
+   * The share service belongs to the space it was started in, so it has to
+   * stop before the page can show another one. The hook is injected by the
+   * server entry; a library used on its own has nothing to stop.
+   */
+  beforeSpaceChange?: (change: SpaceChange) => Promise<void>
+}
+
+/** A command that can change which space is current. */
+export interface SpaceChange {
+  kind: 'create' | 'switch' | 'delete'
+  /** The space switched to or deleted; absent when a new one is created. */
+  spaceId?: number
 }
 
 export function registerRoutes(
@@ -39,7 +54,9 @@ export function registerRoutes(
     '/api/spaces',
     spaceCommand(async (req, res) => {
       const body = await readJson(req)
-      const space = store.createSpace(requiredName(body))
+      const name = requiredName(body)
+      await deps.beforeSpaceChange?.({ kind: 'create' })
+      const space = store.createSpace(name)
       sendJson(res, 201, { space })
     }),
   )
@@ -56,7 +73,12 @@ export function registerRoutes(
   ctx.router.post(
     '/api/spaces/:id/switch',
     spaceCommand(async (_req, res, params) => {
-      const space = store.switchSpace(requiredId(params.id))
+      const id = requiredId(params.id)
+      // An unknown id is answered before anything is stopped: a typo must not
+      // take a running share service down.
+      store.resolveSpaceId(id)
+      await deps.beforeSpaceChange?.({ kind: 'switch', spaceId: id })
+      const space = store.switchSpace(id)
       sendJson(res, 200, { space })
     }),
   )
@@ -64,7 +86,10 @@ export function registerRoutes(
   ctx.router.delete(
     '/api/spaces/:id',
     spaceCommand(async (_req, res, params) => {
-      const space = store.deleteSpace(requiredId(params.id))
+      const id = requiredId(params.id)
+      store.resolveSpaceId(id)
+      await deps.beforeSpaceChange?.({ kind: 'delete', spaceId: id })
+      const space = store.deleteSpace(id)
       sendJson(res, 200, { space })
     }),
   )

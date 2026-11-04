@@ -8,6 +8,7 @@
  *     credentials: { username, password },    // Basic auth
  *     language: 'zh-CN' | 'en',               // landing-page fallback
  *     port: 4918,                             // 0 picks a free port
+ *     onAuthenticated: ({ address, userAgent }) => void, // activity hook
  *   })
  *   server.port          // the port actually bound
  *   server.missingFiles  // inputs missing or not a regular file
@@ -43,6 +44,14 @@ export interface WebdavCredentials {
   password: string
 }
 
+/** What the activity hook is told after a request passes authentication. */
+export interface WebdavAuthenticatedRequest {
+  /** Peer address of the connection, as the socket reports it. */
+  address: string
+  /** Raw `User-Agent` header, when the client sent one. */
+  userAgent: string | undefined
+}
+
 export interface WebdavServerOptions {
   /** Absolute paths of the files to expose. Order is irrelevant: paths sort. */
   paths: readonly string[]
@@ -51,6 +60,12 @@ export interface WebdavServerOptions {
   language: WebdavLanguage
   /** Port to bind on `0.0.0.0`; `0` asks the OS for a free one. Default 4918. */
   port?: number
+  /**
+   * Called once per request that passes Basic authentication, including
+   * requests that are then refused (writes, unknown names). The share state
+   * layer uses it for the recent-device list.
+   */
+  onAuthenticated?: (request: WebdavAuthenticatedRequest) => void
 }
 
 export interface WebdavServer {
@@ -159,6 +174,20 @@ function handle(
   if (!authorized(req.headers.authorization, options.credentials)) {
     sendEmpty(res, 401, { 'www-authenticate': CHALLENGE })
     return
+  }
+
+  // Past this point the caller knows the password, so the share state layer
+  // may count it as a client. A failure in that bookkeeping is not a reason to
+  // fail a request the client is entitled to.
+  if (options.onAuthenticated) {
+    try {
+      options.onAuthenticated({
+        address: req.socket.remoteAddress ?? '',
+        userAgent: req.headers['user-agent'],
+      })
+    } catch {
+      // The listener owns the protocol, not the observer's state.
+    }
   }
 
   const method = req.method ?? ''

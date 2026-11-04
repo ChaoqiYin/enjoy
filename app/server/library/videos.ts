@@ -172,6 +172,20 @@ export class VideoStore {
   }
 
   /**
+   * The paths of one space's shared records, in path order.
+   *
+   * The share service builds its startup snapshot from this list and later
+   * compares it against the same read: ordering here is what makes two equal
+   * lists compare equal without sorting them again.
+   */
+  sharedPaths(spaceId: number): string[] {
+    const rows = this.db
+      .prepare('SELECT path FROM videos WHERE space_id = ? AND shared = 1 ORDER BY path')
+      .all(spaceId) as { path: string }[]
+    return rows.map((row) => row.path)
+  }
+
+  /**
    * Put one record's shared mark where the caller says.
    *
    * The space is part of the condition: a shared list belongs to the space it
