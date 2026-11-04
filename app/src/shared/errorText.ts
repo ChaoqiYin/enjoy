@@ -16,6 +16,10 @@ const KNOWN_CODES = new Set([
   'directory.path.empty',
   'directory.not_found',
   'command_not_allowed',
+  'share.already_running',
+  'share.port_in_use',
+  'share.start_failed',
+  'share.stop_failed',
 ])
 
 export function errorTranslationKey(error: ApiError): string {

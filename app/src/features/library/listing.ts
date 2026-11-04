@@ -1,7 +1,7 @@
 import type { VideoFilter, VideoSort } from '../../shared/api'
 
-/** The two listings this build draws. */
-export type Listing = 'library' | 'favorites'
+/** The listings this build draws. */
+export type Listing = 'library' | 'favorites' | 'share'
 
 export type ViewMode = 'grid' | 'list' | 'table'
 
@@ -37,14 +37,17 @@ export const DEFAULT_VIEW_MODE: ViewMode = 'grid'
 export const DEFAULT_SORT: VideoSort = 'newest'
 
 /**
- * The filter a page actually asks for: favorites cannot be narrowed, so the
- * control state is ignored there rather than painted as if it mattered.
+ * The filter a page actually asks for: favorites and the share list cannot be
+ * narrowed, so the control state is ignored there rather than painted as if it
+ * mattered.
  */
 export function effectiveFilter(
   listing: Listing,
   filter: VideoFilter,
 ): VideoFilter {
-  return listing === 'favorites' ? 'favorites' : filter
+  if (listing === 'favorites') return 'favorites'
+  if (listing === 'share') return 'shared'
+  return filter
 }
 
 export function pageCount(total: number): number {

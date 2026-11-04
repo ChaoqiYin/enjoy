@@ -24,11 +24,13 @@ import { useWindowTitle } from './shared/native'
 import { applyTheme, storedTheme } from './shared/theme'
 import { AppFooter } from './shared/AppFooter'
 import { AppHeader } from './features/layout/AppHeader'
+import { ShareProvider } from './features/share/ShareProvider'
 import { ScanDialogHost } from './features/scan/ScanDialogHost'
 import { FavoritesPage } from './pages/FavoritesPage'
 import { LibraryPage } from './pages/LibraryPage'
 import { PluginsPage } from './pages/PluginsPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { SharePage } from './pages/SharePage'
 
 // Paint the stored preference before React's first frame, so every route
 // starts in the theme the user last chose rather than the default palette.
@@ -74,18 +76,20 @@ export default function Body(): ReactElement {
   return (
     <ServicesProvider value={services}>
       <ToastProvider>
-        <WindowTitle />
-        <div className="dot-grid flex h-full flex-col overflow-hidden bg-background text-foreground">
-          <AppHeader
-            path={path}
-            onSpaceSwitched={() => setSpaceRevision((value) => value + 1)}
-          />
-          <div key={spaceRevision} className="flex min-h-0 flex-1 flex-col">
-            {renderRoute(path)}
+        <ShareProvider revision={spaceRevision}>
+          <WindowTitle />
+          <div className="dot-grid flex h-full flex-col overflow-hidden bg-background text-foreground">
+            <AppHeader
+              path={path}
+              onSpaceSwitched={() => setSpaceRevision((value) => value + 1)}
+            />
+            <div key={spaceRevision} className="flex min-h-0 flex-1 flex-col">
+              {renderRoute(path)}
+            </div>
+            <AppFooter port={port} hardwareAcceleration={null} />
           </div>
-          <AppFooter port={port} hardwareAcceleration={null} />
-        </div>
-        <ScanDialogHost />
+          <ScanDialogHost />
+        </ShareProvider>
       </ToastProvider>
     </ServicesProvider>
   )
@@ -100,6 +104,7 @@ function WindowTitle(): null {
 function renderRoute(path: string): ReactElement {
   if (path === '/') return <LibraryPage />
   if (path === '/favorites') return <FavoritesPage />
+  if (path === '/share') return <SharePage />
   if (path === '/plugins') return <PluginsPage />
   if (path === '/settings') return <SettingsPage />
   return <NotFound />
