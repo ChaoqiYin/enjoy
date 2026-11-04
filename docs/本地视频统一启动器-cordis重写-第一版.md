@@ -1,6 +1,6 @@
 # 本地视频统一启动器 · cordis-app 重写 · 第一版设计
 
-本文是第一版重写的实施方案。它只回答一件事：**用 cordis-app 把现有 Enjoy 的视频管理、收藏、设置三页做出来**，并把视频扫描与缩略图生成从任务队列改回同步 dialog 的呈现方式。插件体系不在这一版。
+本文是第一版重写的实施方案。它只回答一件事：**用 cordis-app 把现有 Enjoy 的视频管理、收藏、分享、设置四页做出来**，并把视频扫描与缩略图生成从任务队列改回同步 dialog 的呈现方式。插件体系不在这一版。
 
 事实基线：cordis-app `b04f1f9`（含 `ctx.native`、`shell.openPath`、`dev --shell` 与脚本重构）。框架仍在演进，实施前应重新核对这个 commit 之后的变化。
 
@@ -11,6 +11,7 @@
 - Go 外壳 + cordis-app worker/body，替换 Tauri 外壳与 Rust 后端。
 - 视频管理页（列表、筛选、排序、分页、播放、在文件夹中显示）。
 - 收藏页。
+- 分享页：视频的共享标记与共享清单、手动启停的只读 WebDAV 服务、连接信息、密码与最近接入设备；头栏右侧显示服务状态。
 - 设置页：外观（语言、主题、仓库链接）、空间管理、目录管理（扫描、全部重建缩略图）。
 - SQLite 数据层，沿用现有表语义。
 - 扫描以模态 dialog 呈现：进度、暂停、继续、取消。
@@ -21,7 +22,7 @@
 
 - 任何应用插件（不写示例插件、不渲染 `app.page` / `video.panel`、不做插件设置与安装）。
 - 任务页、任务队列、`tasks` 表、跨重启恢复。
-- 共享清单、自动更新、历史页。
+- 自动更新、历史页。
 - 自绘标题栏、贴靠布局、托盘、深链接、多窗口、窗口位置记忆。
 
 ### 决策表
@@ -53,10 +54,11 @@ worker（Node）
   ├─ cordis 内核 + 内置插件：server / auth / router / static / ws / storage
   ├─ 项目 server（server/index.ts）：路由、SQLite、扫描编排、原生能力代理
   ├─ scan worker thread：目录遍历、ffprobe/ffmpeg、SQLite 写入
+  ├─ 分享服务：只读 WebDAV，监听 0.0.0.0，由用户手动启停
   └─ ctx.native ──回环 HTTP──▶ Go 外壳 native server
   ▼
 浏览器 / 外壳窗口
-  └─ 项目 body（React）：三页 + 扫描 dialog + 设置
+  └─ 项目 body（React）：五页 + 扫描 dialog
 ```
 
 页面只通过 HTTP + WS 调 worker；原生能力由 worker 的 `ctx.native` 转发给外壳。页面永远拿不到原生 token。
@@ -69,13 +71,14 @@ worker（Node）
 ├── app.json                  ui 全部关闭，plugins 为空
 ├── src/
 │   ├── body.tsx              自定义布局与路由
-│   ├── pages/                Library / Favorites / Settings / Plugins（只读）
+│   ├── pages/                Library / Favorites / Share / Settings / Plugins（只读）
 │   └── shared/               API 适配层、查询、i18n、UI 组件
 ├── server/
 │   ├── index.ts              apply(ctx)：路由、扫描编排、原生代理
 │   ├── scan-worker.ts        独立入口，worker_threads 加载
 │   ├── db.ts                 node:sqlite 连接与迁移
 │   ├── scan/                 目录遍历、媒体处理、控制字
+│   ├── share/                分享生命周期、WebDAV 监听、快照、凭据、设备活动
 │   └── native.ts             ctx.native 白名单代理
 ├── scripts/
 │   └── build-scan-worker.mjs 第二入口构建（若框架未支持多入口）
@@ -109,13 +112,13 @@ worker（Node）
 沿用现有 schema，去掉 `tasks`：
 
 - `spaces`
-- `videos`（含 `favorite`、`play_count`、`last_played_at`）
+- `videos`（含 `favorite`、`shared`、`play_count`、`last_played_at`）
 - `directories`
 - `directory_videos`
 - `video_fields`（第一版保留结构，不写入）
 - `plugin_settings`（第一版保留结构，不写入）
 
-迁移版本从 1 开始重新编号；不追求兼容旧 Rust 版的数据库文件。第一版启动时若发现旧库，提示用户新建数据目录，或提供一次性导入（不在第一版）。
+迁移版本从 1 开始重新编号；不追求兼容旧 Rust 版的数据库文件。第一版启动时若发现旧库，提示用户新建数据目录，或提供一次性导入（不在第一版）。分享在版本 2 增加 `videos.shared`（默认 0）与 `(space_id, shared)` 索引：已有库用 `ALTER TABLE` 补列，新建库直接包含该列；迁移按版本逐步执行。
 
 ### 3.3 文件消失
 
@@ -214,6 +217,7 @@ cordis-app 的 `serverPreset` 目前只接受一个入口，`buildProjectServer`
 | `GET` | `/api/videos` | 分页、筛选、排序 |
 | `GET` | `/api/videos/:id` | 单条详情 |
 | `PUT` | `/api/videos/:id/favorite` | 收藏/取消 |
+| `PUT` | `/api/videos/:id/shared` | 设置共享状态，body `{ shared: boolean }` |
 | `PUT` | `/api/videos/:id/played` | 记录播放 |
 | `GET` | `/api/directories` | 目录列表 |
 | `POST` | `/api/directories` | 添加目录 |
@@ -227,9 +231,15 @@ cordis-app 的 `serverPreset` 目前只接受一个入口，`buildProjectServer`
 | `POST` | `/api/native` | 原生能力代理（白名单） |
 | `GET` | `/api/settings` | 读取应用设置 |
 | `PUT` | `/api/settings` | 保存应用设置 |
+| `GET` | `/api/share/status` | 分享状态；不启动任何东西 |
+| `POST` | `/api/share/open` | 以当前空间启动只读 WebDAV 服务 |
+| `POST` | `/api/share/close` | 停止服务；未运行时也成功 |
+| `POST` | `/api/share/password` | 重新生成四位密码 |
 | `GET` | `/api/plugins` | 只读插件列表（第一版为空） |
 
-视频列表的筛选/排序/分页全部在后端完成，沿用 ADR 0016。
+视频列表的筛选/排序/分页全部在后端完成，沿用 ADR 0016。`GET /api/videos?only=shared` 取当前空间的共享清单，分享页与视频库共用同一套分页、排序、搜索与视图。
+
+`/api/share/*` 与其余 `/api` 一样经过应用会话鉴权；WebDAV 监听器本身不经过会话鉴权，只认自己的 Basic 凭据，因为电视上的播放器不会带应用 token。
 
 ## 6. 前端
 
@@ -239,6 +249,7 @@ cordis-app 的 `serverPreset` 目前只接受一个入口，`buildProjectServer`
 
 - `/`：视频管理页
 - `/favorites`：收藏页
+- `/share`：分享页
 - `/settings`：设置页
 - `/plugins`：只读插件页（显示“暂无插件”）
 
@@ -250,9 +261,11 @@ cordis-app 的 `usePath` / `navigate` 只支持无参数路径；分页、筛选
 
 - `frontend/src/pages/LibraryPage.tsx`
 - `frontend/src/pages/FavoritesPage.tsx`
+- `frontend/src/pages/SharePage.tsx`
 - `frontend/src/pages/SettingsPage.tsx`
 - `frontend/src/features/library/useLibrary.ts`
 - `frontend/src/features/library/listing.ts`
+- `frontend/src/features/share/` 下的分享组件
 - `frontend/src/shared/` 下的 UI 组件、i18n、主题
 
 替换的部分：
@@ -260,7 +273,7 @@ cordis-app 的 `usePath` / `navigate` 只支持无参数路径；分页、筛选
 - `frontend/src/shared/api.ts` 的 Tauri `invoke` 改为 HTTP/WS 适配层；19 个引用 `@tauri-apps/api` 的文件逐个替换。
 - 路由与导航适配 cordis-app 的 `usePath` / `navigate`。
 - 原生能力调用改为 `POST /api/native`。
-- 去掉任务页、共享菜单、更新入口、历史页。
+- 去掉任务页、更新入口、历史页。
 
 ### 6.3 扫描 dialog
 
@@ -306,7 +319,40 @@ cordis-app 的 `usePath` / `navigate` 只支持无参数路径；分页、筛选
 
 `unsupported` 是正常分支，不弹错误。
 
-## 7. 原生能力与外壳
+## 7. 分享（只读 WebDAV）
+
+分享把当前空间的共享清单以只读方式发布到局域网。**共享清单**指 `videos.shared = 1` 的那批记录，不是目录、也不是整个扫描合集；标志随 `space_id` 隔离，文件身份变化时保留，记录作为过期视频删除时随之消失。
+
+### 7.1 行为边界
+
+- **手动启停**：应用启动不监听任何分享端口；同一时刻最多一个服务；重复启动返回 `share.already_running`。
+- **只读**：没有写入能力；`PUT`、`DELETE`、`MKCOL`、`MOVE`、`COPY`、`PROPPATCH`、`LOCK`、`UNLOCK` 一律 `403`。
+- **IPv4、明文 HTTP**：监听 `0.0.0.0`，只枚举并提供 IPv4 地址；不提供 TLS、IPv6、目录层级、缩略图或字幕旁挂。
+- **凭据**：用户名固定 `enjoy`；密码为四位数字，存在应用级 `settings` 表，跨空间保留。启动时把它复制进运行实例，运行中重置只改存储值，界面提示「重启后生效」。
+- **端口**：从 `4918` 起连续尝试最多 10 个端口；全部被占返回 `share.port_in_use`。
+- **快照**：启动时读取共享清单并按路径排序，平铺成一层虚拟文件；重名在最后一个扩展名之前加全角序号（`名称（1）.mp4`）。运行期间清单变化不进入快照，只把 `listChanged` 置为真，要生效必须重启服务。启动时已不存在的文件不计入可读列表，只计入 `missingFiles`；启动后文件被删，对该虚拟名的请求返回 `404`。
+- **生命周期**：服务属于启动它的空间；切换空间、创建空间（新空间随即成为当前空间）或删除该空间时先停止服务。应用退出或 worker 重启随进程释放端口。
+- **设备活动**：只记录通过认证的请求；保留最近 60 秒、最多 64 台，按最近活动从新到旧排列，停止服务后清空。未认证请求不进入列表。
+- **连接地址**：枚举 `os.networkInterfaces()` 的 IPv4 非内部地址并补 `127.0.0.1`，排序为私有 → 链路本地 → 公网 → 回环；回环地址在界面上标为「本机」。
+- **空清单**：接口允许启动，但分享页禁用启动按钮并给出跳转到视频库的空态。
+- **落地页与认证**：浏览器打开根地址看到一句说明，语言按 `Accept-Language` 选择中英文。所有请求（含 `OPTIONS` 与根路径）都先认证，失败返回 `401` 与 Basic challenge。
+- **已知盲区**：虚拟文件名不做清洗。含半角 `< > : " | ? *` 或超长的名字，在 Windows 与部分 iOS 客户端上可能无法打开；与旧版一致，这是有意接受的盲区。服务也没有跨域（CORS）、访问白名单、自动启动、mDNS、二维码、转码或关闭窗口前的确认。
+- **安全姿态**：明文 HTTP 加四位 PIN（一万种组合）只用于避免误连，不是强访问控制；界面与文档不应暗示相反。
+
+### 7.2 WebDAV 协议面
+
+- `OPTIONS`：返回 `DAV: 1`、`MS-Author-Via: DAV` 与允许的方法。
+- `PROPFIND`：`Depth: 0` 返回集合或文件自身，`Depth: 1` 返回集合加全部文件（对文件等同 `0`），缺少 `Depth` 按 `1` 处理，`infinity` 返回 `403`；响应固定包含 `displayname`、`resourcetype`、`getcontentlength`、`getlastmodified`、`getcontenttype`、`getetag`。
+- `GET` / `HEAD`：根路径返回落地页；文件路径返回原始字节，支持单段 `Range`（`206` / `416`），多段范围按完整 `200` 处理；响应带 `Content-Length`、`Last-Modified`、`ETag`、`Accept-Ranges` 与按扩展名推断的 `Content-Type`。
+- 其他方法返回 `405`；根下只接受单个路径段，解码后含 `/`、`\`、`..` 或为空的一律 `404`。
+
+### 7.3 与旧版的差异
+
+- 旧版用现成 WebDAV 库；新版只实现播放器与文件管理器实际需要的只读子集，不引入新的 WebDAV 依赖。
+- 落地页语言改由浏览器 `Accept-Language` 决定；设备表增加 64 台上限。
+- 旧版在关闭窗口时询问是否停止分享；新架构没有等价的关闭钩子，进程退出即释放端口，因此不做确认。
+
+## 8. 原生能力与外壳
 
 - 用 `ctx.native`，不写 Node 侧平台分支。
 - `shell.openPath` 要求绝对路径且存在；播放前先确认文件仍在。
@@ -315,7 +361,7 @@ cordis-app 的 `usePath` / `navigate` 只支持无参数路径；分页、筛选
 - 窗口：系统标题栏，启动 1280×832，可用 `window.setSize` 调整；没有最小尺寸，用前端 CSS 兜底。
 - 自绘标题栏（ADR 0039）与贴靠布局（ADR 0041）第一版放弃，这是已知功能回退。
 
-## 8. 开发、构建与验收
+## 9. 开发、构建与验收
 
 | 场景 | 命令 |
 | --- | --- |
@@ -335,8 +381,10 @@ cordis-app 的 `usePath` / `navigate` 只支持无参数路径；分页、筛选
 - 不可达目录不删除记录。
 - 原生代理的白名单与 `unsupported` 分支。
 - 前端 dialog 的三按钮与进度。
+- 分享：共享状态落库与空间隔离、`only=shared`、WebDAV 的认证/列举/取字节/Range/写方法拒绝、快照与重启语义、密码与设备活动、空间切换停止服务。
+- 分享页与头栏：空清单、启停与错误重试、连接信息与密码、告警、设备列表、轮询。
 
-## 9. 与现有 Enjoy 的差异
+## 10. 与现有 Enjoy 的差异
 
 | 项 | 现有 | 第一版 |
 | --- | --- | --- |
@@ -346,13 +394,13 @@ cordis-app 的 `usePath` / `navigate` 只支持无参数路径；分页、筛选
 | 扫描 | 任务队列 + 状态条 | 模态 dialog + 后台线程 |
 | 空间锁 | 已移除 | 恢复 |
 | 任务页 | 有 | 无 |
-| 共享清单 | 有 | 无 |
+| 共享清单与只读 WebDAV | 有 | 有（重实现只读子集） |
 | 自动更新 | 有 | 无 |
 | 自绘标题栏 / 贴靠 | 有 | 无（系统标题栏） |
 | 托盘 / 深链接 / 多窗口 | 视现状 | 无 |
 | 插件 | WASM 插件体系 | 无（框架出口关闭） |
 
-## 10. 风险与未决
+## 11. 风险与未决
 
 1. **扫描线程的第二入口**：cordis-app 目前只打包单个 server 入口。推荐改框架支持 `server/` 多入口；不改则项目侧要维护一份与 watcher 同步的构建脚本。
 2. **`node:sqlite` 的状态**：Node 24 中仍需确认 stable/experimental 与 flag；如果不可用，退回 `better-sqlite3` 会与“不支持 `.node`”冲突，需要重新评估打包。

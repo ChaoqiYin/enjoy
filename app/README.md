@@ -126,13 +126,13 @@ CORDIS_APP_SHELL="$PWD/dist/cordis-app" \
 - `cordis-app` 构建项目前端时固定使用 Vite 的 `react()`、`bodyPlugin` 与 `importMapPlugin()`；`bodyPlugin` 只把 `virtual:cordis-app/body` 换成项目的 `src/body.tsx`。项目没有注入 Vite 插件的入口，因此不能直接加 `@tailwindcss/vite`。
 - 采用的做法：`pnpm css` 调用 Tailwind CLI，把 `src/styles.tailwind.css` 编译成 `src/styles.generated.css`（已 gitignore）。`src/styles.css` 先 `@import` 生成物，再补 `html/body/#root` 的高度；`src/body.tsx` 导入 `src/styles.css`。
 - UI 组件取自 shadcn/ui 的源码（Button、Select、Tooltip、Alert），交互控件由 `radix-ui` 驱动；variant、尺寸与颜色 token 保留 Enjoy 的命名。
-- 样式只保留视频/收藏页实际使用的语义 token（background、card、primary、selection、hover、destructive、warning 等），浅色/深色值沿用重写前的取值；框架 `restoreAppearance()` 写的是 `data-theme`，所以深色变体也按这个属性声明。
-- body 自己画顶部 header（品牌、空间切换、横向导航）和四个路由（`/`、`/favorites`、`/settings`、`/plugins`），不渲染插件的页面出口、slot 或设置面板。页面沿用旧版的布局：导航在 header 内，页面在 header 下方；列表页不画标题，工具栏在顶部、分页在底部，记录在两者之间滚动；设置页是左侧分区栏加右侧面板。
+- 样式只保留列表页与设置页实际使用的语义 token（background、card、primary、selection、hover、destructive、warning 等），浅色/深色值沿用重写前的取值；框架 `restoreAppearance()` 写的是 `data-theme`，所以深色变体也按这个属性声明。
+- body 自己画顶部 header（品牌、空间切换、横向导航）和五个路由（`/`、`/favorites`、`/share`、`/settings`、`/plugins`），不渲染插件的页面出口、slot 或设置面板。页面沿用旧版的布局：导航在 header 内，页面在 header 下方；列表页不画标题，工具栏在顶部、分页在底部，记录在两者之间滚动；设置页是左侧分区栏加右侧面板。头栏右侧是分享服务的状态指示，点击进入分享页。
 
 ### auth 与 `/api`
 
 - 框架壳启动时用 `bootstrapToken()` 从 URL 的 `#token=` 取 token，存进 `sessionStorage` 的 `cordis-app/token`，随后把 hash 抹掉。项目代码通过 `useRuntime()` 拿到 `runtime.token`。
-- `/api/*` 的请求统一走 `runtime.http`：它自动加 `Authorization: Bearer <token>`，非 2xx 抛 `HttpError`。`src/shared/api.ts` 的 `createApiClient(runtime.http)` 把 spaces、videos、directories、settings、native 包成带类型的 `ApiClient`，并把所有错误归一为 `{ code, message }`；原生失败也是这个形状（`POST /api/native` 以 HTTP 200 返回 `{ ok: false, code, message }`）。
+- `/api/*` 的请求统一走 `runtime.http`：它自动加 `Authorization: Bearer <token>`，非 2xx 抛 `HttpError`。`src/shared/api.ts` 的 `createApiClient(runtime.http)` 把 spaces、videos、directories、settings、share、native 包成带类型的 `ApiClient`，并把所有错误归一为 `{ code, message }`；原生失败也是这个形状（`POST /api/native` 以 HTTP 200 返回 `{ ok: false, code, message }`）。
 - 播放调用 `POST /api/native` 的 `shell.openPath`（入参 `{ path }`），成功后再 `PUT /api/videos/:id/played`；失败提示会区分 `unsupported`，并给出「复制路径」。
 
 ### 扫描事件
@@ -141,10 +141,25 @@ CORDIS_APP_SHELL="$PWD/dist/cordis-app" \
 - `src/shared/scanEvents.ts` 惰性建立这一条连接，兼容裸事件与框架 `{ type, data }` 信封，按 `spaceId` 过滤；`ScanDialogHost` 在 body 层全局挂载，挂载时用 `GET /api/scan/status` 补状态，收到终态后关闭对话框。
 - 扫描期间空间命令由后端拒绝（409 `space.blocked.scanning`），暂停与取消请求也占用扫描槽。
 
+## 分享服务
+
+分享把当前空间里标记为共享的视频（`videos.shared`，即**共享清单**）以只读 WebDAV 发布到局域网：
+
+- 入口是分享页 `/share`；导航在「收藏」之后，头栏右侧显示「正在分享 / 未在分享」。服务只能手动启动和停止，应用启动时不会自动监听。
+- 监听 `0.0.0.0`，只支持 IPv4，从 `4918` 起连续尝试最多 10 个端口（`4918`–`4927`）；全部被占时启动失败并提示 `share.port_in_use`。端口与可用地址以分享页显示的为准。
+- 用户名固定 `enjoy`，密码是四位数字，存在应用级设置里、跨空间保留。运行中重置密码不会改变已启动的服务，要重启服务才生效。
+- 清单在服务启动时形成快照：之后增删共享视频只需重启服务生效；启动时已不在磁盘上的文件只计入缺失数量，不会出现在客户端的列表里。
+- 切换空间、创建空间（新空间随即成为当前空间）或删除正在分享的空间会先停止服务；应用退出（包括开发时 worker 重启）随进程释放端口。
+- 最近接入设备按「通过认证的请求」统计：只保留最近 60 秒、最多 64 台，按最近活动排序。
+
+这是明文 HTTP 加四位 PIN 的服务：PIN 只用于避免误连，不防同网段的嗅探或有意的攻击；不提供 TLS、IPv6、CORS、访问白名单、写入、目录层级或转码。虚拟文件名不做清洗，含半角 `< > : " | ? *` 或超长的名字在 Windows 与部分 iOS 客户端上可能无法打开，与旧版一样属于已知盲区。旧版在关闭窗口前会询问是否停止分享，新版没有这个确认，进程退出即释放端口。
+
+分享的测试包含在 `pnpm test` 的 `test/server/share/`（真实 HTTP + 临时库）与 `test/src/pages/SharePage.test.tsx`、`test/src/pages/ShareHeader.test.tsx` 中，不需要额外的启动脚本。
+
 ## 已知回退（相对旧 Tauri 版）
 
 - 没有任务页与任务队列；没有跨重启恢复与后台任务。
-- 没有共享清单与共享服务。
+- 关闭窗口前不再询问是否停止分享；进程退出即释放端口。
 - 没有自动更新、更新检查与下载。
 - 没有历史页。
 - 没有自绘标题栏、贴靠布局、托盘、深链接、多窗口、窗口位置记忆。
