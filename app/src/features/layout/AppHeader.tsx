@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
 import { BrandLogo } from '../../shared/BrandLogo'
+import { ShareStatusIndicator } from '../share/ShareStatusIndicator'
 import { MainNav } from './MainNav'
 import { SpaceSwitcher } from '../space/SpaceSwitcher'
 
@@ -9,9 +10,7 @@ import { SpaceSwitcher } from '../space/SpaceSwitcher'
  *
  * One row, the three clusters the old header draws: the brand and the space the
  * rest of the screen is about on the left, the entries across the middle, and
- * the right-hand cluster kept for the window-level state the share service used
- * to report — this version has no service, so it stays empty rather than
- * moving the navigation off centre.
+ * the share service's state on the right, where it can be read from any page.
  */
 export function AppHeader({
   path,
@@ -28,7 +27,9 @@ export function AppHeader({
           <SpaceSwitcher onSwitched={onSpaceSwitched} />
         </div>
         <MainNav path={path} />
-        <div className="flex shrink-0 items-center gap-3" />
+        <div className="flex shrink-0 items-center gap-3">
+          <ShareStatusIndicator />
+        </div>
       </div>
     </header>
   )

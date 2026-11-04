@@ -5,6 +5,7 @@ import {
   Heart,
   Puzzle,
   Settings,
+  Share2,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +16,7 @@ import { Tabs, TabsList, TabsTrigger } from '../../shared/ui/tabs'
 const entries = [
   { to: '/', label: 'library', icon: Clapperboard },
   { to: '/favorites', label: 'favorites', icon: Heart },
+  { to: '/share', label: 'sharePage', icon: Share2 },
   { to: '/settings', label: 'settings', icon: Settings },
   { to: '/plugins', label: 'plugins', icon: Puzzle },
 ] as const

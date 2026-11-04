@@ -1,5 +1,6 @@
 import type {
   ApiClient,
+  ApiError,
   Directory,
   MediaToolDetection,
   NativeResult,
@@ -7,6 +8,7 @@ import type {
   ScanControlAction,
   ScanPhase,
   ScanStatus,
+  ShareStatus,
   Space,
   Video,
   VideoListQuery,
@@ -53,6 +55,39 @@ export interface FakeNativeCall {
   input: unknown
 }
 
+/** A share status with the two addresses the server would usually report. */
+export function makeShareStatus(overrides: Partial<ShareStatus> = {}): ShareStatus {
+  return {
+    running: false,
+    port: null,
+    username: 'enjoy',
+    password: '1234',
+    needsRestart: false,
+    listChanged: false,
+    missingFiles: 0,
+    devices: [],
+    addresses: [
+      { address: '192.168.1.5', loopback: false },
+      { address: '127.0.0.1', loopback: true },
+    ],
+    ...overrides,
+  }
+}
+
+export type ShareOperation = 'status' | 'open' | 'close' | 'password'
+
+export interface FakeShareState {
+  /** What the next status read answers; tests may change it between polls. */
+  status: ShareStatus
+  statusCalls: number
+  opened: number
+  closed: number
+  regenerated: number
+  /** Thrown by the next call of that operation, then cleared. */
+  failNext: Partial<Record<ShareOperation, ApiError>>
+  setStatus(next: Partial<ShareStatus>): void
+}
+
 export interface FakeScanState {
   /** What `getScanStatus` answers; tests may change it before a reconnect. */
   status: ScanStatus
@@ -71,6 +106,7 @@ export interface FakeApi extends ApiClient {
   /** Ids whose detail was read through `getVideo`, in call order. */
   readonly detailReads: number[]
   readonly scan: FakeScanState
+  readonly share: FakeShareState
   /** Replace the records the listing reads, as a scan finishing would. */
   setVideos(videos: Video[]): void
 }
@@ -87,6 +123,8 @@ interface FakeApiOptions {
   nativeFailures?: Record<string, { code: string; message: string }>
   /** The initial answer of `getScanStatus`; `{ active: false }` by default. */
   scanStatus?: ScanStatus
+  /** What `GET /api/share/status` answers before any command is applied. */
+  shareStatus?: Partial<ShareStatus>
   /** What the plugin route reports; empty by default. */
   plugins?: PluginSummary[]
   /** What the media-tool route reports; both missing by default. */
@@ -112,6 +150,32 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
     rebuilt: [],
     controls: [],
   }
+  const share: FakeShareState = {
+    status: makeShareStatus(options.shareStatus),
+    statusCalls: 0,
+    opened: 0,
+    closed: 0,
+    regenerated: 0,
+    failNext: {},
+    setStatus(next) {
+      share.status = { ...share.status, ...next }
+    },
+  }
+
+  /** A pending failure is thrown once, as a server that answers wrong once would. */
+  const failIfAsked = (operation: ShareOperation): void => {
+    const failure = share.failNext[operation]
+    if (failure === undefined) return
+    delete share.failNext[operation]
+    throw failure
+  }
+
+  /** Arrays are copied so a poll cannot mutate the state the next poll reads. */
+  const shareAnswer = (): ShareStatus => ({
+    ...share.status,
+    devices: share.status.devices.map((device) => ({ ...device })),
+    addresses: share.status.addresses.map((address) => ({ ...address })),
+  })
 
   return {
     calls,
@@ -121,6 +185,7 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
     nativeCalls,
     detailReads,
     scan,
+    share,
     setVideos(videos) {
       records = videos
     },
@@ -236,6 +301,49 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
       if (options.shareFailure) throw options.shareFailure
       shared.set(id, value)
       return value
+    },
+    async getShareStatus() {
+      share.statusCalls += 1
+      failIfAsked('status')
+      return shareAnswer()
+    },
+    async openShare() {
+      share.opened += 1
+      failIfAsked('open')
+      share.status = {
+        ...share.status,
+        running: true,
+        port: share.status.port ?? 4918,
+        devices: [],
+        missingFiles: 0,
+        listChanged: false,
+        needsRestart: false,
+      }
+      return shareAnswer()
+    },
+    async closeShare() {
+      share.closed += 1
+      failIfAsked('close')
+      share.status = {
+        ...share.status,
+        running: false,
+        port: null,
+        devices: [],
+        missingFiles: 0,
+        listChanged: false,
+        needsRestart: false,
+      }
+      return shareAnswer()
+    },
+    async resetSharePassword() {
+      share.regenerated += 1
+      failIfAsked('password')
+      share.status = {
+        ...share.status,
+        password: share.status.password === '1234' ? '5678' : '1234',
+        needsRestart: share.status.running,
+      }
+      return shareAnswer()
     },
     async play(video) {
       if (options.playFailure) throw options.playFailure

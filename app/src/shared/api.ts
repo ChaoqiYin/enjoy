@@ -49,6 +49,41 @@ export interface VideoPage {
   total: number
 }
 
+/** One client heard from in the last minute, as the status route reports it. */
+export interface ShareDevice {
+  /** What the client called itself; the empty string when it did not say. */
+  name: string
+  address: string
+  /** Milliseconds since the epoch. */
+  lastSeenAt: number
+}
+
+/** One IPv4 address the share service can be reached at. */
+export interface ShareAddress {
+  address: string
+  /** Whether the address only reaches this machine. */
+  loopback: boolean
+}
+
+/** `GET /api/share/status`, and what every share command answers with. */
+export interface ShareStatus {
+  running: boolean
+  /** The port actually taken; null while the service is not running. */
+  port: number | null
+  username: string
+  password: string
+  /** The stored password was replaced after the running service copied it. */
+  needsRestart: boolean
+  /** The shared list no longer matches the snapshot the service serves. */
+  listChanged: boolean
+  /** Videos in the snapshot whose file is gone; zero unless running. */
+  missingFiles: number
+  /** Most recently heard from first; empty unless running. */
+  devices: ShareDevice[]
+  /** Every address the service can be reached at, most useful first. */
+  addresses: ShareAddress[]
+}
+
 /** One entry of the read-only plugin catalogue the server reports. */
 export interface PluginSummary {
   id: string
@@ -163,6 +198,14 @@ export interface ApiClient {
   /** The shared flag the server stored. The shared route answers that flag
    *  rather than the whole record, unlike the favorite route beside it. */
   setShared(id: number, shared: boolean): Promise<boolean>
+  /** Whether the service is running, and everything a client needs to reach it. */
+  getShareStatus(): Promise<ShareStatus>
+  /** Start the service over the current space's shared list. */
+  openShare(): Promise<ShareStatus>
+  /** Stop the service; answering when it is already stopped is not a failure. */
+  closeShare(): Promise<ShareStatus>
+  /** Draw a new password; a running service keeps the old one until restarted. */
+  resetSharePassword(): Promise<ShareStatus>
   /** Open the file with the system player and record the play. */
   play(video: Video): Promise<Video>
   /** Pause, resume or cancel one scan; answers with the phase it settled on. */
@@ -328,6 +371,22 @@ export function createApiClient(http: HttpTransport): ApiClient {
         { shared },
       )
       return answer.shared
+    },
+
+    async getShareStatus() {
+      return http.get<ShareStatus>('/api/share/status')
+    },
+
+    async openShare() {
+      return http.post<ShareStatus>('/api/share/open')
+    },
+
+    async closeShare() {
+      return http.post<ShareStatus>('/api/share/close')
+    },
+
+    async resetSharePassword() {
+      return http.post<ShareStatus>('/api/share/password')
     },
 
     async play(video) {
