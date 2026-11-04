@@ -156,6 +156,37 @@ describe('视频管理页', () => {
     expect(button).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('共享按钮调用后端并立即反映共享状态', async () => {
+    const { api } = renderLibrary()
+    const cards = await screen.findAllByTestId('video-card')
+    const first = cards[0]!
+    const id = Number(first.dataset.videoId)
+    const button = within(first).getByTestId('share-video')
+
+    expect(button).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(button)
+
+    await waitFor(() => expect(api.shared.get(id)).toBe(true))
+    expect(button).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('共享失败时显示可读的提示', async () => {
+    const api = makeFakeApi({
+      shareFailure: {
+        code: 'video.not_found',
+        message: '视频不存在',
+      },
+    })
+    renderLibrary(api)
+    const cards = await screen.findAllByTestId('video-card')
+
+    fireEvent.click(within(cards[0]!).getByTestId('share-video'))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('视频不存在')
+    expect(screen.getByTestId('video-board')).toBeInTheDocument()
+  })
+
   it('播放失败时显示可读的提示', async () => {
     const api = makeFakeApi({
       playFailure: {

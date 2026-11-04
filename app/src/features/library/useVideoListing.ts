@@ -58,6 +58,7 @@ export interface VideoListingState {
   startScan: () => Promise<void>
   rebuildThumbnails: () => Promise<void>
   toggleFavorite: (video: Video) => Promise<void>
+  toggleShared: (video: Video) => Promise<void>
   play: (video: Video) => Promise<void>
   reveal: (video: Video) => Promise<void>
   retry: () => void
@@ -67,7 +68,7 @@ export interface VideoListingState {
 
 /**
  * One listing page's state: which space, which page of the collection, how the
- * user wants it read, and the two actions the records offer.
+ * user wants it read, and the actions the records offer.
  *
  * Filtering, ordering and paging are the backend's because the backend counts
  * the whole collection; this hook only says what to ask and keeps the answer.
@@ -303,6 +304,24 @@ export function useVideoListing(listing: Listing): VideoListingState {
     [api, activeFilter, applyVideo],
   )
 
+  const toggleShared = useCallback(
+    async (video: Video) => {
+      try {
+        const stored = await api.setShared(video.id, !video.shared)
+        const updated = { ...video, shared: stored }
+        applyVideo(updated)
+        // A shared-only listing (the share page) drops a record the moment it
+        // stops being shared, just as the favourites page does.
+        if (!stored && activeFilter === 'shared') {
+          setRevision((value) => value + 1)
+        }
+      } catch (reason) {
+        setError(normalizeError(reason))
+      }
+    },
+    [api, activeFilter, applyVideo],
+  )
+
   const play = useCallback(
     async (video: Video) => {
       setPlayFailure(null)
@@ -374,6 +393,7 @@ export function useVideoListing(listing: Listing): VideoListingState {
     startScan,
     rebuildThumbnails,
     toggleFavorite,
+    toggleShared,
     play,
     reveal,
     retry,

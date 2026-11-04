@@ -35,6 +35,7 @@ export function makeVideo(index: number, overrides: Partial<Video> = {}): Video 
     codec: 'h264',
     thumbnailPath: null,
     favorite: id % 2 === 1,
+    shared: false,
     playCount: id === 2 ? 5 : 0,
     lastPlayedAt: id === 2 ? 1_700_000_100_000 : null,
     createdAt: 1_700_000_000_000 + index * 1000,
@@ -64,6 +65,7 @@ export interface FakeScanState {
 export interface FakeApi extends ApiClient {
   readonly calls: VideoListQuery[]
   readonly favorites: Map<number, boolean>
+  readonly shared: Map<number, boolean>
   readonly played: number[]
   readonly nativeCalls: FakeNativeCall[]
   /** Ids whose detail was read through `getVideo`, in call order. */
@@ -76,6 +78,8 @@ export interface FakeApi extends ApiClient {
 interface FakeApiOptions {
   /** Thrown by `play`, standing in for an `unsupported` native envelope. */
   playFailure?: { code: string; message: string }
+  /** Thrown by `setShared`, so the page's failure path can be observed. */
+  shareFailure?: { code: string; message: string }
   videos?: Video[]
   spaces?: Space[]
   directories?: Directory[]
@@ -97,6 +101,7 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
   const directories = options.directories ?? []
   const calls: VideoListQuery[] = []
   const favorites = new Map(records.map((video) => [video.id, video.favorite]))
+  const shared = new Map(records.map((video) => [video.id, video.shared]))
   const played: number[] = []
   const nativeCalls: FakeNativeCall[] = []
   const detailReads: number[] = []
@@ -111,6 +116,7 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
   return {
     calls,
     favorites,
+    shared,
     played,
     nativeCalls,
     detailReads,
@@ -179,6 +185,7 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
       const filtered = records
         .filter((video) => {
           if (query.only === 'favorites') return favorites.get(video.id) === true
+          if (query.only === 'shared') return shared.get(video.id) === true
           if (query.only === 'played') return video.playCount > 0
           return true
         })
@@ -208,7 +215,11 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
       if (video === undefined) {
         throw { code: 'video.not_found', message: 'Video does not exist' }
       }
-      return { ...video, favorite: favorites.get(id) ?? video.favorite }
+      return {
+        ...video,
+        favorite: favorites.get(id) ?? video.favorite,
+        shared: shared.get(id) ?? video.shared,
+      }
     },
     async listPlugins() {
       return options.plugins ?? []
@@ -220,6 +231,11 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
       favorites.set(id, favorite)
       const video = records.find((entry) => entry.id === id)!
       return { ...video, favorite }
+    },
+    async setShared(id, value) {
+      if (options.shareFailure) throw options.shareFailure
+      shared.set(id, value)
+      return value
     },
     async play(video) {
       if (options.playFailure) throw options.playFailure

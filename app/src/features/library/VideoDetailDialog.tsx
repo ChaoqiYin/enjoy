@@ -2,12 +2,13 @@
  * The record behind a card.
  *
  * The card only has room for a name and a size, so the rest of the record is
- * read on demand from `GET /api/videos/:id`. Actions stay the same three the
+ * read on demand from `GET /api/videos/:id`. Actions stay the same ones the
  * listing offers, plus the close control that returns the reader to the grid.
  */
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Share2 } from 'lucide-react'
 import {
   normalizeError,
   type ApiError,
@@ -24,6 +25,7 @@ export function VideoDetailDialog({
   canReveal,
   onPlay,
   onToggleFavorite,
+  onToggleShared,
   onReveal,
   onClose,
 }: {
@@ -31,6 +33,7 @@ export function VideoDetailDialog({
   canReveal: boolean
   onPlay: (video: Video) => Promise<void>
   onToggleFavorite: (video: Video) => Promise<void>
+  onToggleShared: (video: Video) => Promise<void>
   onReveal: (video: Video) => Promise<void>
   onClose: () => void
 }) {
@@ -39,6 +42,7 @@ export function VideoDetailDialog({
   const [video, setVideo] = useState<Video | null>(null)
   const [error, setError] = useState<ApiError | null>(null)
   const [favoriteBusy, setFavoriteBusy] = useState(false)
+  const [sharedBusy, setSharedBusy] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -69,6 +73,19 @@ export function VideoDetailDialog({
       setError(normalizeError(reason))
     } finally {
       setFavoriteBusy(false)
+    }
+  }
+
+  const toggleShared = async (): Promise<void> => {
+    if (video === null || sharedBusy) return
+    setSharedBusy(true)
+    try {
+      await onToggleShared(video)
+      setVideo(await api.getVideo(video.id))
+    } catch (reason) {
+      setError(normalizeError(reason))
+    } finally {
+      setSharedBusy(false)
     }
   }
 
@@ -172,6 +189,17 @@ export function VideoDetailDialog({
                 onClick={() => void toggleFavorite()}
               >
                 {t(video.favorite ? 'unfavorite' : 'favorite')}
+              </Button>
+              <Button
+                data-testid="detail-share-toggle"
+                variant="outline"
+                size="lg"
+                aria-pressed={video.shared}
+                disabled={sharedBusy}
+                onClick={() => void toggleShared()}
+              >
+                <Share2 className="size-4" aria-hidden="true" />
+                {t(video.shared ? 'unshare' : 'share')}
               </Button>
               <Button
                 data-testid="detail-close"

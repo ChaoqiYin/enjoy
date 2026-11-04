@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { makeFakeApi, makeFakeScanEvents, makeVideo } from '../../../fakes'
 import { ServicesProvider } from '../../../../src/shared/services'
@@ -6,7 +6,7 @@ import { VideoDetailDialog } from '../../../../src/features/library/VideoDetailD
 
 function renderDetail(options: { canReveal?: boolean } = {}) {
   const api = makeFakeApi({
-    videos: [makeVideo(0, { favorite: true })],
+    videos: [makeVideo(0, { favorite: true, shared: true })],
   })
   const scan = makeFakeScanEvents()
   const onPlay = vi.fn()
@@ -21,6 +21,9 @@ function renderDetail(options: { canReveal?: boolean } = {}) {
         onReveal={onReveal}
         onToggleFavorite={async (video) => {
           await api.setFavorite(video.id, !video.favorite)
+        }}
+        onToggleShared={async (video) => {
+          await api.setShared(video.id, !video.shared)
         }}
         onClose={onClose}
       />
@@ -60,6 +63,21 @@ describe('视频详情', () => {
     )
     expect(api.favorites.get(1)).toBe(false)
     expect(button).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('共享按钮切换状态，详情随之更新', async () => {
+    const { api } = renderDetail()
+    const button = await screen.findByTestId('detail-share-toggle')
+    expect(button).toHaveAttribute('aria-pressed', 'true')
+    expect(button).toHaveAccessibleName('取消共享')
+
+    fireEvent.click(button)
+
+    await waitFor(() => expect(api.shared.get(1)).toBe(false))
+    await waitFor(() =>
+      expect(button).toHaveAttribute('aria-pressed', 'false'),
+    )
+    expect(button).toHaveAccessibleName('共享')
   })
 
   it('播放与关闭交给调用方，定位只在桌面外壳里出现', async () => {

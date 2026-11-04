@@ -61,6 +61,7 @@ export function VideoListingPage({ listing }: { listing: Listing }) {
     details: (video: Video) => setDetailId(video.id),
     play: (video: Video) => void model.play(video),
     favorite: (video: Video) => void model.toggleFavorite(video),
+    share: (video: Video) => void model.toggleShared(video),
     // The browser build has no folder window to show, so the control is left
     // out of the row rather than drawn and doing nothing.
     ...(model.canReveal
@@ -198,6 +199,7 @@ export function VideoListingPage({ listing }: { listing: Listing }) {
           canReveal={model.canReveal}
           onPlay={model.play}
           onToggleFavorite={model.toggleFavorite}
+          onToggleShared={model.toggleShared}
           onReveal={model.reveal}
           onClose={() => setDetailId(null)}
         />

@@ -3,22 +3,22 @@ import { Badge } from '../../shared/ui/badge';
 import type { Video } from '../../shared/api';
 
 /**
- * The mark a record can wear, in the two forms it is worn in.
+ * The marks a record can wear, in the two forms they are worn in.
  *
- * `overlay` floats it over the picture's corner without taking a place in the
+ * `overlay` floats them over the picture's corner without taking a place in the
  * document flow, which is what keeps a card's rows the same height whether or
- * not its record wears anything. `inline` lays it into the flow for a caller
- * that shows it beside other facts — the table's name cell and the details
+ * not its record wears anything. `inline` lays them into the flow for a caller
+ * that shows them beside other facts — the table's name cell and the details
  * panel — where there is no picture to float over.
  *
- * The old build wore a second, shared mark beside this one; sharing is not part
- * of this build, so the pair is one badge here. The position is kept as it was,
- * because the picture's start corner is where the interface has always put it.
- *
- * `lastPlayed` is handed in rather than derived: which video was last played is
- * a fact about the session, not about the record.
+ * Two marks share the place: `shared`, a fact about the record that is true
+ * until it is turned off, and `lastPlayed`, a fact about this session that is
+ * handed in rather than derived. Neither is drawn when it does not hold, and
+ * the pair sits together so a record with both still leaves the picture's
+ * corner legible.
  */
 export function VideoBadges({
+  video,
   variant,
   lastPlayed = false,
 }: {
@@ -27,18 +27,34 @@ export function VideoBadges({
   lastPlayed?: boolean;
 }) {
   const { t } = useTranslation();
-  if (!lastPlayed) return null;
-  const corner = variant === 'overlay' ? 'absolute top-2 z-10' : 'shrink-0';
-  // A sentence rather than a glyph: 「上次播放」 is a fact about this session
-  // that a user meets once, and a row of chips with a glyph in each is one the
-  // library can no longer be read at a glance.
+  if (!video.shared && !lastPlayed) return null;
+  // The shared mark borrows the drawings' business pair rather than a
+  // primitive's colour: it is opaque so the photograph never reaches under it,
+  // and its edge is what separates it from what it covers.
   //
-  // The primary fill is the design document's 「上次播放」 colour: the compiled
-  // block paints that mark with the brand red, which is the same value the
-  // default badge variant carries in each theme.
-  return (
-    <Badge className={variant === 'overlay' ? `${corner} start-2` : corner} variant="default">
-      {t('lastPlayedMarker')}
-    </Badge>
+  // The last-played mark is a sentence rather than a glyph: 「上次播放」 is a
+  // fact a user meets once, and a row of chips with a glyph in each is one the
+  // library can no longer be read at a glance. It wears the primary fill, the
+  // design document's 「上次播放」 colour, which the default badge variant
+  // carries in each theme.
+  const marks = (
+    <>
+      {video.shared && (
+        <Badge data-testid="shared-badge" variant="share">
+          {t('sharedMarker')}
+        </Badge>
+      )}
+      {lastPlayed && (
+        <Badge variant="default">{t('lastPlayedMarker')}</Badge>
+      )}
+    </>
   );
+  if (variant === 'overlay') {
+    return (
+      <div className="absolute top-2 start-2 z-10 flex items-center gap-1">
+        {marks}
+      </div>
+    );
+  }
+  return <span className="inline-flex shrink-0 items-center gap-1">{marks}</span>;
 }
