@@ -5,7 +5,7 @@ import {
   openWebdav,
   removeTempDir,
   writeVideo,
-} from './harness.ts'
+} from './webdav-harness.ts'
 
 test('port 0 binds an ephemeral port and the reported port serves requests', async () => {
   const directory = makeTempDir()

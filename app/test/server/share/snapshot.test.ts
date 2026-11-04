@@ -7,7 +7,7 @@ import {
   openWebdav,
   removeTempDir,
   writeVideo,
-} from './harness.ts'
+} from './webdav-harness.ts'
 
 function subdirectory(directory: string, name: string): string {
   const path = join(directory, name)

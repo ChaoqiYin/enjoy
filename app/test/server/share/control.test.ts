@@ -269,6 +269,40 @@ test('missingFiles counts shared records whose file cannot be offered', async ()
   }
 })
 
+test('a refused or no-op space command leaves the running service alone', async () => {
+  const library = await openSharingLibrary()
+  try {
+    await addSharedVideo(library, 'clip.mp4')
+    const opened = statusOf((await library.harness.request('POST', '/api/share/open')).body)
+    assert.equal(opened.running, true)
+
+    const duplicate = await library.harness.request('POST', '/api/spaces', {
+      name: '默认空间',
+    })
+    assert.equal(duplicate.status, 409)
+    assert.equal(codeOf(duplicate.body), 'space.name.taken')
+    assert.equal((await status(library)).running, true)
+
+    const last = await library.harness.request('DELETE', '/api/spaces/1')
+    assert.equal(last.status, 409)
+    assert.equal(codeOf(last.body), 'space.remove_last')
+    assert.equal((await status(library)).running, true)
+
+    const current = await library.harness.request('POST', '/api/spaces/1/switch')
+    assert.equal(current.status, 200)
+    assert.equal((await status(library)).running, true)
+
+    // The listener itself is still serving, not just the state flag.
+    assert.equal(
+      (await webdavRequest(opened.port!, 'GET', '/', { password: opened.password }))
+        .status,
+      200,
+    )
+  } finally {
+    await library.close()
+  }
+})
+
 test('creating, switching and deleting a space stop the running service first', async () => {
   const library = await openSharingLibrary()
   try {

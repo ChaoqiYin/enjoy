@@ -79,6 +79,37 @@ describe('分享页', () => {
     expect(window.location.pathname).toBe('/')
   })
 
+  it('共享清单为空但带搜索条件时仍禁用启动', async () => {
+    renderShare(
+      makeFakeApi({
+        videos: sharedVideos(3).map((video) => ({ ...video, shared: false })),
+      }),
+    )
+    await screen.findByText('共享清单是空的，先到视频库把视频加入共享清单')
+
+    fireEvent.change(screen.getByRole('searchbox', { name: '搜索' }), {
+      target: { value: '没有这个视频' },
+    })
+
+    // Wait for the filtered empty state, not the loading window: the button is
+    // disabled while a request is in flight either way, and that would hide the
+    // case this test is about.
+    expect(await screen.findByText('没有匹配的视频')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '开启共享' })).toBeDisabled()
+  })
+
+  it('清单请求失败时禁用启动', async () => {
+    renderShare(
+      makeFakeApi({
+        videos: sharedVideos(),
+        listFailure: { code: 'internal_error', message: '清单读取失败' },
+      }),
+    )
+
+    expect(await screen.findByText('清单读取失败')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '开启共享' })).toBeDisabled()
+  })
+
   it('启动与停止调用后端，并显示实际端口', async () => {
     const { api } = renderShare(makeFakeApi({ videos: sharedVideos() }))
     await screen.findAllByTestId('video-card')
@@ -134,7 +165,7 @@ describe('分享页', () => {
     expect(screen.getByText('http://192.168.1.5:4919/')).toBeInTheDocument()
     expect(screen.getByText('http://127.0.0.1:4919/')).toBeInTheDocument()
     expect(screen.getByText('enjoy')).toBeInTheDocument()
-    expect(screen.getByText('仅本机可用')).toBeInTheDocument()
+    expect(screen.getByText('本机')).toBeInTheDocument()
 
     fireEvent.click(
       screen.getByRole('button', {

@@ -105,7 +105,7 @@ const en = {
   connectionNoAddress:
     'The share service is running, but this computer has no usable network address right now. Check the network connection',
   copyAddress: 'Copy address',
-  addressLoopback: 'This computer only',
+  addressLoopback: 'This computer',
   username: 'User name',
   password: 'Password',
   showPassword: 'Show password',
@@ -314,7 +314,7 @@ const zhCN: typeof en = {
   connectionNoAddress:
     '共享服务正在运行，但这台电脑现在没有可用的网络地址。请检查网络连接',
   copyAddress: '复制地址',
-  addressLoopback: '仅本机可用',
+  addressLoopback: '本机',
   username: '用户名',
   password: '密码',
   showPassword: '显示密码',

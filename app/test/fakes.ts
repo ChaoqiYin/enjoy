@@ -121,6 +121,8 @@ interface FakeApiOptions {
   directories?: Directory[]
   /** Commands that answer with a native failure instead of success. */
   nativeFailures?: Record<string, { code: string; message: string }>
+  /** Thrown by `listVideos`, so a page's listing failure can be observed. */
+  listFailure?: { code: string; message: string }
   /** The initial answer of `getScanStatus`; `{ active: false }` by default. */
   scanStatus?: ScanStatus
   /** What `GET /api/share/status` answers before any command is applied. */
@@ -246,6 +248,7 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
     },
     async listVideos(query: VideoListQuery): Promise<VideoPage> {
       calls.push(query)
+      if (options.listFailure) throw options.listFailure
       const needle = query.search.toLowerCase()
       const filtered = records
         .filter((video) => {
