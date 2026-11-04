@@ -1,4 +1,4 @@
-/** `/api/videos` routes: one page, one record, the favorite mark and the play count. */
+/** `/api/videos` routes: one page, one record, and the favorite, shared and play marks. */
 
 import type { IncomingMessage } from 'node:http'
 import type { KernelContext } from 'cordis-app/server'
@@ -14,7 +14,7 @@ import {
 } from './videos.ts'
 
 /** The closed vocabularies the query accepts; anything else is refused, not defaulted. */
-const FILTERS: readonly VideoFilter[] = ['all', 'favorites', 'played']
+const FILTERS: readonly VideoFilter[] = ['all', 'favorites', 'played', 'shared']
 const SORTS: readonly VideoSort[] = ['newest', 'played', 'name', 'size']
 
 export function registerVideoRoutes(
@@ -46,6 +46,20 @@ export function registerVideoRoutes(
         throw new ApiError(400, 'bad_request', 'body.favorite must be a boolean')
       }
       sendJson(res, 200, { video: videos.setFavorite(requiredId(params.id), favorite) })
+    }),
+  )
+
+  ctx.router.put(
+    '/api/videos/:id/shared',
+    guarded(async (req, res, params) => {
+      const body = await readJson(req)
+      const shared = (body as { shared?: unknown } | undefined)?.shared
+      if (typeof shared !== 'boolean') {
+        throw new ApiError(400, 'bad_request', 'body.shared must be a boolean')
+      }
+      const id = requiredId(params.id)
+      const spaceId = spaces.resolveSpaceId()
+      sendJson(res, 200, { shared: videos.setShared(id, spaceId, shared) })
     }),
   )
 
