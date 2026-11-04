@@ -2,9 +2,9 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 /**
- * The two languages the first version ships. Only the keys these two pages
- * actually read are migrated; the old interface's full catalogue carries pages
- * this build does not have yet.
+ * The two languages the interface ships. Only the keys the pages actually read
+ * are migrated; the old interface's full catalogue carries pages this build
+ * does not have yet.
  */
 const en = {
   appName: 'Enjoy',
@@ -164,7 +164,6 @@ const en = {
   duration: 'Duration',
   fileSize: 'Size',
   actions: 'Actions',
-  settingsPlaceholder: 'The settings page arrives in a later task',
   appearance: 'Appearance',
   language: 'Display language',
   languageHelp: 'Changes apply immediately without rescanning videos',
@@ -373,7 +372,6 @@ const zhCN: typeof en = {
   duration: '时长',
   fileSize: '大小',
   actions: '操作',
-  settingsPlaceholder: '设置页将在后续任务中实现',
   appearance: '外观',
   language: '显示语言',
   languageHelp: '切换后立即生效，不会重新扫描视频',
