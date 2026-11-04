@@ -17,7 +17,43 @@ function renderSettings(server: FakeServer = makeFakeServer()) {
   return { server, scan }
 }
 
+/** The rail switches panels; the tests open the one they are about. */
+function showPanel(value: 'appearance' | 'spaces' | 'folders'): void {
+  fireEvent.click(screen.getByTestId(`settings-panel-${value}`))
+}
+
+// jsdom does not implement `ResizeObserver`, and the theme control measures
+// its track with one. The house answer is a stub here rather than a guard in
+// the component — see `beforeEach`, which re-stubs it because `afterEach`
+// takes every global back.
+class ResizeObserverStub {
+  observe() {}
+  disconnect() {}
+}
+
+/**
+ * Picks a theme, the way a pointer does.
+ *
+ * Not `fireEvent.click`: the control commits on the track's `pointerup`, so a
+ * click never reaches it, and jsdom has no `PointerEvent` at all. A
+ * `MouseEvent` carries the coordinates and takes the id as an own property,
+ * which is all React needs to hand it over as a pointer event.
+ */
+function chooseTheme(label: string): void {
+  for (const type of ['pointerdown', 'pointerup']) {
+    const event = new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      clientX: 0,
+    })
+    Object.defineProperty(event, 'pointerId', { value: 1 })
+    fireEvent(screen.getByRole('radio', { name: label }), event)
+  }
+}
+
 beforeEach(async () => {
+  vi.stubGlobal('ResizeObserver', ResizeObserverStub)
   await setLanguage('zh-CN')
   localStorage.clear()
   delete document.documentElement.dataset.theme
@@ -31,7 +67,7 @@ describe('设置页 · 外观', () => {
   it('读取存储的语言，切换后立即生效并写入设置', async () => {
     const { server } = renderSettings()
 
-    const select = await screen.findByLabelText('语言')
+    const select = await screen.findByLabelText('显示语言')
     expect(select).toHaveTextContent('简体中文')
 
     fireEvent.click(select)
@@ -39,7 +75,7 @@ describe('设置页 · 外观', () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole('heading', { name: 'Settings' }),
+        screen.getByRole('heading', { name: 'General' }),
       ).toBeInTheDocument(),
     )
     expect(server.state.settings.language).toBe('en')
@@ -47,43 +83,29 @@ describe('设置页 · 外观', () => {
 
   it('切换亮色与暗色主题立即改到文档上并写入设置', async () => {
     const { server } = renderSettings()
-    await screen.findByLabelText('语言')
+    await screen.findByLabelText('显示语言')
 
-    fireEvent.click(screen.getByTestId('theme-dark'))
+    // Dark is what is in force when the stored preference names nothing.
+    expect(
+      screen.getByRole('radio', { name: '暗色' }).getAttribute('aria-checked'),
+    ).toBe('true')
 
-    expect(document.documentElement.dataset.theme).toBe('dark')
-    await waitFor(() => expect(server.state.settings.theme).toBe('dark'))
-
-    fireEvent.click(screen.getByTestId('theme-light'))
+    chooseTheme('亮色')
 
     expect(document.documentElement.dataset.theme).toBe('light')
     await waitFor(() => expect(server.state.settings.theme).toBe('light'))
-  })
 
-  it('跟随系统时按系统偏好决定实际主题', async () => {
-    vi.stubGlobal('matchMedia', (query: string) => ({
-      matches: query.includes('dark'),
-      media: query,
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }))
-    const { server } = renderSettings()
-    await screen.findByLabelText('语言')
-
-    fireEvent.click(screen.getByTestId('theme-system'))
+    chooseTheme('暗色')
 
     expect(document.documentElement.dataset.theme).toBe('dark')
-    await waitFor(() => expect(server.state.settings.theme).toBe('system'))
+    await waitFor(() => expect(server.state.settings.theme).toBe('dark'))
   })
+
   it('仓库链接交给外壳打开', async () => {
     const open = vi.fn()
     vi.stubGlobal('open', open)
     const { server } = renderSettings()
-    await screen.findByLabelText('语言')
+    await screen.findByLabelText('显示语言')
 
     fireEvent.click(screen.getByTestId('open-repository'))
 
@@ -112,7 +134,7 @@ describe('设置页 · 外观', () => {
         }),
       }),
     )
-    await screen.findByLabelText('语言')
+    await screen.findByLabelText('显示语言')
 
     fireEvent.click(screen.getByTestId('open-repository'))
 
@@ -136,9 +158,9 @@ describe('设置页 · 写入失败', () => {
     const { server } = renderSettings(
       makeFakeServer({ settingsWriteFails: true }),
     )
-    await screen.findByLabelText('语言')
+    await screen.findByLabelText('显示语言')
 
-    fireEvent.click(screen.getByTestId('theme-dark'))
+    chooseTheme('亮色')
 
     const theme = screen.getByTestId('appearance-theme')
     expect(await within(theme).findByRole('alert')).toHaveTextContent(
@@ -148,7 +170,7 @@ describe('设置页 · 写入失败', () => {
     server.state.settingsWriteFails = false
     fireEvent.click(within(theme).getByRole('button', { name: '重试' }))
 
-    await waitFor(() => expect(server.state.settings.theme).toBe('dark'))
+    await waitFor(() => expect(server.state.settings.theme).toBe('light'))
     await waitFor(() => expect(within(theme).queryByRole('alert')).toBeNull())
   })
 
@@ -156,7 +178,7 @@ describe('设置页 · 写入失败', () => {
     const { server } = renderSettings(
       makeFakeServer({ settingsWriteFails: true }),
     )
-    const select = await screen.findByLabelText('语言')
+    const select = await screen.findByLabelText('显示语言')
 
     fireEvent.click(select)
     fireEvent.click(screen.getByRole('option', { name: 'English' }))
@@ -175,54 +197,44 @@ describe('设置页 · 写入失败', () => {
 })
 
 describe('设置页 · 空间', () => {
-  it('扫描进行中禁用新建、重命名、切换与删除，并说明原因', async () => {
+  it('扫描进行中禁用新建、重命名与删除，并说明原因', async () => {
     renderSettings(makeFakeServer({ spaces: TWO_SPACES, scanActive: true }))
+    showPanel('spaces')
 
     expect(
-      await screen.findByText('正在扫描，暂时不能修改空间'),
+      await screen.findByText('扫描进行中，请先完成或取消扫描'),
     ).toBeInTheDocument()
-    expect(screen.getByTestId('new-space-name')).toBeDisabled()
     expect(screen.getByTestId('create-space')).toBeDisabled()
     expect(screen.getByTestId('rename-space-1')).toBeDisabled()
-    expect(screen.getByTestId('switch-space-2')).toBeDisabled()
     expect(screen.getByTestId('delete-space-2')).toBeDisabled()
   })
 
   it('可以新建空间并立即切换过去', async () => {
     renderSettings()
+    showPanel('spaces')
 
-    const input = await screen.findByTestId('new-space-name')
-    fireEvent.change(input, { target: { value: '动画' } })
-    fireEvent.click(screen.getByTestId('create-space'))
+    fireEvent.click(await screen.findByTestId('create-space'))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('空间名称'), {
+      target: { value: '动画' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: '确定' }))
 
     const row = await screen.findByTestId('space-2')
     expect(within(row).getByText('动画')).toBeInTheDocument()
     expect(within(row).getByText('当前')).toBeInTheDocument()
   })
 
-  it('可以切换当前空间', async () => {
-    renderSettings(makeFakeServer({ spaces: TWO_SPACES }))
-
-    fireEvent.click(await screen.findByTestId('switch-space-2'))
-
-    await waitFor(() =>
-      expect(
-        within(screen.getByTestId('space-2')).getByText('当前'),
-      ).toBeInTheDocument(),
-    )
-    expect(
-      within(screen.getByTestId('space-1')).queryByText('当前'),
-    ).toBeNull()
-  })
-
   it('可以重命名空间，确认后才删除', async () => {
     renderSettings(makeFakeServer({ spaces: TWO_SPACES }))
+    showPanel('spaces')
 
     fireEvent.click(await screen.findByTestId('rename-space-2'))
-    fireEvent.change(screen.getByTestId('rename-input-2'), {
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText('空间名称'), {
       target: { value: '番剧' },
     })
-    fireEvent.click(screen.getByTestId('save-space-2'))
+    fireEvent.click(within(dialog).getByRole('button', { name: '确定' }))
 
     expect(await screen.findByText('番剧')).toBeInTheDocument()
 
@@ -243,6 +255,7 @@ describe('设置页 · 目录', () => {
           : { ok: true, value: {} },
     })
     renderSettings(server)
+    showPanel('folders')
 
     expect(await screen.findByText('/media/videos')).toBeInTheDocument()
     fireEvent.click(screen.getByTestId('add-folder'))
@@ -261,6 +274,7 @@ describe('设置页 · 目录', () => {
       native: () => ({ ok: false, code: 'unsupported', message: 'no shell' }),
     })
     renderSettings(server)
+    showPanel('folders')
     await screen.findByText('/media/videos')
 
     fireEvent.click(screen.getByTestId('add-folder'))
@@ -280,6 +294,7 @@ describe('设置页 · 目录', () => {
       native: () => ({ ok: false, code: 'unsupported', message: 'no shell' }),
     })
     renderSettings(server)
+    showPanel('folders')
     await screen.findByText('/media/videos')
     fireEvent.click(screen.getByTestId('add-folder'))
 
@@ -297,7 +312,9 @@ describe('设置页 · 目录', () => {
       mediaTools: { ffmpeg: '/opt/homebrew/bin/ffmpeg', ffprobe: null },
     })
     renderSettings(server)
-    await screen.findByTestId('folder-1')
+    showPanel('folders')
+
+    expect(await screen.findByTestId('folder-1')).toBeInTheDocument()
 
     expect(await screen.findByTestId('media-tool-ffmpeg')).toHaveTextContent(
       '已找到：/opt/homebrew/bin/ffmpeg',
@@ -314,31 +331,24 @@ describe('设置页 · 目录', () => {
 
   it('可以删除当前空间的目录', async () => {
     const server = renderSettings().server
+    showPanel('folders')
 
     const row = await screen.findByTestId('folder-1')
     fireEvent.click(within(row).getByTestId('remove-folder-1'))
+    fireEvent.click(await screen.findByTestId('confirm-remove-folder-1'))
 
     await waitFor(() => expect(screen.queryByTestId('folder-1')).toBeNull())
     expect(server.state.directories).toHaveLength(0)
   })
 })
 
-describe('设置页 · 插件', () => {
-  it('只读显示暂无插件，且没有安装入口', async () => {
-    renderSettings()
-    await screen.findByTestId('folder-1')
-
-    expect(await screen.findByText('暂无插件')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /安装/ })).toBeNull()
-  })
-})
-
 describe('设置页 · 维护', () => {
   it('扫描入口启动当前空间的扫描，随后空间命令被禁用', async () => {
     const server = renderSettings().server
+    showPanel('folders')
     await screen.findByTestId('folder-1')
 
-    fireEvent.click(screen.getByTestId('start-scan'))
+    fireEvent.click(screen.getByTestId('rescan-folders'))
 
     expect(await screen.findByText('扫描已开始')).toBeInTheDocument()
     expect(
@@ -350,6 +360,8 @@ describe('设置页 · 维护', () => {
       ),
     ).toBe(true)
     expect(server.state.scanActive).toBe(true)
+
+    showPanel('spaces')
     await waitFor(() =>
       expect(screen.getByTestId('create-space')).toBeDisabled(),
     )
@@ -358,9 +370,10 @@ describe('设置页 · 维护', () => {
 
   it('全部重建缩略图调用对应接口并给出反馈', async () => {
     const server = renderSettings().server
+    showPanel('folders')
     await screen.findByTestId('folder-1')
 
-    fireEvent.click(screen.getByTestId('rebuild-thumbnails'))
+    fireEvent.click(screen.getByTestId('regenerate-thumbnails'))
 
     expect(await screen.findByText('缩略图重建已开始')).toBeInTheDocument()
     expect(

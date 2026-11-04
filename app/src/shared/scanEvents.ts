@@ -11,6 +11,16 @@ import type { ScanChanges, ScanPhase } from './api'
 
 export type { ScanChanges }
 
+/** Phases in which the backend's scan slot is occupied, so space commands are
+ *  refused. Shared by the settings page and the header's space switcher. */
+export const ACTIVE_SCAN_PHASES: ReadonlySet<ScanPhase> = new Set([
+  'discovering',
+  'indexing',
+  'metadata',
+  'thumbnails',
+  'paused',
+])
+
 export interface ScanEvent {
   scanId: string
   spaceId: number

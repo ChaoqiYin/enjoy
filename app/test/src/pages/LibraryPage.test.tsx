@@ -46,17 +46,13 @@ describe('视频管理页', () => {
     expect(screen.getByText('本库共 30 个视频')).toBeInTheDocument()
   })
 
-  it('可以在网格、列表与表格之间切换，且不重置排序和筛选', async () => {
+  it('可以在网格、列表与表格之间切换，且不重置排序', async () => {
     const { api } = renderLibrary()
     await screen.findByTestId('video-board')
 
-    chooseSort('名称')
-    fireEvent.click(screen.getByTestId('filter-favorites'))
+    chooseSort('文件名')
     await waitFor(() => {
-      expect(api.calls.at(-1)).toMatchObject({
-        only: 'favorites',
-        sort: 'name',
-      })
+      expect(api.calls.at(-1)).toMatchObject({ sort: 'name' })
     })
 
     fireEvent.click(screen.getByTestId('view-mode-list'))
@@ -74,20 +70,16 @@ describe('视频管理页', () => {
     expect(screen.getByTestId('video-table')).toBeInTheDocument()
 
     expect(screen.getByRole('combobox', { name: '排序' })).toHaveTextContent(
-      '名称',
+      '文件名',
     )
-    expect(screen.getByTestId('filter-favorites')).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    expect(api.calls.at(-1)).toMatchObject({ only: 'favorites', sort: 'name' })
+    expect(api.calls.at(-1)).toMatchObject({ sort: 'name' })
   })
 
-  it('按名称排序时向后端请求 name 并按名称排列', async () => {
+  it('按文件名排序时向后端请求 name 并按文件名排列', async () => {
     const { api } = renderLibrary()
     await screen.findAllByTestId('video-card')
 
-    chooseSort('名称')
+    chooseSort('文件名')
 
     await waitFor(() => expect(api.calls.at(-1)?.sort).toBe('name'))
     await waitFor(async () =>
@@ -107,31 +99,34 @@ describe('视频管理页', () => {
     )
   })
 
-  it('筛选收藏时只请求收藏记录并换用收藏的空态', async () => {
+  it('搜索时把关键词交给后端并从第一页重新读取', async () => {
     const { api } = renderLibrary()
     await screen.findAllByTestId('video-card')
 
-    fireEvent.click(screen.getByTestId('filter-favorites'))
+    fireEvent.change(screen.getByRole('searchbox', { name: '搜索' }), {
+      target: { value: 'Video 02' },
+    })
 
-    await waitFor(() => expect(api.calls.at(-1)?.only).toBe('favorites'))
+    await waitFor(() =>
+      expect(api.calls.at(-1)).toMatchObject({ search: 'Video 02', offset: 0 }),
+    )
     const cards = await screen.findAllByTestId('video-card')
-    expect(cards.every((card) => card.dataset.favorite === 'true')).toBe(true)
-    expect(cards).toHaveLength(15)
-
-    fireEvent.click(screen.getByTestId('filter-played'))
-    await waitFor(() => expect(api.calls.at(-1)?.only).toBe('played'))
-    expect(await screen.findAllByTestId('video-card')).toHaveLength(1)
+    expect(cards).toHaveLength(1)
+    expect(cards[0]).toHaveTextContent('Video 02.mp4')
   })
 
   it('翻页时请求下一页的偏移量', async () => {
     const { api } = renderLibrary()
     await screen.findAllByTestId('video-card')
 
-    fireEvent.click(screen.getByTestId('next-page'))
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
 
     await waitFor(() => expect(api.calls.at(-1)?.offset).toBe(24))
     expect(await screen.findAllByTestId('video-card')).toHaveLength(6)
-    expect(screen.getByTestId('page-indicator')).toHaveTextContent('2 / 2')
+    expect(screen.getByRole('button', { name: '第 2 页' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
   })
 
   it('点击卡片正文打开详情并读取单条记录', async () => {
@@ -171,7 +166,9 @@ describe('视频管理页', () => {
     renderLibrary(api)
     const cards = await screen.findAllByTestId('video-card')
 
-    fireEvent.click(within(cards[0]!).getByTestId('play-video'))
+    fireEvent.click(
+      within(cards[0]!).getByRole('button', { name: '播放' }),
+    )
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('请用桌面应用打开')
@@ -183,7 +180,9 @@ describe('视频管理页', () => {
     const { api } = renderLibrary()
     const cards = await screen.findAllByTestId('video-card')
 
-    fireEvent.click(within(cards[0]!).getByTestId('play-video'))
+    fireEvent.click(
+      within(cards[0]!).getByRole('button', { name: '播放' }),
+    )
 
     await waitFor(() => expect(api.played).toHaveLength(1))
     expect(screen.queryByRole('alert')).toBeNull()
@@ -215,8 +214,8 @@ describe('视频管理页', () => {
     )
     await screen.findAllByTestId('video-card')
 
-    fireEvent.click(screen.getByTestId('next-page'))
-    fireEvent.click(screen.getByTestId('next-page'))
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
     await waitFor(() => expect(api.calls.at(-1)?.offset).toBe(48))
 
     // Thirty records leave two pages, so page three is gone; the reader goes
@@ -242,11 +241,11 @@ describe('视频管理页', () => {
         'window.state',
       ),
     )
-    expect(screen.queryByTestId('video-actions')).toBeNull()
-    expect(screen.queryByText('在文件夹中显示')).toBeNull()
+    expect(screen.queryByTestId('reveal-video')).toBeNull()
+    expect(screen.queryByText('打开所在目录')).toBeNull()
   })
 
-  it('有外壳时菜单可以定位文件', async () => {
+  it('有外壳时可以直接定位文件', async () => {
     const { api } = renderLibrary()
     const cards = await screen.findAllByTestId('video-card')
     const first = cards[0]!
@@ -257,8 +256,8 @@ describe('视频管理页', () => {
       ),
     )
 
-    fireEvent.click(within(first).getByTestId('video-actions'))
-    fireEvent.click(within(first).getByText('在文件夹中显示'))
+    const reveal = await within(first).findByTestId('reveal-video')
+    fireEvent.click(reveal)
 
     await waitFor(() =>
       expect(api.nativeCalls.at(-1)).toEqual({

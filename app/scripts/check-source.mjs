@@ -27,7 +27,7 @@ const failures = [];
 
 // Components that take a `title` prop of their own; the rule below only exists
 // to keep native HTML tooltips out of the pages.
-const contentTitleOwners = new Set(['EmptyState']);
+const contentTitleOwners = new Set(['EmptyState', 'SettingsSection', 'SpaceDialog']);
 
 function jsxElementName(tagName) {
   return ts.isIdentifier(tagName) ? tagName.text : undefined;

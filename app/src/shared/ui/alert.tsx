@@ -1,7 +1,13 @@
-import type { ComponentProps } from 'react'
-import { cva, type VariantProps } from 'class-variance-authority'
-import { cn } from '../cn'
+import type { ComponentProps } from 'react';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn } from './cn';
 
+/**
+ * An inline message that is part of the page rather than a floating notice.
+ * `role="alert"` is on it from the start: an alert that is rendered is an alert
+ * that has just arrived, and announcing it once as it appears is the whole
+ * point. A message that should not interrupt is a `Toast`.
+ */
 const alertVariants = cva(
   'relative grid w-full grid-cols-[0_1fr] items-start gap-x-2 rounded-lg border px-3 py-2.5 text-sm has-[>svg]:grid-cols-[auto_1fr] [&>svg]:mt-0.5 [&>svg]:size-4 [&>svg]:shrink-0',
   {
@@ -19,10 +25,10 @@ const alertVariants = cva(
     },
     defaultVariants: { variant: 'default' },
   },
-)
+);
 
 export type AlertProps = ComponentProps<'div'> &
-  VariantProps<typeof alertVariants>
+  VariantProps<typeof alertVariants>;
 
 export function Alert({
   className,
@@ -37,7 +43,7 @@ export function Alert({
       className={cn(alertVariants({ variant }), className)}
       {...props}
     />
-  )
+  );
 }
 
 export function AlertTitle({ className, ...props }: ComponentProps<'div'>) {
@@ -47,7 +53,7 @@ export function AlertTitle({ className, ...props }: ComponentProps<'div'>) {
       className={cn('col-start-2 font-medium', className)}
       {...props}
     />
-  )
+  );
 }
 
 export function AlertDescription({
@@ -60,5 +66,5 @@ export function AlertDescription({
       className={cn('col-start-2 text-muted-foreground', className)}
       {...props}
     />
-  )
+  );
 }

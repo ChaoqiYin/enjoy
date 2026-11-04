@@ -96,7 +96,7 @@ pnpm smoke:start      # 启动 dev、等待 /__health 200、再停止进程
 ```bash
 cd ../../cordis-app
 CORDIS_APP_SHELL="$PWD/dist/cordis-app" \
-  ./packages/cordis-app/bin/cordis-app.js dev --shell --project ../Enjoy/cordis
+  ./packages/cordis-app/bin/cordis-app.js dev --shell --project ../Enjoy/app
 ```
 
 路径按本机 checkout 调整；在 worktree 里要把 `--project` 指向对应 worktree 的 `app/`。
@@ -127,7 +127,7 @@ CORDIS_APP_SHELL="$PWD/dist/cordis-app" \
 - 采用的做法：`pnpm css` 调用 Tailwind CLI，把 `src/styles.tailwind.css` 编译成 `src/styles.generated.css`（已 gitignore）。`src/styles.css` 先 `@import` 生成物，再补 `html/body/#root` 的高度；`src/body.tsx` 导入 `src/styles.css`。
 - UI 组件取自 shadcn/ui 的源码（Button、Select、Tooltip、Alert），交互控件由 `radix-ui` 驱动；variant、尺寸与颜色 token 保留 Enjoy 的命名。
 - 样式只保留视频/收藏页实际使用的语义 token（background、card、primary、selection、hover、destructive、warning 等），浅色/深色值沿用重写前的取值；框架 `restoreAppearance()` 写的是 `data-theme`，所以深色变体也按这个属性声明。
-- body 自己画侧边栏和四个路由（`/`、`/favorites`、`/settings`、`/plugins`），不渲染插件的页面出口、slot 或设置面板。
+- body 自己画顶部 header（品牌、空间切换、横向导航）和四个路由（`/`、`/favorites`、`/settings`、`/plugins`），不渲染插件的页面出口、slot 或设置面板。页面沿用旧版的布局：导航在 header 内，页面在 header 下方；列表页不画标题，工具栏在顶部、分页在底部，记录在两者之间滚动；设置页是左侧分区栏加右侧面板。
 
 ### auth 与 `/api`
 
@@ -154,7 +154,7 @@ CORDIS_APP_SHELL="$PWD/dist/cordis-app" \
 
 ## 已知问题
 
-- 本地 `file:` 依赖下的开发模式（`pnpm dev` / `pnpm dev:shell`）中，Vite 的依赖预构建会额外打入一份 React，浏览器报 `Invalid hook call` 与 `useContext of null`，页面空白。生产构建（`pnpm build` + `pnpm start`）不受影响；等待框架侧修复。
+- 本地 `file:` 依赖下的开发模式（`pnpm dev` / `pnpm dev:shell`）曾因 Vite 依赖预构建额外打入一份 React，浏览器报 `Invalid hook call`、页面空白。cordis-app 已修复（`fix(build): 开发模式共享模块只保留一份 React`，`e31297b`）；使用包含该提交的 checkout 时需重新构建框架并回本目录 `pnpm install`，否则仍会复现。生产构建不受影响。
 - `dev:shell` 在 `file:` 依赖下的外壳与 supervisor 定位见上文，需要 `CORDIS_APP_SHELL` 并从 `cordis-app` 仓库根启动。
 
 ## 坑

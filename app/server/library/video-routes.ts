@@ -72,9 +72,16 @@ function parseQuery(req: IncomingMessage, spaces: LibraryStore): VideoQuery {
     spaceId: spaces.resolveSpaceId(optionalId(url.searchParams.get('spaceId'))),
     only: oneOf(url.searchParams.get('only'), FILTERS, 'all', 'only'),
     sort: oneOf(url.searchParams.get('sort'), SORTS, 'newest', 'sort'),
+    search: text(url.searchParams.get('search')),
+    folder: text(url.searchParams.get('folder')),
     offset: count(url.searchParams.get('offset'), 0, 'offset'),
     limit: count(url.searchParams.get('limit'), DEFAULT_LIMIT, 'limit'),
   }
+}
+
+/** A free-text query value, trimmed; an absent one narrows nothing. */
+function text(raw: string | null): string {
+  return raw === null ? '' : raw.trim()
 }
 
 /** Read a closed-vocabulary query value, falling back only when it was not given. */

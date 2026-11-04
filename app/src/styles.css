@@ -1,6 +1,9 @@
 /* Runtime stylesheet for the project body: the generated utility sheet plus the
-   few rules that belong to the document rather than to a component. */
+   rules that belong to the document and the named pieces rather than to one
+   component. The order matters — `components.css` is written against the tokens
+   `styles.tailwind.css` declares. */
 @import './styles.generated.css';
+@import './components.css';
 
 html,
 body,

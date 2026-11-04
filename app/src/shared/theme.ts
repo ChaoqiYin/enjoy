@@ -6,56 +6,36 @@
  * both in the stored settings (the source of truth) and in `localStorage`, so
  * the first frame after a reload is already drawn in the right theme; the
  * settings page reconciles the two when it opens.
+ *
+ * The two values are the old window's: the interface is drawn light or dark,
+ * and there is no third "follow the system" choice to resolve. Dark is what an
+ * unread preference falls back to, as it was in the old window's `index.html`
+ * before any script ran.
  */
 
-export type ThemePreference = 'light' | 'dark' | 'system'
+export type ThemePreference = 'light' | 'dark'
 
 const THEME_KEY = 'enjoy/theme'
 
-/** A stored value that is not one of the three is ignored, not guessed at. */
+/** A stored value that is not one of the two is ignored, not guessed at. */
 export function normalizeTheme(value: unknown): ThemePreference {
-  return value === 'light' || value === 'dark' || value === 'system'
-    ? value
-    : 'system'
+  return value === 'light' || value === 'dark' ? value : 'dark'
 }
 
 export function storedTheme(): ThemePreference {
   try {
     return normalizeTheme(localStorage.getItem(THEME_KEY) ?? undefined)
   } catch {
-    return 'system'
+    return 'dark'
   }
 }
 
-/** The colour actually in force; `system` asks the platform at this moment. */
-export function resolveTheme(preference: ThemePreference): 'light' | 'dark' {
-  if (preference !== 'system') return preference
-  try {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light'
-  } catch {
-    return 'light'
-  }
-}
-
-/** Remember the preference and paint the document with the colour it resolves to. */
+/** Remember the preference and paint the document with it. */
 export function applyTheme(preference: ThemePreference): void {
   try {
     localStorage.setItem(THEME_KEY, preference)
   } catch {
     // Private windows may refuse storage; the document still changes.
   }
-  document.documentElement.dataset.theme = resolveTheme(preference)
-}
-
-/**
- * Follow the platform while the preference is `system`. Returns a teardown
- * that is safe to call when the platform has no media query support.
- */
-export function watchSystemTheme(onChange: () => void): () => void {
-  if (typeof window.matchMedia !== 'function') return () => {}
-  const media = window.matchMedia('(prefers-color-scheme: dark)')
-  media.addEventListener('change', onChange)
-  return () => media.removeEventListener('change', onChange)
+  document.documentElement.dataset.theme = preference
 }

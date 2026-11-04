@@ -175,12 +175,20 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
     },
     async listVideos(query: VideoListQuery): Promise<VideoPage> {
       calls.push(query)
+      const needle = query.search.toLowerCase()
       const filtered = records
         .filter((video) => {
           if (query.only === 'favorites') return favorites.get(video.id) === true
           if (query.only === 'played') return video.playCount > 0
           return true
         })
+        .filter(
+          (video) =>
+            needle === '' || video.fileName.toLowerCase().includes(needle),
+        )
+        .filter(
+          (video) => query.folder === '' || video.folderPath === query.folder,
+        )
         .sort((left, right) => {
           if (query.sort === 'name') return left.fileName.localeCompare(right.fileName)
           if (query.sort === 'size') return right.fileSize - left.fileSize
@@ -236,7 +244,7 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
       }
       return { ok: true, value: {} as T }
     },
-    openExternal() {},
+    async openExternal() {},
   }
 }
 

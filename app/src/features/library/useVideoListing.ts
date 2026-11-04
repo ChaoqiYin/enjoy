@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   normalizeError,
   type ApiError,
+  type Directory,
   type Video,
   type VideoFilter,
   type VideoPage,
   type VideoSort,
 } from '../../shared/api'
 import { useServices } from '../../shared/services'
+import { ACTIVE_SCAN_PHASES } from '../../shared/scanEvents'
 import { useDesktopAvailable, useNativeCommand } from '../../shared/native'
 import {
   DEFAULT_SORT,
@@ -34,13 +36,27 @@ export interface VideoListingState {
   viewMode: ViewMode
   sort: VideoSort
   filter: VideoFilter
+  search: string
+  folder: string
+  /** The folders this space indexes, for the toolbar's folder control. */
+  folders: Directory[]
+  /** The space the listing is about; null until the first read answers. */
+  spaceId: number | null
+  /** Whether the application's scan slot is occupied. */
+  scanning: boolean
   page: number
   /** Whether the shell behind the page can reveal a file; false in a browser. */
   canReveal: boolean
   setViewMode: (value: ViewMode) => void
   setSort: (value: VideoSort) => void
   setFilter: (value: VideoFilter) => void
+  setSearch: (value: string) => void
+  setFolder: (value: string) => void
   turnTo: (page: number) => void
+  /** Index new folders for this space, then offer them in the toolbar. */
+  addFolders: (paths: string[]) => Promise<void>
+  startScan: () => Promise<void>
+  rebuildThumbnails: () => Promise<void>
   toggleFavorite: (video: Video) => Promise<void>
   play: (video: Video) => Promise<void>
   reveal: (video: Video) => Promise<void>
@@ -67,6 +83,10 @@ export function useVideoListing(listing: Listing): VideoListingState {
   const [viewMode, setViewMode] = useState<ViewMode>(DEFAULT_VIEW_MODE)
   const [sort, setSortState] = useState<VideoSort>(DEFAULT_SORT)
   const [filter, setFilterState] = useState<VideoFilter>('all')
+  const [search, setSearchState] = useState('')
+  const [folder, setFolderState] = useState('')
+  const [folders, setFolders] = useState<Directory[]>([])
+  const [scanning, setScanning] = useState(false)
   const [page, setPage] = useState(0)
   const [pageData, setPageData] = useState<VideoPage | null>(null)
   const [listLoading, setListLoading] = useState(true)
@@ -100,6 +120,45 @@ export function useVideoListing(listing: Listing): VideoListingState {
     }
   }, [api, spaceRevision])
 
+  // The folder control offers what this space indexes; a failure leaves it
+  // with the one entry that means "all", which is still a usable control.
+  const loadFolders = useCallback(async (): Promise<void> => {
+    if (spaceId === null) return
+    try {
+      const list = await api.listDirectories(spaceId)
+      setFolders(list)
+    } catch {
+      // The listing below reports the failure that matters.
+    }
+  }, [api, spaceId])
+
+  useEffect(() => {
+    void loadFolders()
+  }, [loadFolders])
+
+  // The scan slot is the application's, not this listing's: another page may
+  // start one while this one is open, so the buttons follow the channel as
+  // well as the first status read.
+  useEffect(() => {
+    let alive = true
+    void api
+      .getScanStatus()
+      .then((status) => {
+        if (alive) setScanning(status.active)
+      })
+      .catch(() => {
+        // An unreadable status leaves the buttons usable; the server still
+        // refuses a second scan while one runs.
+      })
+    const stop = scanEvents.subscribe((event) => {
+      setScanning(ACTIVE_SCAN_PHASES.has(event.phase))
+    })
+    return () => {
+      alive = false
+      stop()
+    }
+  }, [api, scanEvents])
+
   useEffect(() => {
     if (spaceId === null) return
     const sequence = requestId.current + 1
@@ -110,6 +169,8 @@ export function useVideoListing(listing: Listing): VideoListingState {
         spaceId,
         only: activeFilter,
         sort,
+        search,
+        folder,
         offset: page * PAGE_SIZE,
         limit: PAGE_SIZE,
       })
@@ -123,7 +184,7 @@ export function useVideoListing(listing: Listing): VideoListingState {
         setListLoading(false)
         setError(normalizeError(reason))
       })
-  }, [api, spaceId, activeFilter, sort, page, revision])
+  }, [api, spaceId, activeFilter, sort, search, folder, page, revision])
 
   // A rescan can shorten the list under the reader; a page past the end has no
   // records and no footer to leave by, so go back to the first page.
@@ -175,10 +236,55 @@ export function useVideoListing(listing: Listing): VideoListingState {
     setPage(0)
   }, [])
 
+  const setSearch = useCallback((value: string) => {
+    setPlayFailure(null)
+    setSearchState(value)
+    setPage(0)
+  }, [])
+
+  const setFolder = useCallback((value: string) => {
+    setPlayFailure(null)
+    setFolderState(value)
+    setPage(0)
+  }, [])
+
   const turnTo = useCallback((next: number) => {
     setPlayFailure(null)
     setPage(Math.max(0, next))
   }, [])
+
+  const addFolders = useCallback(
+    async (paths: string[]) => {
+      if (spaceId === null) return
+      try {
+        for (const path of paths) await api.addDirectory(spaceId, path)
+        await loadFolders()
+      } catch (reason) {
+        setError(normalizeError(reason))
+      }
+    },
+    [api, spaceId, loadFolders],
+  )
+
+  const startScan = useCallback(async () => {
+    if (spaceId === null) return
+    try {
+      await api.startScan(spaceId)
+      setScanning(true)
+    } catch (reason) {
+      setError(normalizeError(reason))
+    }
+  }, [api, spaceId])
+
+  const rebuildThumbnails = useCallback(async () => {
+    if (spaceId === null) return
+    try {
+      await api.rebuildThumbnails(spaceId)
+      setScanning(true)
+    } catch (reason) {
+      setError(normalizeError(reason))
+    }
+  }, [api, spaceId])
 
   const toggleFavorite = useCallback(
     async (video: Video) => {
@@ -251,12 +357,22 @@ export function useVideoListing(listing: Listing): VideoListingState {
     viewMode,
     sort,
     filter: activeFilter,
+    search,
+    folder,
+    folders,
+    spaceId,
+    scanning,
     page,
     canReveal: desktop === true,
     setViewMode,
     setSort,
     setFilter,
+    setSearch,
+    setFolder,
     turnTo,
+    addFolders,
+    startScan,
+    rebuildThumbnails,
     toggleFavorite,
     play,
     reveal,

@@ -1,163 +1,122 @@
-import { LayoutGrid, List, Table2 } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
-import { Button } from '../../shared/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../shared/ui/select'
-import { cn } from '../../shared/cn'
-import type { VideoFilter, VideoSort } from '../../shared/api'
-import {
-  FILTERS,
-  SORT_ORDERS,
-  VIEW_MODES,
-  type Listing,
-  type ViewMode,
-} from './listing'
+import { useTranslation } from 'react-i18next';
+import type { ReactNode } from 'react';
+import type { Directory, VideoSort } from '../../shared/api';
+import { displayPath } from '../../shared/format';
+import { FolderSelect } from './FolderSelect';
+import { SearchInput } from './SearchInput';
+import { SortSelect } from './SortSelect';
+import { ViewModeSwitch } from './ViewModeSwitch';
+import { SORT_ORDER_LABELS, SORT_ORDERS } from './listing';
+import type { ViewMode } from './listing';
 
-const VIEW_ICONS = {
-  grid: LayoutGrid,
-  list: List,
-  table: Table2,
-} as const
+export type LibraryToolbarProps = {
+  /** What the page does besides reading a list. It is drawn inside the bar,
+   *  between the filters and the view mode, so that it reads as one group in a
+   *  row of groups rather than as a second row above them. */
+  actions?: ReactNode;
+  /** The folders the list can be narrowed to, as the space stores them. */
+  folders: Directory[];
+  search: string;
+  /** The folder the list is narrowed to, or the empty string for all of them. */
+  folder: string;
+  sort: VideoSort;
+  viewMode: ViewMode;
+  onSearchChange: (value: string) => void;
+  onFolderChange: (value: string) => void;
+  onSortChange: (value: VideoSort) => void;
+  onViewModeChange: (value: ViewMode) => void;
+  /** Whether the list is busy. Nothing that would narrow a list can be moved
+   *  while there is no list to narrow. */
+  disabled?: boolean;
+  className?: string;
+};
 
-const VIEW_LABELS = {
-  grid: 'viewGrid',
-  list: 'viewList',
-  table: 'viewTable',
-} as const
-
-const FILTER_LABELS = {
-  all: 'filterAll',
-  favorites: 'filterFavorites',
-  played: 'filterPlayed',
-} as const
-
-const SORT_LABELS: Record<VideoSort, string> = {
-  newest: 'newest',
-  played: 'played',
-  name: 'name',
-  size: 'size',
-}
-
-interface LibraryToolbarProps {
-  listing: Listing
-  sort: VideoSort
-  filter: VideoFilter
-  viewMode: ViewMode
-  onSortChange: (value: VideoSort) => void
-  onFilterChange: (value: VideoFilter) => void
-  onViewModeChange: (value: ViewMode) => void
-}
-
-/** The three controls every listing shares: narrow, order and shape. */
+/**
+ * The bar a listing is read from: what else the page does, and the four ways to
+ * narrow or reshape the records under it — a search, a folder, an order and a
+ * shape.
+ *
+ * The bar is the top of the page. The page draws no title line: the name is the
+ * navigation's to say (the entry the header marks as current), and the page's
+ * actions are a group of one more kind sitting in this row.
+ *
+ * The row is not a card. It was one — `rounded-xl border border-border bg-card
+ * p-3` — which drew a frame around controls that are framed already and inset
+ * them from the columns below; it is now a bare row sitting on the page canvas,
+ * flush with the list under it. What that costs is the fill the controls used to
+ * read against: they took `bg-background` because they sat *in* a card, so with
+ * the card gone they take `--field` instead, one step off the page in each theme
+ * (ADR 0028).
+ *
+ * It holds no state and asks for nothing. Every control is handed its value and
+ * reports a change upwards.
+ *
+ * The folders arrive as records and are shown as paths without their verbatim
+ * prefix (`displayPath`, which is a display concern and not a filter's).
+ *
+ * The orders, by contrast, are not the caller's: `SORT_ORDERS` is the closed set
+ * the query can name, and it is drawn in the words `SORT_ORDER_LABELS` gives it.
+ */
 export function LibraryToolbar({
-  listing,
+  actions,
+  folders,
+  search,
+  folder,
   sort,
-  filter,
   viewMode,
+  onSearchChange,
+  onFolderChange,
   onSortChange,
-  onFilterChange,
   onViewModeChange,
+  disabled,
+  className,
 }: LibraryToolbarProps) {
-  const { t } = useTranslation()
-
+  const { t } = useTranslation();
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className={className}>
       <div
-        role="group"
-        aria-label={t('filter')}
-        className="inline-flex items-stretch gap-1 rounded-lg border border-border bg-background p-1"
+        data-slot="library-toolbar"
+        className="flex flex-wrap items-center gap-3"
       >
-        {listing === 'favorites' ? (
-          <FilterChip
-            value="favorites"
-            label={t('filterFavorites')}
-            active
-            onSelect={onFilterChange}
-          />
-        ) : (
-          FILTERS.map((value) => (
-            <FilterChip
-              key={value}
-              value={value}
-              label={t(FILTER_LABELS[value])}
-              active={value === filter}
-              onSelect={onFilterChange}
-            />
-          ))
-        )}
-      </div>
-
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span>{t('sort')}</span>
-        <Select
+        <SearchInput
+          value={search}
+          onChange={onSearchChange}
+          placeholder={t('searchPlaceholder')}
+          aria-label={t('search')}
+          disabled={disabled}
+          className="min-w-56 flex-1"
+        />
+        <FolderSelect
+          value={folder}
+          options={[
+            { value: '', label: t('allFolders') },
+            ...folders.map((directory) => ({
+              value: directory.path,
+              label: displayPath(directory.path),
+            })),
+          ]}
+          onChange={onFolderChange}
+          disabled={disabled}
+          aria-label={t('folder')}
+        />
+        <SortSelect
           value={sort}
-          onValueChange={(value) => onSortChange(value as VideoSort)}
-        >
-          <SelectTrigger aria-label={t('sort')} size="sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SORT_ORDERS.map((value) => (
-              <SelectItem key={value} value={value}>
-                {t(SORT_LABELS[value])}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div
-        role="group"
-        aria-label={t('viewMode')}
-        className="ml-auto inline-flex items-stretch gap-1 rounded-lg border border-border bg-background p-1"
-      >
-        {VIEW_MODES.map((value) => {
-          const Icon = VIEW_ICONS[value]
-          return (
-            <Button
-              key={value}
-              data-testid={`view-mode-${value}`}
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t(VIEW_LABELS[value])}
-              aria-pressed={value === viewMode}
-              onClick={() => onViewModeChange(value)}
-              className={cn(
-                'rounded-md',
-                value === viewMode && 'bg-selection text-selection-foreground',
-              )}
-            >
-              <Icon className="size-4" />
-            </Button>
-          )
-        })}
+          options={SORT_ORDERS.map((order) => ({
+            value: order,
+            label: t(SORT_ORDER_LABELS[order]),
+          }))}
+          onChange={(value) => onSortChange(value as VideoSort)}
+          disabled={disabled}
+          aria-label={t('sort')}
+        />
+        <div className="hidden h-6 w-px bg-border sm:block" aria-hidden="true" />
+        {actions}
+        <ViewModeSwitch
+          value={viewMode}
+          onChange={onViewModeChange}
+          disabled={disabled}
+        />
       </div>
     </div>
-  )
-}
-
-function FilterChip({
-  value,
-  label,
-  active,
-  onSelect,
-}: {
-  value: VideoFilter
-  label: string
-  active: boolean
-  onSelect: (value: VideoFilter) => void
-}) {
-  return (
-    <button
-      type="button"
-      data-testid={`filter-${value}`}
-      aria-pressed={active}
-      onClick={() => onSelect(value)}
-      className={cn(
-        'rounded-md px-3 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-hover',
-        active && 'bg-selection text-selection-foreground shadow-sm',
-      )}
-    >
-      {label}
-    </button>
-  )
+  );
 }

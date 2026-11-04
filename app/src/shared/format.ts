@@ -12,8 +12,20 @@ export function displayPath(path: string): string {
   return /^UNC\\/i.test(remainder) ? `\\\\${remainder.slice(4)}` : remainder
 }
 
-export function duration(milliseconds: number | null): string {
-  if (milliseconds === null) return '—'
+/**
+ * One date-and-time shape for every table that draws an instant.
+ *
+ * A table that draws many rows builds this once and formats each row with it;
+ * a single value calls `formatDateTime`, which builds one for itself.
+ */
+export function dateTimeFormat(language: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat(language, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
+}
+
+export function duration(milliseconds: number | null): string {  if (milliseconds === null) return '—'
   const seconds = Math.max(0, Math.floor(milliseconds / 1000))
   const parts = [
     Math.floor(seconds / 3600),

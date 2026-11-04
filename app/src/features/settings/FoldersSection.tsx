@@ -1,10 +1,12 @@
 import { useEffect, useState, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FolderPlus, Play, RefreshCw, Trash2 } from 'lucide-react'
 import type { Directory, MediaToolDetection } from '../../shared/api'
 import { Button } from '../../shared/ui/button'
+import { Input } from '../../shared/ui/input'
+import { Label } from '../../shared/ui/label'
 import { useServices } from '../../shared/services'
-import { inputClass } from './field'
+import { DirectoryActions } from '../library/DirectoryActions'
+import { DirectoryRow } from './DirectoryRow'
 
 /**
  * POSIX absolute, Windows drive absolute, or a UNC share.
@@ -17,7 +19,12 @@ function isAbsolutePath(value: string): boolean {
 }
 
 /**
- * The current space's folders and the two ways to add one.
+ * The current space's folders and the ways to add, scan and rebuild them.
+ *
+ * It draws no card of its own — the page puts it in one, under a heading that
+ * names the space. What it holds is the old page's arrangement: one card per
+ * folder, and the folder-wide commands under the list rather than in the card
+ * header, because they act on the list as a whole.
  *
  * The native picker is the preferred path. `unsupported` is a normal answer in
  * browser mode, so it swaps in a text field for an absolute path instead of
@@ -97,12 +104,9 @@ export function FoldersSection({
   }
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4">
-      <h2 className="text-sm font-medium">{t('folders')}</h2>
-      <p className="text-sm text-muted-foreground">{t('foldersHelp')}</p>
-
+    <div className="space-y-3">
       {tools !== null && (
-        <div data-testid="media-tools" className="mt-2 space-y-1 text-sm">
+        <div data-testid="media-tools" className="space-y-1 text-sm">
           {(['ffmpeg', 'ffprobe'] as const).map((name) => (
             <p key={name} data-testid={`media-tool-${name}`}>
               <span className="text-muted-foreground">{name}</span>{' '}
@@ -115,75 +119,30 @@ export function FoldersSection({
       )}
 
       {directories.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">{t('noFolders')}</p>
+        <p className="text-sm text-muted-foreground">{t('noFolders')}</p>
       ) : (
-        <ul className="mt-3 divide-y divide-border">
-          {directories.map((directory) => (
-            <li
-              key={directory.id}
-              data-testid={`folder-${directory.id}`}
-              className="flex items-center gap-2 py-2"
-            >
-              <span className="min-w-0 flex-1 truncate text-sm">
-                {directory.path}
-              </span>
-              <Button
-                data-testid={`remove-folder-${directory.id}`}
-                size="sm"
-                variant="outline"
-                className="text-destructive"
-                disabled={busy}
-                onClick={() => void onRemove(directory.id)}
-              >
-                <Trash2 className="size-3.5" aria-hidden="true" />
-                {t('removeFolder')}
-              </Button>
-            </li>
-          ))}
-        </ul>
+        directories.map((directory) => (
+          <DirectoryRow
+            key={directory.id}
+            directory={directory}
+            disabled={busy || scanning}
+            onRemove={() => void onRemove(directory.id)}
+          />
+        ))
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button
-          data-testid="add-folder"
-          size="lg"
-          disabled={busy}
-          onClick={() => void choose()}
-        >
-          <FolderPlus className="size-[18px]" aria-hidden="true" />
-          {t('addFolder')}
-        </Button>
-        <Button
-          data-testid="start-scan"
-          size="lg"
-          disabled={busy || scanning}
-          onClick={() => void onScan()}
-        >
-          <Play className="size-[18px]" aria-hidden="true" />
-          {scanning ? t('scanning') : t('scan')}
-        </Button>
-        <Button
-          data-testid="rebuild-thumbnails"
-          size="lg"
-          variant="secondary"
-          disabled={busy || scanning}
-          onClick={() => void onRebuild()}
-        >
-          <RefreshCw className="size-[18px]" aria-hidden="true" />
-          {t('rebuildThumbnails')}
-        </Button>
-      </div>
+      <DirectoryActions
+        busy={busy || scanning}
+        onAdd={() => void choose()}
+        onRescan={() => void onScan()}
+        onRegenerate={() => void onRebuild()}
+      />
 
       {manual && (
-        <div className="mt-3 space-y-2">
-          <label
-            htmlFor="manual-folder-path"
-            className="text-sm font-medium"
-          >
-            {t('folderPath')}
-          </label>
+        <div className="space-y-2">
+          <Label htmlFor="manual-folder-path">{t('folderPath')}</Label>
           <div className="flex flex-wrap items-center gap-2">
-            <input
+            <Input
               id="manual-folder-path"
               data-testid="manual-folder-path"
               aria-label={t('folderPath')}
@@ -197,7 +156,7 @@ export function FoldersSection({
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void submitManual()
               }}
-              className={`${inputClass} min-w-0 flex-1`}
+              className="min-w-0 flex-1"
             />
             <Button
               data-testid="add-manual-folder"
@@ -217,10 +176,10 @@ export function FoldersSection({
       )}
 
       {pickerError !== null && (
-        <p role="alert" className="mt-3 text-sm text-destructive">
+        <p role="alert" className="text-sm text-destructive">
           {pickerError}
         </p>
       )}
-    </section>
+    </div>
   )
 }

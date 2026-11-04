@@ -7,6 +7,8 @@
  * `{ code, message }`, whichever side produced them.
  */
 
+import { bootstrapToken } from 'cordis-app/client'
+
 export type VideoFilter = 'all' | 'favorites' | 'played'
 export type VideoSort = 'newest' | 'played' | 'name' | 'size'
 
@@ -63,14 +65,30 @@ export interface VideoListQuery {
   spaceId: number
   only: VideoFilter
   sort: VideoSort
+  /** A file name to look for; the empty string reads the whole listing. */
+  search: string
+  /** A folder to narrow the listing to; the empty string reads all of them. */
+  folder: string
   offset: number
   limit: number
 }
 
-/** The address of one video's cached JPEG; the scan writes it, this route serves it. */
+/**
+ * The address of one video's cached JPEG; the scan writes it, this route serves
+ * it.
+ *
+ * An `<img>` cannot carry the `Authorization` header the HTTP seam sends, so
+ * the token rides in the query instead — the server accepts either. It is read
+ * once: the token the page bootstrapped with does not change while it is open.
+ */
 export function thumbnailUrl(videoId: number): string {
-  return `/api/thumbnails/${videoId}`
+  mediaToken ??= bootstrapToken()
+  const query =
+    mediaToken === '' ? '' : `?token=${encodeURIComponent(mediaToken)}`
+  return `/api/thumbnails/${videoId}${query}`
 }
+
+let mediaToken: string | null = null
 
 export type ScanPhase =
   | 'discovering'

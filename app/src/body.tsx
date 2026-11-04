@@ -1,15 +1,29 @@
+/* Space Grotesk, self-hosted — the drawings ask for the whole family and the
+   alternatives in the prototype (Manrope, JetBrains Mono) were CDN links we do
+   not take. Only the latin subsets are imported: the family carries no CJK
+   coverage, so Chinese text falls through to the system stack either way and
+   the other subsets would ship glyphs this UI never renders.
+
+   These are imported here rather than from the Tailwind source sheet because
+   that sheet is compiled by the CLI ahead of Vite, into a file next to it: the
+   `./files/…` urls `@fontsource` writes would land there unresolved instead of
+   being emitted as assets. Imported from a module, Vite rewrites them. */
+import '@fontsource/space-grotesk/latin-400.css'
+import '@fontsource/space-grotesk/latin-500.css'
+import '@fontsource/space-grotesk/latin-600.css'
+import '@fontsource/space-grotesk/latin-700.css'
 import './styles.css'
 import './shared/i18n'
-import { useMemo, type ReactElement } from 'react'
+import { useLayoutEffect, useMemo, useState, type ReactElement } from 'react'
 import { useRuntime } from 'cordis-app/client'
 import { navigate, usePath } from 'cordis-app/ui'
-import { Clapperboard, Heart, Puzzle, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from './shared/cn'
 import { createRuntimeServices, ServicesProvider } from './shared/services'
 import { ToastProvider } from './shared/toast'
 import { useWindowTitle } from './shared/native'
 import { applyTheme, storedTheme } from './shared/theme'
+import { AppFooter } from './shared/AppFooter'
+import { AppHeader } from './features/layout/AppHeader'
 import { ScanDialogHost } from './features/scan/ScanDialogHost'
 import { FavoritesPage } from './pages/FavoritesPage'
 import { LibraryPage } from './pages/LibraryPage'
@@ -20,61 +34,56 @@ import { SettingsPage } from './pages/SettingsPage'
 // starts in the theme the user last chose rather than the default palette.
 applyTheme(storedTheme())
 
-const ROUTES = [
-  { path: '/', label: 'library', icon: Clapperboard },
-  { path: '/favorites', label: 'favorites', icon: Heart },
-  { path: '/plugins', label: 'plugins', icon: Puzzle },
-  { path: '/settings', label: 'settings', icon: Settings },
-] as const
+/**
+ * Paint it again once the body is mounted. The shell's entry restores its own
+ * appearance after importing this body — `restoreAppearance()` runs inside the
+ * framework's boot sequence, which is after this module's top-level statements
+ * — and that call removes `data-theme` when the shell's preference is `auto`.
+ * Re-applying before the browser paints is what keeps the body in the theme
+ * the user chose instead of the shell's.
+ */
+function useBodyTheme(): void {
+  useLayoutEffect(() => {
+    applyTheme(storedTheme())
+  }, [])
+}
 
 /**
- * Project body: its own navigation and pages, and none of the framework's
- * plugin outlets, slots or settings panel.
+ * Project body: its own header, navigation and pages, and none of the
+ * framework's plugin outlets, slots or settings panel.
  *
- * The framework still owns the window-level concerns (`BodyHost` adds the
- * shortcut listener, the context menu and the error boundary), but the layout
- * and the four routes are this project's. The plugin route is a signpost
- * because `app.json` declares no UI plugins in the first version.
+ * The column is the old window's — the dot grid behind the whole thing, the
+ * header at the top, the page in the height left, the footer along the bottom.
+ * The window's title bar is the platform's here: the shell opens a decorated
+ * window rather than the Tauri build's frameless one, so drawing a second strip
+ * would give the window two.
+ *
+ * A space switch remounts the routes through `spaceRevision`: the listing
+ * hooks read the current space on mount, and remounting is what makes them read
+ * the one that is now current without threading a space context through every
+ * page.
  */
 export default function Body(): ReactElement {
+  useBodyTheme()
   const runtime = useRuntime()
   const path = usePath()
-  const { t } = useTranslation()
   const services = useMemo(() => createRuntimeServices(runtime), [runtime])
+  const [spaceRevision, setSpaceRevision] = useState(0)
+  const port = window.location.port === '' ? null : Number(window.location.port)
 
   return (
     <ServicesProvider value={services}>
       <ToastProvider>
         <WindowTitle />
-        <div className="flex h-screen bg-background text-foreground">
-          <aside className="flex w-48 shrink-0 flex-col border-r border-border bg-card p-3">
-            <div className="px-2 pb-4 pt-1 text-lg font-semibold tracking-tight">
-              {t('appName')}
-            </div>
-            <nav aria-label={t('appName')} className="flex flex-col gap-1">
-              {ROUTES.map((route) => {
-                const Icon = route.icon
-                const active = path === route.path
-                return (
-                  <button
-                    key={route.path}
-                    type="button"
-                    aria-current={active ? 'page' : undefined}
-                    onClick={() => navigate(route.path)}
-                    className={cn(
-                      'flex items-center gap-2 rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-hover',
-                      active && 'bg-selection text-selection-foreground',
-                    )}
-                  >
-                    <Icon className="size-4" />
-                    {t(route.label)}
-                  </button>
-                )
-              })}
-            </nav>
-          </aside>
-
-          <main className="min-h-0 flex-1 overflow-y-auto">{renderRoute(path)}</main>
+        <div className="dot-grid flex h-full flex-col overflow-hidden bg-background text-foreground">
+          <AppHeader
+            path={path}
+            onSpaceSwitched={() => setSpaceRevision((value) => value + 1)}
+          />
+          <div key={spaceRevision} className="flex min-h-0 flex-1 flex-col">
+            {renderRoute(path)}
+          </div>
+          <AppFooter port={port} hardwareAcceleration={null} />
         </div>
         <ScanDialogHost />
       </ToastProvider>

@@ -37,6 +37,10 @@ export interface VideoQuery {
   spaceId: number
   only: VideoFilter
   sort: VideoSort
+  /** A file name to look for, or the empty string for the whole listing. */
+  search: string
+  /** A folder to narrow the listing to, or the empty string for all of them. */
+  folder: string
   offset: number
   limit: number
 }
@@ -116,9 +120,21 @@ export class VideoStore {
    * different list than the page does: the interface counts pages with it.
    */
   list(query: VideoQuery): VideoPage {
-    const where = `space_id = ? AND ${FILTERS[query.only]}`
+    const conditions = [`space_id = ?`, FILTERS[query.only]]
+    const values: (string | number)[] = [query.spaceId]
+    if (query.search !== '') {
+      // The name is what the user reads and types; the folder path is not
+      // searchable, because a path is a place rather than a title.
+      conditions.push(`file_name LIKE ? ESCAPE '\\'`)
+      values.push(`%${escapeLike(query.search)}%`)
+    }
+    if (query.folder !== '') {
+      conditions.push('folder_path = ?')
+      values.push(query.folder)
+    }
+    const where = conditions.join(' AND ')
     const total = (
-      this.db.prepare(`SELECT COUNT(*) AS n FROM videos WHERE ${where}`).get(query.spaceId) as {
+      this.db.prepare(`SELECT COUNT(*) AS n FROM videos WHERE ${where}`).get(...values) as {
         n: number
       }
     ).n
@@ -126,7 +142,7 @@ export class VideoStore {
       .prepare(
         `SELECT ${COLUMNS} FROM videos WHERE ${where} ORDER BY ${ORDERS[query.sort]} LIMIT ? OFFSET ?`,
       )
-      .all(query.spaceId, query.limit, query.offset) as VideoRow[]
+      .all(...values, query.limit, query.offset) as VideoRow[]
     return { videos: rows.map(readVideo), total }
   }
 
@@ -177,8 +193,16 @@ export class VideoStore {
   }
 }
 
-function readVideo(row: VideoRow): Video {
-  return {
+/**
+ * A search term as a `LIKE` pattern body: the three characters `LIKE` gives a
+ * meaning of their own are escaped, so a user searching for `100%` finds files
+ * with that name rather than every file.
+ */
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`)
+}
+
+function readVideo(row: VideoRow): Video {  return {
     id: row.id,
     path: row.path,
     fileName: row.file_name,

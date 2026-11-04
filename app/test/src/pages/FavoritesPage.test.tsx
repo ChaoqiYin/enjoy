@@ -32,15 +32,13 @@ describe('收藏页', () => {
   })
 
   it('没有「全部 / 已播放」筛选，收藏页固定为收藏', async () => {
-    renderFavorites()
+    const { api } = renderFavorites()
     await screen.findAllByTestId('video-card')
 
     expect(screen.queryByTestId('filter-all')).toBeNull()
     expect(screen.queryByTestId('filter-played')).toBeNull()
-    expect(screen.getByTestId('filter-favorites')).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    expect(screen.queryByTestId('filter-favorites')).toBeNull()
+    expect(api.calls.at(-1)?.only).toBe('favorites')
   })
 
   it('取消收藏后该记录从收藏页消失', async () => {

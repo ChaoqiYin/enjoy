@@ -1,14 +1,35 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
 
-/* The framework's appearance switch writes `data-theme`; it is not shadcn's
-   `.dark` class, so the variant is pointed at the attribute the app already
-   uses. */
+/* The dark variant follows the document attribute `ThemeSetting` writes. It is
+   not shadcn's default `.dark` class: nothing in this app sets that class, and
+   adopting it would mean rewriting `theme/ThemeSetting` and both HTML entries. */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
-/* The semantic slots the migrated controls paint with. Values mirror the
-   existing frontend tokens; only the ones these two pages use are carried
-   over, so this file is not a second copy of the whole palette. */
+/* `hover`, minus disabled controls: Tailwind's own is `&:hover` in
+   `@media (hover: hover)` — the query is kept, only the exclusion is added.
+   The exclusions go in `:where()`, which costs no specificity: three bare
+   `:not()`s each add one, compiling every `hover:` to (0,5,0), above every
+   state variant (`data-[…]` is (0,2,0)). At (0,2,0) the state wins (ADR 0038). */
+@custom-variant hover {
+  @media (hover: hover) {
+    &:hover:where(
+        :not(:disabled):not([aria-disabled='true']):not([data-disabled])
+      ) {
+      @slot;
+    }
+  }
+}
+
 @theme inline {
+  --font-sans:
+    'Space Grotesk', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* One radius for both themes. The drawings disagree — Vermilion bases at
+     .25rem, Crimson at .5rem — and a per-theme value would resize every
+     component the moment the theme flips. */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -31,84 +52,366 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-field: var(--field);
   --color-selection: var(--selection);
   --color-selection-foreground: var(--selection-foreground);
+
+  /* The wash under the pointer, and its fainter twin for a whole table row: two
+     weights, because the dark theme has always drawn those two at different
+     steps. The tokens below carry the rest. */
   --color-hover: var(--hover);
+  --color-hover-soft: var(--hover-soft);
+
+  /* The titlebar's close button, which is the one control in the window that is
+     the operating system's rather than the application's. Registered like any
+     other token so that the fill and the glyph are the same kind of thing —
+     both are backgrounds, which is what the glyph is painted with; see
+     `.window-glyph` in `components.css`. */
+  --color-window-close: var(--window-close);
+  --color-window-close-foreground: var(--window-close-foreground);
+
+  /* Extended slots: shadcn ships none of these three and the app draws a
+     green "indexed / hardware ready", an amber star and a blue info action. */
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+
+  /* Business tokens the drawings name directly. */
+  --color-glow: var(--glow);
+  --color-share: var(--share);
+  --color-share-border: var(--share-border);
+  --color-last-played: var(--last-played);
+
+  /* The settings rail's panel. shadcn's sidebar names a set of these; only the
+     six its rows actually paint are kept, so no token here is decorative. */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* What carries a header entry's label through one turn while the pointer is on
+   it: each character lifts out of its own place and settles back down into it,
+   one after another. An animation rather than a transition, so it needs a token
+   — Tailwind v4 builds `animate-<name>` out of `--animate-*` — and the keyframes
+   sit in this block as the only way to have them emitted where the utility is
+   used and nowhere else. `MainNavItem` wears the utility on each character and
+   spaces them out with a delay; ADR 0027 has the reasoning and the
+   measurements. */
+@theme {
+  --animate-nav-turn: nav-turn 0.48s ease-in-out;
+
+  /* No fill mode and no opacity: a character is where the words are until its
+     turn comes, and it is drawn the whole way — what takes the top of its glyph
+     out of sight is the layer's clip at the top of the line, not a fade.
+
+     Two shapes were measured before this one and both left a hole in the label.
+     The first handed each character over from underneath, and the four-character
+     label was blank from 220ms to 340ms. Going back the way it came costs
+     nothing and reads as the character's own place being where it returns to,
+     but the travel is not free either: at -110% the glyph clears the line box
+     entirely, and four characters 30ms apart are then all away at once for
+     220ms to 360ms of the turn. What the layer's clip keeps, over the whole
+     turn, as a share of the label's ink — -30%: 0.77, -55%: 0.47, -85%: 0.11
+     and blank from 260ms to 300ms, -110%: none of it. So the lift stops at -55%,
+     a little over half a character's height: a wave passes through the label
+     with the far side of the line still on screen at every moment. The
+     fourteen-character English label, staggered 18ms, never drops below 0.27
+     even at -85%. */
+  @keyframes nav-turn {
+    0% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-55%);
+    }
+    100% {
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Light theme — prototype-drawing/vermilion_studio/DESIGN.md.
+   `--radius` lives only here: it is deliberately the same value in both themes. */
 :root {
+  /* Which palette the *engine* paints with, as opposed to which one this
+     stylesheet paints with. No rule below reads it: it is what the engine
+     resolves its own surfaces from — the internals of a form control, the
+     `canvastext` keyword, the canvas before this stylesheet arrives. (The
+     scrollbar is *not* one of them any more: it is drawn here, see
+     `components.css`.) The theme switch writes `data-theme`, and only this
+     stylesheet's own declarations answer that, so left unset (it computes to
+     `normal`, which the engine reads as light) a dark window takes its
+     `canvastext` from the light palette whatever this file says (ADR 0040).
+     Declared in both blocks rather than derived, because there is no expression
+     to derive it from: it is a keyword pair, and the pair is what
+     `scripts/check-tokens.mjs` holds. */
   color-scheme: light;
+
   --radius: 0.5rem;
 
-  --background: #f5f5f5;
-  --foreground: #0f172a;
-  --card: #fcfcfd;
-  --card-foreground: #0f172a;
-  --popover: var(--card);
-  --popover-foreground: var(--card-foreground);
+  /* The lane a scrollbar takes, which is this interface's number rather than the
+     platform's: the bar itself is drawn in `components.css`, so nothing here is
+     left to the engine to size. Ten is what a drawn bar wants to be — the
+     platform's own fifteen on Windows is width the design never uses, since the
+     track is transparent and the visible part is a six-pixel pill — and it is
+     the one number on this list the layout can feel: `scrollbar-gutter` reserves
+     it beside every scrolling container, so the content column is five pixels
+     wider than it was before the bar was drawn (ADR 0040). */
+  --scrollbar-width: 10px;
 
-  --primary: #e11d48;
-  --primary-foreground: #ffffff;
-  --secondary: #fecdd3;
-  --secondary-foreground: #0f172a;
-  --muted: #fff1f2;
-  --muted-foreground: #64748b;
-  --destructive: #ba1a1a;
-  --destructive-foreground: #ffffff;
-  --border: #e2e8f0;
-  --input: #cbd5e1;
-  --ring: #e11d48;
+  /* The pill, and the pill under the pointer. A pair of its own rather than
+     `--muted-foreground` / `--foreground`, which is what it started as: those
+     two are this palette's quiet and loud *text*, and the user tuned the bar
+     away from both — the light one greyer than the slate the text is, the dark
+     one darker than the ink the text is. Both are neutral greys: nothing is
+     behind the pill but the page (the track is transparent), so it carries no
+     hue of its own. The relationship is the same in both themes — quiet enough
+     at rest to read as furniture, plainly there under the pointer. */
+  --scrollbar-thumb: #a3a3a3;
+  --scrollbar-thumb-hover: #737373;
 
+  /* Not the document's `background` (`#faf8ff`): the user pointed at a
+     screenshot of another application for the light theme's page colour and for
+     the field on it, and the two were taken together. `--card` and the rest of
+     the light palette stay as the document has them (ADR 0029). */
+  --background: #f5f5f5; /* user-supplied, see ADR 0029 */
+  --foreground: #0f172a; /* on-surface */
+  --card: #fcfcfd; /* surface */
+  --card-foreground: #0f172a; /* on-surface */
+  --popover: #ffffff; /* surface-container-lowest */
+  --popover-foreground: #0f172a; /* on-surface */
+
+  /* The compiled block's brand red, not the front-matter block's `#b80035`
+     (the M3 light tint). Same rule on the dark side. */
+  --primary: #e11d48; /* primary */
+  --primary-foreground: #ffffff; /* on-primary */
+  --secondary: #fecdd3; /* surface-container-high */
+  --secondary-foreground: #0f172a; /* on-surface */
+  --muted: #fff1f2; /* surface-container-low */
+  --muted-foreground: #64748b; /* on-surface-variant */
+  --destructive: #ba1a1a; /* error */
+  --destructive-foreground: #ffffff; /* on-error */
+  --border: #e2e8f0; /* outline */
+  --input: #cbd5e1; /* outline-variant */
+
+  /* The surface a control takes when it sits on the page canvas rather than a
+     card — the toolbar's controls (ADR 0028). Both themes step *off* the page:
+     light down to `#ebebeb`, dark up to `surface-container-low` (#1a1c20); not
+     `--muted`, whose light `#fff1f2` is lighter than the page. The light value
+     is the user's, read off the same screenshot as `--background` above — the
+     10 levels between them are that screenshot's own (ADR 0029). */
+  --field: #ebebeb; /* user-supplied, see ADR 0029 */
+
+  /* One focus hue for the whole app. The drawings carry a cyan glow and a red
+     one side by side, which is a draft that never converged; the primary wins. */
+  --ring: #e11d48; /* primary */
+
+  /* Semantics beat the drawings where they disagree: Crimson repaints its
+     green as red, and success stays green anyway. */
+  --success: #006855; /* tertiary */
+  --success-foreground: #ffffff; /* on-tertiary */
+  --warning: #f59e0b; /* amber-gold */
+  --warning-foreground: #472a00; /* dark amber text for either theme */
+  --info: #0369a1; /* no drawing slot; the blue `btn-info` stood for */
+  --info-foreground: #ffffff;
+
+  --glow: rgba(225, 29, 72, 0.2); /* accent-glow */
+  --share: #e11d48; /* status-shared */
+  --share-border: #9f1239; /* status-shared-border */
+  --last-played: #e11d48; /* last-played */
+
+  /* The video card's border glow — the react-bits BorderGlow, tuned the way its
+     own demo tunes it. The demo swaps five things per colour mode
+     (`src/demo/Components/BorderGlowDemo.jsx`, the `useColorModeValue` calls),
+     and not one of them can be written down in the component: the theme is
+     switched in `[data-theme]` without React knowing (ADR 0018), so a value
+     that differs per theme has to be a token.
+
+     The hue is the one of the five that is not the demo's. The demo lights a
+     white card violet and a near-black one warm white, and its mesh carries a
+     third hue again — violet, pink and sky — so a hovered card put four hues
+     next to the app's own red and read as noise rather than as light. The glow
+     is the accent, so it takes the accent: `--primary`. Written once, here,
+     because a custom property is resolved where it is *used* and this file's
+     dark block redeclares `--primary` — the hue follows the theme without a
+     second line (the same trick as `--dot-color`). Only the strength is per
+     theme, and light is still the demo's: a slightly stronger glow and a
+     lighter fill. */
+  --glow-color: var(--primary);
+  --glow-intensity: 1.25;
+  --glow-fill-opacity: 0.22;
+
+  /* The card's resting border and elevation. The demo picks these from the
+     background being light or dark — the same branch, moved to CSS. */
+  --glow-card-border: rgb(24 24 27 / 12%);
+  --glow-card-shadow:
+    rgb(24 24 27 / 4%) 0 1px 2px, rgb(24 24 27 / 5%) 0 8px 24px;
+
+  /* A violet on white is already as dark as it gets, so adding to it would only
+     mud the card: the demo lets the light one composite normally. */
+  --glow-blend: normal;
+  --glow-fill-blend: normal;
+
+  /* The dot matrix behind the whole window, drawn as `.dot-grid`'s background.
+     Written once for both themes, which works because `--foreground` is
+     resolved where the value is *used* rather than where it is written: under
+     `[data-theme='dark']` this same line picks up the light foreground, and the
+     dots flip with the theme on their own.
+
+     Walked down four times, and the numbers below are what settled it. 40% read
+     as a pattern rather than as a surface; 32% was the first value that was
+     plainly there, on the `20px` pitch this started with; the pitch then came
+     down to `16px` and this with it to 20% (a tighter grid is more ink, so the
+     two move together); 12% was still called too obvious; 4% is the one.
+
+     4% is a target, not a taste. What was asked for is a layer that is barely
+     there and yet still faintly legible, and on a near-white surface that is a
+     dot about 10 levels of 255 off the background — present if you look, gone
+     if you do not. Below this the dots stop reading as a field at all: 3% is
+     already only a suspicion of one. The same alpha lands the same distance
+     from the background in the dark theme (see the ADR's table), which is why
+     there is one number here and not two. */
+  --dot-color: color-mix(in oklab, var(--foreground) 4%, transparent);
+
+  /* The settings rail's panel, written once for both themes for the same reason
+     as the two above: every one of these resolves against a token the dark block
+     redeclares, so the panel follows the theme without a second declaration. The
+     surface is `--card`, which is where the drawings put the rail
+     (`surface-card`), and the rest are the slots shadcn's sidebar expects — the
+     wash a row takes under the pointer, and the edge around the panel.
+
+     That wash is `--hover`, not the `--secondary` it used to be: this row and
+     the two chosen segments above were the same pink, and only the row is a
+     hover (ADR 0034). It is deliberately not `--primary`: a row of choices
+     paints the one that is chosen, and the red is for the control that
+     commits. */
+  --sidebar: var(--card);
+  --sidebar-foreground: var(--card-foreground);
+  --sidebar-accent: var(--hover);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+
+  /* The block that says which one is chosen — the settings rail's current row,
+     the thumb of the theme segment, the pressed segment of `ToggleGroup`. Three
+     places, one rule, and unlike the groups above it is deliberately *not* the
+     same in both themes: light draws it as the drawings do, the brand red with
+     the white `on-primary` on it, because the pink it wore until ADR 0032 had
+     been picked against a lavender-white page that no longer exists; dark keeps
+     the grey step above the page, where a whole row of `#ff334b` would be white
+     on red at 3.4:1 and would outshout the one action a screen is for. */
   --selection: var(--primary);
   --selection-foreground: var(--primary-foreground);
-  --hover: #e5e5e5;
 
-  --success: #006855;
-  --success-foreground: #ffffff;
-  --warning: #f59e0b;
-  --warning-foreground: #472a00;
-  --info: #0369a1;
-  --info-foreground: #ffffff;
+  /* What a row or a control takes under the pointer. Light takes the neutral
+     step below the page (`--background` is neutral-100, this one neutral-200):
+     the pink these washes used to be read as a stray hue on that grey canvas,
+     exactly as the chosen block above did, and ADR 0034 has the numbers. Dark
+     keeps both washes where its rows already had them — a menu row and a table
+     row were never the same grey there (`--secondary` against `--muted`) — and
+     that difference is what the light theme's single value does not carry over.
+     `--hover-soft` is the fainter of the two, for a whole table row rather than
+     a control; its callers narrow it further with `/50` and `/40`. */
+  --hover: #e5e5e5;
+  --hover-soft: var(--hover);
+
+  /* The titlebar's close button: the fill under the pointer and the glyph on
+     top of it. Both themes take the same pair, which is why neither is
+     redeclared in the dark block — this is the one place in the window that
+     wears the operating system's colour rather than the application's, and it
+     is deliberate: three buttons in the corner are read as the window's, not as
+     the page's, and a close button that turns the brand red on hover would be
+     the one thing in the app that means "close" in the wrong colour.
+
+     Not `--destructive`. That pair is a semantic slot the interface uses for
+     "this removes something" — the light `#ba1a1a`, the dark a light coral with
+     dark ink on it — and it is the wrong shape here on both counts: the fill is
+     `#c42b1c`, which is what Windows paints under this button, and the glyph on
+     it is white in both themes rather than whatever that slot's foreground
+     happens to be. The two are pinned by `scripts/check-tokens.mjs` anyway. */
+  --window-close: #c42b1c; /* Windows 11's close-button hover */
+  --window-close-foreground: #ffffff;
 }
 
+/* Dark theme — prototype-drawing/crimson_cinema/DESIGN.md. */
 [data-theme='dark'] {
+  /* The other half of the pair; the light block carries the reasoning. This is
+     the declaration that turns the engine's scrollbars dark, and it has to be
+     here, in the block that theme switch already flips — that is the whole point
+     of it being here rather than in `@layer base`. */
   color-scheme: dark;
 
-  --background: #111317;
-  --foreground: #edeef2;
-  --card: #14171d;
-  --card-foreground: #edeef2;
-  --popover: var(--card);
-  --popover-foreground: var(--card-foreground);
+  --background: #111317; /* background/surface */
+  --foreground: #edeef2; /* on-surface */
+  --card: #14171d; /* surface-card; a step above `surface` so cards lift */
+  --card-foreground: #edeef2; /* on-surface */
+  --popover: #1e232d; /* toast-neutral */
+  --popover-foreground: #edeef2; /* on-surface */
 
-  --primary: #ff334b;
-  --primary-foreground: #ffffff;
-  --secondary: #2a2d33;
-  --secondary-foreground: #edeef2;
-  --muted: #1a1c20;
-  --muted-foreground: #9aa0aa;
-  --destructive: #ffb4ab;
-  --destructive-foreground: #690005;
-  --border: #383b42;
-  --input: #25282f;
-  --ring: #ff334b;
+  --primary: #ff334b; /* primary, compiled block */
+  --primary-foreground: #ffffff; /* on-primary */
+  --secondary: #2a2d33; /* surface-container-high */
+  --secondary-foreground: #edeef2; /* on-surface */
+  --muted: #1a1c20; /* surface-container-low */
+  --muted-foreground: #9aa0aa; /* on-surface-variant */
+  --destructive: #ffb4ab; /* error */
+  --destructive-foreground: #690005; /* on-error */
+  --border: #383b42; /* outline */
+  --input: #25282f; /* outline-variant */
+  --field: #1a1c20; /* surface-container-low; see the light block */
 
+  --ring: #ff334b; /* primary */
+
+  /* The scrollbar's pill, tuned for a near-black page: what the platform's own
+     dark bar offers (`#9f9f9f`) was called too bright against this one, so at
+     rest it sits much closer to the page and only the pointer lifts it. The
+     light block carries the rest. */
+  --scrollbar-thumb: #5f646d;
+  --scrollbar-thumb-hover: #8f949c;
+
+  /* The chosen block stays the grey step here — the light block carries why the
+     two themes disagree. */
   --selection: var(--secondary);
   --selection-foreground: var(--secondary-foreground);
-  --hover: var(--secondary);
 
-  --success: #66dabf;
-  --success-foreground: #00382e;
-  --warning: #f59e0b;
-  --warning-foreground: #472a00;
-  --info: #38bdf8;
+  /* Both hover washes stay where this theme's rows already had them — the light
+     block carries why only its own moved (ADR 0034). */
+  --hover: var(--secondary);
+  --hover-soft: var(--muted);
+
+  --success: #66dabf; /* tertiary */
+  --success-foreground: #00382e; /* on-tertiary */
+  --warning: #f59e0b; /* amber-gold */
+  --warning-foreground: #472a00; /* dark amber text for either theme */
+  --info: #38bdf8; /* no drawing slot; the blue `btn-info` stood for */
   --info-foreground: #082f49;
+
+  --glow: rgba(255, 51, 75, 0.35); /* accent-glow */
+  --share: #ff4d6d; /* status-shared */
+  --share-border: #991b32; /* status-shared-border */
+  --last-played: #ff334b; /* last-played */
+
+  /* The demo's near-black card: the glow at its own strength, a fuller fill,
+     and a heavier resting shadow than the light one. The hue is deliberately
+     not redeclared — it is `--primary`, which this block already sets, so the
+     glow is this theme's own red rather than the demo's warm white. Light on
+     dark is what `plus-lighter` is for — adding it is what makes it read as
+     light. Reasoning at `:root`. */
+  --glow-intensity: 1;
+  --glow-fill-opacity: 0.5;
+  --glow-card-border: rgb(255 255 255 / 15%);
+  --glow-card-shadow:
+    rgba(0, 0, 0, 0.1) 0 1px 2px, rgba(0, 0, 0, 0.1) 0 2px 4px,
+    rgba(0, 0, 0, 0.1) 0 4px 8px, rgba(0, 0, 0, 0.1) 0 8px 16px,
+    rgba(0, 0, 0, 0.1) 0 16px 32px, rgba(0, 0, 0, 0.1) 0 32px 64px;
+  --glow-blend: plus-lighter;
+  --glow-fill-blend: soft-light;
 }
 
 @layer base {
@@ -121,16 +424,40 @@
     outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
   }
 
+  /* Everything clickable wears the pointing hand; everything disabled wears the
+     barred one.
+
+     Tailwind v4's preflight dropped v3's `button { cursor: pointer }`, so
+     without the first half a native button shows the arrow: the user is looking
+     at a control that does something and is told, by the pointer alone, that it
+     does not. One rule rather than a class on each component: what is clickable
+     is not knowable from any one file. The roles are the ones Radix does *not*
+     draw as a button — its menu items and listbox options are `div`s carrying
+     the role; anchors are left out, the browser already gives them the hand.
+     The disabled half says `not-allowed`, which `Input` and `Checkbox` already
+     say: an arrow there was an accident, not a design, because
+     `pointer-events-none` had swallowed the pointer itself and left the cursor
+     to whatever layer sat underneath. */
+  :is(
+    button,
+    [role='button'],
+    [role='menuitem'],
+    [role='option'],
+    [role='radio']
+  ) {
+    &:not(:disabled, [aria-disabled='true'], [data-disabled]) {
+      cursor: pointer;
+    }
+
+    &:is(:disabled, [aria-disabled='true'], [data-disabled]) {
+      /* `!important`: `cursor-default` is a utility, and layers put utilities
+         last — the Radix menu and select items both carry it. */
+      cursor: not-allowed !important;
+    }
+  }
+
   body {
     background-color: var(--background);
     color: var(--foreground);
-  }
-
-  button:not(:disabled) {
-    cursor: pointer;
-  }
-
-  button:disabled {
-    cursor: not-allowed;
   }
 }

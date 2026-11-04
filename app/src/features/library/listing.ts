@@ -8,6 +8,20 @@ export type ViewMode = 'grid' | 'list' | 'table'
 /** Orders offered by the toolbar, in the order it offers them. */
 export const SORT_ORDERS: readonly VideoSort[] = ['newest', 'played', 'name', 'size']
 
+/**
+ * What each order is called in the language pack.
+ *
+ * The labels are the old interface's keys, so the dropdown says what the
+ * previous build said: 最近添加 is the order's name rather than the backend's
+ * `newest`, and 最近播放 borrows the 最近播放页's own word.
+ */
+export const SORT_ORDER_LABELS: Record<VideoSort, string> = {
+  newest: 'newest',
+  played: 'history',
+  name: 'filename',
+  size: 'fileVolume',
+}
+
 /** Filters offered by the library toolbar. Favorites fixes its own. */
 export const FILTERS: readonly VideoFilter[] = ['all', 'favorites', 'played']
 

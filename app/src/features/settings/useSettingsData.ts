@@ -7,15 +7,7 @@ import {
   type Space,
 } from '../../shared/api'
 import type { ScanEventSource } from '../../shared/scanEvents'
-
-/** Phases in which the scan slot is occupied, so space commands are refused. */
-const ACTIVE_PHASES = new Set([
-  'discovering',
-  'indexing',
-  'metadata',
-  'thumbnails',
-  'paused',
-])
+import { ACTIVE_SCAN_PHASES } from '../../shared/scanEvents'
 
 export interface SettingsData {
   spaces: Space[]
@@ -87,7 +79,7 @@ export function useSettingsData(
         // still refuses them while a scan runs.
       })
     const stop = scanEvents.subscribe((event) => {
-      setScanning(ACTIVE_PHASES.has(event.phase))
+      setScanning(ACTIVE_SCAN_PHASES.has(event.phase))
     })
     return () => {
       cancelled = true
