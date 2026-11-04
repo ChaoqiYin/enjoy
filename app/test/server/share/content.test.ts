@@ -6,7 +6,7 @@ import {
   openWebdav,
   removeTempDir,
   writeVideo,
-} from './harness.ts'
+} from './webdav-harness.ts'
 
 const BYTES = '0123456789'
 
@@ -164,6 +164,12 @@ test('a file deleted after startup answers 404 while the listing keeps its name'
     assert.equal(get.status, 404)
     const head = await webdav.request('HEAD', '/clip.mp4')
     assert.equal(head.status, 404)
+    const propfindDepthZero = await webdav.request('PROPFIND', '/clip.mp4', {
+      headers: { depth: '0' },
+    })
+    assert.equal(propfindDepthZero.status, 404)
+    const propfindDefault = await webdav.request('PROPFIND', '/clip.mp4')
+    assert.equal(propfindDefault.status, 404)
 
     const listing = await webdav.request('PROPFIND', '/', { headers: { depth: '1' } })
     assert.match(listing.text, /\/clip\.mp4/)

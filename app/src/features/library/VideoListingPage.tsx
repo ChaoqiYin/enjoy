@@ -4,11 +4,11 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '../../shared/ui/button'
 import { ScrollViewport } from '../../shared/ScrollViewport'
 import { useNativeCommand } from '../../shared/native'
-import type { Video } from '../../shared/api'
 import type { Listing } from './listing'
 import { DirectoryActions } from './DirectoryActions'
 import { EmptyState } from './EmptyState'
 import { LibraryToolbar } from './LibraryToolbar'
+import { listingActions } from './listingActions'
 import { ListingNotices } from './ListingNotices'
 import { Pagination } from './Pagination'
 import { VideoBoard } from './VideoBoard'
@@ -57,17 +57,7 @@ export function VideoListingPage({ listing }: { listing: Listing }) {
     if (paths.length > 0) await model.addFolders(paths)
   }
 
-  const actions = {
-    details: (video: Video) => setDetailId(video.id),
-    play: (video: Video) => void model.play(video),
-    favorite: (video: Video) => void model.toggleFavorite(video),
-    share: (video: Video) => void model.toggleShared(video),
-    // The browser build has no folder window to show, so the control is left
-    // out of the row rather than drawn and doing nothing.
-    ...(model.canReveal
-      ? { reveal: (video: Video) => void model.reveal(video) }
-      : {}),
-  }
+  const actions = listingActions(model, (video) => setDetailId(video.id))
 
   return (
     <PageFrame>

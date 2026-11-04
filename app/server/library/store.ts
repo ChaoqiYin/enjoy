@@ -35,13 +35,15 @@ export class LibraryStore {
     return rows.map(readSpace)
   }
 
+  /** Refuse a name `createSpace` would refuse, without writing anything. */
+  assertCreatableSpace(rawName: string): void {
+    this.requireCreatableName(rawName)
+  }
+
   /** Add a space and move the current marker into it, atomically. */
   createSpace(rawName: string): Space {
-    const name = checkedName(rawName)
     return this.transaction(() => {
-      if (this.nameTaken(name)) {
-        throw new ApiError(409, 'space.name.taken', 'Another space has this name')
-      }
+      const name = this.requireCreatableName(rawName)
       const result = this.db
         .prepare('INSERT INTO spaces (name, created_at, current) VALUES (?, ?, 0)')
         .run(name, Date.now())
@@ -64,6 +66,11 @@ export class LibraryStore {
     })
   }
 
+  /** Refuse an id `deleteSpace` would refuse, without removing anything. */
+  assertRemovableSpace(id: number): void {
+    this.requireRemovableSpace(id)
+  }
+
   /**
    * Remove a space and everything the index held for it. The files on disk are
    * not ours to touch. When the current space goes, the marker moves to the
@@ -71,11 +78,7 @@ export class LibraryStore {
    */
   deleteSpace(id: number): Space {
     return this.transaction(() => {
-      this.requireSpace(id)
-      const total = (this.db.prepare('SELECT COUNT(*) AS n FROM spaces').get() as { n: number }).n
-      if (total <= 1) {
-        throw new ApiError(409, 'space.remove_last', 'The last space cannot be removed')
-      }
+      this.requireRemovableSpace(id)
       this.db.prepare('DELETE FROM spaces WHERE id = ?').run(id)
       const holder = this.db.prepare('SELECT id FROM spaces WHERE current = 1').get()
       if (!holder) {
@@ -180,6 +183,23 @@ export class LibraryStore {
   private requireSpace(id: number): void {
     if (!this.getSpace(id)) {
       throw new ApiError(404, 'space.not_found', 'Space does not exist')
+    }
+  }
+
+  /** Validate a new space's name and answer it trimmed for the insert. */
+  private requireCreatableName(rawName: string): string {
+    const name = checkedName(rawName)
+    if (this.nameTaken(name)) {
+      throw new ApiError(409, 'space.name.taken', 'Another space has this name')
+    }
+    return name
+  }
+
+  private requireRemovableSpace(id: number): void {
+    this.requireSpace(id)
+    const total = (this.db.prepare('SELECT COUNT(*) AS n FROM spaces').get() as { n: number }).n
+    if (total <= 1) {
+      throw new ApiError(409, 'space.remove_last', 'The last space cannot be removed')
     }
   }
 

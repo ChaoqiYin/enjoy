@@ -5,7 +5,7 @@ import {
   openWebdav,
   removeTempDir,
   writeVideo,
-} from './harness.ts'
+} from './webdav-harness.ts'
 
 const CHALLENGE = 'Basic realm="Enjoy", charset="UTF-8"'
 

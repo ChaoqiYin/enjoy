@@ -55,6 +55,9 @@ export function registerRoutes(
     spaceCommand(async (req, res) => {
       const body = await readJson(req)
       const name = requiredName(body)
+      // A refused name must not stop a running share service, so validation
+      // happens before the hook.
+      store.assertCreatableSpace(name)
       await deps.beforeSpaceChange?.({ kind: 'create' })
       const space = store.createSpace(name)
       sendJson(res, 201, { space })
@@ -74,9 +77,14 @@ export function registerRoutes(
     '/api/spaces/:id/switch',
     spaceCommand(async (_req, res, params) => {
       const id = requiredId(params.id)
-      // An unknown id is answered before anything is stopped: a typo must not
-      // take a running share service down.
       store.resolveSpaceId(id)
+      // Switching to the space already shown changes nothing, so it must not
+      // stop the service that belongs to it.
+      const current = store.currentSpace()
+      if (current?.id === id) {
+        sendJson(res, 200, { space: current })
+        return
+      }
       await deps.beforeSpaceChange?.({ kind: 'switch', spaceId: id })
       const space = store.switchSpace(id)
       sendJson(res, 200, { space })
@@ -87,7 +95,9 @@ export function registerRoutes(
     '/api/spaces/:id',
     spaceCommand(async (_req, res, params) => {
       const id = requiredId(params.id)
-      store.resolveSpaceId(id)
+      // An unknown id or the last remaining space is answered before anything
+      // is stopped: a refusal must not take a running share service down.
+      store.assertRemovableSpace(id)
       await deps.beforeSpaceChange?.({ kind: 'delete', spaceId: id })
       const space = store.deleteSpace(id)
       sendJson(res, 200, { space })

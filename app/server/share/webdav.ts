@@ -39,6 +39,9 @@ import {
 export type { WebdavLanguage } from './landing.ts'
 export type { SnapshotFile, WebdavSnapshot } from './snapshot.ts'
 
+/** The first port a listener asks for when the caller names none. */
+export const DEFAULT_PORT = 4918
+
 export interface WebdavCredentials {
   username: string
   password: string
@@ -146,7 +149,7 @@ export async function createWebdavServer(
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(options.port ?? 4918, '0.0.0.0', () => {
+    server.listen(options.port ?? DEFAULT_PORT, '0.0.0.0', () => {
       server.off('error', reject)
       resolve()
     })
@@ -234,29 +237,42 @@ function sendPropfind(
   snapshot: WebdavSnapshot,
 ): void {
   const depthHeader = String(req.headers.depth ?? '1').trim().toLowerCase()
-  if (depthHeader === 'infinity') {
-    sendXml(res, 403, infiniteDepthError())
+
+  if (target === 'root') {
+    if (depthHeader === 'infinity') {
+      sendXml(res, 403, infiniteDepthError())
+      return
+    }
+    const files = depthHeader === '0' ? [] : snapshot.files
+    sendXml(res, 207, multistatus(files))
     return
   }
 
-  if (target === 'root') {
-    const files = depthHeader === '0' ? [] : snapshot.files
-    sendXml(res, 207, multistatus(files))
+  // A file can disappear after the snapshot was built: the name answers 404
+  // here as it does to GET, while the root listing keeps the snapshot's name.
+  if (!filePresent(target)) {
+    sendEmpty(res, 404)
+    return
+  }
+  if (depthHeader === 'infinity') {
+    sendXml(res, 403, infiniteDepthError())
     return
   }
 
   sendXml(res, 207, fileMultistatus(target))
 }
 
-function sendFile(req: IncomingMessage, res: ServerResponse, file: SnapshotFile): void {
-  // A file can disappear after the snapshot was built; the listing stays, but
-  // the name now answers 404 rather than leaking a stream error.
+/** Whether the snapshot's source is still a regular file on disk. */
+function filePresent(file: SnapshotFile): boolean {
   try {
-    if (!statSync(file.path).isFile()) {
-      sendEmpty(res, 404)
-      return
-    }
+    return statSync(file.path).isFile()
   } catch {
+    return false
+  }
+}
+
+function sendFile(req: IncomingMessage, res: ServerResponse, file: SnapshotFile): void {
+  if (!filePresent(file)) {
     sendEmpty(res, 404)
     return
   }

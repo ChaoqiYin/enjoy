@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Share2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { navigate } from 'cordis-app/ui'
-import type { Video } from '../shared/api'
 import { ScrollViewport } from '../shared/ScrollViewport'
 import { Button } from '../shared/ui/button'
 import { PageFrame } from '../features/layout/PageFrame'
@@ -15,6 +14,7 @@ import { useShare } from '../features/share/ShareProvider'
 import { useCopy } from '../features/share/useCopy'
 import { EmptyState } from '../features/library/EmptyState'
 import { LibraryToolbar } from '../features/library/LibraryToolbar'
+import { listingActions } from '../features/library/listingActions'
 import { ListingNotices } from '../features/library/ListingNotices'
 import { Pagination } from '../features/library/Pagination'
 import { VideoBoard } from '../features/library/VideoBoard'
@@ -46,15 +46,7 @@ export function SharePage() {
   const emptyList = empty && !filtered && model.total === 0
   const showList = !model.loading && model.error === null && !empty
 
-  const actions = {
-    details: (video: Video) => setDetailId(video.id),
-    play: (video: Video) => void model.play(video),
-    favorite: (video: Video) => void model.toggleFavorite(video),
-    share: (video: Video) => void model.toggleShared(video),
-    ...(model.canReveal
-      ? { reveal: (video: Video) => void model.reveal(video) }
-      : {}),
-  }
+  const actions = listingActions(model, (video) => setDetailId(video.id))
 
   return (
     <PageFrame>
@@ -87,9 +79,14 @@ export function SharePage() {
         actions={
           <Button
             variant={running ? 'secondary' : 'primary'}
-            // A service over an empty list is a port a device can connect to
-            // and find nothing on: the interface keeps that from happening.
-            disabled={share.busy || (!running && (model.loading || emptyList))}
+            // A service over a list it has not read, could not read or found
+            // empty is a port a device can connect to and find nothing on: the
+            // interface keeps that from happening.
+            disabled={
+              share.busy ||
+              (!running &&
+                (model.loading || model.error !== null || model.total === 0))
+            }
             onClick={() => void (running ? share.stop() : share.start())}
           >
             {running ? t('stopSharing') : t('startSharing')}

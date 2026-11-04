@@ -21,10 +21,12 @@ import {
 } from './addresses.ts'
 import { loadPassword, resetPassword, SHARE_USERNAME } from './credentials.ts'
 import { DeviceActivity, type ShareDevice } from './devices.ts'
-import { createWebdavServer, type WebdavLanguage, type WebdavServer } from './index.ts'
-
-/** The first port a service asks for. */
-export const DEFAULT_PORT = 4918
+import {
+  createWebdavServer,
+  DEFAULT_PORT,
+  type WebdavLanguage,
+  type WebdavServer,
+} from './webdav.ts'
 
 /** How many consecutive ports are tried before the start is refused. */
 export const PORT_ATTEMPTS = 10
@@ -167,7 +169,13 @@ function createShareController(options: ShareInstallOptions): ShareController {
       // A new service starts with nobody connected, even if the previous one
       // was stopped a moment ago.
       activity.clear()
-      const server = await startListener(paths, current.password, startPort, language, activity)
+      const server = await startListener({
+        paths,
+        password: current.password,
+        base: startPort,
+        language,
+        activity,
+      })
       running = { server, port: server.port, spaceId, paths, password: current.password }
     } finally {
       opening = false
@@ -205,6 +213,16 @@ function createShareController(options: ShareInstallOptions): ShareController {
   }
 }
 
+/** What one listener start is asked for, named so the call site reads as a
+ *  checklist rather than as five positional values of different kinds. */
+interface ListenerOptions {
+  paths: string[]
+  password: string
+  base: number
+  language: WebdavLanguage
+  activity: DeviceActivity
+}
+
 /**
  * Bind one of the consecutive ports, starting at `base`.
  *
@@ -213,13 +231,13 @@ function createShareController(options: ShareInstallOptions): ShareController {
  * names the one thing worth a sentence — all ten were held — separately from any
  * other reason a bind can fail.
  */
-async function startListener(
-  paths: string[],
-  password: string,
-  base: number,
-  language: WebdavLanguage,
-  activity: DeviceActivity,
-): Promise<WebdavServer> {
+async function startListener({
+  paths,
+  password,
+  base,
+  language,
+  activity,
+}: ListenerOptions): Promise<WebdavServer> {
   const connect = (port: number): Promise<WebdavServer> =>
     createWebdavServer({
       paths,

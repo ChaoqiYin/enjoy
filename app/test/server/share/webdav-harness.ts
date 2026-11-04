@@ -14,7 +14,7 @@ import {
   createWebdavServer,
   type WebdavServer,
   type WebdavServerOptions,
-} from '../../../server/share/index.ts'
+} from '../../../server/share/webdav.ts'
 
 export const CREDENTIALS = { username: 'enjoy', password: '1234' }
 
@@ -32,7 +32,8 @@ export interface RequestOptions {
   body?: string
 }
 
-/** Write a file into a fresh temp directory and answer its absolute path. */export function writeVideo(directory: string, name: string, contents = 'video-bytes'): string {
+/** Write a file into a fresh temp directory and answer its absolute path. */
+export function writeVideo(directory: string, name: string, contents = 'video-bytes'): string {
   const path = join(directory, name)
   writeFileSync(path, contents)
   return path

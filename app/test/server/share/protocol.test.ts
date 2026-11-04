@@ -5,7 +5,7 @@ import {
   openWebdav,
   removeTempDir,
   writeVideo,
-} from './harness.ts'
+} from './webdav-harness.ts'
 
 function hrefs(xml: string): string[] {
   const found: string[] = []
