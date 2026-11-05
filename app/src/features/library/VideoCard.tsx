@@ -48,12 +48,14 @@ export function VideoCard({
   actions,
   lastPlayedId,
   scan,
+  pendingSharedPaths,
 }: {
   video: Video;
   busy: boolean;
   actions: VideoActionHandlers;
   lastPlayedId: number | null;
   scan?: ScanStatus;
+  pendingSharedPaths?: ReadonlySet<string>;
 }) {
   // The press is the only movement left, and the preference withholds it. The
   // `MotionConfig` the app provides is not enough on its own: under the
@@ -124,6 +126,7 @@ export function VideoCard({
             video={video}
             variant="overlay"
             lastPlayed={video.id === lastPlayedId}
+            pendingShare={pendingSharedPaths?.has(video.path) ?? false}
           />
         </div>
         <div className="flex flex-col gap-1.5 p-3">

@@ -66,20 +66,20 @@ afterEach(() => {
 })
 
 describe('分享页', () => {
-  it('共享清单为空时禁用启动，并给出跳转视频库的空态', async () => {
+  it('共享清单为空时仍可启动，并给出跳转视频库的空态', async () => {
     window.history.replaceState(null, '', '/share')
     renderShare(makeFakeApi({ videos: sharedVideos(3).map((video) => ({ ...video, shared: false })) }))
 
     expect(
       await screen.findByText('共享清单是空的，先到视频库把视频加入共享清单'),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '开启共享' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '开启共享' })).toBeEnabled()
 
     fireEvent.click(screen.getByRole('button', { name: '去视频库挑选' }))
     expect(window.location.pathname).toBe('/')
   })
 
-  it('共享清单为空但带搜索条件时仍禁用启动', async () => {
+  it('共享清单为空但带搜索条件时仍可启动', async () => {
     renderShare(
       makeFakeApi({
         videos: sharedVideos(3).map((video) => ({ ...video, shared: false })),
@@ -91,14 +91,11 @@ describe('分享页', () => {
       target: { value: '没有这个视频' },
     })
 
-    // Wait for the filtered empty state, not the loading window: the button is
-    // disabled while a request is in flight either way, and that would hide the
-    // case this test is about.
     expect(await screen.findByText('没有匹配的视频')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '开启共享' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '开启共享' })).toBeEnabled()
   })
 
-  it('清单请求失败时禁用启动', async () => {
+  it('清单请求失败时仍可启动', async () => {
     renderShare(
       makeFakeApi({
         videos: sharedVideos(),
@@ -107,7 +104,7 @@ describe('分享页', () => {
     )
 
     expect(await screen.findByText('清单读取失败')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '开启共享' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '开启共享' })).toBeEnabled()
   })
 
   it('启动与停止调用后端，并显示实际端口', async () => {
@@ -153,7 +150,7 @@ describe('分享页', () => {
     expect(api.share.opened).toBe(2)
   })
 
-  it('逐个列出连接地址，复制按钮交出完整地址，用户名固定为 enjoy', async () => {
+  it('只列出电视可以填写的地址，复制按钮交出完整地址，用户名固定为 enjoy', async () => {
     renderShare(
       makeFakeApi({
         videos: sharedVideos(),
@@ -163,9 +160,8 @@ describe('分享页', () => {
     await screen.findAllByTestId('video-card')
 
     expect(screen.getByText('http://192.168.1.5:4919/')).toBeInTheDocument()
-    expect(screen.getByText('http://127.0.0.1:4919/')).toBeInTheDocument()
+    expect(screen.getAllByText(/^http:\/\//)).toHaveLength(1)
     expect(screen.getByText('enjoy')).toBeInTheDocument()
-    expect(screen.getByText('本机')).toBeInTheDocument()
 
     fireEvent.click(
       screen.getByRole('button', {
@@ -174,15 +170,6 @@ describe('分享页', () => {
     )
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith('http://192.168.1.5:4919/'),
-    )
-
-    fireEvent.click(
-      screen.getByRole('button', {
-        name: '复制地址: http://127.0.0.1:4919/',
-      }),
-    )
-    await waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith('http://127.0.0.1:4919/'),
     )
   })
 
@@ -323,6 +310,49 @@ describe('分享页', () => {
     expect(
       screen.getByText('清单已变化，重启服务后生效'),
     ).toBeInTheDocument()
+  })
+
+  it('新增的共享视频标为待生效，移出的列在提醒区，一键重启后生效', async () => {
+    const videos = sharedVideos()
+    // The listing is newest first, so this record heads the first page; the
+    // mark has to appear on a card the page actually draws.
+    const pendingVideo = videos.at(-1)!
+    const { api } = renderShare(
+      makeFakeApi({
+        videos,
+        shareStatus: {
+          running: true,
+          port: 4918,
+          listChanged: true,
+          pendingChanges: {
+            added: [pendingVideo.path],
+            removed: ['/media/Old clip.mp4', '/media/Older clip.mp4'],
+          },
+        },
+      }),
+    )
+
+    const cards = await screen.findAllByTestId('video-card')
+    const marked = cards.find(
+      (element) => element.dataset.videoId === String(pendingVideo.id),
+    )!
+    expect(within(marked).getByTestId('pending-share-badge')).toHaveTextContent(
+      '待生效',
+    )
+    expect(
+      screen.getByText(
+        '移出的 2 个视频（Old clip.mp4、Older clip.mp4），重启服务后才会从电视上消失',
+      ),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '立即重启' }))
+
+    await waitFor(() => expect(api.share.restarted).toBe(1))
+    await waitFor(() =>
+      expect(screen.queryByTestId('pending-share-badge')).toBeNull(),
+    )
+    expect(screen.queryByRole('button', { name: '立即重启' })).toBeNull()
+    expect(screen.getByText('共享服务正在运行，端口 4918')).toBeInTheDocument()
   })
 
   it('按 only=shared 读取清单，分页、搜索与排序都用同一查询', async () => {

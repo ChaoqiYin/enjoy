@@ -20,9 +20,10 @@ interface ShareStatusBody {
   password: string
   needsRestart: boolean
   listChanged: boolean
+  pendingChanges: { added: string[]; removed: string[] }
   missingFiles: number
   devices: unknown[]
-  addresses: { address: string; loopback: boolean }[]
+  addresses: string[]
 }
 
 function statusOf(body: unknown): ShareStatusBody {
@@ -42,7 +43,7 @@ async function addSharedVideo(
   library: SharingLibrary,
   name: string,
   options: { directory?: string; onDisk?: boolean } = {},
-): Promise<string> {
+): Promise<{ path: string; id: number }> {
   const directory = options.directory ?? join(library.dataDir, 'media')
   const path = join(directory, name)
   if (options.onDisk ?? true) makeVideoFile(directory, name)
@@ -53,7 +54,7 @@ async function addSharedVideo(
     shared: true,
   })
   assert.equal(marked.status, 200)
-  return path
+  return { path, id: ids[0]! }
 }
 
 function hrefsOf(xml: string): string[] {
@@ -81,9 +82,10 @@ test('status starts nothing and generates one four-digit password', async () => 
     assert.match(first.password, /^\d{4}$/)
     assert.equal(first.needsRestart, false)
     assert.equal(first.listChanged, false)
+    assert.deepEqual(first.pendingChanges, { added: [], removed: [] })
     assert.equal(first.missingFiles, 0)
     assert.deepEqual(first.devices, [])
-    assert.ok(first.addresses.some((address) => address.loopback))
+    assert.ok(!first.addresses.includes('127.0.0.1'))
 
     const second = await status(library)
     assert.equal(second.password, first.password)
@@ -226,30 +228,71 @@ test('a password reset is stored at once but only enforced after a restart', asy
   }
 })
 
-test('listChanged follows the shared list and restarting makes the snapshot current again', async () => {
+test('pending changes name both directions and restart applies them', async () => {
   const library = await openSharingLibrary()
   try {
-    await addSharedVideo(library, 'a.mp4')
+    const first = await addSharedVideo(library, 'a.mp4')
     const opened = statusOf((await library.harness.request('POST', '/api/share/open')).body)
     const port = opened.port!
     assert.deepEqual(await propfindNames(port, opened.password), ['/', '/a.mp4'])
 
-    await addSharedVideo(library, 'b.mp4')
+    const second = await addSharedVideo(library, 'b.mp4')
     const changed = await status(library)
     assert.equal(changed.listChanged, true)
+    assert.deepEqual(changed.pendingChanges, { added: [second.path], removed: [] })
 
     // The running snapshot is unchanged: the client never loses a file
-    // underneath a playing television.
+    // underneath a playing television, and a new file is not half-offered.
     assert.deepEqual(await propfindNames(port, opened.password), ['/', '/a.mp4'])
 
-    await library.harness.request('POST', '/api/share/close')
-    const restarted = statusOf((await library.harness.request('POST', '/api/share/open')).body)
-    assert.equal(restarted.listChanged, false)
-    assert.deepEqual(await propfindNames(restarted.port!, restarted.password), [
+    const restarted = await library.harness.request('POST', '/api/share/restart')
+    assert.equal(restarted.status, 200)
+    const current = statusOf(restarted.body)
+    assert.equal(current.running, true)
+    assert.equal(current.listChanged, false)
+    assert.deepEqual(current.pendingChanges, { added: [], removed: [] })
+    assert.deepEqual(await propfindNames(current.port!, current.password), [
       '/',
       '/a.mp4',
       '/b.mp4',
     ])
+
+    // Removing a record is pending in the other direction: the snapshot keeps
+    // serving the file until the service is restarted.
+    const removed = await library.harness.request(
+      'PUT',
+      `/api/videos/${first.id}/shared`,
+      { shared: false },
+    )
+    assert.equal(removed.status, 200)
+    const afterRemoval = await status(library)
+    assert.deepEqual(afterRemoval.pendingChanges, { added: [], removed: [first.path] })
+    assert.deepEqual(await propfindNames(current.port!, current.password), [
+      '/',
+      '/a.mp4',
+      '/b.mp4',
+    ])
+
+    const again = statusOf(
+      (await library.harness.request('POST', '/api/share/restart')).body,
+    )
+    assert.deepEqual(again.pendingChanges, { added: [], removed: [] })
+    assert.deepEqual(await propfindNames(again.port!, again.password), ['/', '/b.mp4'])
+  } finally {
+    await library.close()
+  }
+})
+
+test('restarting while stopped is simply starting', async () => {
+  const library = await openSharingLibrary()
+  try {
+    await addSharedVideo(library, 'a.mp4')
+    const started = await library.harness.request('POST', '/api/share/restart')
+    assert.equal(started.status, 200)
+    const running = statusOf(started.body)
+    assert.equal(running.running, true)
+    assert.ok(running.port !== null)
+    assert.deepEqual(await propfindNames(running.port!, running.password), ['/', '/a.mp4'])
   } finally {
     await library.close()
   }

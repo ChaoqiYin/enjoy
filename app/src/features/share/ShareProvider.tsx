@@ -27,6 +27,8 @@ export interface ShareState {
   error: ApiError | null
   start: () => Promise<boolean>
   stop: () => Promise<boolean>
+  /** Stop and start again; the way a changed list reaches the client. */
+  restart: () => Promise<boolean>
   regeneratePassword: () => Promise<boolean>
   /** Repeat the command that failed, if there was one. */
   retry: () => void
@@ -130,6 +132,7 @@ export function ShareProvider({
 
   const start = useCallback(() => run(() => api.openShare()), [api, run])
   const stop = useCallback(() => run(() => api.closeShare()), [api, run])
+  const restart = useCallback(() => run(() => api.restartShare()), [api, run])
   const regeneratePassword = useCallback(
     () => run(() => api.resetSharePassword()),
     [api, run],
@@ -147,7 +150,7 @@ export function ShareProvider({
 
   return (
     <ShareContext.Provider
-      value={{ status, busy, error, start, stop, regeneratePassword, retry, dismissError }}
+      value={{ status, busy, error, start, stop, restart, regeneratePassword, retry, dismissError }}
     >
       {children}
     </ShareContext.Provider>

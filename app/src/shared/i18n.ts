@@ -82,6 +82,7 @@ const en = {
   share: 'Share',
   unshare: 'Stop sharing',
   sharedMarker: 'Shared',
+  sharePendingMarker: 'Pending',
   shareRunning: 'Sharing',
   shareStopped: 'Not sharing',
   shareRunningHint: 'The share service is running. Open the share page',
@@ -95,6 +96,11 @@ const en = {
   shareListEmptyAction: 'Choose videos in the library',
   shareListChanged:
     'The list has changed. Restart sharing for the change to take effect',
+  sharePendingAdded:
+    '{{countText}} added videos will appear on the television after sharing restarts',
+  sharePendingRemoved:
+    '{{countText}} removed videos ({{names}}) will disappear from the television after sharing restarts',
+  restartSharing: 'Restart now',
   shareMissingFiles:
     '{{countText}} files on the share list are no longer on disk, so the television will not show them',
   connectionTitle: 'Connection details',
@@ -105,7 +111,6 @@ const en = {
   connectionNoAddress:
     'The share service is running, but this computer has no usable network address right now. Check the network connection',
   copyAddress: 'Copy address',
-  addressLoopback: 'This computer',
   username: 'User name',
   password: 'Password',
   showPassword: 'Show password',
@@ -292,6 +297,7 @@ const zhCN: typeof en = {
   share: '共享',
   unshare: '取消共享',
   sharedMarker: '已共享',
+  sharePendingMarker: '待生效',
   shareRunning: '正在分享',
   shareStopped: '未在分享',
   shareRunningHint: '分享服务正在运行，点击进入分享页',
@@ -304,6 +310,10 @@ const zhCN: typeof en = {
   shareListEmpty: '共享清单是空的，先到视频库把视频加入共享清单',
   shareListEmptyAction: '去视频库挑选',
   shareListChanged: '清单已变化，重启服务后生效',
+  sharePendingAdded: '新增的 {{countText}} 个视频，重启服务后才会出现在电视上',
+  sharePendingRemoved:
+    '移出的 {{countText}} 个视频（{{names}}），重启服务后才会从电视上消失',
+  restartSharing: '立即重启',
   shareMissingFiles:
     '共享清单里有 {{countText}} 个文件已不在磁盘上，电视上不会出现',
   connectionTitle: '连接信息',
@@ -314,7 +324,6 @@ const zhCN: typeof en = {
   connectionNoAddress:
     '共享服务正在运行，但这台电脑现在没有可用的网络地址。请检查网络连接',
   copyAddress: '复制地址',
-  addressLoopback: '本机',
   username: '用户名',
   password: '密码',
   showPassword: '显示密码',

@@ -43,11 +43,13 @@ export function VideoTable({
   busy,
   actions,
   lastPlayedId,
+  pendingSharedPaths,
 }: {
   videos: Video[];
   busy: boolean;
   actions: VideoActionHandlers;
   lastPlayedId: number | null;
+  pendingSharedPaths?: ReadonlySet<string>;
 }) {
   const { t, i18n } = useTranslation();
   const date = dateTimeFormat(i18n.language);
@@ -105,6 +107,7 @@ export function VideoTable({
                   video={video}
                   variant="inline"
                   lastPlayed={video.id === lastPlayedId}
+                  pendingShare={pendingSharedPaths?.has(video.path) ?? false}
                 />
               </div>
             </TableCell>

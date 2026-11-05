@@ -35,12 +35,14 @@ export function VideoRow({
   actions,
   lastPlayedId,
   scan,
+  pendingSharedPaths,
 }: {
   video: Video;
   busy: boolean;
   actions: VideoActionHandlers;
   lastPlayedId: number | null;
   scan?: ScanStatus;
+  pendingSharedPaths?: ReadonlySet<string>;
 }) {
   const { t, i18n } = useTranslation();
   const resolution =
@@ -100,6 +102,7 @@ export function VideoRow({
             video={video}
             variant="inline"
             lastPlayed={video.id === lastPlayedId}
+            pendingShare={pendingSharedPaths?.has(video.path) ?? false}
           />
         </div>
       </div>

@@ -4,8 +4,9 @@
  *
  * One at a time, and only when the user asks. A service belongs to the space it
  * was started in: switching or deleting that space stops it first. The snapshot
- * it serves is fixed at startup, so a changed shared list is reported as
- * `listChanged` rather than being pulled out from under a playing television.
+ * it serves is fixed at startup, so a changed shared list is reported as pending
+ * paths rather than being pulled out from under a playing television; applying
+ * them is an explicit restart.
  */
 
 import type { KernelContext } from 'cordis-app/server'
@@ -17,7 +18,6 @@ import type { VideoStore } from '../library/videos.ts'
 import {
   machineAddresses,
   type NetworkInterfaces,
-  type ShareAddress,
 } from './addresses.ts'
 import { loadPassword, resetPassword, SHARE_USERNAME } from './credentials.ts'
 import { DeviceActivity, type ShareDevice } from './devices.ts'
@@ -31,6 +31,14 @@ import {
 /** How many consecutive ports are tried before the start is refused. */
 export const PORT_ATTEMPTS = 10
 
+/** How the shared list has moved since the running service copied it. */
+export interface SharePendingChanges {
+  /** Paths the list gained; the service will serve them after a restart. */
+  added: string[]
+  /** Paths the list dropped; the service still serves them until restarted. */
+  removed: string[]
+}
+
 export interface ShareStatus {
   running: boolean
   port: number | null
@@ -40,9 +48,12 @@ export interface ShareStatus {
   needsRestart: boolean
   /** The shared list no longer matches the snapshot the service serves. */
   listChanged: boolean
+  /** Which paths differ, so the page can name them and offer a restart. */
+  pendingChanges: SharePendingChanges
   missingFiles: number
   devices: ShareDevice[]
-  addresses: ShareAddress[]
+  /** Every address a television can be pointed at, most useful first. */
+  addresses: string[]
 }
 
 export interface ShareInstallOptions {
@@ -61,6 +72,8 @@ export interface ShareInstallOptions {
 export interface ShareController {
   status(): ShareStatus
   open(): Promise<ShareStatus>
+  /** Stop and start again, so the running snapshot catches up with the list. */
+  restart(): Promise<ShareStatus>
   close(): Promise<ShareStatus>
   resetPassword(): Promise<ShareStatus>
   /** Stop before the current space is changed. */
@@ -94,6 +107,12 @@ export function installShare(
     '/api/share/open',
     guarded(async (_req, res) => {
       sendJson(res, 200, await controller.open())
+    }),
+  )
+  ctx.router.post(
+    '/api/share/restart',
+    guarded(async (_req, res) => {
+      sendJson(res, 200, await controller.restart())
     }),
   )
   ctx.router.post(
@@ -132,13 +151,21 @@ function createShareController(options: ShareInstallOptions): ShareController {
     const current = store.currentSpace()
     const currentPaths = current ? videos.sharedPaths(current.id) : []
     const active = running
+    // Only a running service has a snapshot to differ from: with nothing
+    // running, every path is simply the list, not a pending change.
+    const pendingChanges =
+      active === null
+        ? { added: [], removed: [] }
+        : diffPaths(active.paths, currentPaths)
     return {
       running: active !== null,
       port: active?.port ?? null,
       username,
       password,
       needsRestart: active !== null && active.password !== password,
-      listChanged: active !== null && !samePaths(active.paths, currentPaths),
+      listChanged:
+        pendingChanges.added.length > 0 || pendingChanges.removed.length > 0,
+      pendingChanges,
       missingFiles: active?.server.missingFiles ?? 0,
       devices: active ? activity.recent() : [],
       addresses: machineAddresses(options.networkInterfaces?.()),
@@ -187,6 +214,14 @@ function createShareController(options: ShareInstallOptions): ShareController {
     status,
 
     open,
+
+    async restart() {
+      // Stopping first means a failed start leaves nothing running rather than
+      // an old snapshot that the page reports as current. The user is told the
+      // start failed and can ask again.
+      await stopRunning()
+      return open()
+    },
 
     async close() {
       await stopRunning()
@@ -281,6 +316,15 @@ function normalizeAddress(address: string): string {
   return address.startsWith('::ffff:') ? address.slice('::ffff:'.length) : address
 }
 
-function samePaths(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((path, index) => path === right[index])
+function diffPaths(
+  served: readonly string[],
+  current: readonly string[],
+): SharePendingChanges {
+  const servedSet = new Set(served)
+  const currentSet = new Set(current)
+  return {
+    added: current.filter((path) => !servedSet.has(path)),
+    removed: served.filter((path) => !currentSet.has(path)),
+  }
 }
+

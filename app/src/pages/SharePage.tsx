@@ -5,11 +5,9 @@ import { navigate } from 'cordis-app/ui'
 import { ScrollViewport } from '../shared/ScrollViewport'
 import { Button } from '../shared/ui/button'
 import { PageFrame } from '../features/layout/PageFrame'
-import { ConnectionDetails } from '../features/share/ConnectionDetails'
-import { DeviceList } from '../features/share/DeviceList'
 import { ListWarnings } from '../features/share/ListWarnings'
-import { PasswordDetails } from '../features/share/PasswordDetails'
 import { ShareNotices } from '../features/share/ShareNotices'
+import { ShareServicePanel } from '../features/share/ShareServicePanel'
 import { useShare } from '../features/share/ShareProvider'
 import { useCopy } from '../features/share/useCopy'
 import { EmptyState } from '../features/library/EmptyState'
@@ -26,11 +24,18 @@ import { useVideoListing } from '../features/library/useVideoListing'
  * The share service's page: what is being offered, how a client reaches it, and
  * who has asked.
  *
- * The list is the listing every page reads, asked for the records marked as
- * shared (`only=shared`) so paging, search, ordering and the three views mean
- * here what they mean in the library. The toolbar's action is the page's own:
- * starting or stopping the service. Everything else is a block that is handed
- * the facts it draws, which keeps the ordering of the page readable here.
+ * It is drawn in two columns. The list is the wide one — it is the listing
+ * every page reads, asked for the records marked as shared (`only=shared`), so
+ * paging, search, ordering and the three views mean here what they mean in the
+ * library. The service is a card beside it: its state, the address and
+ * credentials a television is given, and the clients heard from. Keeping the
+ * card out of the page's vertical flow means a television can be set up while
+ * the list is empty, and the address stays on the first screen when the list is
+ * long. Under `xl` the two stack, with the card first, because starting and
+ * stopping is what the page is for.
+ *
+ * Everything but the list is a block handed the facts it draws, which keeps the
+ * ordering of the page readable here.
  */
 export function SharePage() {
   const { t, i18n } = useTranslation()
@@ -40,6 +45,8 @@ export function SharePage() {
   const [detailId, setDetailId] = useState<number | null>(null)
 
   const running = share.status?.running ?? false
+  const pendingChanges = share.status?.pendingChanges ?? { added: [], removed: [] }
+  const pendingAdded = new Set(pendingChanges.added)
   const filtered = model.search !== '' || model.folder !== ''
   const empty =
     !model.loading && model.error === null && model.videos.length === 0
@@ -76,117 +83,92 @@ export function SharePage() {
         onSortChange={model.setSort}
         onViewModeChange={model.setViewMode}
         disabled={model.loading}
-        actions={
-          <Button
-            variant={running ? 'secondary' : 'primary'}
-            // A service over a list it has not read, could not read or found
-            // empty is a port a device can connect to and find nothing on: the
-            // interface keeps that from happening.
-            disabled={
-              share.busy ||
-              (!running &&
-                (model.loading || model.error !== null || model.total === 0))
-            }
-            onClick={() => void (running ? share.stop() : share.start())}
-          >
-            {running ? t('stopSharing') : t('startSharing')}
-          </Button>
-        }
       />
 
       <ScrollViewport
-        className="min-h-0 space-y-4"
+        className="min-h-0"
         style={hoverRoomStyle}
         aria-label={t('sharePage')}
       >
-        {/* The port is what can surprise: 4918 is what was asked for, and what
-            the service ends up on is whatever was free. */}
-        <p>
-          {running
-            ? t('sharingOn', { port: share.status?.port })
-            : t('sharingOff')}
-        </p>
-
-        <section className="space-y-3">
-          <h2 className="text-xl font-semibold">{t('shareListTitle')}</h2>
-          <ListWarnings
-            running={running}
-            missingFiles={share.status?.missingFiles ?? 0}
-            listChanged={share.status?.listChanged ?? false}
-          />
-          {model.loading ? (
-            <p className="py-8 text-muted-foreground">{t('loading')}</p>
-          ) : empty ? (
-            <EmptyState
-              icon={<Share2 />}
-              title={emptyList ? t('shareListEmpty') : t('noMatch')}
-              action={
-                emptyList ? (
-                  <Button
-                    variant="link"
-                    size="sm"
-                    onClick={() => navigate('/')}
-                  >
-                    {t('shareListEmptyAction')}
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      model.setSearch('')
-                      model.setFolder('')
-                    }}
-                  >
-                    {t('clear')}
-                  </Button>
-                )
-              }
+        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+          <section className="order-2 min-w-0 space-y-3 xl:order-1">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-xl font-semibold">{t('shareListTitle')}</h2>
+              {showList && (
+                <p className="text-sm text-muted-foreground tabular-nums">
+                  {t('videoCount', {
+                    countText: model.total.toLocaleString(i18n.language),
+                  })}
+                </p>
+              )}
+            </div>
+            <ListWarnings
+              running={running}
+              missingFiles={share.status?.missingFiles ?? 0}
+              listChanged={share.status?.listChanged ?? false}
+              pendingChanges={pendingChanges}
             />
-          ) : null}
-
-          {showList && (
-            <>
-              <p className="text-sm text-muted-foreground tabular-nums">
-                {t('videoCount', {
-                  countText: model.total.toLocaleString(i18n.language),
-                })}
-              </p>
-              <VideoBoard
-                videos={model.videos}
-                viewMode={model.viewMode}
-                busy={false}
-                actions={actions}
-                lastPlayedId={null}
+            {model.loading ? (
+              <p className="py-8 text-muted-foreground">{t('loading')}</p>
+            ) : empty ? (
+              <EmptyState
+                icon={<Share2 />}
+                title={emptyList ? t('shareListEmpty') : t('noMatch')}
+                action={
+                  emptyList ? (
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={() => navigate('/')}
+                    >
+                      {t('shareListEmptyAction')}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        model.setSearch('')
+                        model.setFolder('')
+                      }}
+                    >
+                      {t('clear')}
+                    </Button>
+                  )
+                }
               />
-              <Pagination
-                index={model.page}
-                total={model.total}
-                onPageChange={model.turnTo}
-              />
-            </>
-          )}
-        </section>
+            ) : null}
 
-        <ConnectionDetails
-          running={running}
-          port={share.status?.port ?? null}
-          addresses={share.status?.addresses ?? []}
-          username={share.status?.username ?? ''}
-          onCopy={(text) => void copy(text)}
-        >
-          <PasswordDetails
-            password={share.status?.password ?? ''}
+            {showList && (
+              <>
+                <VideoBoard
+                  videos={model.videos}
+                  viewMode={model.viewMode}
+                  busy={false}
+                  actions={actions}
+                  lastPlayedId={null}
+                  pendingSharedPaths={pendingAdded}
+                />
+                <Pagination
+                  index={model.page}
+                  total={model.total}
+                  onPageChange={model.turnTo}
+                />
+              </>
+            )}
+          </section>
+
+          <ShareServicePanel
+            className="order-1 xl:order-2"
+            status={share.status}
             busy={share.busy}
-            needsRestart={share.status?.needsRestart ?? false}
+            onStart={() => void share.start()}
+            onStop={() => void share.stop()}
+            onRestart={() => void share.restart()}
             onCopy={(text) => void copy(text)}
-            onRegenerate={() => void share.regeneratePassword()}
+            onRegeneratePassword={() => void share.regeneratePassword()}
           />
-        </ConnectionDetails>
-
-        {running && (
-          <DeviceList devices={share.status?.devices ?? []} />
-        )}
+        </div>
       </ScrollViewport>
 
       {detailId !== null && (

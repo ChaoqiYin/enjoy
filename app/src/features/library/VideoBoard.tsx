@@ -42,6 +42,7 @@ export function VideoBoard({
   actions,
   lastPlayedId,
   scan,
+  pendingSharedPaths,
 }: {
   videos: Video[];
   viewMode: ViewMode;
@@ -49,6 +50,8 @@ export function VideoBoard({
   actions: VideoActionHandlers;
   lastPlayedId: number | null;
   scan?: ScanStatus;
+  /** Records the running share service has not taken up yet. */
+  pendingSharedPaths?: ReadonlySet<string>;
 }) {
   return (
     <div data-testid="video-board" data-view-mode={viewMode}>
@@ -58,6 +61,7 @@ export function VideoBoard({
           busy={busy}
           actions={actions}
           lastPlayedId={lastPlayedId}
+          pendingSharedPaths={pendingSharedPaths}
         />
       ) : viewMode === 'list' ? (
         // A real list, so a reader hears how many records there are before the
@@ -72,6 +76,7 @@ export function VideoBoard({
               actions={actions}
               lastPlayedId={lastPlayedId}
               scan={scan}
+              pendingSharedPaths={pendingSharedPaths}
             />
           ))}
         </ul>
@@ -88,6 +93,7 @@ export function VideoBoard({
               actions={actions}
               lastPlayedId={lastPlayedId}
               scan={scan}
+              pendingSharedPaths={pendingSharedPaths}
             />
           ))}
         </div>

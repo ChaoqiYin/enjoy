@@ -9,6 +9,10 @@ import { Button } from '../../shared/ui/button'
  * The mask is the only state this block holds. Whether the value is the one a
  * running service checks, and whether asking for another is allowed at all, are
  * handed in — they are the server's answers, not this block's guesses.
+ *
+ * It is drawn in the width of the service card's value column, so the label
+ * lines up with the user name above it and the actions wrap under it rather
+ * than pushing the value out of view.
  */
 export function PasswordDetails({
   password,
@@ -27,9 +31,9 @@ export function PasswordDetails({
   const [shown, setShown] = useState(false)
 
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="w-24 text-sm text-muted-foreground">
+    <div className="flex flex-col gap-2 text-sm">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="w-14 shrink-0 text-muted-foreground">
           {t('password')}
         </span>
         <code className="select-all">{shown ? password : '••••'}</code>
@@ -45,7 +49,7 @@ export function PasswordDetails({
           {t('copyPassword')}
         </Button>
       </div>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           variant="outline"
           size="sm"
@@ -55,11 +59,11 @@ export function PasswordDetails({
           {t('regeneratePassword')}
         </Button>
         {needsRestart && (
-          <span className="text-sm text-warning">
+          <span className="text-xs text-warning">
             {t('passwordRestartNeeded')}
           </span>
         )}
       </div>
-    </>
+    </div>
   )
 }

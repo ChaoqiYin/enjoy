@@ -58,11 +58,12 @@ export interface ShareDevice {
   lastSeenAt: number
 }
 
-/** One IPv4 address the share service can be reached at. */
-export interface ShareAddress {
-  address: string
-  /** Whether the address only reaches this machine. */
-  loopback: boolean
+/** How the shared list has moved since the running service copied it. */
+export interface SharePendingChanges {
+  /** Paths the list gained; they appear after a restart. */
+  added: string[]
+  /** Paths the list dropped; they stay visible until a restart. */
+  removed: string[]
 }
 
 /** `GET /api/share/status`, and what every share command answers with. */
@@ -76,12 +77,14 @@ export interface ShareStatus {
   needsRestart: boolean
   /** The shared list no longer matches the snapshot the service serves. */
   listChanged: boolean
+  /** Which paths differ; empty while nothing is running. */
+  pendingChanges: SharePendingChanges
   /** Videos in the snapshot whose file is gone; zero unless running. */
   missingFiles: number
   /** Most recently heard from first; empty unless running. */
   devices: ShareDevice[]
-  /** Every address the service can be reached at, most useful first. */
-  addresses: ShareAddress[]
+  /** Every address a television can be pointed at, most useful first. */
+  addresses: string[]
 }
 
 /** One entry of the read-only plugin catalogue the server reports. */
@@ -202,6 +205,8 @@ export interface ApiClient {
   getShareStatus(): Promise<ShareStatus>
   /** Start the service over the current space's shared list. */
   openShare(): Promise<ShareStatus>
+  /** Stop and start again, applying a changed list or password. */
+  restartShare(): Promise<ShareStatus>
   /** Stop the service; answering when it is already stopped is not a failure. */
   closeShare(): Promise<ShareStatus>
   /** Draw a new password; a running service keeps the old one until restarted. */
@@ -379,6 +384,10 @@ export function createApiClient(http: HttpTransport): ApiClient {
 
     async openShare() {
       return http.post<ShareStatus>('/api/share/open')
+    },
+
+    async restartShare() {
+      return http.post<ShareStatus>('/api/share/restart')
     },
 
     async closeShare() {

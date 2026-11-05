@@ -13,21 +13,27 @@ import type { Video } from '../../shared/api';
  *
  * Two marks share the place: `shared`, a fact about the record that is true
  * until it is turned off, and `lastPlayed`, a fact about this session that is
- * handed in rather than derived. Neither is drawn when it does not hold, and
- * the pair sits together so a record with both still leaves the picture's
- * corner legible.
+ * handed in rather than derived. A third, `pendingShare`, is a fact about the
+ * running share service rather than about the record: the record is on the
+ * shared list, but the service copied its snapshot before that and will not
+ * offer the file until it is restarted. It is drawn beside the shared mark so
+ * the two read as one sentence — shared, but not yet in effect. None is drawn
+ * when it does not hold, and they sit together so a record with several still
+ * leaves the picture's corner legible.
  */
 export function VideoBadges({
   video,
   variant,
   lastPlayed = false,
+  pendingShare = false,
 }: {
   video: Video;
   variant: 'overlay' | 'inline';
   lastPlayed?: boolean;
+  pendingShare?: boolean;
 }) {
   const { t } = useTranslation();
-  if (!video.shared && !lastPlayed) return null;
+  if (!video.shared && !lastPlayed && !pendingShare) return null;
   // The shared mark borrows the drawings' business pair rather than a
   // primitive's colour: it is opaque so the photograph never reaches under it,
   // and its edge is what separates it from what it covers.
@@ -42,6 +48,11 @@ export function VideoBadges({
       {video.shared && (
         <Badge data-testid="shared-badge" variant="share">
           {t('sharedMarker')}
+        </Badge>
+      )}
+      {pendingShare && (
+        <Badge data-testid="pending-share-badge" variant="warning">
+          {t('sharePendingMarker')}
         </Badge>
       )}
       {lastPlayed && (

@@ -56,6 +56,7 @@ export interface FakeNativeCall {
 }
 
 /** A share status with the two addresses the server would usually report. */
+/** A share status with the address a server would usually report. */
 export function makeShareStatus(overrides: Partial<ShareStatus> = {}): ShareStatus {
   return {
     running: false,
@@ -64,23 +65,22 @@ export function makeShareStatus(overrides: Partial<ShareStatus> = {}): ShareStat
     password: '1234',
     needsRestart: false,
     listChanged: false,
+    pendingChanges: { added: [], removed: [] },
     missingFiles: 0,
     devices: [],
-    addresses: [
-      { address: '192.168.1.5', loopback: false },
-      { address: '127.0.0.1', loopback: true },
-    ],
+    addresses: ['192.168.1.5'],
     ...overrides,
   }
 }
 
-export type ShareOperation = 'status' | 'open' | 'close' | 'password'
+export type ShareOperation = 'status' | 'open' | 'restart' | 'close' | 'password'
 
 export interface FakeShareState {
   /** What the next status read answers; tests may change it between polls. */
   status: ShareStatus
   statusCalls: number
   opened: number
+  restarted: number
   closed: number
   regenerated: number
   /** Thrown by the next call of that operation, then cleared. */
@@ -156,6 +156,7 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
     status: makeShareStatus(options.shareStatus),
     statusCalls: 0,
     opened: 0,
+    restarted: 0,
     closed: 0,
     regenerated: 0,
     failNext: {},
@@ -176,7 +177,7 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
   const shareAnswer = (): ShareStatus => ({
     ...share.status,
     devices: share.status.devices.map((device) => ({ ...device })),
-    addresses: share.status.addresses.map((address) => ({ ...address })),
+    addresses: [...share.status.addresses],
   })
 
   return {
@@ -320,6 +321,24 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
         devices: [],
         missingFiles: 0,
         listChanged: false,
+        pendingChanges: { added: [], removed: [] },
+        needsRestart: false,
+      }
+      return shareAnswer()
+    },
+    async restartShare() {
+      share.restarted += 1
+      failIfAsked('restart')
+      // A restart applies the list and the password the status already holds:
+      // the service is running on the same port with nothing left pending.
+      share.status = {
+        ...share.status,
+        running: true,
+        port: share.status.port ?? 4918,
+        devices: [],
+        missingFiles: 0,
+        listChanged: false,
+        pendingChanges: { added: [], removed: [] },
         needsRestart: false,
       }
       return shareAnswer()
@@ -334,6 +353,7 @@ export function makeFakeApi(options: FakeApiOptions = {}): FakeApi {
         devices: [],
         missingFiles: 0,
         listChanged: false,
+        pendingChanges: { added: [], removed: [] },
         needsRestart: false,
       }
       return shareAnswer()

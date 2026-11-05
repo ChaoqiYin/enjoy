@@ -3,13 +3,8 @@ import test from 'node:test'
 import type { NetworkInterfaces } from '../../../server/share/addresses.ts'
 import { openSharingLibrary } from './share-harness.ts'
 
-interface AddressBody {
-  address: string
-  loopback: boolean
-}
-
-function addressesOf(body: unknown): AddressBody[] {
-  return (body as { addresses: AddressBody[] }).addresses
+function addressesOf(body: unknown): string[] {
+  return (body as { addresses: string[] }).addresses
 }
 
 const INTERFACES: NetworkInterfaces = {
@@ -25,9 +20,13 @@ const INTERFACES: NetworkInterfaces = {
   utun: [{ address: '172.20.0.1', family: 'IPv4', internal: false }],
   any: [{ address: '0.0.0.0', family: 'IPv4', internal: false }],
   wired: [{ address: '10.0.0.5', family: 'IPv4', internal: false }],
+  // What macOS internet sharing or a virtual machine leaves behind: a real
+  // address on a bridge, but not one the television is on.
+  bridge100: [{ address: '192.168.64.1', family: 'IPv4', internal: false }],
+  docker0: [{ address: '172.17.0.1', family: 'IPv4', internal: false }],
 }
 
-test('addresses are IPv4 only, ordered private, link-local, public, loopback', async () => {
+test('only addresses a television can be pointed at are listed, private first', async () => {
   const library = await openSharingLibrary({
     networkInterfaces: () => INTERFACES,
   })
@@ -35,27 +34,25 @@ test('addresses are IPv4 only, ordered private, link-local, public, loopback', a
     const response = await library.harness.request('GET', '/api/share/status')
     assert.equal(response.status, 200)
     assert.deepEqual(addressesOf(response.body), [
-      { address: '10.0.0.5', loopback: false },
-      { address: '172.20.0.1', loopback: false },
-      { address: '192.168.1.5', loopback: false },
-      { address: '169.254.3.7', loopback: false },
-      { address: '203.0.113.9', loopback: false },
-      { address: '127.0.0.1', loopback: true },
+      '10.0.0.5',
+      '192.168.1.5',
+      '203.0.113.9',
     ])
   } finally {
     await library.close()
   }
 })
 
-test('the loopback address is always present and only it is marked', async () => {
+test('with no usable interface the list is empty rather than inventing one', async () => {
   const library = await openSharingLibrary({
-    networkInterfaces: () => ({}),
+    networkInterfaces: () => ({
+      lo0: [{ address: '127.0.0.1', family: 'IPv4', internal: true }],
+      bridge100: [{ address: '192.168.64.1', family: 'IPv4', internal: false }],
+    }),
   })
   try {
     const response = await library.harness.request('GET', '/api/share/status')
-    assert.deepEqual(addressesOf(response.body), [
-      { address: '127.0.0.1', loopback: true },
-    ])
+    assert.deepEqual(addressesOf(response.body), [])
   } finally {
     await library.close()
   }
